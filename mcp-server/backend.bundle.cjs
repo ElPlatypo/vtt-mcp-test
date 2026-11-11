@@ -116533,10 +116533,41 @@ var sceneObjectsSchema = external_exports.object({
   all_mine: external_exports.boolean().optional(),
   kind: external_exports.enum(["token", "light", "wall", "note"]).optional()
 }).strict();
+var behaviorSchema = external_exports.object({
+  preset: external_exports.enum(["difficult_terrain"]).optional(),
+  cost: external_exports.number().min(0).max(10).optional(),
+  type: external_exports.string().min(1).max(64).optional(),
+  name: external_exports.string().max(100).optional(),
+  system: external_exports.record(external_exports.unknown()).optional(),
+  disabled: external_exports.boolean().optional()
+}).strict();
+var regionSchema = external_exports.object({
+  name: external_exports.string().min(1).max(100),
+  rect: external_exports.array(external_exports.number()).length(4).optional(),
+  ellipse: external_exports.array(external_exports.number()).length(4).optional(),
+  polygon: external_exports.array(external_exports.array(external_exports.number()).length(2)).min(3).max(200).optional(),
+  color: external_exports.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
+  hidden: external_exports.boolean().optional(),
+  display_measurements: external_exports.boolean().optional(),
+  behaviors: external_exports.array(behaviorSchema).max(10).optional()
+}).strict();
+var manageRegionsSchema = external_exports.object({
+  action: external_exports.enum(["create", "describe", "remove", "behavior_types"]),
+  scene: external_exports.string().min(1).optional(),
+  regions: external_exports.array(regionSchema).min(1).max(100).optional(),
+  ids: external_exports.array(external_exports.string().min(1)).max(500).optional(),
+  all_mine: external_exports.boolean().optional()
+}).strict();
 var previewSchema = external_exports.object({
   scene: external_exports.string().min(1).optional(),
   max_size: external_exports.number().int().min(200).max(3e3).optional(),
-  label_every: external_exports.number().int().min(1).max(50).optional()
+  label_every: external_exports.number().int().min(1).max(50).optional(),
+  region: external_exports.object({
+    x: external_exports.number().min(0),
+    y: external_exports.number().min(0),
+    width: external_exports.number().min(2),
+    height: external_exports.number().min(2)
+  }).strict().optional()
 }).strict();
 var SceneObjectTools = class {
   foundryClient;
@@ -116690,14 +116721,74 @@ var SceneObjectTools = class {
         }
       },
       {
+        name: "manage-regions",
+        description: 'Regions are areas of a scene that act when tokens enter, leave or move in them: difficult terrain, traps, pop-up text, teleports. Shapes are in GRID SQUARES from the top-left corner of the map, like manage-scene-objects. create takes regions (up to 100): {name, one of rect:[x,y,width,height] | ellipse:[centreX,centreY,radiusX,radiusY] | polygon:[[x,y],...], color?, hidden?, display_measurements?, behaviors?}. A behavior is either {preset:"difficult_terrain", cost?} (movement costs cost times as much, default 2) or a raw Foundry behavior {type, name?, system?, disabled?} such as executeMacro (run a world macro on tokenEnter, e.g. a pit trap that rolls a save and damage), displayScrollingText, pauseGame or teleportToken. Run behavior_types first to see exactly which fields each behavior type of this Foundry accepts. describe lists the regions of a scene; remove needs ids or all_mine:true and only removes regions this tool created. scene is an id or exact name (default: the scene being viewed). Needs the Foundry tab open in a browser.',
+        inputSchema: {
+          type: "object",
+          properties: {
+            action: { type: "string", enum: ["create", "describe", "remove", "behavior_types"] },
+            scene: { type: "string", description: "Scene id or exact name (default: the scene being viewed)" },
+            regions: {
+              type: "array",
+              description: "Regions to create (action create)",
+              items: {
+                type: "object",
+                properties: {
+                  name: { type: "string" },
+                  rect: { type: "array", items: { type: "number" }, description: "[x, y, width, height] in grid squares" },
+                  ellipse: { type: "array", items: { type: "number" }, description: "[centreX, centreY, radiusX, radiusY] in grid squares" },
+                  polygon: { type: "array", items: { type: "array", items: { type: "number" } }, description: "[[x, y], ...] corners in grid squares" },
+                  color: { type: "string", description: "#RRGGBB" },
+                  hidden: { type: "boolean" },
+                  display_measurements: { type: "boolean" },
+                  behaviors: {
+                    type: "array",
+                    items: {
+                      type: "object",
+                      properties: {
+                        preset: { type: "string", enum: ["difficult_terrain"] },
+                        cost: { type: "number" },
+                        type: { type: "string" },
+                        name: { type: "string" },
+                        system: { type: "object" },
+                        disabled: { type: "boolean" }
+                      },
+                      additionalProperties: false
+                    }
+                  }
+                },
+                required: ["name"],
+                additionalProperties: false
+              }
+            },
+            ids: { type: "array", items: { type: "string" }, description: "remove: ids of regions created by this tool" },
+            all_mine: { type: "boolean", description: "remove: every region on the scene that this tool created" }
+          },
+          required: ["action"],
+          additionalProperties: false
+        }
+      },
+      {
         name: "preview-scene",
-        description: "Render a scene as a picture: the map image with a numbered grid (column numbers along the top and bottom, row numbers along the sides, stronger lines every 5 squares) and the scene's tokens (red), lights (circles), walls (cyan; doors orange, secret doors dashed) and map pins (yellow diamonds) on top. The picture is saved to a file on this computer; its path is returned, and you can open it to see where things are in grid squares. Read-only. Needs the Foundry tab open in a browser.",
+        description: "Render a scene as a picture: the map image with a numbered grid (column numbers along the top and bottom, row numbers along the sides, stronger lines every 5 squares) and the scene's tokens (red), lights (circles), walls (cyan; doors orange, secret doors dashed) and map pins (yellow diamonds) on top. The picture is saved to a file on this computer; its path is returned, and you can open it to see where things are in grid squares. Pass region (x, y, width, height in grid squares) to zoom in on one area at full detail, with the same square numbers, so walls and doors can be placed precisely. Read-only. Needs the Foundry tab open in a browser.",
         inputSchema: {
           type: "object",
           properties: {
             scene: {
               type: "string",
               description: "Scene id or exact name (default: the scene being viewed)"
+            },
+            region: {
+              type: "object",
+              description: "Zoom: only draw this rectangle of the scene, in grid squares (at least 2 by 2); the numbers stay those of the whole scene",
+              properties: {
+                x: { type: "number" },
+                y: { type: "number" },
+                width: { type: "number" },
+                height: { type: "number" }
+              },
+              required: ["x", "y", "width", "height"],
+              additionalProperties: false
             },
             max_size: {
               type: "number",
@@ -116743,6 +116834,25 @@ var SceneObjectTools = class {
     } catch (error) {
       this.logger.error("Failed to manage scene objects", error);
       throw new Error(`Failed to manage scene objects: ${error instanceof Error ? error.message : "Unknown error"}`);
+    }
+  }
+  async handleManageRegions(args) {
+    const parsed = manageRegionsSchema.parse(args ?? {});
+    if (parsed.action === "create" && !parsed.regions) {
+      throw new Error("regions is required for create");
+    }
+    if (parsed.action === "remove" && !parsed.all_mine && !(parsed.ids && parsed.ids.length)) {
+      throw new Error("remove needs ids or all_mine: true");
+    }
+    try {
+      const result = await this.foundryClient.query("foundry-mcp-bridge.manage-regions", parsed);
+      if (result?.success === false) {
+        throw new Error(result.error || "Request was refused");
+      }
+      return result;
+    } catch (error) {
+      this.logger.error("Failed to manage regions", error);
+      throw new Error(`Failed to manage regions: ${error instanceof Error ? error.message : "Unknown error"}`);
     }
   }
   async handleMeasureGrid(args) {
@@ -118084,6 +118194,9 @@ async function startBackend() {
                   break;
                 case "measure-grid":
                   result = await sceneObjectTools.handleMeasureGrid(args);
+                  break;
+                case "manage-regions":
+                  result = await sceneObjectTools.handleManageRegions(args);
                   break;
                 case "manage-journals":
                   result = await journalTools.handleManageJournals(args);

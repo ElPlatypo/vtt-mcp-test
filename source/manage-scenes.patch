@@ -1723,6 +1723,240 @@ index 0000000..f299714
 +    });
 +  });
 +});
+diff --git a/packages/foundry-module/src/data-access.regions.test.ts b/packages/foundry-module/src/data-access.regions.test.ts
+new file mode 100644
+index 0000000..0cc8cfa
+--- /dev/null
++++ b/packages/foundry-module/src/data-access.regions.test.ts
+@@ -0,0 +1,228 @@
++/**
++ * manage-regions and zoomed preview-scene tests. Foundry is stubbed: these check the data sent
++ * to createEmbeddedDocuments / deleteEmbeddedDocuments, the grid conversion, validation, the
++ * "only remove what the tool created" rule and the write gate.
++ */
++
++import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
++import { FoundryDataAccess } from './data-access.js';
++
++const MODULE = 'foundry-mcp-bridge-scenes';
++const MINE = { [MODULE]: { sceneObjectsTool: true } };
++
++function makeScene(regions: any[] = []) {
++  const scene: any = {
++    id: 's1',
++    name: 'Cave',
++    width: 4000,
++    height: 3000,
++    padding: 0.25,
++    grid: { size: 100, distance: 5, units: 'ft' },
++    dimensions: { sceneX: 1000, sceneY: 800, sceneWidth: 4000, sceneHeight: 3000 },
++    tokens: { contents: [] as any[] },
++    lights: { contents: [] as any[] },
++    regions: { contents: regions },
++    createEmbeddedDocuments: vi.fn(async (type: string, data: any[]) =>
++      data.map((d, i) => ({
++        id: `${type}-${i}`,
++        name: d.name,
++        behaviors: { contents: (d.behaviors ?? []).map((b: any) => ({ type: b.type })) },
++      }))
++    ),
++    deleteEmbeddedDocuments: vi.fn(async () => []),
++  };
++  return scene;
++}
++
++function setup(options: { allowWriteOperations?: boolean; scene?: any } = {}) {
++  const scene = options.scene ?? makeScene();
++  vi.stubGlobal('Hooks', { on: vi.fn(), callAll: vi.fn() });
++  vi.stubGlobal('CONFIG', {
++    RegionBehavior: {
++      dataModels: {
++        modifyMovementCost: { schema: { fields: { difficulties: { fields: { walk: {}, swim: {} } } } } },
++        pauseGame: { schema: { fields: { once: { constructor: { name: 'BooleanField' } } } } },
++      },
++    },
++  });
++  vi.stubGlobal('game', {
++    ready: true,
++    world: { id: 'world-1', getFlag: vi.fn(() => []), setFlag: vi.fn() },
++    user: { id: 'gm', name: 'Gamemaster' },
++    scenes: { contents: [scene], viewed: scene, current: scene },
++    actors: { contents: [] },
++    settings: {
++      get: (_m: string, key: string) =>
++        key === 'allowWriteOperations' ? (options.allowWriteOperations ?? true) : undefined,
++    },
++  });
++  return { dataAccess: new FoundryDataAccess(), scene };
++}
++
++describe('FoundryDataAccess.manageRegions', () => {
++  beforeEach(() => vi.unstubAllGlobals());
++  afterEach(() => vi.unstubAllGlobals());
++
++  it('creates a difficult terrain region in pixels, with the movement types Foundry knows', async () => {
++    const { dataAccess, scene } = setup();
++
++    const result = await dataAccess.manageRegions({
++      action: 'create',
++      regions: [
++        { name: 'Rubble', rect: [2, 1, 3, 2], behaviors: [{ preset: 'difficult_terrain', cost: 2 }] },
++      ],
++    });
++
++    const [type, data] = scene.createEmbeddedDocuments.mock.calls[0];
++    expect(type).toBe('Region');
++    expect(data[0]).toMatchObject({
++      name: 'Rubble',
++      shapes: [{ type: 'rectangle', x: 1200, y: 900, width: 300, height: 200 }],
++      behaviors: [
++        { type: 'modifyMovementCost', system: { difficulties: { walk: 2, swim: 2 } } },
++      ],
++      flags: MINE,
++    });
++    expect(result.created).toEqual([{ id: 'Region-0', name: 'Rubble', behaviors: ['modifyMovementCost'] }]);
++  });
++
++  it('creates a trap that runs a macro when a token enters', async () => {
++    const { dataAccess, scene } = setup();
++    await dataAccess.manageRegions({
++      action: 'create',
++      regions: [
++        {
++          name: 'Pit trap',
++          rect: [10, 5, 2, 1],
++          hidden: true,
++          behaviors: [
++            { type: 'executeMacro', system: { events: ['tokenEnter'], uuid: 'Macro.pit' } },
++          ],
++        },
++      ],
++    });
++    const data = scene.createEmbeddedDocuments.mock.calls[0][1][0];
++    expect(data.hidden).toBe(true);
++    expect(data.behaviors[0]).toEqual({
++      type: 'executeMacro',
++      system: { events: ['tokenEnter'], uuid: 'Macro.pit' },
++    });
++  });
++
++  it('refuses regions outside the scene and empty lists', async () => {
++    const { dataAccess } = setup();
++    await expect(
++      dataAccess.manageRegions({ action: 'create', regions: [{ name: 'Far', rect: [39, 29, 5, 5] }] })
++    ).rejects.toThrow('outside the scene');
++    await expect(dataAccess.manageRegions({ action: 'create', regions: [] })).rejects.toThrow('non-empty');
++  });
++
++  it('is blocked when write operations are off', async () => {
++    const { dataAccess, scene } = setup({ allowWriteOperations: false });
++    await expect(
++      dataAccess.manageRegions({ action: 'create', regions: [{ name: 'x', rect: [1, 1, 1, 1] }] })
++    ).rejects.toThrow();
++    expect(scene.createEmbeddedDocuments).not.toHaveBeenCalled();
++  });
++
++  it('describes regions with their shapes in squares and marks the ones it made', async () => {
++    const scene = makeScene([
++      {
++        id: 'r1',
++        name: 'Rubble',
++        color: '#c97a1a',
++        hidden: false,
++        flags: MINE,
++        shapes: [{ type: 'rectangle', x: 1200, y: 900, width: 300, height: 200 }],
++        behaviors: { contents: [{ id: 'b1', type: 'modifyMovementCost', name: 'Difficult terrain' }] },
++      },
++      { id: 'r2', name: 'Theirs', shapes: [], behaviors: { contents: [] } },
++    ]);
++    const { dataAccess } = setup({ scene });
++
++    const result = await dataAccess.manageRegions({ action: 'describe' });
++
++    expect(result.regions[0]).toMatchObject({
++      id: 'r1',
++      shapes: [{ type: 'rect', rect: [2, 1, 3, 2] }],
++      behaviors: [{ type: 'modifyMovementCost' }],
++      createdByTool: true,
++    });
++    expect(result.regions[1].createdByTool).toBe(false);
++  });
++
++  it('removes only regions it created', async () => {
++    const scene = makeScene([
++      { id: 'r1', name: 'Mine', flags: MINE, shapes: [], behaviors: { contents: [] } },
++      { id: 'r2', name: 'Theirs', shapes: [], behaviors: { contents: [] } },
++    ]);
++    const { dataAccess } = setup({ scene });
++
++    const result = await dataAccess.manageRegions({ action: 'remove', ids: ['r1', 'r2'] });
++
++    expect(scene.deleteEmbeddedDocuments).toHaveBeenCalledWith('Region', ['r1']);
++    expect(result.removed).toEqual(['r1']);
++    expect(result.skipped).toEqual(['r2']);
++
++    scene.deleteEmbeddedDocuments.mockClear();
++    const all = await dataAccess.manageRegions({ action: 'remove', all_mine: true });
++    expect(all.removed).toEqual(['r1']);
++  });
++
++  it('lists the behaviour types of this Foundry with their fields', async () => {
++    const { dataAccess } = setup();
++    const result = await dataAccess.manageRegions({ action: 'behavior_types' });
++    expect(Object.keys(result.types)).toEqual(['modifyMovementCost', 'pauseGame']);
++    expect(result.types.modifyMovementCost.difficulties.fields).toBeDefined();
++    expect(result.presets).toEqual(['difficult_terrain']);
++  });
++});
++
++describe('FoundryDataAccess.previewScene region zoom', () => {
++  beforeEach(() => vi.unstubAllGlobals());
++  afterEach(() => vi.unstubAllGlobals());
++
++  function stubBrowser() {
++    const ctx: any = new Proxy(
++      {},
++      { get: (_t, prop) => (prop === 'canvas' ? undefined : () => undefined), set: () => true }
++    );
++    const canvas = {
++      width: 0,
++      height: 0,
++      getContext: () => ctx,
++      toDataURL: () => 'data:image/png;base64,QUJD',
++    };
++    vi.stubGlobal('document', { createElement: () => canvas });
++    return canvas;
++  }
++
++  it('draws only the region, enlarged to fill the picture', async () => {
++    const { dataAccess } = setup();
++    const canvas = stubBrowser();
++
++    const result = await dataAccess.previewScene({
++      max_size: 1600,
++      region: { x: 10, y: 5, width: 10, height: 8 },
++    });
++
++    expect(result.success).toBe(true);
++    expect(result.scale).toBe(1.6);
++    expect(result.width).toBe(1600);
++    expect(result.height).toBe(1280);
++    expect(canvas.width).toBe(1600);
++    expect(result.region).toEqual({ x: 10, y: 5, width: 10, height: 8 });
++  });
++
++  it('keeps a region inside the scene and refuses ones that are too small', async () => {
++    const { dataAccess } = setup();
++    stubBrowser();
++
++    const clipped = await dataAccess.previewScene({ region: { x: 35, y: 25, width: 20, height: 20 } });
++    expect(clipped.region).toEqual({ x: 35, y: 25, width: 5, height: 5 });
++
++    await expect(
++      dataAccess.previewScene({ region: { x: 39.5, y: 5, width: 3, height: 3 } })
++    ).rejects.toThrow('2 by 2');
++  });
++});
 diff --git a/packages/foundry-module/src/data-access.scene-objects.test.ts b/packages/foundry-module/src/data-access.scene-objects.test.ts
 new file mode 100644
 index 0000000..0a5a35c
@@ -2329,10 +2563,10 @@ index 0000000..0a5a35c
 +  });
 +});
 diff --git a/packages/foundry-module/src/data-access.ts b/packages/foundry-module/src/data-access.ts
-index eecda7e..386b6a3 100644
+index eecda7e..b55403b 100644
 --- a/packages/foundry-module/src/data-access.ts
 +++ b/packages/foundry-module/src/data-access.ts
-@@ -1,5 +1,52 @@
+@@ -1,5 +1,61 @@
  import { MODULE_ID, ERROR_MESSAGES, TOKEN_DISPOSITIONS } from './constants.js';
  import { permissionManager } from './permissions.js';
 +import {
@@ -2359,11 +2593,20 @@ index eecda7e..386b6a3 100644
 +  defaultLabelEvery,
 +  drawPreview,
 +  previewScale,
++  previewSize,
 +  type PreviewLight,
 +  type PreviewNote,
 +  type PreviewToken,
++  type PreviewView,
 +  type PreviewWall,
 +} from './preview-utils.js';
++import {
++  buildRegionData,
++  describeSchemaFields,
++  describeShape,
++  MAX_REGIONS_PER_CALL,
++  type RegionSpec,
++} from './region-utils.js';
 +import { measureGrid as measureGridInPicture } from './grid-measure-utils.js';
 +import {
 +  OWNERSHIP_LEVELS,
@@ -2385,7 +2628,7 @@ index eecda7e..386b6a3 100644
  import { transactionManager } from './transaction-manager.js';
  
  // The same five characters foundry.utils.escapeHTML replaces in v14, kept local because
-@@ -6714,7 +6761,7 @@ export class FoundryDataAccess {
+@@ -6714,7 +6770,7 @@ export class FoundryDataAccess {
  
          // Send socket request to GM
          if (game.socket) {
@@ -2394,7 +2637,7 @@ index eecda7e..386b6a3 100644
              type: 'requestMessageUpdate',
              buttonId,
              userId,
-@@ -8101,6 +8148,1539 @@ export class FoundryDataAccess {
+@@ -8101,6 +8157,1708 @@ export class FoundryDataAccess {
      }
    }
  
@@ -3158,6 +3401,144 @@ index eecda7e..386b6a3 100644
 +    }
 +  }
 +
++  /** The movement types this Foundry's difficult-terrain behaviour has a cost for. */
++  private movementCostKeys(): string[] {
++    const model = (globalThis as any).CONFIG?.RegionBehavior?.dataModels?.modifyMovementCost;
++    const fields = model?.schema?.fields?.difficulties?.fields ?? model?.defineSchema?.()?.difficulties?.fields;
++    if (fields && typeof fields === 'object') return Object.keys(fields);
++    const actions = (globalThis as any).CONFIG?.Token?.movement?.actions;
++    return actions && typeof actions === 'object'
++      ? Object.keys(actions).filter(key => key !== 'displace')
++      : [];
++  }
++
++  /**
++   * Regions: areas of a scene that act when tokens enter, leave or move in them (difficult
++   * terrain, traps that run a macro, pop-up text, teleports). create / describe / remove (only
++   * regions this tool made) / behavior_types (what each behaviour type accepts).
++   */
++  async manageRegions(options: {
++    action: 'create' | 'describe' | 'remove' | 'behavior_types';
++    scene?: string;
++    regions?: RegionSpec[];
++    ids?: string[];
++    all_mine?: boolean;
++  }): Promise<any> {
++    this.validateFoundryState();
++
++    try {
++      const action = options.action;
++      if (action !== 'create' && action !== 'describe' && action !== 'remove' && action !== 'behavior_types') {
++        throw new Error(`Unknown action: ${String(action)} (create | describe | remove | behavior_types)`);
++      }
++
++      if (action === 'behavior_types') {
++        const models = (globalThis as any).CONFIG?.RegionBehavior?.dataModels ?? {};
++        const types: Record<string, any> = {};
++        for (const [type, model] of Object.entries<any>(models)) {
++          let fields: any;
++          try {
++            fields = model?.schema?.fields ?? model?.defineSchema?.();
++          } catch {
++            fields = undefined;
++          }
++          types[type] = describeSchemaFields(fields, 2);
++        }
++        const events = (globalThis as any).CONFIG?.RegionBehavior?.events ?? undefined;
++        return {
++          success: true,
++          types,
++          ...(events ? { events: Array.isArray(events) ? events : Object.keys(events) } : {}),
++          presets: ['difficult_terrain'],
++        };
++      }
++
++      const scene = this.resolveSceneForObjects(options.scene);
++      const geom = getGridGeometry(scene);
++      const regionDocs = (scene.regions?.contents || []) as any[];
++
++      if (action === 'describe') {
++        return {
++          success: true,
++          scene: { id: scene.id, name: scene.name },
++          regions: regionDocs.map(region => ({
++            id: region.id,
++            name: region.name,
++            color: region.color ? String(region.color) : null,
++            hidden: !!region.hidden,
++            shapes: ((region.shapes || []) as any[]).map(shape => describeShape(shape, geom)),
++            behaviors: ((region.behaviors?.contents || []) as any[]).map(b => ({
++              id: b.id,
++              type: b.type,
++              name: b.name,
++              disabled: !!b.disabled,
++            })),
++            createdByTool: this.isToolObject(region),
++          })),
++        };
++      }
++
++      const permissionCheck = permissionManager.checkWritePermission('modifyScene', {});
++      if (!permissionCheck.allowed) {
++        throw new Error(`${ERROR_MESSAGES.ACCESS_DENIED}: ${permissionCheck.reason}`);
++      }
++
++      if (action === 'create') {
++        const specs = options.regions ?? [];
++        if (!Array.isArray(specs) || specs.length === 0) {
++          throw new Error('regions must be a non-empty list');
++        }
++        if (specs.length > MAX_REGIONS_PER_CALL) {
++          throw new Error(`At most ${MAX_REGIONS_PER_CALL} regions per call`);
++        }
++        const keys = this.movementCostKeys();
++        const flags = { [this.moduleId]: { [CREATED_BY_FLAG]: true } };
++        const data = specs.map((spec, index) => ({
++          ...buildRegionData(spec, geom, keys, `regions[${index}]`),
++          flags,
++        }));
++        const created = (await scene.createEmbeddedDocuments('Region', data)) as any[];
++        this.auditLog('manageRegions:create', { scene: scene.id, count: created.length }, 'success');
++        return {
++          success: true,
++          action: 'create',
++          scene: { id: scene.id, name: scene.name },
++          created: created.map(region => ({
++            id: region.id,
++            name: region.name,
++            behaviors: ((region.behaviors?.contents || []) as any[]).map(b => b.type),
++          })),
++        };
++      }
++
++      // remove: only regions this tool created
++      const wanted = options.all_mine
++        ? regionDocs.filter(region => this.isToolObject(region))
++        : regionDocs.filter(region => (options.ids ?? []).includes(region.id));
++      const removable = wanted.filter(region => this.isToolObject(region));
++      const skipped = wanted.filter(region => !this.isToolObject(region)).map(region => region.id);
++      if (removable.length > 0) {
++        await scene.deleteEmbeddedDocuments(
++          'Region',
++          removable.map(region => region.id)
++        );
++      }
++      this.auditLog('manageRegions:remove', { scene: scene.id, count: removable.length }, 'success');
++      return {
++        success: true,
++        action: 'remove',
++        removed: removable.map(region => region.id),
++        ...(skipped.length > 0
++          ? { skipped, note: 'Skipped regions this tool did not create; it never removes those' }
++          : {}),
++      };
++    } catch (error) {
++      throw new Error(
++        `Failed to manage regions: ${error instanceof Error ? error.message : 'Unknown error'}`
++      );
++    }
++  }
++
 +  /**
 +   * Draw the scene image with a numbered grid and its tokens and lights, and return it as a
 +   * PNG so positions can be checked in grid squares. Read-only.
@@ -3166,6 +3547,7 @@ index eecda7e..386b6a3 100644
 +    scene?: string;
 +    max_size?: number;
 +    label_every?: number;
++    region?: { x: number; y: number; width: number; height: number };
 +  }): Promise<any> {
 +    this.validateFoundryState();
 +
@@ -3182,7 +3564,25 @@ index eecda7e..386b6a3 100644
 +      ) {
 +        throw new Error('label_every must be a whole number from 1 to 50');
 +      }
-+      const scale = previewScale(geom, maxSize);
++      let view: PreviewView | undefined;
++      if (options.region) {
++        const r = options.region;
++        const nums = [r.x, r.y, r.width, r.height];
++        if (nums.some(n => typeof n !== 'number' || !Number.isFinite(n))) {
++          throw new Error('region needs numbers x, y, width and height (in grid squares)');
++        }
++        const x = Math.max(0, r.x);
++        const y = Math.max(0, r.y);
++        const width = Math.min(geom.columns - x, r.width + Math.min(0, r.x));
++        const height = Math.min(geom.rows - y, r.height + Math.min(0, r.y));
++        if (width < 2 || height < 2) {
++          throw new Error(
++            `region must cover at least 2 by 2 grid squares inside the scene (${geom.columns} columns, ${geom.rows} rows)`
++          );
++        }
++        view = { x, y, width, height };
++      }
++      const scale = previewScale(geom, maxSize, view);
 +      const labelEvery = options.label_every ?? defaultLabelEvery(geom, scale);
 +
 +      const warnings: string[] = [];
@@ -3236,11 +3636,22 @@ index eecda7e..386b6a3 100644
 +      }));
 +
 +      const canvas = document.createElement('canvas');
-+      canvas.width = Math.round(geom.sceneWidth * scale);
-+      canvas.height = Math.round(geom.sceneHeight * scale);
++      const outSize = previewSize(geom, scale, view);
++      canvas.width = outSize.width;
++      canvas.height = outSize.height;
 +      const ctx = canvas.getContext('2d');
 +      if (!ctx) throw new Error('This browser cannot draw the preview');
-+      const size = drawPreview(ctx, { geom, scale, labelEvery, tokens, lights, walls, notes, image });
++      const size = drawPreview(ctx, {
++        geom,
++        scale,
++        labelEvery,
++        tokens,
++        lights,
++        walls,
++        notes,
++        image,
++        ...(view ? { view } : {}),
++      });
 +
 +      let dataUrl: string;
 +      try {
@@ -3259,6 +3670,7 @@ index eecda7e..386b6a3 100644
 +        height: size.height,
 +        scale,
 +        labelEvery,
++        ...(view ? { region: view } : {}),
 +        grid: { columns: geom.columns, rows: geom.rows },
 +        tokens: tokens.length,
 +        lights: lights.length,
@@ -3934,7 +4346,7 @@ index eecda7e..386b6a3 100644
    // ===== PLAYLIST MANAGEMENT (CRUD + PLAYBACK) =====
  
    /**
-@@ -11274,6 +12854,7 @@ export class FoundryDataAccess {
+@@ -11274,6 +13032,7 @@ export class FoundryDataAccess {
        name: string;
        type: string;
        img?: string;
@@ -3942,7 +4354,7 @@ index eecda7e..386b6a3 100644
        system?: Record<string, any>;
      }>;
      folder?: string;
-@@ -11286,6 +12867,8 @@ export class FoundryDataAccess {
+@@ -11286,6 +13045,8 @@ export class FoundryDataAccess {
      const docs = params.actors.map(a => {
        const doc: Record<string, any> = { name: a.name, type: a.type };
        if (a.img) doc.img = a.img;
@@ -3951,7 +4363,7 @@ index eecda7e..386b6a3 100644
  
        // Merge system data, adding safe defaults for systems that require certain
        // fields to exist during data preparation (avoids non-fatal init errors).
-@@ -11471,7 +13054,13 @@ export class FoundryDataAccess {
+@@ -11471,7 +13232,13 @@ export class FoundryDataAccess {
     * Merges supplied fields into the actor (top-level keys overwrite).
     */
    async updateActors(
@@ -3966,7 +4378,7 @@ index eecda7e..386b6a3 100644
    ): Promise<{ updated: Array<{ id: string; name: string }>; total: number }> {
      const updatedActors: Array<{ id: string; name: string }> = [];
  
-@@ -11482,6 +13071,7 @@ export class FoundryDataAccess {
+@@ -11482,6 +13249,7 @@ export class FoundryDataAccess {
        const patch: Record<string, any> = {};
        if (u.name !== undefined) patch.name = u.name;
        if (u.img !== undefined) patch.img = u.img;
@@ -5800,12 +6212,12 @@ index 9024ead..26cc5c1 100644
          if (data.type === 'requestMessageUpdate' && data.buttonId && data.messageId) {
 diff --git a/packages/foundry-module/src/preview-utils.test.ts b/packages/foundry-module/src/preview-utils.test.ts
 new file mode 100644
-index 0000000..6c07727
+index 0000000..5d8be30
 --- /dev/null
 +++ b/packages/foundry-module/src/preview-utils.test.ts
-@@ -0,0 +1,168 @@
+@@ -0,0 +1,195 @@
 +import { describe, expect, it, vi } from 'vitest';
-+import { defaultLabelEvery, drawPreview, previewScale } from './preview-utils.js';
++import { defaultLabelEvery, drawPreview, previewScale, previewSize } from './preview-utils.js';
 +import type { GridGeometry } from './scene-objects-utils.js';
 +
 +const geom: GridGeometry = {
@@ -5859,6 +6271,33 @@ index 0000000..6c07727
 +    expect(defaultLabelEvery(geom, 1)).toBe(1);
 +    expect(defaultLabelEvery(geom, 0.2)).toBe(2);
 +    expect(defaultLabelEvery(geom, 0.1)).toBe(4);
++  });
++});
++
++describe('zoomed preview', () => {
++  const view = { x: 2, y: 1, width: 4, height: 2 };
++
++  it('scales a view to fill the picture, enlarging up to twice', () => {
++    expect(previewScale(geom, 1600, view)).toBe(2);
++    expect(previewScale(geom, 500, view)).toBe(1.25);
++    expect(previewSize(geom, 2, view)).toEqual({ width: 800, height: 400 });
++    expect(previewSize(geom, 1)).toEqual({ width: 1000, height: 500 });
++  });
++
++  it('moves the canvas so only the view shows and labels the squares inside it', () => {
++    const ctx = fakeContext();
++    ctx.save = vi.fn();
++    ctx.restore = vi.fn();
++    ctx.translate = vi.fn();
++    const size = drawPreview(ctx, { geom, scale: 2, labelEvery: 1, tokens: [], lights: [], view });
++
++    expect(size).toEqual({ width: 800, height: 400 });
++    expect(ctx.translate).toHaveBeenCalledWith(-400, -200);
++    expect(ctx.restore).toHaveBeenCalled();
++    const labels = ctx.texts.map((t: any) => t.text);
++    expect(labels).toContain('2');
++    expect(labels).toContain('5');
++    expect(labels).not.toContain('8');
 +  });
 +});
 +
@@ -5974,10 +6413,10 @@ index 0000000..6c07727
 +});
 diff --git a/packages/foundry-module/src/preview-utils.ts b/packages/foundry-module/src/preview-utils.ts
 new file mode 100644
-index 0000000..8854585
+index 0000000..ca891e2
 --- /dev/null
 +++ b/packages/foundry-module/src/preview-utils.ts
-@@ -0,0 +1,208 @@
+@@ -0,0 +1,255 @@
 +/**
 + * Drawing for preview-scene: the scene image with a numbered grid and the scene's tokens
 + * and lights on top, so positions can be read in grid squares. Works on any 2D context, so
@@ -6034,10 +6473,40 @@ index 0000000..8854585
 +  notes?: PreviewNote[];
 +  /** Image to draw behind the grid; omit for a plain grey background. */
 +  image?: unknown;
++  /** Only draw this part of the scene, in grid squares (a zoomed look at one area). */
++  view?: PreviewView;
++}
++
++/** A rectangle of the scene in grid squares. */
++export interface PreviewView {
++  x: number;
++  y: number;
++  width: number;
++  height: number;
++}
++
++/** Zoomed previews may be drawn larger than the scene's own pixels, up to this factor. */
++export const MAX_ZOOM = 2;
++
++/** Output size in pixels for the whole scene, or for just the view when one is given. */
++export function previewSize(
++  geom: GridGeometry,
++  scale: number,
++  view?: PreviewView
++): { width: number; height: number } {
++  const square = geom.size * scale;
++  return view
++    ? { width: Math.round(view.width * square), height: Math.round(view.height * square) }
++    : { width: Math.round(geom.sceneWidth * scale), height: Math.round(geom.sceneHeight * scale) };
 +}
 +
 +/** Choose the output scale so the longest side is at most maxSize pixels (never upscales). */
-+export function previewScale(geom: GridGeometry, maxSize: number): number {
++export function previewScale(geom: GridGeometry, maxSize: number, view?: PreviewView): number {
++  if (view) {
++    // A zoomed view fills the picture and may be enlarged a little for readability.
++    const longest = Math.max(view.width, view.height) * geom.size;
++    return Math.min(MAX_ZOOM, maxSize / longest);
++  }
 +  const longest = Math.max(geom.sceneWidth, geom.sceneHeight);
 +  return Math.min(1, maxSize / longest);
 +}
@@ -6054,6 +6523,16 @@ index 0000000..8854585
 +  const height = Math.round(geom.sceneHeight * scale);
 +  const square = geom.size * scale;
 +  const every = Math.max(1, Math.floor(options.labelEvery));
++  const view = options.view;
++  // Output window in whole-scene pixels; everything is drawn in whole-scene coordinates and the
++  // canvas is moved so only the window shows.
++  const outSize = previewSize(geom, scale, view);
++  const ox = view ? view.x * square : 0;
++  const oy = view ? view.y * square : 0;
++  if (view) {
++    ctx.save();
++    ctx.translate(-ox, -oy);
++  }
 +
 +  // Background.
 +  ctx.fillStyle = '#808080';
@@ -6163,15 +6642,21 @@ index 0000000..8854585
 +    ctx.fillStyle = '#ffffff';
 +    ctx.fillText(text, x, y);
 +  };
-+  for (let col = 0; col < geom.columns; col += every) {
++  const firstCol = view ? Math.max(0, Math.floor(view.x)) : 0;
++  const lastCol = view ? Math.min(geom.columns, Math.ceil(view.x + view.width)) : geom.columns;
++  const firstRow = view ? Math.max(0, Math.floor(view.y)) : 0;
++  const lastRow = view ? Math.min(geom.rows, Math.ceil(view.y + view.height)) : geom.rows;
++  for (let col = firstCol - (firstCol % every); col < lastCol; col += every) {
++    if (col < firstCol) continue;
 +    const x = (col + 0.5) * square;
-+    label(String(col), x, fontSize);
-+    label(String(col), x, height - fontSize);
++    label(String(col), x, oy + fontSize);
++    label(String(col), x, oy + outSize.height - fontSize);
 +  }
-+  for (let row = 0; row < geom.rows; row += every) {
++  for (let row = firstRow - (firstRow % every); row < lastRow; row += every) {
++    if (row < firstRow) continue;
 +    const y = (row + 0.5) * square;
-+    label(String(row), fontSize, y);
-+    label(String(row), width - fontSize, y);
++    label(String(row), ox + fontSize, y);
++    label(String(row), ox + outSize.width - fontSize, y);
 +  }
 +  for (const note of options.notes ?? []) {
 +    if (note.text) label(note.text, note.x * square, note.y * square - 16);
@@ -6184,10 +6669,11 @@ index 0000000..8854585
 +    );
 +  }
 +
-+  return { width, height };
++  if (view) ctx.restore();
++  return view ? outSize : { width, height };
 +}
 diff --git a/packages/foundry-module/src/queries.ts b/packages/foundry-module/src/queries.ts
-index 9fe02ba..c52a27a 100644
+index 9fe02ba..63153bc 100644
 --- a/packages/foundry-module/src/queries.ts
 +++ b/packages/foundry-module/src/queries.ts
 @@ -1,7 +1,8 @@
@@ -6209,7 +6695,7 @@ index 9fe02ba..c52a27a 100644
  
      // Character/Actor queries
      CONFIG.queries[`${modulePrefix}.getCharacterInfo`] = this.handleGetCharacterInfo.bind(this);
-@@ -46,6 +47,14 @@ export class QueryHandlers {
+@@ -46,6 +47,15 @@ export class QueryHandlers {
      CONFIG.queries[`${modulePrefix}.list-scenes`] = this.handleListScenes.bind(this);
      CONFIG.queries[`${modulePrefix}.switch-scene`] = this.handleSwitchScene.bind(this);
      CONFIG.queries[`${modulePrefix}.update-scene-music`] = this.handleUpdateSceneMusic.bind(this);
@@ -6220,11 +6706,12 @@ index 9fe02ba..c52a27a 100644
 +    CONFIG.queries[`${modulePrefix}.manage-scene-objects`] = this.handleManageSceneObjects.bind(this);
 +    CONFIG.queries[`${modulePrefix}.preview-scene`] = this.handlePreviewScene.bind(this);
 +    CONFIG.queries[`${modulePrefix}.measure-grid`] = this.handleMeasureGrid.bind(this);
++    CONFIG.queries[`${modulePrefix}.manage-regions`] = this.handleManageRegions.bind(this);
 +    CONFIG.queries[`${modulePrefix}.inspect-document`] = this.handleInspectDocument.bind(this);
      CONFIG.queries[`${modulePrefix}.manage-playlists`] = this.handleManagePlaylists.bind(this);
      CONFIG.queries[`${modulePrefix}.control-playlist`] = this.handleControlPlaylist.bind(this);
  
-@@ -184,7 +193,7 @@ export class QueryHandlers {
+@@ -184,7 +194,7 @@ export class QueryHandlers {
     * Unregister all query handlers
     */
    unregisterHandlers(): void {
@@ -6233,7 +6720,7 @@ index 9fe02ba..c52a27a 100644
      const keysToRemove = Object.keys(CONFIG.queries).filter(key => key.startsWith(modulePrefix));
  
      for (const key of keysToRemove) {
-@@ -477,7 +486,7 @@ export class QueryHandlers {
+@@ -477,7 +487,7 @@ export class QueryHandlers {
     * Get list of all registered query methods
     */
    getRegisteredMethods(): string[] {
@@ -6242,7 +6729,7 @@ index 9fe02ba..c52a27a 100644
      return Object.keys(CONFIG.queries)
        .filter(key => key.startsWith(modulePrefix))
        .map(key => key.replace(`${modulePrefix}.`, ''));
-@@ -487,7 +496,7 @@ export class QueryHandlers {
+@@ -487,7 +497,7 @@ export class QueryHandlers {
     * Test if a specific query handler is registered
     */
    isMethodRegistered(method: string): boolean {
@@ -6251,7 +6738,7 @@ index 9fe02ba..c52a27a 100644
      return queryKey in CONFIG.queries && typeof CONFIG.queries[queryKey] === 'function';
    }
  
-@@ -1218,6 +1227,119 @@ export class QueryHandlers {
+@@ -1218,6 +1228,127 @@ export class QueryHandlers {
      }
    }
  
@@ -6283,6 +6770,14 @@ index 9fe02ba..c52a27a 100644
 +      return { error: 'Access denied', success: false };
 +    }
 +    return await this.dataAccess.previewScene(data ?? {});
++  }
++
++  private async handleManageRegions(data: any): Promise<any> {
++    const gmCheck = this.validateGMAccess();
++    if (!gmCheck.allowed) {
++      return { error: 'Access denied', success: false };
++    }
++    return await this.dataAccess.manageRegions(data ?? {});
 +  }
 +
 +  private async handleMeasureGrid(data: any): Promise<any> {
@@ -6371,6 +6866,442 @@ index 9fe02ba..c52a27a 100644
    private async handleManagePlaylists(data: any): Promise<any> {
      try {
        const gmCheck = this.validateGMAccess();
+diff --git a/packages/foundry-module/src/region-utils.test.ts b/packages/foundry-module/src/region-utils.test.ts
+new file mode 100644
+index 0000000..370df76
+--- /dev/null
++++ b/packages/foundry-module/src/region-utils.test.ts
+@@ -0,0 +1,159 @@
++import { describe, expect, it } from 'vitest';
++import {
++  buildBehaviorData,
++  buildRegionData,
++  buildRegionShape,
++  describeSchemaFields,
++  describeShape,
++} from './region-utils.js';
++import type { GridGeometry } from './scene-objects-utils.js';
++
++const geom: GridGeometry = {
++  size: 100,
++  originX: 50,
++  originY: 20,
++  sceneWidth: 2000,
++  sceneHeight: 1000,
++  columns: 20,
++  rows: 10,
++  distance: 5,
++  units: 'ft',
++};
++
++const keys = ['walk', 'swim', 'fly'];
++
++describe('buildRegionShape', () => {
++  it('turns a rectangle in squares into pixels, offset by the scene origin', () => {
++    expect(buildRegionShape({ rect: [2, 1, 3, 2] }, geom, 'r')).toEqual({
++      type: 'rectangle',
++      x: 250,
++      y: 120,
++      width: 300,
++      height: 200,
++      rotation: 0,
++      hole: false,
++    });
++  });
++
++  it('builds ellipses and polygons', () => {
++    expect(buildRegionShape({ ellipse: [5, 5, 2, 1.5] }, geom, 'r')).toMatchObject({
++      type: 'ellipse',
++      x: 550,
++      y: 520,
++      radiusX: 200,
++      radiusY: 150,
++    });
++    expect(
++      buildRegionShape({ polygon: [[0, 0], [4, 0], [2, 3]] }, geom, 'r')
++    ).toEqual({ type: 'polygon', points: [50, 20, 450, 20, 250, 320], hole: false });
++  });
++
++  it('needs exactly one shape and refuses shapes outside the scene', () => {
++    expect(() => buildRegionShape({}, geom, 'r')).toThrow('exactly one');
++    expect(() => buildRegionShape({ rect: [0, 0, 1, 1], ellipse: [1, 1, 1, 1] }, geom, 'r')).toThrow(
++      'exactly one'
++    );
++    expect(() => buildRegionShape({ rect: [18, 8, 5, 5] }, geom, 'r')).toThrow('outside the scene');
++    expect(() => buildRegionShape({ rect: [1, 1, 0, 2] }, geom, 'r')).toThrow('above 0');
++    expect(() => buildRegionShape({ polygon: [[0, 0], [1, 1]] }, geom, 'r')).toThrow('3 to 200');
++  });
++});
++
++describe('buildBehaviorData', () => {
++  it('builds difficult terrain from the movement types Foundry knows', () => {
++    expect(buildBehaviorData({ preset: 'difficult_terrain' }, keys, 'b')).toEqual({
++      type: 'modifyMovementCost',
++      name: 'Difficult terrain',
++      system: { difficulties: { walk: 2, swim: 2, fly: 2 } },
++    });
++    expect(
++      buildBehaviorData({ preset: 'difficult_terrain', cost: 3 }, keys, 'b').system.difficulties.walk
++    ).toBe(3);
++  });
++
++  it('passes raw behaviours through', () => {
++    expect(
++      buildBehaviorData(
++        { type: 'executeMacro', name: 'Pit', system: { events: ['tokenEnter'], uuid: 'Macro.abc' } },
++        keys,
++        'b'
++      )
++    ).toEqual({
++      type: 'executeMacro',
++      name: 'Pit',
++      system: { events: ['tokenEnter'], uuid: 'Macro.abc' },
++    });
++  });
++
++  it('refuses a mix of preset and type, unknown presets and bad values', () => {
++    expect(() => buildBehaviorData({ preset: 'difficult_terrain', type: 'x' }, keys, 'b')).toThrow('either');
++    expect(() => buildBehaviorData({}, keys, 'b')).toThrow('either');
++    expect(() => buildBehaviorData({ preset: 'lava' }, keys, 'b')).toThrow('unknown preset');
++    expect(() => buildBehaviorData({ preset: 'difficult_terrain', cost: -1 }, keys, 'b')).toThrow('cost');
++    expect(() => buildBehaviorData({ preset: 'difficult_terrain' }, [], 'b')).toThrow('no movement types');
++    expect(() => buildBehaviorData({ type: 'bad type!' }, keys, 'b')).toThrow('behaviour type');
++  });
++});
++
++describe('buildRegionData', () => {
++  it('builds a complete region and picks a colour from the behaviours', () => {
++    const data = buildRegionData(
++      { name: ' Rubble ', rect: [1, 1, 2, 2], behaviors: [{ preset: 'difficult_terrain' }] },
++      geom,
++      keys,
++      'regions[0]'
++    );
++    expect(data.name).toBe('Rubble');
++    expect(data.color).toBe('#c97a1a');
++    expect(data.shapes).toHaveLength(1);
++    expect(data.behaviors[0].type).toBe('modifyMovementCost');
++  });
++
++  it('requires a name and a valid colour', () => {
++    expect(() => buildRegionData({ rect: [1, 1, 1, 1] }, geom, keys, 'r')).toThrow('name is required');
++    expect(() =>
++      buildRegionData({ name: 'x', rect: [1, 1, 1, 1], color: 'red' }, geom, keys, 'r')
++    ).toThrow('#RRGGBB');
++  });
++
++  it('keeps hidden and measurement settings', () => {
++    const data = buildRegionData(
++      { name: 'Pit', rect: [1, 1, 1, 1], hidden: true, display_measurements: true, color: '#112233' },
++      geom,
++      keys,
++      'r'
++    );
++    expect(data).toMatchObject({ hidden: true, displayMeasurements: true, color: '#112233' });
++  });
++});
++
++describe('describeShape', () => {
++  it('converts pixel shapes back to squares', () => {
++    const rect = buildRegionShape({ rect: [2, 1, 3, 2] }, geom, 'r');
++    expect(describeShape(rect, geom)).toEqual({ type: 'rect', rect: [2, 1, 3, 2] });
++    const poly = buildRegionShape({ polygon: [[0, 0], [4, 0], [2, 3]] }, geom, 'r');
++    expect(describeShape(poly, geom)).toEqual({ type: 'polygon', polygon: [[0, 0], [4, 0], [2, 3]] });
++  });
++});
++
++describe('describeSchemaFields', () => {
++  it('lists field kinds, initial values, choices and nested fields', () => {
++    class NumberField {
++      options = { initial: 1 };
++    }
++    class SetField {
++      element = { choices: { tokenEnter: 'Enter', tokenExit: 'Exit' } };
++    }
++    class SchemaField {
++      fields = { walk: new NumberField() };
++    }
++    const out = describeSchemaFields({
++      cost: new NumberField(),
++      events: new SetField(),
++      difficulties: new SchemaField(),
++    });
++    expect(out.cost).toEqual({ kind: 'NumberField', initial: 1 });
++    expect(out.events.elementChoices).toEqual(['tokenEnter', 'tokenExit']);
++    expect(out.difficulties.fields.walk).toEqual({ kind: 'NumberField', initial: 1 });
++  });
++});
+diff --git a/packages/foundry-module/src/region-utils.ts b/packages/foundry-module/src/region-utils.ts
+new file mode 100644
+index 0000000..9bee513
+--- /dev/null
++++ b/packages/foundry-module/src/region-utils.ts
+@@ -0,0 +1,265 @@
++/**
++ * Pure helpers for manage-regions: turning grid-square shapes into Foundry v14 region data and
++ * describing region behaviours. No Foundry globals, so they can be tested.
++ *
++ * Regions are areas of a scene that do something when tokens enter, leave or move in them:
++ * difficult terrain, traps (with a macro), text pop-ups, teleports and so on. Shapes are given
++ * in grid squares like every other scene object.
++ */
++
++import { assertInsideScene, squaresToPixels, type GridGeometry } from './scene-objects-utils.js';
++
++/** A behaviour to attach to a region. Either a ready-made preset or a raw Foundry behaviour. */
++export interface BehaviorSpec {
++  /** Ready-made: difficult_terrain (movement costs more). */
++  preset?: string;
++  /** difficult_terrain: movement cost multiplier (default 2). */
++  cost?: number;
++  /** Raw Foundry behaviour type, e.g. executeMacro, displayScrollingText, pauseGame. */
++  type?: string;
++  name?: string;
++  /** Raw behaviour settings; see the behavior_types action for the fields of each type. */
++  system?: Record<string, unknown>;
++  disabled?: boolean;
++}
++
++export interface RegionSpec {
++  name?: string;
++  /** Rectangle [x, y, width, height] in grid squares. */
++  rect?: number[];
++  /** Ellipse [centreX, centreY, radiusX, radiusY] in grid squares. */
++  ellipse?: number[];
++  /** Polygon corners [[x, y], ...] in grid squares (3 or more). */
++  polygon?: number[][];
++  color?: string;
++  hidden?: boolean;
++  display_measurements?: boolean;
++  behaviors?: BehaviorSpec[];
++}
++
++export const REGION_PRESETS = ['difficult_terrain'] as const;
++export const MAX_REGIONS_PER_CALL = 100;
++export const MAX_BEHAVIORS_PER_REGION = 10;
++
++const COLOR = /^#[0-9a-fA-F]{6}$/;
++
++/** Default colour for a region: orange for difficult terrain, red otherwise. */
++function defaultColor(spec: RegionSpec): string {
++  const presets = (spec.behaviors ?? []).map(b => b.preset);
++  return presets.includes('difficult_terrain') ? '#c97a1a' : '#e03131';
++}
++
++function numbers(values: unknown, count: number, label: string, what: string): number[] {
++  if (
++    !Array.isArray(values) ||
++    values.length !== count ||
++    values.some(v => typeof v !== 'number' || !Number.isFinite(v))
++  ) {
++    throw new Error(`${label}: ${what} must be ${count} numbers`);
++  }
++  return values as number[];
++}
++
++/** The Foundry shape data for a region spec (pixels). */
++export function buildRegionShape(spec: RegionSpec, geom: GridGeometry, label: string): any {
++  const given = [spec.rect, spec.ellipse, spec.polygon].filter(v => v !== undefined).length;
++  if (given !== 1) {
++    throw new Error(`${label}: give exactly one of rect, ellipse or polygon`);
++  }
++
++  if (spec.rect) {
++    const [x, y, w, h] = numbers(spec.rect, 4, label, 'rect [x, y, width, height]') as [
++      number,
++      number,
++      number,
++      number,
++    ];
++    if (w <= 0 || h <= 0) throw new Error(`${label}: rect width and height must be above 0`);
++    assertInsideScene(geom, x, y, label);
++    assertInsideScene(geom, x + w, y + h, label);
++    const origin = squaresToPixels(geom, x, y);
++    return {
++      type: 'rectangle',
++      x: origin.x,
++      y: origin.y,
++      width: Math.round(w * geom.size),
++      height: Math.round(h * geom.size),
++      rotation: 0,
++      hole: false,
++    };
++  }
++
++  if (spec.ellipse) {
++    const [cx, cy, rx, ry] = numbers(spec.ellipse, 4, label, 'ellipse [centreX, centreY, radiusX, radiusY]') as [
++      number,
++      number,
++      number,
++      number,
++    ];
++    if (rx <= 0 || ry <= 0) throw new Error(`${label}: ellipse radii must be above 0`);
++    assertInsideScene(geom, cx, cy, label);
++    const centre = squaresToPixels(geom, cx, cy);
++    return {
++      type: 'ellipse',
++      x: centre.x,
++      y: centre.y,
++      radiusX: Math.round(rx * geom.size),
++      radiusY: Math.round(ry * geom.size),
++      rotation: 0,
++      hole: false,
++    };
++  }
++
++  const polygon = spec.polygon!;
++  if (!Array.isArray(polygon) || polygon.length < 3 || polygon.length > 200) {
++    throw new Error(`${label}: polygon needs 3 to 200 corners [[x, y], ...]`);
++  }
++  const points: number[] = [];
++  polygon.forEach((corner, index) => {
++    const [x, y] = numbers(corner, 2, `${label} polygon[${index}]`, 'a corner [x, y]') as [number, number];
++    assertInsideScene(geom, x, y, `${label} polygon[${index}]`);
++    const p = squaresToPixels(geom, x, y);
++    points.push(p.x, p.y);
++  });
++  return { type: 'polygon', points, hole: false };
++}
++
++/**
++ * The Foundry behaviour data for one behaviour spec. `movementKeys` are the movement types the
++ * running Foundry knows (walk, swim, ...), read from its own movement-cost schema.
++ */
++export function buildBehaviorData(spec: BehaviorSpec, movementKeys: string[], label: string): any {
++  const hasPreset = spec.preset !== undefined;
++  const hasType = spec.type !== undefined;
++  if (hasPreset === hasType) {
++    throw new Error(`${label}: give either preset (${REGION_PRESETS.join(', ')}) or type`);
++  }
++
++  if (hasPreset) {
++    if (spec.preset !== 'difficult_terrain') {
++      throw new Error(`${label}: unknown preset "${spec.preset}" (${REGION_PRESETS.join(', ')})`);
++    }
++    const cost = spec.cost === undefined ? 2 : spec.cost;
++    if (typeof cost !== 'number' || !Number.isFinite(cost) || cost < 0 || cost > 10) {
++      throw new Error(`${label}: cost must be a number from 0 to 10`);
++    }
++    if (movementKeys.length === 0) {
++      throw new Error(`${label}: this Foundry has no movement types to apply difficult terrain to`);
++    }
++    return {
++      type: 'modifyMovementCost',
++      name: spec.name ?? 'Difficult terrain',
++      system: { difficulties: Object.fromEntries(movementKeys.map(key => [key, cost])) },
++      ...(spec.disabled ? { disabled: true } : {}),
++    };
++  }
++
++  if (typeof spec.type !== 'string' || !/^[A-Za-z][A-Za-z0-9._-]{0,63}$/.test(spec.type)) {
++    throw new Error(`${label}: type must be a Foundry behaviour type name such as executeMacro`);
++  }
++  if (spec.system !== undefined && (typeof spec.system !== 'object' || spec.system === null || Array.isArray(spec.system))) {
++    throw new Error(`${label}: system must be an object`);
++  }
++  return {
++    type: spec.type,
++    ...(spec.name !== undefined ? { name: String(spec.name) } : {}),
++    system: spec.system ?? {},
++    ...(spec.disabled ? { disabled: true } : {}),
++  };
++}
++
++/** The complete Foundry region data for a spec. */
++export function buildRegionData(
++  spec: RegionSpec,
++  geom: GridGeometry,
++  movementKeys: string[],
++  label: string
++): any {
++  if (!spec || typeof spec !== 'object') throw new Error(`${label}: must be an object`);
++  if (typeof spec.name !== 'string' || !spec.name.trim()) {
++    throw new Error(`${label}: name is required`);
++  }
++  if (spec.color !== undefined && !COLOR.test(spec.color)) {
++    throw new Error(`${label}: color must look like #RRGGBB`);
++  }
++  const behaviors = spec.behaviors ?? [];
++  if (!Array.isArray(behaviors) || behaviors.length > MAX_BEHAVIORS_PER_REGION) {
++    throw new Error(`${label}: behaviors must be a list of at most ${MAX_BEHAVIORS_PER_REGION}`);
++  }
++  return {
++    name: spec.name.trim(),
++    color: spec.color ?? defaultColor(spec),
++    shapes: [buildRegionShape(spec, geom, label)],
++    behaviors: behaviors.map((b, i) => buildBehaviorData(b, movementKeys, `${label} behaviors[${i}]`)),
++    ...(spec.hidden !== undefined ? { hidden: !!spec.hidden } : {}),
++    ...(spec.display_measurements !== undefined
++      ? { displayMeasurements: !!spec.display_measurements }
++      : {}),
++  };
++}
++
++/** A short description of a region's shapes in grid squares, for describe. */
++export function describeShape(shape: any, geom: GridGeometry): Record<string, unknown> {
++  const round = (v: number) => Math.round(v * 100) / 100;
++  const sq = (px: number, origin: number) => round((px - origin) / geom.size);
++  if (shape?.type === 'rectangle') {
++    return {
++      type: 'rect',
++      rect: [
++        sq(shape.x, geom.originX),
++        sq(shape.y, geom.originY),
++        round(shape.width / geom.size),
++        round(shape.height / geom.size),
++      ],
++    };
++  }
++  if (shape?.type === 'ellipse') {
++    return {
++      type: 'ellipse',
++      ellipse: [
++        sq(shape.x, geom.originX),
++        sq(shape.y, geom.originY),
++        round(shape.radiusX / geom.size),
++        round(shape.radiusY / geom.size),
++      ],
++    };
++  }
++  if (shape?.type === 'polygon' && Array.isArray(shape.points)) {
++    const polygon: number[][] = [];
++    for (let i = 0; i + 1 < shape.points.length; i += 2) {
++      polygon.push([sq(shape.points[i], geom.originX), sq(shape.points[i + 1], geom.originY)]);
++    }
++    return { type: 'polygon', polygon };
++  }
++  return { type: String(shape?.type ?? 'unknown') };
++}
++
++/**
++ * The fields of a Foundry data model's schema as plain data (name, kind, initial value and
++ * choices), a couple of levels deep, so behaviour settings can be written without guessing.
++ */
++export function describeSchemaFields(fields: any, depth = 2): Record<string, any> {
++  const out: Record<string, any> = {};
++  if (!fields || typeof fields !== 'object') return out;
++  for (const [name, field] of Object.entries<any>(fields)) {
++    if (!field || typeof field !== 'object') continue;
++    const entry: Record<string, any> = { kind: String(field.constructor?.name ?? 'Field') };
++    if (field.options?.initial !== undefined && typeof field.options.initial !== 'function') {
++      entry.initial = field.options.initial;
++    } else if (field.initial !== undefined && typeof field.initial !== 'function') {
++      entry.initial = field.initial;
++    }
++    const choices = field.choices;
++    if (Array.isArray(choices)) entry.choices = choices;
++    else if (choices && typeof choices === 'object') entry.choices = Object.keys(choices);
++    if (depth > 0 && field.fields && typeof field.fields === 'object') {
++      entry.fields = describeSchemaFields(field.fields, depth - 1);
++    }
++    if (depth > 0 && field.element?.choices) {
++      const c = field.element.choices;
++      entry.elementChoices = Array.isArray(c) ? c : Object.keys(c);
++    }
++    out[name] = entry;
++  }
++  return out;
++}
 diff --git a/packages/foundry-module/src/scene-objects-utils.test.ts b/packages/foundry-module/src/scene-objects-utils.test.ts
 new file mode 100644
 index 0000000..6605914
@@ -8238,7 +9169,7 @@ index 0000000..3adf228
 +  </div>
 +</form>
 diff --git a/packages/mcp-server/src/backend.ts b/packages/mcp-server/src/backend.ts
-index 8967e33..6f80874 100644
+index 8967e33..78be0d6 100644
 --- a/packages/mcp-server/src/backend.ts
 +++ b/packages/mcp-server/src/backend.ts
 @@ -48,6 +48,21 @@ import { DnD5eAddFeatureTool } from './tools/dnd5e/add-feature.js';
@@ -8474,7 +9405,7 @@ index 8967e33..6f80874 100644
  
                  case 'list-scenes':
                    result = await mapGenerationTools.listScenes(args);
-@@ -1805,6 +1905,44 @@ async function startBackend(): Promise<void> {
+@@ -1805,6 +1905,48 @@ async function startBackend(): Promise<void> {
  
                    break;
  
@@ -8497,6 +9428,10 @@ index 8967e33..6f80874 100644
 +
 +                case 'measure-grid':
 +                  result = await sceneObjectTools.handleMeasureGrid(args);
++                  break;
++
++                case 'manage-regions':
++                  result = await sceneObjectTools.handleManageRegions(args);
 +                  break;
 +
 +                case 'manage-journals':
@@ -11153,10 +12088,10 @@ index 0000000..942a444
 +}
 diff --git a/packages/mcp-server/src/tools/scene-objects.test.ts b/packages/mcp-server/src/tools/scene-objects.test.ts
 new file mode 100644
-index 0000000..5ca249d
+index 0000000..71b1bf0
 --- /dev/null
 +++ b/packages/mcp-server/src/tools/scene-objects.test.ts
-@@ -0,0 +1,228 @@
+@@ -0,0 +1,268 @@
 +import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 +import { promises as fs } from 'fs';
 +import { SceneObjectTools } from './scene-objects.js';
@@ -11176,8 +12111,48 @@ index 0000000..5ca249d
 +describe('definitions', () => {
 +  it('exposes manage-scene-objects and preview-scene', () => {
 +    const defs = makeTools().tools.getToolDefinitions();
-+    expect(defs.map(d => d.name)).toEqual(['manage-scene-objects', 'measure-grid', 'preview-scene']);
++    expect(defs.map(d => d.name)).toEqual([
++      'manage-scene-objects',
++      'measure-grid',
++      'manage-regions',
++      'preview-scene',
++    ]);
 +    expect(defs[0].inputSchema.required).toEqual(['action']);
++  });
++});
++
++describe('handleManageRegions', () => {
++  it('forwards a create request to the module', async () => {
++    const { tools, query } = makeTools(async () => ({ success: true, created: [] }));
++    const regions = [
++      { name: 'Rubble', rect: [2, 1, 3, 2], behaviors: [{ preset: 'difficult_terrain' }] },
++    ];
++    await tools.handleManageRegions({ action: 'create', regions });
++    expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.manage-regions', {
++      action: 'create',
++      regions,
++    });
++  });
++
++  it('checks the arguments before asking Foundry', async () => {
++    const { tools, query } = makeTools();
++    await expect(tools.handleManageRegions({ action: 'create' })).rejects.toThrow('regions is required');
++    await expect(tools.handleManageRegions({ action: 'remove' })).rejects.toThrow('ids or all_mine');
++    await expect(
++      tools.handleManageRegions({ action: 'create', regions: [{ name: 'x', rect: [1, 2, 3] }] })
++    ).rejects.toThrow();
++    await expect(
++      tools.handleManageRegions({
++        action: 'create',
++        regions: [{ name: 'x', rect: [1, 1, 1, 1], behaviors: [{ preset: 'lava' }] }],
++      })
++    ).rejects.toThrow();
++    expect(query).not.toHaveBeenCalled();
++  });
++
++  it('reports a refusal from the module', async () => {
++    const { tools } = makeTools(async () => ({ success: false, error: 'nope' }));
++    await expect(tools.handleManageRegions({ action: 'describe' })).rejects.toThrow(/nope/);
 +  });
 +});
 +
@@ -11387,10 +12362,10 @@ index 0000000..5ca249d
 +});
 diff --git a/packages/mcp-server/src/tools/scene-objects.ts b/packages/mcp-server/src/tools/scene-objects.ts
 new file mode 100644
-index 0000000..df0e661
+index 0000000..85f3760
 --- /dev/null
 +++ b/packages/mcp-server/src/tools/scene-objects.ts
-@@ -0,0 +1,430 @@
+@@ -0,0 +1,562 @@
 +import { promises as fs } from 'fs';
 +import os from 'os';
 +import path from 'path';
@@ -11512,11 +12487,54 @@ index 0000000..df0e661
 +  })
 +  .strict();
 +
++const behaviorSchema = z
++  .object({
++    preset: z.enum(['difficult_terrain']).optional(),
++    cost: z.number().min(0).max(10).optional(),
++    type: z.string().min(1).max(64).optional(),
++    name: z.string().max(100).optional(),
++    system: z.record(z.unknown()).optional(),
++    disabled: z.boolean().optional(),
++  })
++  .strict();
++
++const regionSchema = z
++  .object({
++    name: z.string().min(1).max(100),
++    rect: z.array(z.number()).length(4).optional(),
++    ellipse: z.array(z.number()).length(4).optional(),
++    polygon: z.array(z.array(z.number()).length(2)).min(3).max(200).optional(),
++    color: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
++    hidden: z.boolean().optional(),
++    display_measurements: z.boolean().optional(),
++    behaviors: z.array(behaviorSchema).max(10).optional(),
++  })
++  .strict();
++
++const manageRegionsSchema = z
++  .object({
++    action: z.enum(['create', 'describe', 'remove', 'behavior_types']),
++    scene: z.string().min(1).optional(),
++    regions: z.array(regionSchema).min(1).max(100).optional(),
++    ids: z.array(z.string().min(1)).max(500).optional(),
++    all_mine: z.boolean().optional(),
++  })
++  .strict();
++
 +const previewSchema = z
 +  .object({
 +    scene: z.string().min(1).optional(),
 +    max_size: z.number().int().min(200).max(3000).optional(),
 +    label_every: z.number().int().min(1).max(50).optional(),
++    region: z
++      .object({
++        x: z.number().min(0),
++        y: z.number().min(0),
++        width: z.number().min(2),
++        height: z.number().min(2),
++      })
++      .strict()
++      .optional(),
 +  })
 +  .strict();
 +
@@ -11681,15 +12699,82 @@ index 0000000..df0e661
 +        },
 +      },
 +      {
++        name: 'manage-regions',
++        description:
++          'Regions are areas of a scene that act when tokens enter, leave or move in them: difficult terrain, traps, pop-up text, teleports. ' +
++          'Shapes are in GRID SQUARES from the top-left corner of the map, like manage-scene-objects. ' +
++          'create takes regions (up to 100): {name, one of rect:[x,y,width,height] | ellipse:[centreX,centreY,radiusX,radiusY] | polygon:[[x,y],...], color?, hidden?, display_measurements?, behaviors?}. ' +
++          'A behavior is either {preset:"difficult_terrain", cost?} (movement costs cost times as much, default 2) or a raw Foundry behavior {type, name?, system?, disabled?} such as executeMacro (run a world macro on tokenEnter, e.g. a pit trap that rolls a save and damage), displayScrollingText, pauseGame or teleportToken. ' +
++          'Run behavior_types first to see exactly which fields each behavior type of this Foundry accepts. ' +
++          'describe lists the regions of a scene; remove needs ids or all_mine:true and only removes regions this tool created. scene is an id or exact name (default: the scene being viewed). Needs the Foundry tab open in a browser.',
++        inputSchema: {
++          type: 'object',
++          properties: {
++            action: { type: 'string', enum: ['create', 'describe', 'remove', 'behavior_types'] },
++            scene: { type: 'string', description: 'Scene id or exact name (default: the scene being viewed)' },
++            regions: {
++              type: 'array',
++              description: 'Regions to create (action create)',
++              items: {
++                type: 'object',
++                properties: {
++                  name: { type: 'string' },
++                  rect: { type: 'array', items: { type: 'number' }, description: '[x, y, width, height] in grid squares' },
++                  ellipse: { type: 'array', items: { type: 'number' }, description: '[centreX, centreY, radiusX, radiusY] in grid squares' },
++                  polygon: { type: 'array', items: { type: 'array', items: { type: 'number' } }, description: '[[x, y], ...] corners in grid squares' },
++                  color: { type: 'string', description: '#RRGGBB' },
++                  hidden: { type: 'boolean' },
++                  display_measurements: { type: 'boolean' },
++                  behaviors: {
++                    type: 'array',
++                    items: {
++                      type: 'object',
++                      properties: {
++                        preset: { type: 'string', enum: ['difficult_terrain'] },
++                        cost: { type: 'number' },
++                        type: { type: 'string' },
++                        name: { type: 'string' },
++                        system: { type: 'object' },
++                        disabled: { type: 'boolean' },
++                      },
++                      additionalProperties: false,
++                    },
++                  },
++                },
++                required: ['name'],
++                additionalProperties: false,
++              },
++            },
++            ids: { type: 'array', items: { type: 'string' }, description: 'remove: ids of regions created by this tool' },
++            all_mine: { type: 'boolean', description: 'remove: every region on the scene that this tool created' },
++          },
++          required: ['action'],
++          additionalProperties: false,
++        },
++      },
++      {
 +        name: 'preview-scene',
 +        description:
-+          "Render a scene as a picture: the map image with a numbered grid (column numbers along the top and bottom, row numbers along the sides, stronger lines every 5 squares) and the scene's tokens (red), lights (circles), walls (cyan; doors orange, secret doors dashed) and map pins (yellow diamonds) on top. The picture is saved to a file on this computer; its path is returned, and you can open it to see where things are in grid squares. Read-only. Needs the Foundry tab open in a browser.",
++          "Render a scene as a picture: the map image with a numbered grid (column numbers along the top and bottom, row numbers along the sides, stronger lines every 5 squares) and the scene's tokens (red), lights (circles), walls (cyan; doors orange, secret doors dashed) and map pins (yellow diamonds) on top. The picture is saved to a file on this computer; its path is returned, and you can open it to see where things are in grid squares. Pass region (x, y, width, height in grid squares) to zoom in on one area at full detail, with the same square numbers, so walls and doors can be placed precisely. Read-only. Needs the Foundry tab open in a browser.",
 +        inputSchema: {
 +          type: 'object',
 +          properties: {
 +            scene: {
 +              type: 'string',
 +              description: 'Scene id or exact name (default: the scene being viewed)',
++            },
++            region: {
++              type: 'object',
++              description:
++                'Zoom: only draw this rectangle of the scene, in grid squares (at least 2 by 2); the numbers stay those of the whole scene',
++              properties: {
++                x: { type: 'number' },
++                y: { type: 'number' },
++                width: { type: 'number' },
++                height: { type: 'number' },
++              },
++              required: ['x', 'y', 'width', 'height'],
++              additionalProperties: false,
 +            },
 +            max_size: {
 +              type: 'number',
@@ -11745,6 +12830,28 @@ index 0000000..df0e661
 +      this.logger.error('Failed to manage scene objects', error);
 +      throw new Error(
 +        `Failed to manage scene objects: ${error instanceof Error ? error.message : 'Unknown error'}`
++      );
++    }
++  }
++
++  async handleManageRegions(args: any): Promise<any> {
++    const parsed = manageRegionsSchema.parse(args ?? {});
++    if (parsed.action === 'create' && !parsed.regions) {
++      throw new Error('regions is required for create');
++    }
++    if (parsed.action === 'remove' && !parsed.all_mine && !(parsed.ids && parsed.ids.length)) {
++      throw new Error('remove needs ids or all_mine: true');
++    }
++    try {
++      const result = await this.foundryClient.query('foundry-mcp-bridge.manage-regions', parsed);
++      if (result?.success === false) {
++        throw new Error(result.error || 'Request was refused');
++      }
++      return result;
++    } catch (error) {
++      this.logger.error('Failed to manage regions', error);
++      throw new Error(
++        `Failed to manage regions: ${error instanceof Error ? error.message : 'Unknown error'}`
 +      );
 +    }
 +  }
