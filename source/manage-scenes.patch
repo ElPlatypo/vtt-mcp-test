@@ -63,12 +63,381 @@ index 864412c..71104a6 100644
  
  /**
   * Socket event names
+diff --git a/packages/foundry-module/src/data-access.manage-journals.test.ts b/packages/foundry-module/src/data-access.manage-journals.test.ts
+new file mode 100644
+index 0000000..bad3cea
+--- /dev/null
++++ b/packages/foundry-module/src/data-access.manage-journals.test.ts
+@@ -0,0 +1,363 @@
++/**
++ * manage-journals tests (create / update / describe). Foundry is stubbed: these check the
++ * payloads sent to JournalEntry.create / page updates, link resolution, HTML cleaning,
++ * validation and the write gate. They cannot prove a real Foundry accepts the payload.
++ */
++
++import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
++import { FoundryDataAccess } from './data-access.js';
++
++function makePage(overrides: Record<string, any> = {}) {
++  const page: any = {
++    id: 'p1',
++    name: 'Intro',
++    type: 'text',
++    sort: 100000,
++    text: { content: '<p>old</p>' },
++    title: { show: true, level: 1 },
++    update: vi.fn(async () => undefined),
++    ...overrides,
++  };
++  return page;
++}
++
++function makeJournal(pages: any[] = [makePage()], overrides: Record<string, any> = {}) {
++  const journal: any = {
++    id: 'j1',
++    name: 'Existing',
++    folder: null,
++    ownership: { default: 0 },
++    pages: { size: pages.length, contents: pages },
++    update: vi.fn(async function (this: any, data: any) {
++      if (data.name) journal.name = data.name;
++    }),
++    createEmbeddedDocuments: vi.fn(async (_type: string, data: any[]) =>
++      data.map((d, i) => ({ id: `new-${i}`, ...d }))
++    ),
++    ...overrides,
++  };
++  return journal;
++}
++
++function setup(options: { allowWriteOperations?: boolean; journals?: any[]; actors?: any[] } = {}) {
++  const created = makeJournal([
++    makePage({ id: 'c1', name: 'First' }),
++    makePage({ id: 'c2', name: 'Second' }),
++  ]);
++  const create = vi.fn(async (data: any) => {
++    created.name = data.name;
++    created.ownership = data.ownership;
++    return created;
++  });
++
++  vi.stubGlobal('Hooks', { on: vi.fn(), callAll: vi.fn() });
++  vi.stubGlobal('JournalEntry', { create });
++  vi.stubGlobal('game', {
++    ready: true,
++    world: { id: 'world-1', getFlag: vi.fn(() => []), setFlag: vi.fn() },
++    user: { id: 'gm', name: 'Gamemaster' },
++    journal: { contents: options.journals ?? [] },
++    actors: { contents: options.actors ?? [] },
++    scenes: { contents: [] },
++    items: { contents: [] },
++    tables: { contents: [] },
++    settings: {
++      get: (_module: string, key: string) =>
++        key === 'allowWriteOperations' ? (options.allowWriteOperations ?? true) : undefined,
++    },
++  });
++
++  const dataAccess = new FoundryDataAccess();
++  const getOrCreateFolder = vi.fn(async (name: string) => `folder-${name}`);
++  (dataAccess as any).getOrCreateFolder = getOrCreateFolder;
++  return { dataAccess, create, created, getOrCreateFolder };
++}
++
++describe('FoundryDataAccess.manageJournals', () => {
++  beforeEach(() => vi.unstubAllGlobals());
++  afterEach(() => vi.unstubAllGlobals());
++
++  describe('create', () => {
++    it('creates a GM-only journal with ordered text and image pages in a folder', async () => {
++      const { dataAccess, create, getOrCreateFolder } = setup();
++
++      const result = await dataAccess.manageJournals({
++        action: 'create',
++        name: '  Goblin Arrows ',
++        folder: 'Part 1',
++        pages: [
++          { name: 'Intro', content: '<p>Hello</p>', show_title: false, title_level: 2 },
++          { name: 'Map', type: 'image', src: 'worlds/w/uploads/map.png', caption: 'The map' },
++        ],
++      });
++
++      expect(getOrCreateFolder).toHaveBeenCalledWith('Part 1', 'JournalEntry');
++      expect(create).toHaveBeenCalledWith({
++        name: 'Goblin Arrows',
++        ownership: { default: 0 },
++        folder: 'folder-Part 1',
++        pages: [
++          {
++            name: 'Intro',
++            type: 'text',
++            sort: 100000,
++            text: { format: 1, content: '<p>Hello</p>' },
++            title: { show: false, level: 2 },
++          },
++          {
++            name: 'Map',
++            type: 'image',
++            sort: 200000,
++            src: 'worlds/w/uploads/map.png',
++            image: { caption: 'The map' },
++          },
++        ],
++      });
++      expect(result.success).toBe(true);
++      expect(result.journal.id).toBe('j1');
++      expect(result.pages.map((p: any) => p.result)).toEqual(['created', 'created']);
++    });
++
++    it('applies the requested visibility', async () => {
++      const { dataAccess, create } = setup();
++      await dataAccess.manageJournals({ action: 'create', name: 'x', ownership: 'observer' });
++      expect(create.mock.calls[0][0].ownership).toEqual({ default: 2 });
++    });
++
++    it('creates an empty text page body when none is given', async () => {
++      const { dataAccess, create } = setup();
++      await dataAccess.manageJournals({ action: 'create', name: 'x', pages: [{ name: 'Blank' }] });
++      expect(create.mock.calls[0][0].pages[0].text).toEqual({ format: 1, content: '' });
++    });
++
++    it('removes scripts and resolves links in page content, reporting unmatched ones', async () => {
++      const { dataAccess, create } = setup({
++        actors: [{ id: 'a1', name: 'Sildar Hallwinter' }],
++      });
++
++      const result = await dataAccess.manageJournals({
++        action: 'create',
++        name: 'x',
++        pages: [
++          {
++            name: 'p',
++            content:
++              '<p onclick="x()">{{actor: Sildar Hallwinter}} {{actor: Nobody}}</p><script>bad()</script>',
++          },
++        ],
++      });
++
++      expect(create.mock.calls[0][0].pages[0].text.content).toBe(
++        '<p>@UUID[Actor.a1]{Sildar Hallwinter} Nobody</p>'
++      );
++      expect(result.warnings).toHaveLength(1);
++      expect(result.warnings[0]).toContain('matches no actor');
++    });
++
++    it.each([
++      ['no name', { action: 'create' }, 'name is required'],
++      ['a blank name', { action: 'create', name: '  ' }, 'non-empty'],
++      ['a bad ownership', { action: 'create', name: 'x', ownership: 'all' }, 'ownership must be'],
++      [
++        'a nameless page',
++        { action: 'create', name: 'x', pages: [{ content: 'a' }] },
++        'needs a name',
++      ],
++      [
++        'an image page without src',
++        { action: 'create', name: 'x', pages: [{ name: 'i', type: 'image' }] },
++        'needs a src',
++      ],
++      [
++        'an unsupported page type',
++        { action: 'create', name: 'x', pages: [{ name: 'i', type: 'video' }] },
++        'Unsupported page type',
++      ],
++      [
++        'a bad title level',
++        { action: 'create', name: 'x', pages: [{ name: 'i', title_level: 7 }] },
++        'title_level',
++      ],
++    ])('rejects %s without creating anything', async (_label, options, message) => {
++      const { dataAccess, create } = setup();
++      await expect(dataAccess.manageJournals(options as any)).rejects.toThrow(message);
++      expect(create).not.toHaveBeenCalled();
++    });
++  });
++
++  describe('update', () => {
++    it('renames, moves, changes visibility and edits a page found by name', async () => {
++      const page = makePage({ id: 'p1', name: 'Intro' });
++      const journal = makeJournal([page]);
++      const { dataAccess } = setup({ journals: [journal] });
++
++      const result = await dataAccess.manageJournals({
++        action: 'update',
++        journal: 'existing',
++        name: 'Renamed',
++        folder: 'Part 2',
++        ownership: 'limited',
++        pages: [{ name: 'intro', content: '<p>new</p>', show_title: false }],
++      });
++
++      expect(journal.update).toHaveBeenCalledWith({
++        name: 'Renamed',
++        ownership: { default: 1 },
++        folder: 'folder-Part 2',
++      });
++      expect(page.update).toHaveBeenCalledWith({
++        'text.content': '<p>new</p>',
++        'title.show': false,
++      });
++      expect(result.pages).toEqual([{ id: 'p1', name: 'Intro', type: 'text', result: 'updated' }]);
++    });
++
++    it('finds a page by id and adds a new page at the end when the name is new', async () => {
++      const page = makePage({ id: 'p1', sort: 300000 });
++      const journal = makeJournal([page]);
++      const { dataAccess } = setup({ journals: [journal] });
++
++      const result = await dataAccess.manageJournals({
++        action: 'update',
++        journal: 'j1',
++        pages: [
++          { id: 'p1', content: 'x' },
++          { name: 'Added', content: '<p>a</p>' },
++        ],
++      });
++
++      expect(page.update).toHaveBeenCalled();
++      expect(journal.createEmbeddedDocuments).toHaveBeenCalledWith('JournalEntryPage', [
++        {
++          name: 'Added',
++          type: 'text',
++          sort: 400000,
++          text: { format: 1, content: '<p>a</p>' },
++        },
++      ]);
++      expect(result.pages.map((p: any) => p.result)).toEqual(['updated', 'created']);
++    });
++
++    it('does not remove pages that are not mentioned', async () => {
++      const journal = makeJournal([
++        makePage({ id: 'a', name: 'A' }),
++        makePage({ id: 'b', name: 'B' }),
++      ]);
++      const { dataAccess } = setup({ journals: [journal] });
++      await dataAccess.manageJournals({ action: 'update', journal: 'j1', name: 'N' });
++      expect(journal.pages.contents).toHaveLength(2);
++    });
++
++    it('edits an image page and refuses to change a page type', async () => {
++      const image = makePage({ id: 'i', name: 'Map', type: 'image', src: 'old.png', image: {} });
++      const journal = makeJournal([image]);
++      const { dataAccess } = setup({ journals: [journal] });
++
++      await dataAccess.manageJournals({
++        action: 'update',
++        journal: 'j1',
++        pages: [{ id: 'i', src: 'new.png', caption: 'C' }],
++      });
++      expect(image.update).toHaveBeenCalledWith({ src: 'new.png', 'image.caption': 'C' });
++
++      await expect(
++        dataAccess.manageJournals({
++          action: 'update',
++          journal: 'j1',
++          pages: [{ id: 'i', type: 'text', content: 'x' }],
++        })
++      ).rejects.toThrow('type cannot change');
++    });
++
++    it('refuses ambiguous journal or page names, missing ids and empty updates', async () => {
++      const dup = [makePage({ id: 'a', name: 'Same' }), makePage({ id: 'b', name: 'Same' })];
++      const journal = makeJournal(dup);
++      const other = makeJournal([makePage()], { id: 'j2' });
++      const { dataAccess } = setup({ journals: [journal, other] });
++
++      await expect(
++        dataAccess.manageJournals({
++          action: 'update',
++          journal: 'j1',
++          pages: [{ name: 'same', content: 'x' }],
++        })
++      ).rejects.toThrow('Several pages');
++      await expect(
++        dataAccess.manageJournals({
++          action: 'update',
++          journal: 'j1',
++          pages: [{ id: 'zzz', content: 'x' }],
++        })
++      ).rejects.toThrow('Page not found');
++      await expect(dataAccess.manageJournals({ action: 'update', journal: 'j1' })).rejects.toThrow(
++        'Nothing to update'
++      );
++      await expect(
++        dataAccess.manageJournals({ action: 'update', journal: 'Existing', name: 'x' })
++      ).rejects.toThrow('Several journals');
++      await expect(
++        dataAccess.manageJournals({ action: 'update', journal: 'nope', name: 'x' })
++      ).rejects.toThrow('Journal not found');
++      await expect(dataAccess.manageJournals({ action: 'update', name: 'x' })).rejects.toThrow(
++        'journal is required'
++      );
++    });
++  });
++
++  describe('describe', () => {
++    it('lists journals, and shows one with its pages in order', async () => {
++      const text = makePage({
++        id: 't',
++        name: 'Text',
++        sort: 200000,
++        text: { content: '<p>hi</p>' },
++      });
++      const image = makePage({
++        id: 'i',
++        name: 'Img',
++        type: 'image',
++        sort: 100000,
++        src: 'a.png',
++        image: { caption: 'cap' },
++      });
++      const journal = makeJournal([text, image], {
++        folder: { name: 'F' },
++        ownership: { default: 2 },
++      });
++      const { dataAccess } = setup({ journals: [journal] });
++
++      const list = await dataAccess.manageJournals({ action: 'describe' });
++      expect(list.journals).toEqual([
++        { id: 'j1', name: 'Existing', folder: 'F', ownership: 'observer', pageCount: 2 },
++      ]);
++
++      const one = await dataAccess.manageJournals({ action: 'describe', journal: 'j1' });
++      expect(one.journal.pages.map((p: any) => p.name)).toEqual(['Img', 'Text']);
++      expect(one.journal.pages[0]).toMatchObject({ src: 'a.png', caption: 'cap' });
++      expect(one.journal.pages[1]).toMatchObject({ content: '<p>hi</p>' });
++    });
++
++    it('works even when write operations are disabled', async () => {
++      const { dataAccess } = setup({ allowWriteOperations: false });
++      await expect(dataAccess.manageJournals({ action: 'describe' })).resolves.toMatchObject({
++        success: true,
++      });
++    });
++  });
++
++  describe('write gate', () => {
++    it('blocks create and update when write operations are disabled', async () => {
++      const journal = makeJournal();
++      const { dataAccess, create } = setup({ allowWriteOperations: false, journals: [journal] });
++
++      await expect(dataAccess.manageJournals({ action: 'create', name: 'x' })).rejects.toThrow(
++        /disabled in module settings/
++      );
++      await expect(
++        dataAccess.manageJournals({ action: 'update', journal: 'j1', name: 'x' })
++      ).rejects.toThrow(/disabled in module settings/);
++      expect(create).not.toHaveBeenCalled();
++      expect(journal.update).not.toHaveBeenCalled();
++    });
++  });
++});
 diff --git a/packages/foundry-module/src/data-access.manage-scenes.test.ts b/packages/foundry-module/src/data-access.manage-scenes.test.ts
 new file mode 100644
-index 0000000..561c7e4
+index 0000000..f299714
 --- /dev/null
 +++ b/packages/foundry-module/src/data-access.manage-scenes.test.ts
-@@ -0,0 +1,410 @@
+@@ -0,0 +1,447 @@
 +/**
 + * manage-scenes tests (create / update / describe).
 + *
@@ -357,6 +726,43 @@ index 0000000..561c7e4
 +    });
 +  });
 +
++  describe('Foundry Color objects', () => {
++    it('reports the colour as a plain string and does not warn when it was kept', async () => {
++      // On a real v14 world scene.backgroundColor is a Color object, not a string.
++      const color = Object.assign(Object.create(Number.prototype), {
++        toString: () => '#112233',
++        toJSON: () => '#112233',
++      });
++      const { scene } = makeScene({ backgroundColor: color });
++      const { dataAccess } = setup({ generation: 14, scenes: [scene] });
++
++      const result = await dataAccess.manageScenes({
++        action: 'update',
++        scene_identifier: 'scene-1',
++        background_color: '#112233',
++      });
++
++      expect(result.scene.backgroundColor).toBe('#112233');
++      expect(typeof result.scene.backgroundColor).toBe('string');
++      expect(result.warnings).toBeUndefined();
++    });
++
++    it('still warns when the colour really did not change', async () => {
++      const { scene } = makeScene({ backgroundColor: '#999999' });
++      const { dataAccess } = setup({ generation: 14, scenes: [scene] });
++
++      const result = await dataAccess.manageScenes({
++        action: 'update',
++        scene_identifier: 'scene-1',
++        background_color: '#112233',
++      });
++
++      expect(result.warnings).toEqual([
++        'background_color was requested as "#112233" but the scene reports "#999999"',
++      ]);
++    });
++  });
++
 +  describe('warnings for changes Foundry did not keep', () => {
 +    it('reports a requested value the scene does not show afterwards', async () => {
 +      // makeScene's update() is a no-op, like Foundry silently dropping a field.
@@ -480,12 +886,20 @@ index 0000000..561c7e4
 +  });
 +});
 diff --git a/packages/foundry-module/src/data-access.ts b/packages/foundry-module/src/data-access.ts
-index eecda7e..7dc4185 100644
+index eecda7e..cf03be4 100644
 --- a/packages/foundry-module/src/data-access.ts
 +++ b/packages/foundry-module/src/data-access.ts
-@@ -1,5 +1,14 @@
+@@ -1,5 +1,22 @@
  import { MODULE_ID, ERROR_MESSAGES, TOKEN_DISPOSITIONS } from './constants.js';
  import { permissionManager } from './permissions.js';
++import {
++  OWNERSHIP_LEVELS,
++  ownershipName,
++  resolveContentLinks,
++  stripUnsafeHtml,
++  type LinkKind,
++  type OwnershipName,
++} from './journal-utils.js';
 +import {
 +  UPLOAD_IMAGE_TYPES,
 +  UPLOAD_MAX_BYTES,
@@ -498,7 +912,7 @@ index eecda7e..7dc4185 100644
  import { transactionManager } from './transaction-manager.js';
  
  // The same five characters foundry.utils.escapeHTML replaces in v14, kept local because
-@@ -6714,7 +6723,7 @@ export class FoundryDataAccess {
+@@ -6714,7 +6731,7 @@ export class FoundryDataAccess {
  
          // Send socket request to GM
          if (game.socket) {
@@ -507,7 +921,7 @@ index eecda7e..7dc4185 100644
              type: 'requestMessageUpdate',
              buttonId,
              userId,
-@@ -8101,6 +8110,460 @@ export class FoundryDataAccess {
+@@ -8101,6 +8118,784 @@ export class FoundryDataAccess {
      }
    }
  
@@ -527,7 +941,9 @@ index eecda7e..7dc4185 100644
 +      padding: scene.padding,
 +      // v14 keeps the image on the first Level; v13 and earlier on the Scene itself.
 +      background: scene._source?.background?.src || level?.background?.src || null,
-+      backgroundColor: scene.backgroundColor ?? null,
++      // Foundry hands the colour back as a Color object (a Number subclass), not a string;
++      // its toString() gives "#rrggbb".
++      backgroundColor: scene.backgroundColor != null ? String(scene.backgroundColor) : null,
 +      grid: {
 +        type: scene.grid?.type,
 +        size: scene.grid?.size,
@@ -837,6 +1253,328 @@ index eecda7e..7dc4185 100644
 +      );
 +      throw new Error(
 +        `Failed to ${options?.action ?? 'manage'} scene: ${error instanceof Error ? error.message : 'Unknown error'}`
++      );
++    }
++  }
++
++  // ===== JOURNAL MANAGEMENT (CREATE / UPDATE / DESCRIBE) =====
++
++  /** Find journals by id or exact (case-insensitive) name; throws if none or several. */
++  private findJournalByIdentifier(identifier: string): any {
++    const journals = ((game as any).journal?.contents || []) as any[];
++    const byId = journals.find(j => j.id === identifier);
++    if (byId) return byId;
++    const wanted = identifier.trim().toLowerCase();
++    const matches = journals.filter(j => String(j.name ?? '').toLowerCase() === wanted);
++    if (matches.length === 1) return matches[0];
++    if (matches.length > 1) {
++      throw new Error(
++        `Several journals are named "${identifier}" (ids: ${matches.map(j => j.id).join(', ')}); use the id`
++      );
++    }
++    throw new Error(`Journal not found: "${identifier}"`);
++  }
++
++  /** Look a document up by kind and name for {{kind: Name}} links. */
++  private lookupLinkTarget(kind: LinkKind, name: string): { id: string; name: string } | 'ambiguous' | null {
++    const collections: Record<LinkKind, any> = {
++      actor: (game as any).actors,
++      scene: (game as any).scenes,
++      journal: (game as any).journal,
++      item: (game as any).items,
++      rolltable: (game as any).tables,
++    };
++    const docs = (collections[kind]?.contents || []) as any[];
++    const wanted = name.trim().toLowerCase();
++    const byId = docs.find(d => d.id === name.trim());
++    if (byId) return { id: byId.id, name: byId.name };
++    const matches = docs.filter(d => String(d.name ?? '').toLowerCase() === wanted);
++    if (matches.length === 1) return { id: matches[0].id, name: matches[0].name };
++    return matches.length > 1 ? 'ambiguous' : null;
++  }
++
++  /** Make journal HTML safe and resolve {{kind: Name}} links. */
++  private prepareJournalHtml(content: string, warnings: string[]): string {
++    const safe = stripUnsafeHtml(content);
++    const resolved = resolveContentLinks(safe, (kind, name) => this.lookupLinkTarget(kind, name));
++    warnings.push(...resolved.warnings);
++    return resolved.html;
++  }
++
++  private summarizeJournal(journal: any, includePages: boolean): Record<string, any> {
++    const level = journal.ownership?.default;
++    const summary: Record<string, any> = {
++      id: journal.id,
++      name: journal.name,
++      folder: journal.folder?.name ?? null,
++      ownership: ownershipName(level),
++      pageCount: journal.pages?.size ?? journal.pages?.contents?.length ?? 0,
++    };
++    if (includePages) {
++      const pages = ((journal.pages?.contents || []) as any[])
++        .slice()
++        .sort((a, b) => (a.sort ?? 0) - (b.sort ?? 0));
++      summary.pages = pages.map(page => ({
++        id: page.id,
++        name: page.name,
++        type: page.type,
++        sort: page.sort,
++        ...(page.type === 'text'
++          ? { content: page.text?.content ?? '' }
++          : page.type === 'image'
++            ? { src: page.src ?? null, caption: page.image?.caption ?? '' }
++            : {}),
++        showTitle: page.title?.show,
++        titleLevel: page.title?.level,
++      }));
++    }
++    return summary;
++  }
++
++  /**
++   * Create, update or describe journals.
++   * create: a journal with exactly the pages given (text pages as HTML, or image pages).
++   * update: rename, move to a folder, change who can see it, and upsert pages (matched by id
++   *   or exact name; created when no page matches). Never removes pages or journals.
++   * describe: lists all journals, or one journal with its full pages.
++   * Text may contain {{actor: Name}}, {{scene: Name}}, {{journal: Name}}, {{item: Name}} or
++   * {{rolltable: Name}} (optionally {{actor: Name | label}}), which become Foundry links.
++   */
++  async manageJournals(options: {
++    action: 'create' | 'update' | 'describe';
++    journal?: string;
++    name?: string;
++    folder?: string;
++    ownership?: OwnershipName;
++    pages?: Array<{
++      id?: string;
++      name?: string;
++      type?: 'text' | 'image';
++      content?: string;
++      src?: string;
++      caption?: string;
++      show_title?: boolean;
++      title_level?: number;
++    }>;
++  }): Promise<any> {
++    this.validateFoundryState();
++
++    try {
++      if (options.action === 'describe') {
++        if (options.journal) {
++          const journal = this.findJournalByIdentifier(options.journal);
++          return { success: true, journal: this.summarizeJournal(journal, true) };
++        }
++        const journals = (((game as any).journal?.contents || []) as any[]).map(j =>
++          this.summarizeJournal(j, false)
++        );
++        return { success: true, journals };
++      }
++
++      if (options.action !== 'create' && options.action !== 'update') {
++        throw new Error(`Unknown action: ${String(options.action)} (create | update | describe)`);
++      }
++
++      const permissionCheck = permissionManager.checkWritePermission('createActor', {
++        quantity: 1,
++      });
++      if (!permissionCheck.allowed) {
++        throw new Error(`${ERROR_MESSAGES.ACCESS_DENIED}: ${permissionCheck.reason}`);
++      }
++
++      if (options.name !== undefined && (typeof options.name !== 'string' || !options.name.trim())) {
++        throw new Error('name must be a non-empty string');
++      }
++      if (options.ownership !== undefined && !(options.ownership in OWNERSHIP_LEVELS)) {
++        throw new Error('ownership must be one of: none, limited, observer, owner');
++      }
++      if (options.folder !== undefined && (typeof options.folder !== 'string' || !options.folder.trim())) {
++        throw new Error('folder must be a non-empty string');
++      }
++      const pageSpecs = options.pages ?? [];
++      if (!Array.isArray(pageSpecs) || pageSpecs.length > 100) {
++        throw new Error('pages must be a list of at most 100 pages');
++      }
++      for (const spec of pageSpecs) {
++        if (spec.type !== undefined && spec.type !== 'text' && spec.type !== 'image') {
++          throw new Error(`Unsupported page type "${String(spec.type)}" (text | image)`);
++        }
++        if (typeof spec.content === 'string' && spec.content.length > 1_000_000) {
++          throw new Error('A page may hold at most 1,000,000 characters');
++        }
++        if (
++          spec.title_level !== undefined &&
++          (!Number.isInteger(spec.title_level) || spec.title_level < 1 || spec.title_level > 6)
++        ) {
++          throw new Error('title_level must be a whole number from 1 to 6');
++        }
++      }
++
++      const warnings: string[] = [];
++      const html = (content: string) => this.prepareJournalHtml(content, warnings);
++
++      // Fields of a page document from a spec (create: all defaults; update: only given).
++      const pageFields = (spec: (typeof pageSpecs)[number], type: 'text' | 'image') => {
++        const fields: Record<string, any> = {};
++        if (type === 'text' && spec.content !== undefined) {
++          fields['text.content'] = html(spec.content);
++        }
++        if (type === 'image') {
++          if (spec.src !== undefined) fields.src = spec.src;
++          if (spec.caption !== undefined) fields['image.caption'] = spec.caption;
++        }
++        if (spec.show_title !== undefined) fields['title.show'] = spec.show_title;
++        if (spec.title_level !== undefined) fields['title.level'] = spec.title_level;
++        return fields;
++      };
++
++      const nest = (flat: Record<string, any>): Record<string, any> => {
++        const out: Record<string, any> = {};
++        for (const [path, value] of Object.entries(flat)) {
++          const parts = path.split('.');
++          let cursor = out;
++          parts.slice(0, -1).forEach(part => {
++            cursor[part] = cursor[part] ?? {};
++            cursor = cursor[part];
++          });
++          cursor[parts[parts.length - 1]] = value;
++        }
++        return out;
++      };
++
++      const newPageData = (spec: (typeof pageSpecs)[number], sort: number) => {
++        const type = spec.type ?? 'text';
++        if (!spec.name || typeof spec.name !== 'string' || !spec.name.trim()) {
++          throw new Error('Every new page needs a name');
++        }
++        if (type === 'image' && !spec.src) {
++          throw new Error(`Image page "${spec.name}" needs a src (a Foundry file path)`);
++        }
++        const data = nest(pageFields(spec, type));
++        if (type === 'text') {
++          data.text = { format: 1, content: '', ...(data.text ?? {}) };
++        }
++        return { name: spec.name.trim(), type, sort, ...data };
++      };
++
++      let journal: any;
++      const pageResults: Array<{ id: string; name: string; type: string; result: string }> = [];
++
++      if (options.action === 'create') {
++        if (!options.name) throw new Error('name is required for create');
++        const folderId = options.folder
++          ? await this.getOrCreateFolder(options.folder.trim(), 'JournalEntry')
++          : null;
++        if (options.folder && !folderId) {
++          warnings.push(`folder "${options.folder}" could not be created; the journal is in the root`);
++        }
++        const pagesData = pageSpecs.map((spec, index) => newPageData(spec, (index + 1) * 100000));
++        journal = await JournalEntry.create({
++          name: options.name.trim(),
++          pages: pagesData,
++          ownership: { default: OWNERSHIP_LEVELS[options.ownership ?? 'none'] },
++          ...(folderId ? { folder: folderId } : {}),
++        } as any);
++        if (!journal) throw new Error('Foundry did not return the created journal');
++        for (const page of ((journal.pages?.contents || []) as any[])) {
++          pageResults.push({ id: page.id, name: page.name, type: page.type, result: 'created' });
++        }
++      } else {
++        if (!options.journal) throw new Error('journal is required for update');
++        journal = this.findJournalByIdentifier(options.journal);
++        const hasChange =
++          options.name !== undefined ||
++          options.folder !== undefined ||
++          options.ownership !== undefined ||
++          pageSpecs.length > 0;
++        if (!hasChange) throw new Error('Nothing to update: pass at least one field to change');
++
++        const journalUpdate: Record<string, any> = {};
++        if (options.name !== undefined) journalUpdate.name = options.name.trim();
++        if (options.ownership !== undefined) {
++          journalUpdate.ownership = { default: OWNERSHIP_LEVELS[options.ownership] };
++        }
++        if (options.folder !== undefined) {
++          const folderId = await this.getOrCreateFolder(options.folder.trim(), 'JournalEntry');
++          if (!folderId) {
++            warnings.push(`folder "${options.folder}" could not be created; the journal was not moved`);
++          } else {
++            journalUpdate.folder = folderId;
++          }
++        }
++        if (Object.keys(journalUpdate).length > 0) {
++          await journal.update(journalUpdate);
++        }
++
++        const existing = ((journal.pages?.contents || []) as any[]).slice();
++        let nextSort =
++          existing.reduce((max, page) => Math.max(max, page.sort ?? 0), 0) + 100000;
++        for (const spec of pageSpecs) {
++          let target: any;
++          if (spec.id) {
++            target = existing.find(p => p.id === spec.id);
++            if (!target) throw new Error(`Page not found: ${spec.id}`);
++          } else if (spec.name) {
++            const wanted = spec.name.trim().toLowerCase();
++            const matches = existing.filter(p => String(p.name ?? '').toLowerCase() === wanted);
++            if (matches.length > 1) {
++              throw new Error(
++                `Several pages are named "${spec.name}" (ids: ${matches.map(p => p.id).join(', ')}); pass the id`
++              );
++            }
++            target = matches[0];
++          } else {
++            throw new Error('Every page needs an id or a name');
++          }
++
++          if (target) {
++            if (spec.type !== undefined && spec.type !== target.type) {
++              throw new Error(
++                `Page "${target.name}" is a ${target.type} page; its type cannot change`
++              );
++            }
++            const fields = pageFields(spec, target.type);
++            if (Object.keys(fields).length === 0) {
++              warnings.push(`page "${target.name}" had nothing to change`);
++              continue;
++            }
++            await target.update(fields);
++            pageResults.push({ id: target.id, name: target.name, type: target.type, result: 'updated' });
++          } else {
++            const created = await journal.createEmbeddedDocuments('JournalEntryPage', [
++              newPageData(spec, nextSort),
++            ]);
++            nextSort += 100000;
++            const page = created?.[0];
++            if (page) existing.push(page);
++            pageResults.push({
++              id: page?.id ?? '',
++              name: spec.name!.trim(),
++              type: spec.type ?? 'text',
++              result: 'created',
++            });
++          }
++        }
++      }
++
++      this.auditLog(`manageJournals:${options.action}`, { ...options, pages: pageSpecs.length }, 'success');
++
++      return {
++        success: true,
++        action: options.action,
++        journal: this.summarizeJournal(journal, false),
++        pages: pageResults,
++        ...(warnings.length > 0 ? { warnings } : {}),
++      };
++    } catch (error) {
++      this.auditLog(
++        `manageJournals:${options?.action}`,
++        { journal: options?.journal, name: options?.name },
++        'failure',
++        error instanceof Error ? error.message : 'Unknown error'
++      );
++      throw new Error(
++        `Failed to ${options?.action ?? 'manage'} journal: ${error instanceof Error ? error.message : 'Unknown error'}`
 +      );
 +    }
 +  }
@@ -1220,6 +1958,201 @@ index 0000000..83a409c
 +    });
 +  });
 +});
+diff --git a/packages/foundry-module/src/journal-utils.test.ts b/packages/foundry-module/src/journal-utils.test.ts
+new file mode 100644
+index 0000000..1e9c3ce
+--- /dev/null
++++ b/packages/foundry-module/src/journal-utils.test.ts
+@@ -0,0 +1,84 @@
++import { describe, expect, it } from 'vitest';
++import { ownershipName, resolveContentLinks, stripUnsafeHtml } from './journal-utils.js';
++
++describe('ownershipName', () => {
++  it('maps levels to names', () => {
++    expect([0, 1, 2, 3].map(ownershipName)).toEqual(['none', 'limited', 'observer', 'owner']);
++    expect(ownershipName(-1)).toBe('unknown');
++    expect(ownershipName(undefined)).toBe('unknown');
++  });
++});
++
++describe('stripUnsafeHtml', () => {
++  it('keeps ordinary markup', () => {
++    const html =
++      '<h2>Title</h2><p class="x">Some <em>text</em></p><table><tr><td>1</td></tr></table>';
++    expect(stripUnsafeHtml(html)).toBe(html);
++  });
++
++  it('removes script, iframe and form elements with their content', () => {
++    expect(stripUnsafeHtml('a<script>alert(1)</script>b')).toBe('ab');
++    expect(stripUnsafeHtml('a<iframe src="x">y</iframe>b')).toBe('ab');
++    expect(stripUnsafeHtml('a<FORM action="x"><input></FORM>b')).toBe('ab');
++  });
++
++  it('removes unclosed and void dangerous tags', () => {
++    expect(stripUnsafeHtml('a<script src="x">b')).toBe('ab');
++    expect(
++      stripUnsafeHtml('<link rel="stylesheet" href="x"><meta charset="x"><base href="x">p')
++    ).toBe('p');
++  });
++
++  it('removes inline event handlers in every quoting style', () => {
++    expect(stripUnsafeHtml('<img src="a.png" onerror="x()">')).toBe('<img src="a.png">');
++    expect(stripUnsafeHtml("<p onclick='x()'>t</p>")).toBe('<p>t</p>');
++    expect(stripUnsafeHtml('<p onmouseover=x()>t</p>')).toBe('<p>t</p>');
++  });
++
++  it('blanks script-capable URLs', () => {
++    expect(stripUnsafeHtml('<a href="javascript:alert(1)">x</a>')).toBe('<a href="">x</a>');
++    expect(stripUnsafeHtml("<a href='JavaScript:alert(1)'>x</a>")).toBe('<a href="">x</a>');
++    expect(stripUnsafeHtml('<a href="https://example.com">x</a>')).toBe(
++      '<a href="https://example.com">x</a>'
++    );
++  });
++});
++
++describe('resolveContentLinks', () => {
++  const lookup = (kind: string, name: string) => {
++    if (name === 'Twice') return 'ambiguous' as const;
++    if (name === 'Missing') return null;
++    return { id: `${kind}-id`, name };
++  };
++
++  it('turns links into UUID links, with the name or a label', () => {
++    const out = resolveContentLinks(
++      '<p>{{actor: Sildar Hallwinter}} in {{scene: Cave | the cave}}</p>',
++      lookup
++    );
++    expect(out.html).toBe(
++      '<p>@UUID[Actor.actor-id]{Sildar Hallwinter} in @UUID[Scene.scene-id]{the cave}</p>'
++    );
++    expect(out.warnings).toEqual([]);
++  });
++
++  it('supports every kind', () => {
++    const out = resolveContentLinks('{{journal: A}} {{item: B}} {{rolltable: C}}', lookup);
++    expect(out.html).toBe(
++      '@UUID[JournalEntry.journal-id]{A} @UUID[Item.item-id]{B} @UUID[RollTable.rolltable-id]{C}'
++    );
++  });
++
++  it('leaves unresolved or ambiguous names as plain text with a warning', () => {
++    const out = resolveContentLinks('{{actor: Missing}} and {{item: Twice | the thing}}', lookup);
++    expect(out.html).toBe('Missing and the thing');
++    expect(out.warnings).toHaveLength(2);
++    expect(out.warnings[0]).toContain('matches no actor');
++    expect(out.warnings[1]).toContain('more than one item');
++  });
++
++  it('ignores text that only looks similar', () => {
++    const html = '{{unknown: X}} {actor: Y} {{ }}';
++    expect(resolveContentLinks(html, lookup).html).toBe(html);
++  });
++});
+diff --git a/packages/foundry-module/src/journal-utils.ts b/packages/foundry-module/src/journal-utils.ts
+new file mode 100644
+index 0000000..cbd8013
+--- /dev/null
++++ b/packages/foundry-module/src/journal-utils.ts
+@@ -0,0 +1,99 @@
++/**
++ * Pure helpers for the manage-journals tool: ownership levels, a safety pass over HTML,
++ * and {{kind: Name}} link resolution. Kept free of Foundry globals so they can be tested.
++ */
++
++export type OwnershipName = 'none' | 'limited' | 'observer' | 'owner';
++
++/** Foundry's CONST.DOCUMENT_OWNERSHIP_LEVELS, by friendly name. */
++export const OWNERSHIP_LEVELS: Record<OwnershipName, number> = {
++  none: 0,
++  limited: 1,
++  observer: 2,
++  owner: 3,
++};
++
++export function ownershipName(level: unknown): OwnershipName | 'unknown' {
++  const found = (Object.keys(OWNERSHIP_LEVELS) as OwnershipName[]).find(
++    key => OWNERSHIP_LEVELS[key] === level
++  );
++  return found ?? 'unknown';
++}
++
++/**
++ * Remove the parts of an HTML string that can run code in a browser: script, iframe,
++ * object, embed, link, meta, base and form tags, inline event handlers (onclick=...)
++ * and javascript: or data:text/html URLs.
++ *
++ * This is defence in depth for text that comes from an AI or an imported document, not a
++ * full sanitiser: Foundry still renders journal text through its own handling.
++ */
++export function stripUnsafeHtml(html: string): string {
++  let out = html;
++  // Whole elements with content.
++  out = out.replace(
++    /<\s*(script|iframe|object|embed|form|noscript)\b[\s\S]*?<\s*\/\s*\1\s*>/gi,
++    ''
++  );
++  // Unclosed or void variants of the same and other dangerous tags.
++  out = out.replace(
++    /<\s*\/?\s*(script|iframe|object|embed|form|noscript|link|meta|base)\b[^>]*>/gi,
++    ''
++  );
++  // Inline event handlers: onclick="..." onerror='...' onload=...
++  out = out.replace(/\s+on[a-z]+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '');
++  // Script-capable URLs in attributes.
++  out = out.replace(
++    /(\s(?:href|src|xlink:href|action|formaction)\s*=\s*)(["']?)\s*(?:javascript:|data:text\/html|vbscript:)[^"'\s>]*\2/gi,
++    '$1""'
++  );
++  return out;
++}
++
++export type LinkKind = 'actor' | 'scene' | 'journal' | 'item' | 'rolltable';
++
++const LINK_DOCUMENT: Record<LinkKind, string> = {
++  actor: 'Actor',
++  scene: 'Scene',
++  journal: 'JournalEntry',
++  item: 'Item',
++  rolltable: 'RollTable',
++};
++
++export type LinkLookup = (
++  kind: LinkKind,
++  name: string
++) => { id: string; name: string } | 'ambiguous' | null;
++
++/**
++ * Turn {{actor: Sildar Hallwinter}} or {{scene: Cragmaw Cave | the cave}} into Foundry's
++ * @UUID[Actor.<id>]{label} link. A name that cannot be resolved (or matches several
++ * documents) is left as its plain label and reported in warnings.
++ */
++export function resolveContentLinks(
++  html: string,
++  lookup: LinkLookup
++): { html: string; warnings: string[] } {
++  const warnings: string[] = [];
++  const out = html.replace(
++    /\{\{\s*(actor|scene|journal|item|rolltable)\s*:\s*([^}|]+?)\s*(?:\|\s*([^}]+?)\s*)?\}\}/gi,
++    (_match, rawKind: string, rawName: string, rawLabel?: string) => {
++      const kind = rawKind.toLowerCase() as LinkKind;
++      const name = rawName.trim();
++      const label = (rawLabel ?? name).trim();
++      const found = lookup(kind, name);
++      if (found === 'ambiguous') {
++        warnings.push(
++          `link {{${kind}: ${name}}} matches more than one ${kind}; left as plain text`
++        );
++        return label;
++      }
++      if (!found) {
++        warnings.push(`link {{${kind}: ${name}}} matches no ${kind}; left as plain text`);
++        return label;
++      }
++      return `@UUID[${LINK_DOCUMENT[kind]}.${found.id}]{${label}}`;
++    }
++  );
++  return { html: out, warnings };
++}
 diff --git a/packages/foundry-module/src/main.ts b/packages/foundry-module/src/main.ts
 index 9024ead..b6ea882 100644
 --- a/packages/foundry-module/src/main.ts
@@ -1234,7 +2167,7 @@ index 9024ead..b6ea882 100644
          // Handle ChatMessage update requests (GM only)
          if (data.type === 'requestMessageUpdate' && data.buttonId && data.messageId) {
 diff --git a/packages/foundry-module/src/queries.ts b/packages/foundry-module/src/queries.ts
-index 9fe02ba..0365ea7 100644
+index 9fe02ba..d1fb5f5 100644
 --- a/packages/foundry-module/src/queries.ts
 +++ b/packages/foundry-module/src/queries.ts
 @@ -1,4 +1,4 @@
@@ -1252,16 +2185,17 @@ index 9fe02ba..0365ea7 100644
  
      // Character/Actor queries
      CONFIG.queries[`${modulePrefix}.getCharacterInfo`] = this.handleGetCharacterInfo.bind(this);
-@@ -46,6 +46,8 @@ export class QueryHandlers {
+@@ -46,6 +46,9 @@ export class QueryHandlers {
      CONFIG.queries[`${modulePrefix}.list-scenes`] = this.handleListScenes.bind(this);
      CONFIG.queries[`${modulePrefix}.switch-scene`] = this.handleSwitchScene.bind(this);
      CONFIG.queries[`${modulePrefix}.update-scene-music`] = this.handleUpdateSceneMusic.bind(this);
 +    CONFIG.queries[`${modulePrefix}.manage-scenes`] = this.handleManageScenes.bind(this);
 +    CONFIG.queries[`${modulePrefix}.upload-file`] = this.handleUploadFile.bind(this);
++    CONFIG.queries[`${modulePrefix}.manage-journals`] = this.handleManageJournals.bind(this);
      CONFIG.queries[`${modulePrefix}.manage-playlists`] = this.handleManagePlaylists.bind(this);
      CONFIG.queries[`${modulePrefix}.control-playlist`] = this.handleControlPlaylist.bind(this);
  
-@@ -184,7 +186,7 @@ export class QueryHandlers {
+@@ -184,7 +187,7 @@ export class QueryHandlers {
     * Unregister all query handlers
     */
    unregisterHandlers(): void {
@@ -1270,7 +2204,7 @@ index 9fe02ba..0365ea7 100644
      const keysToRemove = Object.keys(CONFIG.queries).filter(key => key.startsWith(modulePrefix));
  
      for (const key of keysToRemove) {
-@@ -477,7 +479,7 @@ export class QueryHandlers {
+@@ -477,7 +480,7 @@ export class QueryHandlers {
     * Get list of all registered query methods
     */
    getRegisteredMethods(): string[] {
@@ -1279,7 +2213,7 @@ index 9fe02ba..0365ea7 100644
      return Object.keys(CONFIG.queries)
        .filter(key => key.startsWith(modulePrefix))
        .map(key => key.replace(`${modulePrefix}.`, ''));
-@@ -487,7 +489,7 @@ export class QueryHandlers {
+@@ -487,7 +490,7 @@ export class QueryHandlers {
     * Test if a specific query handler is registered
     */
    isMethodRegistered(method: string): boolean {
@@ -1288,10 +2222,26 @@ index 9fe02ba..0365ea7 100644
      return queryKey in CONFIG.queries && typeof CONFIG.queries[queryKey] === 'function';
    }
  
-@@ -1218,6 +1220,40 @@ export class QueryHandlers {
+@@ -1218,6 +1221,55 @@ export class QueryHandlers {
      }
    }
  
++  private async handleManageJournals(data: any): Promise<any> {
++    try {
++      const gmCheck = this.validateGMAccess();
++      if (!gmCheck.allowed) {
++        return { error: 'Access denied', success: false };
++      }
++      if (!data?.action) {
++        throw new Error('action is required (create | update | describe)');
++      }
++      // manageJournals already prefixes its errors; do not stack another prefix.
++      return await this.dataAccess.manageJournals(data);
++    } catch (error) {
++      throw error instanceof Error ? error : new Error(String(error));
++    }
++  }
++
 +  private async handleUploadFile(data: any): Promise<any> {
 +    try {
 +      const gmCheck = this.validateGMAccess();
@@ -1301,11 +2251,10 @@ index 9fe02ba..0365ea7 100644
 +      if (!data?.filename || !data?.imageData) {
 +        throw new Error('filename and imageData are required');
 +      }
++      // uploadFile already prefixes its errors ("Failed to upload file: ..."); do not stack another.
 +      return await this.dataAccess.uploadFile(data);
 +    } catch (error) {
-+      throw new Error(
-+        `Failed to upload file: ${error instanceof Error ? error.message : 'Unknown error'}`
-+      );
++      throw error instanceof Error ? error : new Error(String(error));
 +    }
 +  }
 +
@@ -1583,41 +2532,48 @@ index 0000000..d81af4a
 +  return bytes;
 +}
 diff --git a/packages/mcp-server/src/backend.ts b/packages/mcp-server/src/backend.ts
-index 8967e33..b0aefaf 100644
+index 8967e33..b76cef4 100644
 --- a/packages/mcp-server/src/backend.ts
 +++ b/packages/mcp-server/src/backend.ts
-@@ -48,6 +48,7 @@ import { DnD5eAddFeatureTool } from './tools/dnd5e/add-feature.js';
+@@ -48,6 +48,8 @@ import { DnD5eAddFeatureTool } from './tools/dnd5e/add-feature.js';
  import { DnD5eNpcTools } from './tools/dnd5e/npc.js';
  import { DnD5eFeaturesFromCompendiumTools } from './tools/dnd5e/features.js';
  import { ChatTools } from './tools/chat.js';
 +import { UploadTools } from './tools/upload.js';
++import { JournalTools } from './tools/journal.js';
  
  const CONTROL_HOST = '127.0.0.1';
  
-@@ -1195,6 +1196,7 @@ async function startBackend(): Promise<void> {
+@@ -1195,6 +1197,8 @@ async function startBackend(): Promise<void> {
    const compendiumTools = new CompendiumTools({ foundryClient, logger, systemRegistry });
  
    const sceneTools = new SceneTools({ foundryClient, logger });
 +  const uploadTools = new UploadTools({ foundryClient, logger });
++  const journalTools = new JournalTools({ foundryClient, logger });
    const playlistTools = new PlaylistTools({ foundryClient, logger });
  
    const actorCreationTools = new ActorCreationTools({ foundryClient, logger });
-@@ -1429,6 +1431,8 @@ async function startBackend(): Promise<void> {
+@@ -1429,6 +1433,9 @@ async function startBackend(): Promise<void> {
  
      ...sceneTools.getToolDefinitions(),
  
 +    ...uploadTools.getToolDefinitions(),
++    ...journalTools.getToolDefinitions(),
 +
      ...actorCreationTools.getToolDefinitions(),
      ...actorManagementTools.getToolDefinitions(),
      ...effectManagementTools.getToolDefinitions(),
-@@ -1805,6 +1809,16 @@ async function startBackend(): Promise<void> {
+@@ -1805,6 +1812,20 @@ async function startBackend(): Promise<void> {
  
                    break;
  
 +                case 'manage-scenes':
 +                  result = await sceneTools.handleManageScenes(args);
 +
++                  break;
++
++                case 'manage-journals':
++                  result = await journalTools.handleManageJournals(args);
 +                  break;
 +
 +                case 'upload-file':
@@ -1672,6 +2628,255 @@ index 6495485..e335970 100644
  
        this.pendingQueries.set(queryId, { resolve, reject, timeout });
  
+diff --git a/packages/mcp-server/src/tools/journal.test.ts b/packages/mcp-server/src/tools/journal.test.ts
+new file mode 100644
+index 0000000..1808458
+--- /dev/null
++++ b/packages/mcp-server/src/tools/journal.test.ts
+@@ -0,0 +1,100 @@
++import { describe, expect, it, vi } from 'vitest';
++import { JournalTools } from './journal.js';
++
++function makeTools(result: any = { success: true }) {
++  const query = vi.fn(async () => result);
++  const logger: any = {
++    info: vi.fn(),
++    debug: vi.fn(),
++    error: vi.fn(),
++    warn: vi.fn(),
++    child: () => logger,
++  };
++  return { tools: new JournalTools({ foundryClient: { query } as any, logger }), query };
++}
++
++describe('manage-journals definition', () => {
++  it('requires only action', () => {
++    const def = makeTools().tools.getToolDefinitions()[0];
++    expect(def.name).toBe('manage-journals');
++    expect(def.inputSchema.required).toEqual(['action']);
++    expect(Object.keys(def.inputSchema.properties).sort()).toEqual([
++      'action',
++      'folder',
++      'journal',
++      'name',
++      'ownership',
++      'pages',
++    ]);
++  });
++});
++
++describe('JournalTools.handleManageJournals', () => {
++  it('forwards a create request to the bridge', async () => {
++    const { tools, query } = makeTools({ success: true, journal: { id: 'j1' } });
++    const args = {
++      action: 'create',
++      name: 'Goblin Arrows',
++      folder: 'Part 1',
++      ownership: 'observer',
++      pages: [
++        { name: 'Intro', content: '<p>Hi</p>' },
++        { name: 'Map', type: 'image', src: 'a.png' },
++      ],
++    };
++
++    const result = await tools.handleManageJournals(args);
++
++    expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.manage-journals', args);
++    expect(result.journal.id).toBe('j1');
++  });
++
++  it('allows describe with no other fields', async () => {
++    const { tools, query } = makeTools();
++    await tools.handleManageJournals({ action: 'describe' });
++    expect(query).toHaveBeenCalled();
++  });
++
++  it.each([
++    ['create without a name', { action: 'create' }, 'name is required'],
++    ['update without a journal', { action: 'update', name: 'x' }, 'journal is required'],
++    ['an unknown action', { action: 'delete', journal: 'x' }, ''],
++    ['an unknown field', { action: 'describe', purge: true }, ''],
++    [
++      'an unknown page field',
++      { action: 'create', name: 'x', pages: [{ name: 'a', html: 'b' }] },
++      '',
++    ],
++    ['a bad ownership', { action: 'create', name: 'x', ownership: 'everyone' }, ''],
++    [
++      'a bad title level',
++      { action: 'create', name: 'x', pages: [{ name: 'a', title_level: 9 }] },
++      '',
++    ],
++    [
++      'too many pages',
++      {
++        action: 'create',
++        name: 'x',
++        pages: Array.from({ length: 101 }, (_, i) => ({ name: `p${i}` })),
++      },
++      '',
++    ],
++  ])('rejects %s before contacting Foundry', async (_label, args, message) => {
++    const { tools, query } = makeTools();
++    await expect(tools.handleManageJournals(args)).rejects.toThrow(message || undefined);
++    expect(query).not.toHaveBeenCalled();
++  });
++
++  it('wraps bridge failures once', async () => {
++    const query = vi.fn(async () => {
++      throw new Error('Failed to create journal: boom');
++    });
++    const logger: any = { info: vi.fn(), error: vi.fn(), child: () => logger };
++    const tools = new JournalTools({ foundryClient: { query } as any, logger });
++
++    await expect(tools.handleManageJournals({ action: 'create', name: 'x' })).rejects.toThrow(
++      'Failed to manage journals: Failed to create journal: boom'
++    );
++  });
++});
+diff --git a/packages/mcp-server/src/tools/journal.ts b/packages/mcp-server/src/tools/journal.ts
+new file mode 100644
+index 0000000..942a444
+--- /dev/null
++++ b/packages/mcp-server/src/tools/journal.ts
+@@ -0,0 +1,137 @@
++import { z } from 'zod';
++import { FoundryClient } from '../foundry-client.js';
++import { Logger } from '../logger.js';
++
++export interface JournalToolsOptions {
++  foundryClient: FoundryClient;
++  logger: Logger;
++}
++
++const pageSchema = z
++  .object({
++    id: z.string().min(1).optional(),
++    name: z.string().min(1).optional(),
++    type: z.enum(['text', 'image']).optional(),
++    content: z.string().max(1_000_000).optional(),
++    src: z.string().min(1).optional(),
++    caption: z.string().optional(),
++    show_title: z.boolean().optional(),
++    title_level: z.number().int().min(1).max(6).optional(),
++  })
++  .strict();
++
++const journalSchema = z
++  .object({
++    action: z.enum(['create', 'update', 'describe']),
++    journal: z.string().min(1).optional(),
++    name: z.string().min(1).optional(),
++    folder: z.string().min(1).optional(),
++    ownership: z.enum(['none', 'limited', 'observer', 'owner']).optional(),
++    pages: z.array(pageSchema).max(100).optional(),
++  })
++  .strict();
++
++export class JournalTools {
++  private foundryClient: FoundryClient;
++  private logger: Logger;
++
++  constructor({ foundryClient, logger }: JournalToolsOptions) {
++    this.foundryClient = foundryClient;
++    this.logger = logger.child({ component: 'JournalTools' });
++  }
++
++  getToolDefinitions() {
++    return [
++      {
++        name: 'manage-journals',
++        description:
++          'Create, update or describe journals with exact pages (never deletes anything). ' +
++          'create: needs name; optional folder (created if missing), ownership (who can see it: none = GM only (default), limited, observer, owner) and pages. ' +
++          'update: needs journal (id or exact name); can rename, move to a folder, change ownership, and upsert pages: a page with an id or an exact existing name is changed, otherwise a new page is added at the end. ' +
++          'describe: lists all journals, or one journal with its full page contents when journal is given. ' +
++          'Text pages take HTML in content (headings, paragraphs, lists, tables). Image pages take src, a Foundry file path such as the one upload-file returns. ' +
++          'In text you can write {{actor: Name}}, {{scene: Name}}, {{journal: Name}}, {{item: Name}} or {{rolltable: Name}} (or {{actor: Name | label}}) to insert a clickable Foundry link; unmatched names are reported as warnings. Scripts and event handlers are removed from the HTML.',
++        inputSchema: {
++          type: 'object',
++          properties: {
++            action: { type: 'string', enum: ['create', 'update', 'describe'] },
++            journal: {
++              type: 'string',
++              description: 'Journal id or exact name (update; optional for describe)',
++            },
++            name: {
++              type: 'string',
++              description: 'Journal name (required for create; renames on update)',
++            },
++            folder: {
++              type: 'string',
++              description: 'Journal folder name; created if it does not exist',
++            },
++            ownership: {
++              type: 'string',
++              enum: ['none', 'limited', 'observer', 'owner'],
++              description:
++                'Default permission for players: none (GM only), limited, observer (can read), owner',
++            },
++            pages: {
++              type: 'array',
++              maxItems: 100,
++              description: 'Pages to create (create) or upsert (update)',
++              items: {
++                type: 'object',
++                properties: {
++                  id: { type: 'string', description: 'Existing page id (update)' },
++                  name: { type: 'string', description: 'Page name (required for new pages)' },
++                  type: { type: 'string', enum: ['text', 'image'], description: 'Default text' },
++                  content: { type: 'string', description: 'HTML for a text page' },
++                  src: { type: 'string', description: 'Foundry file path for an image page' },
++                  caption: { type: 'string', description: 'Caption of an image page' },
++                  show_title: {
++                    type: 'boolean',
++                    description: 'Show the page title in the journal',
++                  },
++                  title_level: {
++                    type: 'number',
++                    description: 'Heading level of the title, 1 to 6',
++                  },
++                },
++                additionalProperties: false,
++              },
++            },
++          },
++          required: ['action'],
++          additionalProperties: false,
++        },
++      },
++    ];
++  }
++
++  async handleManageJournals(args: any): Promise<any> {
++    const parsed = journalSchema.parse(args);
++
++    if (parsed.action === 'create' && !parsed.name) {
++      throw new Error('name is required for create');
++    }
++    if (parsed.action === 'update' && !parsed.journal) {
++      throw new Error('journal is required for update');
++    }
++
++    this.logger.info('Managing journals', {
++      action: parsed.action,
++      journal: parsed.journal ?? parsed.name,
++    });
++
++    try {
++      const result = await this.foundryClient.query('foundry-mcp-bridge.manage-journals', parsed);
++      if (result?.success === false) {
++        throw new Error(result.error || 'Request was refused');
++      }
++      return result;
++    } catch (error) {
++      this.logger.error('Failed to manage journals', error);
++      throw new Error(
++        `Failed to manage journals: ${error instanceof Error ? error.message : 'Unknown error'}`
++      );
++    }
++  }
++}
 diff --git a/packages/mcp-server/src/tools/scene.test.ts b/packages/mcp-server/src/tools/scene.test.ts
 new file mode 100644
 index 0000000..cc6efe5
@@ -2346,7 +3551,7 @@ index 0000000..386d634
 +  }
 +}
 diff --git a/scripts/mcp-schema-smoke-test.mjs b/scripts/mcp-schema-smoke-test.mjs
-index c84dcd4..639474c 100644
+index c84dcd4..09914a3 100644
 --- a/scripts/mcp-schema-smoke-test.mjs
 +++ b/scripts/mcp-schema-smoke-test.mjs
 @@ -22,7 +22,7 @@ const importDist = async (relativePath) =>
@@ -2354,23 +3559,25 @@ index c84dcd4..639474c 100644
  const [{ config }, { Logger }, { FoundryClient }, { CharacterTools }, { CompendiumTools }, { SceneTools },
    { ActorCreationTools }, { QuestCreationTools }, { DiceRollTools }, { CampaignManagementTools },
 -  { OwnershipTools }, { TokenManipulationTools }, { MapGenerationTools }, { getSystemRegistry },
-+  { OwnershipTools }, { TokenManipulationTools }, { MapGenerationTools }, { UploadTools }, { getSystemRegistry },
++  { OwnershipTools }, { TokenManipulationTools }, { MapGenerationTools }, { UploadTools }, { JournalTools }, { getSystemRegistry },
    { DnD5eAdapter }, { PF2eAdapter }, { DSA5Adapter }, { CosmereRpgAdapter }] = await Promise.all([
    importDist('config.js'),
    importDist('logger.js'),
-@@ -37,6 +37,7 @@ const [{ config }, { Logger }, { FoundryClient }, { CharacterTools }, { Compendi
+@@ -37,6 +37,8 @@ const [{ config }, { Logger }, { FoundryClient }, { CharacterTools }, { Compendi
    importDist('tools/ownership.js'),
    importDist('tools/token-manipulation.js'),
    importDist('tools/map-generation.js'),
 +  importDist('tools/upload.js'),
++  importDist('tools/journal.js'),
    importDist('systems/index.js'),
    importDist('systems/dnd5e/adapter.js'),
    importDist('systems/pf2e/adapter.js'),
-@@ -64,6 +65,7 @@ const tools = [
+@@ -64,6 +66,8 @@ const tools = [
    ...new OwnershipTools({ foundryClient, logger }).getToolDefinitions(),
    ...new TokenManipulationTools({ foundryClient, logger }).getToolDefinitions(),
    ...new MapGenerationTools({ foundryClient, logger, backendComfyUIHandlers: {} }).getToolDefinitions(),
 +  ...new UploadTools({ foundryClient, logger }).getToolDefinitions(),
++  ...new JournalTools({ foundryClient, logger }).getToolDefinitions(),
  ];
  
  if (!tools.length) {

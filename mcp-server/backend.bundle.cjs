@@ -115536,6 +115536,116 @@ var UploadTools = class {
   }
 };
 
+// dist/tools/journal.js
+init_zod();
+var pageSchema = external_exports.object({
+  id: external_exports.string().min(1).optional(),
+  name: external_exports.string().min(1).optional(),
+  type: external_exports.enum(["text", "image"]).optional(),
+  content: external_exports.string().max(1e6).optional(),
+  src: external_exports.string().min(1).optional(),
+  caption: external_exports.string().optional(),
+  show_title: external_exports.boolean().optional(),
+  title_level: external_exports.number().int().min(1).max(6).optional()
+}).strict();
+var journalSchema = external_exports.object({
+  action: external_exports.enum(["create", "update", "describe"]),
+  journal: external_exports.string().min(1).optional(),
+  name: external_exports.string().min(1).optional(),
+  folder: external_exports.string().min(1).optional(),
+  ownership: external_exports.enum(["none", "limited", "observer", "owner"]).optional(),
+  pages: external_exports.array(pageSchema).max(100).optional()
+}).strict();
+var JournalTools = class {
+  foundryClient;
+  logger;
+  constructor({ foundryClient, logger }) {
+    this.foundryClient = foundryClient;
+    this.logger = logger.child({ component: "JournalTools" });
+  }
+  getToolDefinitions() {
+    return [
+      {
+        name: "manage-journals",
+        description: "Create, update or describe journals with exact pages (never deletes anything). create: needs name; optional folder (created if missing), ownership (who can see it: none = GM only (default), limited, observer, owner) and pages. update: needs journal (id or exact name); can rename, move to a folder, change ownership, and upsert pages: a page with an id or an exact existing name is changed, otherwise a new page is added at the end. describe: lists all journals, or one journal with its full page contents when journal is given. Text pages take HTML in content (headings, paragraphs, lists, tables). Image pages take src, a Foundry file path such as the one upload-file returns. In text you can write {{actor: Name}}, {{scene: Name}}, {{journal: Name}}, {{item: Name}} or {{rolltable: Name}} (or {{actor: Name | label}}) to insert a clickable Foundry link; unmatched names are reported as warnings. Scripts and event handlers are removed from the HTML.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            action: { type: "string", enum: ["create", "update", "describe"] },
+            journal: {
+              type: "string",
+              description: "Journal id or exact name (update; optional for describe)"
+            },
+            name: {
+              type: "string",
+              description: "Journal name (required for create; renames on update)"
+            },
+            folder: {
+              type: "string",
+              description: "Journal folder name; created if it does not exist"
+            },
+            ownership: {
+              type: "string",
+              enum: ["none", "limited", "observer", "owner"],
+              description: "Default permission for players: none (GM only), limited, observer (can read), owner"
+            },
+            pages: {
+              type: "array",
+              maxItems: 100,
+              description: "Pages to create (create) or upsert (update)",
+              items: {
+                type: "object",
+                properties: {
+                  id: { type: "string", description: "Existing page id (update)" },
+                  name: { type: "string", description: "Page name (required for new pages)" },
+                  type: { type: "string", enum: ["text", "image"], description: "Default text" },
+                  content: { type: "string", description: "HTML for a text page" },
+                  src: { type: "string", description: "Foundry file path for an image page" },
+                  caption: { type: "string", description: "Caption of an image page" },
+                  show_title: {
+                    type: "boolean",
+                    description: "Show the page title in the journal"
+                  },
+                  title_level: {
+                    type: "number",
+                    description: "Heading level of the title, 1 to 6"
+                  }
+                },
+                additionalProperties: false
+              }
+            }
+          },
+          required: ["action"],
+          additionalProperties: false
+        }
+      }
+    ];
+  }
+  async handleManageJournals(args) {
+    const parsed = journalSchema.parse(args);
+    if (parsed.action === "create" && !parsed.name) {
+      throw new Error("name is required for create");
+    }
+    if (parsed.action === "update" && !parsed.journal) {
+      throw new Error("journal is required for update");
+    }
+    this.logger.info("Managing journals", {
+      action: parsed.action,
+      journal: parsed.journal ?? parsed.name
+    });
+    try {
+      const result = await this.foundryClient.query("foundry-mcp-bridge.manage-journals", parsed);
+      if (result?.success === false) {
+        throw new Error(result.error || "Request was refused");
+      }
+      return result;
+    } catch (error) {
+      this.logger.error("Failed to manage journals", error);
+      throw new Error(`Failed to manage journals: ${error instanceof Error ? error.message : "Unknown error"}`);
+    }
+  }
+};
+
 // dist/backend.js
 var CONTROL_HOST = "127.0.0.1";
 var CONTROL_PORT = 31414;
@@ -116278,6 +116388,7 @@ async function startBackend() {
   const compendiumTools = new CompendiumTools({ foundryClient, logger, systemRegistry });
   const sceneTools = new SceneTools({ foundryClient, logger });
   const uploadTools = new UploadTools({ foundryClient, logger });
+  const journalTools = new JournalTools({ foundryClient, logger });
   const playlistTools = new PlaylistTools({ foundryClient, logger });
   const actorCreationTools = new ActorCreationTools({ foundryClient, logger });
   const actorManagementTools = new ActorManagementTools({ foundryClient, logger, systemRegistry });
@@ -116424,6 +116535,7 @@ async function startBackend() {
     ...compendiumTools.getToolDefinitions(),
     ...sceneTools.getToolDefinitions(),
     ...uploadTools.getToolDefinitions(),
+    ...journalTools.getToolDefinitions(),
     ...actorCreationTools.getToolDefinitions(),
     ...actorManagementTools.getToolDefinitions(),
     ...effectManagementTools.getToolDefinitions(),
@@ -116635,6 +116747,9 @@ async function startBackend() {
                   break;
                 case "manage-scenes":
                   result = await sceneTools.handleManageScenes(args);
+                  break;
+                case "manage-journals":
+                  result = await journalTools.handleManageJournals(args);
                   break;
                 case "upload-file":
                   result = await uploadTools.handleUploadFile(args);
