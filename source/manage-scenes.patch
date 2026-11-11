@@ -885,13 +885,470 @@ index 0000000..f299714
 +    });
 +  });
 +});
+diff --git a/packages/foundry-module/src/data-access.scene-objects.test.ts b/packages/foundry-module/src/data-access.scene-objects.test.ts
+new file mode 100644
+index 0000000..d73af65
+--- /dev/null
++++ b/packages/foundry-module/src/data-access.scene-objects.test.ts
+@@ -0,0 +1,435 @@
++/**
++ * manage-scene-objects and preview-scene tests. Foundry is stubbed: these check the data sent
++ * to createEmbeddedDocuments / deleteEmbeddedDocuments, the grid conversion, validation, the
++ * "only remove what the tool created" rule and the write gate.
++ */
++
++import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
++import { FoundryDataAccess } from './data-access.js';
++
++const MODULE = 'foundry-mcp-bridge-scenes';
++const MINE = { [MODULE]: { sceneObjectsTool: true } };
++
++function makeScene(overrides: Record<string, any> = {}) {
++  const created: Record<string, any[]> = { Token: [], AmbientLight: [] };
++  const scene: any = {
++    id: 's1',
++    name: 'Cave',
++    width: 4000,
++    height: 3000,
++    padding: 0.25,
++    grid: { size: 100, distance: 5, units: 'ft' },
++    dimensions: { sceneX: 1000, sceneY: 800, sceneWidth: 4000, sceneHeight: 3000 },
++    tokens: { contents: [] as any[] },
++    lights: { contents: [] as any[] },
++    createEmbeddedDocuments: vi.fn(async (type: string, data: any[]) => {
++      const docs = data.map((d, i) => ({ id: `${type}-${created[type].length + i}`, ...d }));
++      created[type].push(...docs);
++      return docs;
++    }),
++    deleteEmbeddedDocuments: vi.fn(async () => []),
++    ...overrides,
++  };
++  return { scene, created };
++}
++
++function setup(options: { allowWriteOperations?: boolean; scene?: any; actors?: any[] } = {}) {
++  const { scene, created } = options.scene ? { scene: options.scene, created: {} } : makeScene();
++  const goblin = {
++    id: 'a1',
++    name: 'Goblin',
++    prototypeToken: {
++      toObject: () => ({
++        name: 'Goblin',
++        width: 1,
++        height: 1,
++        texture: { src: 'g.png' },
++        flags: {},
++      }),
++    },
++  };
++  vi.stubGlobal('Hooks', { on: vi.fn(), callAll: vi.fn() });
++  vi.stubGlobal('game', {
++    ready: true,
++    world: { id: 'world-1', getFlag: vi.fn(() => []), setFlag: vi.fn() },
++    user: { id: 'gm', name: 'Gamemaster' },
++    scenes: { contents: [scene], viewed: scene, current: scene },
++    actors: { contents: options.actors ?? [goblin] },
++    settings: {
++      get: (_m: string, key: string) =>
++        key === 'allowWriteOperations' ? (options.allowWriteOperations ?? true) : undefined,
++    },
++  });
++  return { dataAccess: new FoundryDataAccess(), scene, created };
++}
++
++describe('FoundryDataAccess.manageSceneObjects', () => {
++  beforeEach(() => vi.unstubAllGlobals());
++  afterEach(() => vi.unstubAllGlobals());
++
++  describe('place', () => {
++    it('puts a token at the given square, using the actor prototype and marking it', async () => {
++      const { dataAccess, scene } = setup();
++
++      const result = await dataAccess.manageSceneObjects({
++        action: 'place',
++        objects: [
++          {
++            kind: 'token',
++            actor: 'goblin',
++            x: 3,
++            y: 2,
++            name: 'Goblin 1',
++            hidden: true,
++            disposition: -1,
++          },
++        ],
++      });
++
++      const [type, data] = scene.createEmbeddedDocuments.mock.calls[0];
++      expect(type).toBe('Token');
++      expect(data[0]).toMatchObject({
++        name: 'Goblin 1',
++        actorId: 'a1',
++        x: 1300,
++        y: 1000,
++        hidden: true,
++        disposition: -1,
++        texture: { src: 'g.png' },
++        flags: MINE,
++      });
++      expect(result.created).toEqual([{ kind: 'token', id: 'Token-0', x: 3, y: 2 }]);
++    });
++
++    it('puts a light at the centre of a square with radii converted to distance', async () => {
++      const { dataAccess, scene } = setup();
++
++      const result = await dataAccess.manageSceneObjects({
++        action: 'place',
++        objects: [{ kind: 'light', x: 10.5, y: 4.5, bright: 2, dim: 6, color: '#ffaa33' }],
++      });
++
++      const [type, data] = scene.createEmbeddedDocuments.mock.calls[0];
++      expect(type).toBe('AmbientLight');
++      expect(data[0]).toMatchObject({
++        x: 2050,
++        y: 1250,
++        config: { bright: 10, dim: 30, color: '#ffaa33' },
++        flags: MINE,
++      });
++      expect(result.created[0]).toMatchObject({ kind: 'light', x: 10.5, y: 4.5 });
++    });
++
++    it('handles a mixed batch in one call and defaults to the viewed scene', async () => {
++      const { dataAccess, scene } = setup();
++      const result = await dataAccess.manageSceneObjects({
++        action: 'place',
++        objects: [
++          { kind: 'token', actor: 'a1', x: 0, y: 0 },
++          { kind: 'light', x: 1, y: 1, dim: 3 },
++        ],
++      });
++      expect(scene.createEmbeddedDocuments).toHaveBeenCalledTimes(2);
++      expect(result.created.map((c: any) => c.kind)).toEqual(['token', 'light']);
++      expect(result.scene).toEqual({ id: 's1', name: 'Cave' });
++    });
++
++    it('creates nothing when any object in the batch is invalid', async () => {
++      const { dataAccess, scene } = setup();
++
++      await expect(
++        dataAccess.manageSceneObjects({
++          action: 'place',
++          objects: [
++            { kind: 'token', actor: 'goblin', x: 1, y: 1 },
++            { kind: 'light', x: 500, y: 1, dim: 3 },
++          ],
++        })
++      ).rejects.toThrow('objects[1]');
++      expect(scene.createEmbeddedDocuments).not.toHaveBeenCalled();
++    });
++
++    it.each([
++      ['an unknown kind', { kind: 'wall', x: 1, y: 1 }, 'kind must be'],
++      ['a token without an actor', { kind: 'token', x: 1, y: 1 }, 'actor'],
++      ['an unknown actor', { kind: 'token', actor: 'Dragon', x: 1, y: 1 }, 'Actor not found'],
++      [
++        'a token outside the scene',
++        { kind: 'token', actor: 'goblin', x: 40, y: 1 },
++        'top-left square',
++      ],
++      [
++        'a token at a bad disposition',
++        { kind: 'token', actor: 'goblin', x: 1, y: 1, disposition: 5 },
++        'disposition',
++      ],
++      [
++        'non-numeric coordinates',
++        { kind: 'token', actor: 'goblin', x: '1', y: 1 },
++        'must be numbers',
++      ],
++    ])('rejects %s', async (_label, object, message) => {
++      const { dataAccess, scene } = setup();
++      await expect(
++        dataAccess.manageSceneObjects({ action: 'place', objects: [object as any] })
++      ).rejects.toThrow(message);
++      expect(scene.createEmbeddedDocuments).not.toHaveBeenCalled();
++    });
++
++    it('refuses an actor name that matches several actors', async () => {
++      const make = (id: string) => ({ id, name: 'Twin', prototypeToken: { toObject: () => ({}) } });
++      const { dataAccess } = setup({ actors: [make('1'), make('2')] });
++      await expect(
++        dataAccess.manageSceneObjects({
++          action: 'place',
++          objects: [{ kind: 'token', actor: 'twin', x: 1, y: 1 }],
++        })
++      ).rejects.toThrow('Several actors');
++    });
++
++    it('needs a non-empty list and at most 200 objects', async () => {
++      const { dataAccess } = setup();
++      await expect(dataAccess.manageSceneObjects({ action: 'place' })).rejects.toThrow('non-empty');
++      await expect(
++        dataAccess.manageSceneObjects({
++          action: 'place',
++          objects: Array.from({ length: 201 }, () => ({ kind: 'light', x: 1, y: 1, dim: 1 })),
++        })
++      ).rejects.toThrow('At most 200');
++    });
++  });
++
++  describe('describe', () => {
++    it('reports the grid and every token and light in squares, marking its own', async () => {
++      const { scene } = makeScene();
++      scene.tokens.contents = [
++        {
++          id: 't1',
++          name: 'Goblin',
++          actorId: 'a1',
++          x: 1300,
++          y: 1000,
++          width: 1,
++          height: 1,
++          hidden: false,
++          flags: MINE,
++        },
++        {
++          id: 't2',
++          name: 'Hand-made',
++          x: 1000,
++          y: 800,
++          width: 2,
++          height: 2,
++          hidden: true,
++          flags: {},
++        },
++      ];
++      scene.lights.contents = [
++        {
++          id: 'l1',
++          x: 2050,
++          y: 1250,
++          hidden: false,
++          config: { bright: 10, dim: 30, color: '#ffaa33' },
++          flags: MINE,
++        },
++      ];
++      const { dataAccess } = setup({ scene });
++
++      const result = await dataAccess.manageSceneObjects({ action: 'describe' });
++
++      expect(result.grid).toEqual({
++        columns: 40,
++        rows: 30,
++        squarePixels: 100,
++        squareDistance: 5,
++        units: 'ft',
++        originPixels: { x: 1000, y: 800 },
++      });
++      expect(result.tokens).toEqual([
++        expect.objectContaining({ id: 't1', x: 3, y: 2, createdByTool: true }),
++        expect.objectContaining({ id: 't2', x: 0, y: 0, hidden: true, createdByTool: false }),
++      ]);
++      expect(result.lights).toEqual([
++        expect.objectContaining({
++          id: 'l1',
++          x: 10.5,
++          y: 4.5,
++          brightSquares: 2,
++          dimSquares: 6,
++          createdByTool: true,
++        }),
++      ]);
++    });
++
++    it('works when write operations are disabled, and can filter by kind', async () => {
++      const { dataAccess } = setup({ allowWriteOperations: false });
++      const result = await dataAccess.manageSceneObjects({ action: 'describe', kind: 'light' });
++      expect(result.lights).toEqual([]);
++      expect(result.tokens).toBeUndefined();
++    });
++  });
++
++  describe('remove', () => {
++    function sceneWithObjects() {
++      const { scene } = makeScene();
++      scene.tokens.contents = [
++        { id: 't1', flags: MINE },
++        { id: 't2', flags: {} },
++      ];
++      scene.lights.contents = [{ id: 'l1', flags: MINE }];
++      return scene;
++    }
++
++    it('removes only listed objects that the tool created', async () => {
++      const scene = sceneWithObjects();
++      const { dataAccess } = setup({ scene });
++
++      const result = await dataAccess.manageSceneObjects({
++        action: 'remove',
++        ids: ['t1', 't2', 'nope'],
++      });
++
++      expect(scene.deleteEmbeddedDocuments).toHaveBeenCalledTimes(1);
++      expect(scene.deleteEmbeddedDocuments).toHaveBeenCalledWith('Token', ['t1']);
++      expect(result.removed).toEqual([{ kind: 'token', id: 't1' }]);
++      expect(result.skipped.map((s: any) => s.id)).toEqual(['t2', 'nope']);
++    });
++
++    it('all_mine removes every tool-made object and nothing else', async () => {
++      const scene = sceneWithObjects();
++      const { dataAccess } = setup({ scene });
++
++      const result = await dataAccess.manageSceneObjects({ action: 'remove', all_mine: true });
++
++      expect(scene.deleteEmbeddedDocuments).toHaveBeenCalledWith('Token', ['t1']);
++      expect(scene.deleteEmbeddedDocuments).toHaveBeenCalledWith('AmbientLight', ['l1']);
++      expect(result.removed).toHaveLength(2);
++    });
++
++    it('all_mine with a kind leaves the other kind alone', async () => {
++      const scene = sceneWithObjects();
++      const { dataAccess } = setup({ scene });
++      await dataAccess.manageSceneObjects({ action: 'remove', all_mine: true, kind: 'light' });
++      expect(scene.deleteEmbeddedDocuments).toHaveBeenCalledTimes(1);
++      expect(scene.deleteEmbeddedDocuments).toHaveBeenCalledWith('AmbientLight', ['l1']);
++    });
++
++    it('needs ids or all_mine', async () => {
++      const { dataAccess } = setup();
++      await expect(dataAccess.manageSceneObjects({ action: 'remove' })).rejects.toThrow(
++        'ids, or all_mine'
++      );
++    });
++  });
++
++  describe('write gate and scene lookup', () => {
++    it('blocks place and remove when write operations are disabled', async () => {
++      const { dataAccess, scene } = setup({ allowWriteOperations: false });
++      await expect(
++        dataAccess.manageSceneObjects({
++          action: 'place',
++          objects: [{ kind: 'light', x: 1, y: 1, dim: 2 }],
++        })
++      ).rejects.toThrow(/disabled in module settings/);
++      await expect(
++        dataAccess.manageSceneObjects({ action: 'remove', all_mine: true })
++      ).rejects.toThrow(/disabled in module settings/);
++      expect(scene.createEmbeddedDocuments).not.toHaveBeenCalled();
++      expect(scene.deleteEmbeddedDocuments).not.toHaveBeenCalled();
++    });
++
++    it('finds a scene by name and reports an unknown one', async () => {
++      const { dataAccess } = setup();
++      await expect(
++        dataAccess.manageSceneObjects({ action: 'describe', scene: 'cave' })
++      ).resolves.toMatchObject({ scene: { id: 's1' } });
++      await expect(
++        dataAccess.manageSceneObjects({ action: 'describe', scene: 'Nowhere' })
++      ).rejects.toThrow('Scene not found');
++    });
++
++    it('rejects an unknown action', async () => {
++      const { dataAccess } = setup();
++      await expect(dataAccess.manageSceneObjects({ action: 'explode' as any })).rejects.toThrow(
++        'Unknown action'
++      );
++    });
++  });
++});
++
++describe('FoundryDataAccess.previewScene', () => {
++  beforeEach(() => vi.unstubAllGlobals());
++  afterEach(() => vi.unstubAllGlobals());
++
++  function stubBrowser(imageLoads: boolean) {
++    const ctx: any = new Proxy(
++      {},
++      { get: (_t, prop) => (prop === 'canvas' ? undefined : () => undefined), set: () => true }
++    );
++    const canvas = {
++      width: 0,
++      height: 0,
++      getContext: () => ctx,
++      toDataURL: () => 'data:image/png;base64,QUJD',
++    };
++    vi.stubGlobal('document', { createElement: () => canvas });
++    class FakeImage {
++      onload: (() => void) | null = null;
++      onerror: (() => void) | null = null;
++      set src(_value: string) {
++        queueMicrotask(() => (imageLoads ? this.onload?.() : this.onerror?.()));
++      }
++    }
++    vi.stubGlobal('Image', FakeImage);
++    return canvas;
++  }
++
++  it('returns a PNG of the scene at a reduced size, with counts', async () => {
++    const { scene } = makeScene({ _source: { background: { src: 'maps/cave.webp' } } });
++    scene.tokens.contents = [{ id: 't', name: 'G', x: 1000, y: 800, width: 1, height: 1 }];
++    const { dataAccess } = setup({ scene });
++    const canvas = stubBrowser(true);
++
++    const result = await dataAccess.previewScene({ max_size: 2000 });
++
++    expect(result).toMatchObject({
++      success: true,
++      mimeType: 'image/png',
++      imageBase64: 'QUJD',
++      width: 2000,
++      height: 1500,
++      scale: 0.5,
++      grid: { columns: 40, rows: 30 },
++      tokens: 1,
++      lights: 0,
++    });
++    expect(result.warnings).toBeUndefined();
++    expect(canvas.width).toBe(2000);
++  });
++
++  it('still draws, with a warning, when the background cannot be loaded', async () => {
++    const { scene } = makeScene({ _source: { background: { src: 'missing.webp' } } });
++    const { dataAccess } = setup({ scene });
++    stubBrowser(false);
++
++    const result = await dataAccess.previewScene({});
++    expect(result.success).toBe(true);
++    expect(result.warnings[0]).toContain('could not be loaded');
++  });
++
++  it('warns about a scene with no background', async () => {
++    const { dataAccess } = setup();
++    stubBrowser(true);
++    const result = await dataAccess.previewScene({});
++    expect(result.warnings[0]).toContain('no background');
++  });
++
++  it('rejects out-of-range options', async () => {
++    const { dataAccess } = setup();
++    stubBrowser(true);
++    await expect(dataAccess.previewScene({ max_size: 50 })).rejects.toThrow('max_size');
++    await expect(dataAccess.previewScene({ label_every: 0 })).rejects.toThrow('label_every');
++  });
++});
 diff --git a/packages/foundry-module/src/data-access.ts b/packages/foundry-module/src/data-access.ts
-index eecda7e..cf03be4 100644
+index eecda7e..ba19915 100644
 --- a/packages/foundry-module/src/data-access.ts
 +++ b/packages/foundry-module/src/data-access.ts
-@@ -1,5 +1,22 @@
+@@ -1,5 +1,38 @@
  import { MODULE_ID, ERROR_MESSAGES, TOKEN_DISPOSITIONS } from './constants.js';
  import { permissionManager } from './permissions.js';
++import {
++  CREATED_BY_FLAG,
++  assertInsideScene,
++  buildLightData,
++  getGridGeometry,
++  pixelsToSquares,
++  squaresToPixels,
++  type GridGeometry,
++} from './scene-objects-utils.js';
++import {
++  defaultLabelEvery,
++  drawPreview,
++  previewScale,
++  type PreviewLight,
++  type PreviewToken,
++} from './preview-utils.js';
 +import {
 +  OWNERSHIP_LEVELS,
 +  ownershipName,
@@ -912,7 +1369,7 @@ index eecda7e..cf03be4 100644
  import { transactionManager } from './transaction-manager.js';
  
  // The same five characters foundry.utils.escapeHTML replaces in v14, kept local because
-@@ -6714,7 +6731,7 @@ export class FoundryDataAccess {
+@@ -6714,7 +6747,7 @@ export class FoundryDataAccess {
  
          // Send socket request to GM
          if (game.socket) {
@@ -921,7 +1378,7 @@ index eecda7e..cf03be4 100644
              type: 'requestMessageUpdate',
              buttonId,
              userId,
-@@ -8101,6 +8118,784 @@ export class FoundryDataAccess {
+@@ -8101,6 +8134,1123 @@ export class FoundryDataAccess {
      }
    }
  
@@ -1253,6 +1710,345 @@ index eecda7e..cf03be4 100644
 +      );
 +      throw new Error(
 +        `Failed to ${options?.action ?? 'manage'} scene: ${error instanceof Error ? error.message : 'Unknown error'}`
++      );
++    }
++  }
++
++  // ===== SCENE OBJECTS (TOKENS AND LIGHTS PLACED IN GRID SQUARES) =====
++
++  /** The scene named by the caller, or the one the GM is looking at. */
++  private resolveSceneForObjects(identifier?: string): any {
++    if (identifier) return this.findSceneByIdentifier(identifier);
++    const scene = (game.scenes as any)?.viewed ?? (game.scenes as any)?.current;
++    if (!scene) throw new Error('No scene is open; pass scene (id or name)');
++    return scene;
++  }
++
++  private isToolObject(doc: any): boolean {
++    const flags = doc?.flags?.[this.moduleId] ?? doc?.getFlag?.(this.moduleId, CREATED_BY_FLAG);
++    if (flags === true) return true;
++    return !!flags?.[CREATED_BY_FLAG];
++  }
++
++  private findActorForPlacement(identifier: string): any {
++    const actors = (((game as any).actors?.contents || []) as any[]);
++    const byId = actors.find(a => a.id === identifier);
++    if (byId) return byId;
++    const wanted = identifier.trim().toLowerCase();
++    const matches = actors.filter(a => String(a.name ?? '').toLowerCase() === wanted);
++    if (matches.length === 1) return matches[0];
++    if (matches.length > 1) {
++      throw new Error(
++        `Several actors are named "${identifier}" (ids: ${matches.map(a => a.id).join(', ')}); use the id`
++      );
++    }
++    throw new Error(`Actor not found: "${identifier}"`);
++  }
++
++  private describeSceneObjects(scene: any, geom: GridGeometry, kinds: string[]): Record<string, any> {
++    const out: Record<string, any> = {
++      scene: { id: scene.id, name: scene.name },
++      grid: {
++        columns: geom.columns,
++        rows: geom.rows,
++        squarePixels: geom.size,
++        squareDistance: geom.distance,
++        units: geom.units,
++        originPixels: { x: geom.originX, y: geom.originY },
++      },
++    };
++    if (kinds.includes('token')) {
++      out.tokens = (((scene.tokens?.contents || []) as any[]).map(t => ({
++        id: t.id,
++        name: t.name,
++        actorId: t.actorId ?? null,
++        ...pixelsToSquares(geom, t.x, t.y),
++        width: t.width,
++        height: t.height,
++        hidden: !!t.hidden,
++        createdByTool: this.isToolObject(t),
++      })));
++    }
++    if (kinds.includes('light')) {
++      out.lights = (((scene.lights?.contents || []) as any[]).map(l => ({
++        id: l.id,
++        ...pixelsToSquares(geom, l.x, l.y),
++        brightSquares: (l.config?.bright ?? 0) / (geom.distance || 1),
++        dimSquares: (l.config?.dim ?? 0) / (geom.distance || 1),
++        color: l.config?.color ? String(l.config.color) : null,
++        hidden: !!l.hidden,
++        createdByTool: this.isToolObject(l),
++      })));
++    }
++    return out;
++  }
++
++  /**
++   * Place tokens and lights by grid square, describe what is on a scene, or remove objects
++   * this tool created (never anything else).
++   */
++  async manageSceneObjects(options: {
++    action: 'place' | 'describe' | 'remove';
++    scene?: string;
++    objects?: Array<Record<string, any>>;
++    ids?: string[];
++    all_mine?: boolean;
++    kind?: 'token' | 'light';
++  }): Promise<any> {
++    this.validateFoundryState();
++
++    try {
++      const action = options.action;
++      if (action !== 'place' && action !== 'describe' && action !== 'remove') {
++        throw new Error(`Unknown action: ${String(action)} (place | describe | remove)`);
++      }
++      const scene = this.resolveSceneForObjects(options.scene);
++      const geom = getGridGeometry(scene);
++
++      if (action === 'describe') {
++        const kinds = options.kind ? [options.kind] : ['token', 'light'];
++        return { success: true, ...this.describeSceneObjects(scene, geom, kinds) };
++      }
++
++      const permissionCheck = permissionManager.checkWritePermission('modifyScene', {});
++      if (!permissionCheck.allowed) {
++        throw new Error(`${ERROR_MESSAGES.ACCESS_DENIED}: ${permissionCheck.reason}`);
++      }
++
++      const flagData = { [this.moduleId]: { [CREATED_BY_FLAG]: true } };
++
++      if (action === 'place') {
++        const specs = options.objects ?? [];
++        if (!Array.isArray(specs) || specs.length === 0) {
++          throw new Error('objects must be a non-empty list');
++        }
++        if (specs.length > 200) throw new Error('At most 200 objects per call');
++
++        const tokenData: any[] = [];
++        const lightData: any[] = [];
++        const warnings: string[] = [];
++
++        specs.forEach((spec, index) => {
++          const label = `objects[${index}]`;
++          if (spec.kind === 'light') {
++            const data = buildLightData(spec as any, geom, label);
++            lightData.push({ ...data, flags: flagData });
++          } else if (spec.kind === 'token') {
++            assertInsideScene(geom, spec.x, spec.y, label);
++            if (!spec.actor || typeof spec.actor !== 'string') {
++              throw new Error(`${label}: actor (id or exact name) is required for a token`);
++            }
++            if (spec.x >= geom.columns || spec.y >= geom.rows) {
++              throw new Error(
++                `${label}: a token's x and y are its top-left square (0 to ${geom.columns - 1} across, 0 to ${geom.rows - 1} down)`
++              );
++            }
++            if (spec.disposition !== undefined && ![-1, 0, 1].includes(spec.disposition)) {
++              throw new Error(`${label}: disposition must be -1 (hostile), 0 (neutral) or 1 (friendly)`);
++            }
++            const actor = this.findActorForPlacement(spec.actor);
++            const proto = (actor as any).prototypeToken.toObject();
++            if (proto.texture?.src?.startsWith('http')) proto.texture.src = null;
++            const position = squaresToPixels(geom, spec.x, spec.y);
++            tokenData.push({
++              ...proto,
++              ...(spec.name ? { name: String(spec.name) } : {}),
++              actorId: actor.id,
++              x: position.x,
++              y: position.y,
++              ...(spec.hidden !== undefined ? { hidden: !!spec.hidden } : {}),
++              ...(spec.disposition !== undefined ? { disposition: spec.disposition } : {}),
++              ...(spec.elevation !== undefined ? { elevation: Number(spec.elevation) } : {}),
++              flags: { ...(proto.flags ?? {}), ...flagData },
++            });
++          } else {
++            throw new Error(`${label}: kind must be "token" or "light"`);
++          }
++        });
++
++        const created: Array<{ kind: string; id: string; x: number; y: number }> = [];
++        if (tokenData.length > 0) {
++          const docs = (await scene.createEmbeddedDocuments('Token', tokenData)) as any[];
++          for (const doc of docs ?? []) {
++            created.push({ kind: 'token', id: doc.id, ...pixelsToSquares(geom, doc.x, doc.y) });
++          }
++        }
++        if (lightData.length > 0) {
++          const docs = (await scene.createEmbeddedDocuments('AmbientLight', lightData)) as any[];
++          for (const doc of docs ?? []) {
++            created.push({ kind: 'light', id: doc.id, ...pixelsToSquares(geom, doc.x, doc.y) });
++          }
++        }
++
++        this.auditLog('manageSceneObjects:place', { scene: scene.id, count: specs.length }, 'success');
++        return {
++          success: true,
++          action,
++          scene: { id: scene.id, name: scene.name },
++          created,
++          ...(warnings.length > 0 ? { warnings } : {}),
++        };
++      }
++
++      // remove: only objects this tool created.
++      const ids = options.ids ?? [];
++      if (!options.all_mine && ids.length === 0) {
++        throw new Error('Pass ids, or all_mine: true, to say what to remove');
++      }
++      const kinds: Array<'token' | 'light'> = options.kind ? [options.kind] : ['token', 'light'];
++      const removed: Array<{ kind: string; id: string }> = [];
++      const skipped: Array<{ id: string; reason: string }> = [];
++      const collections: Record<string, { collection: any; documentName: string }> = {
++        token: { collection: scene.tokens, documentName: 'Token' },
++        light: { collection: scene.lights, documentName: 'AmbientLight' },
++      };
++
++      const wanted = new Set(ids);
++      const found = new Set<string>();
++      for (const kind of kinds) {
++        const { collection, documentName } = collections[kind];
++        const docs = ((collection?.contents || []) as any[]).filter(doc => {
++          if (!this.isToolObject(doc)) return false;
++          return options.all_mine ? true : wanted.has(doc.id);
++        });
++        for (const doc of docs) found.add(doc.id);
++        if (docs.length > 0) {
++          await scene.deleteEmbeddedDocuments(
++            documentName,
++            docs.map(d => d.id)
++          );
++          docs.forEach(d => removed.push({ kind, id: d.id }));
++        }
++      }
++      for (const id of ids) {
++        if (!found.has(id)) {
++          skipped.push({
++            id,
++            reason: 'not found, or not created by this tool (only its own objects can be removed)',
++          });
++        }
++      }
++
++      this.auditLog('manageSceneObjects:remove', { scene: scene.id, count: removed.length }, 'success');
++      return {
++        success: true,
++        action,
++        scene: { id: scene.id, name: scene.name },
++        removed,
++        ...(skipped.length > 0 ? { skipped } : {}),
++      };
++    } catch (error) {
++      this.auditLog(
++        `manageSceneObjects:${options?.action}`,
++        { scene: options?.scene },
++        'failure',
++        error instanceof Error ? error.message : 'Unknown error'
++      );
++      throw new Error(
++        `Failed to ${options?.action ?? 'manage'} scene objects: ${error instanceof Error ? error.message : 'Unknown error'}`
++      );
++    }
++  }
++
++  /**
++   * Draw the scene image with a numbered grid and its tokens and lights, and return it as a
++   * PNG so positions can be checked in grid squares. Read-only.
++   */
++  async previewScene(options: {
++    scene?: string;
++    max_size?: number;
++    label_every?: number;
++  }): Promise<any> {
++    this.validateFoundryState();
++
++    try {
++      const scene = this.resolveSceneForObjects(options.scene);
++      const geom = getGridGeometry(scene);
++      const maxSize = options.max_size ?? 1600;
++      if (typeof maxSize !== 'number' || !Number.isFinite(maxSize) || maxSize < 200 || maxSize > 3000) {
++        throw new Error('max_size must be a number from 200 to 3000');
++      }
++      if (
++        options.label_every !== undefined &&
++        (!Number.isInteger(options.label_every) || options.label_every < 1 || options.label_every > 50)
++      ) {
++        throw new Error('label_every must be a whole number from 1 to 50');
++      }
++      const scale = previewScale(geom, maxSize);
++      const labelEvery = options.label_every ?? defaultLabelEvery(geom, scale);
++
++      const warnings: string[] = [];
++      const src =
++        scene._source?.background?.src || scene.levels?.contents?.[0]?.background?.src || null;
++      let image: any;
++      if (src) {
++        try {
++          image = await new Promise<any>((resolve, reject) => {
++            const img = new Image();
++            img.onload = () => resolve(img);
++            img.onerror = () => reject(new Error('the image could not be loaded'));
++            img.src = src;
++          });
++        } catch (error) {
++          warnings.push(
++            `Background ${src}: ${error instanceof Error ? error.message : 'could not be drawn'}; drawn on grey`
++          );
++        }
++      } else {
++        warnings.push('The scene has no background image; drawn on grey');
++      }
++
++      const tokens: PreviewToken[] = (((scene.tokens?.contents || []) as any[]).map(t => {
++        const topLeft = pixelsToSquares(geom, t.x, t.y);
++        return {
++          name: String(t.name ?? ''),
++          ...topLeft,
++          width: Number(t.width ?? 1),
++          height: Number(t.height ?? 1),
++        };
++      }));
++      const lights: PreviewLight[] = (((scene.lights?.contents || []) as any[]).map(l => {
++        const centre = pixelsToSquares(geom, l.x, l.y);
++        return {
++          ...centre,
++          bright: (l.config?.bright ?? 0) / (geom.distance || 1),
++          dim: (l.config?.dim ?? 0) / (geom.distance || 1),
++          color: l.config?.color ? String(l.config.color) : undefined,
++        };
++      }));
++
++      const canvas = document.createElement('canvas');
++      canvas.width = Math.round(geom.sceneWidth * scale);
++      canvas.height = Math.round(geom.sceneHeight * scale);
++      const ctx = canvas.getContext('2d');
++      if (!ctx) throw new Error('This browser cannot draw the preview');
++      const size = drawPreview(ctx, { geom, scale, labelEvery, tokens, lights, image });
++
++      let dataUrl: string;
++      try {
++        dataUrl = canvas.toDataURL('image/png');
++      } catch {
++        throw new Error('The browser refused to export the picture (the background image is from another site)');
++      }
++      const imageBase64 = dataUrl.slice(dataUrl.indexOf(',') + 1);
++
++      return {
++        success: true,
++        scene: { id: scene.id, name: scene.name },
++        mimeType: 'image/png',
++        imageBase64,
++        width: size.width,
++        height: size.height,
++        scale,
++        labelEvery,
++        grid: { columns: geom.columns, rows: geom.rows },
++        tokens: tokens.length,
++        lights: lights.length,
++        ...(warnings.length > 0 ? { warnings } : {}),
++      };
++    } catch (error) {
++      throw new Error(
++        `Failed to preview scene: ${error instanceof Error ? error.message : 'Unknown error'}`
 +      );
 +    }
 +  }
@@ -2166,8 +2962,283 @@ index 9024ead..b6ea882 100644
        try {
          // Handle ChatMessage update requests (GM only)
          if (data.type === 'requestMessageUpdate' && data.buttonId && data.messageId) {
+diff --git a/packages/foundry-module/src/preview-utils.test.ts b/packages/foundry-module/src/preview-utils.test.ts
+new file mode 100644
+index 0000000..bdcefbe
+--- /dev/null
++++ b/packages/foundry-module/src/preview-utils.test.ts
+@@ -0,0 +1,105 @@
++import { describe, expect, it, vi } from 'vitest';
++import { defaultLabelEvery, drawPreview, previewScale } from './preview-utils.js';
++import type { GridGeometry } from './scene-objects-utils.js';
++
++const geom: GridGeometry = {
++  size: 100,
++  originX: 0,
++  originY: 0,
++  sceneWidth: 1000,
++  sceneHeight: 500,
++  columns: 10,
++  rows: 5,
++  distance: 5,
++  units: 'ft',
++};
++
++function fakeContext() {
++  const texts: Array<{ text: string; x: number; y: number }> = [];
++  const lines: Array<[number, number, number, number]> = [];
++  let last: [number, number] = [0, 0];
++  let from: [number, number] = [0, 0];
++  const ctx: any = {
++    texts,
++    lines,
++    fillRect: vi.fn(),
++    drawImage: vi.fn(),
++    beginPath: vi.fn(),
++    moveTo: vi.fn((x: number, y: number) => {
++      from = [x, y];
++    }),
++    lineTo: vi.fn((x: number, y: number) => {
++      last = [x, y];
++      lines.push([from[0], from[1], last[0], last[1]]);
++    }),
++    arc: vi.fn(),
++    stroke: vi.fn(),
++    fill: vi.fn(),
++    setLineDash: vi.fn(),
++    strokeText: vi.fn(),
++    fillText: vi.fn((text: string, x: number, y: number) => texts.push({ text, x, y })),
++  };
++  return ctx;
++}
++
++describe('previewScale and defaultLabelEvery', () => {
++  it('shrinks big scenes to the maximum size and never enlarges', () => {
++    expect(previewScale({ ...geom, sceneWidth: 4000 }, 1600)).toBe(0.4);
++    expect(previewScale(geom, 1600)).toBe(1);
++  });
++
++  it('labels more sparsely when squares get small', () => {
++    expect(defaultLabelEvery(geom, 1)).toBe(1);
++    expect(defaultLabelEvery(geom, 0.2)).toBe(2);
++    expect(defaultLabelEvery(geom, 0.1)).toBe(4);
++  });
++});
++
++describe('drawPreview', () => {
++  it('draws the image, one line per grid boundary and numbered columns and rows', () => {
++    const ctx = fakeContext();
++    const image = {};
++    const size = drawPreview(ctx, { geom, scale: 1, labelEvery: 1, tokens: [], lights: [], image });
++
++    expect(size).toEqual({ width: 1000, height: 500 });
++    expect(ctx.drawImage).toHaveBeenCalledWith(image, 0, 0, 1000, 500);
++    // 11 vertical + 6 horizontal lines.
++    expect(ctx.lines).toHaveLength(17);
++    const columnLabels = ctx.texts.filter((t: any) => t.y === 16).map((t: any) => t.text);
++    expect(columnLabels.slice(0, 10)).toEqual(['0', '1', '2', '3', '4', '5', '6', '7', '8', '9']);
++  });
++
++  it('puts labels at the centre of each square and honours labelEvery', () => {
++    const ctx = fakeContext();
++    drawPreview(ctx, { geom, scale: 1, labelEvery: 5, tokens: [], lights: [] });
++    const top = ctx.texts.filter((t: any) => t.y === 16).map((t: any) => [t.text, t.x]);
++    expect(top).toEqual([
++      ['0', 50],
++      ['5', 550],
++    ]);
++  });
++
++  it('scales positions and draws tokens and lights', () => {
++    const ctx = fakeContext();
++    drawPreview(ctx, {
++      geom,
++      scale: 0.5,
++      labelEvery: 1,
++      tokens: [{ name: 'Goblin', x: 2, y: 1, width: 1, height: 1 }],
++      lights: [{ x: 5, y: 2.5, bright: 1, dim: 2 }],
++    });
++
++    // Token circle: centre (2.5, 1.5) squares at 50 px per square, radius half a square.
++    expect(ctx.arc).toHaveBeenCalledWith(125, 75, 25, 0, Math.PI * 2);
++    // Light centre (5, 2.5) squares, bright and dim rings and a centre dot.
++    expect(ctx.arc).toHaveBeenCalledWith(250, 125, 100, 0, Math.PI * 2);
++    expect(ctx.arc).toHaveBeenCalledWith(250, 125, 50, 0, Math.PI * 2);
++    expect(ctx.texts.some((t: any) => t.text === 'Goblin')).toBe(true);
++  });
++
++  it('works without an image', () => {
++    const ctx = fakeContext();
++    drawPreview(ctx, { geom, scale: 1, labelEvery: 1, tokens: [], lights: [] });
++    expect(ctx.drawImage).not.toHaveBeenCalled();
++  });
++});
+diff --git a/packages/foundry-module/src/preview-utils.ts b/packages/foundry-module/src/preview-utils.ts
+new file mode 100644
+index 0000000..bd53102
+--- /dev/null
++++ b/packages/foundry-module/src/preview-utils.ts
+@@ -0,0 +1,158 @@
++/**
++ * Drawing for preview-scene: the scene image with a numbered grid and the scene's tokens
++ * and lights on top, so positions can be read in grid squares. Works on any 2D context, so
++ * it can be tested with a recording stub.
++ */
++
++import type { GridGeometry } from './scene-objects-utils.js';
++
++export interface PreviewToken {
++  name: string;
++  /** Top-left corner in grid squares. */
++  x: number;
++  y: number;
++  /** Size in grid squares. */
++  width: number;
++  height: number;
++}
++
++export interface PreviewLight {
++  /** Centre in grid squares. */
++  x: number;
++  y: number;
++  /** Radii in grid squares. */
++  bright: number;
++  dim: number;
++  color?: string | undefined;
++}
++
++export interface PreviewOptions {
++  geom: GridGeometry;
++  /** Output pixels per scene pixel. */
++  scale: number;
++  /** Label every Nth column and row (default 1). */
++  labelEvery: number;
++  tokens: PreviewToken[];
++  lights: PreviewLight[];
++  /** Image to draw behind the grid; omit for a plain grey background. */
++  image?: unknown;
++}
++
++/** Choose the output scale so the longest side is at most maxSize pixels (never upscales). */
++export function previewScale(geom: GridGeometry, maxSize: number): number {
++  const longest = Math.max(geom.sceneWidth, geom.sceneHeight);
++  return Math.min(1, maxSize / longest);
++}
++
++/** Pick a label interval that keeps labels readable: about one label per 40 output pixels. */
++export function defaultLabelEvery(geom: GridGeometry, scale: number): number {
++  const squarePx = geom.size * scale;
++  return Math.max(1, Math.ceil(40 / squarePx));
++}
++
++export function drawPreview(ctx: any, options: PreviewOptions): { width: number; height: number } {
++  const { geom, scale, tokens, lights } = options;
++  const width = Math.round(geom.sceneWidth * scale);
++  const height = Math.round(geom.sceneHeight * scale);
++  const square = geom.size * scale;
++  const every = Math.max(1, Math.floor(options.labelEvery));
++
++  // Background.
++  ctx.fillStyle = '#808080';
++  ctx.fillRect(0, 0, width, height);
++  if (options.image) {
++    ctx.drawImage(options.image, 0, 0, width, height);
++  }
++
++  // Lights (under the grid).
++  for (const light of lights) {
++    const cx = light.x * square;
++    const cy = light.y * square;
++    const color = light.color || '#ffcc33';
++    ctx.lineWidth = 2;
++    ctx.strokeStyle = color;
++    if (light.dim > 0) {
++      ctx.setLineDash([6, 4]);
++      ctx.beginPath();
++      ctx.arc(cx, cy, light.dim * square, 0, Math.PI * 2);
++      ctx.stroke();
++    }
++    ctx.setLineDash([]);
++    if (light.bright > 0) {
++      ctx.beginPath();
++      ctx.arc(cx, cy, light.bright * square, 0, Math.PI * 2);
++      ctx.stroke();
++    }
++    ctx.fillStyle = color;
++    ctx.beginPath();
++    ctx.arc(cx, cy, 4, 0, Math.PI * 2);
++    ctx.fill();
++  }
++
++  // Grid lines: thin every square, stronger every 5.
++  for (let col = 0; col <= geom.columns; col++) {
++    const px = col * square;
++    ctx.strokeStyle = col % 5 === 0 ? 'rgba(255,255,255,0.75)' : 'rgba(255,255,255,0.35)';
++    ctx.lineWidth = col % 5 === 0 ? 1.5 : 0.75;
++    ctx.beginPath();
++    ctx.moveTo(px, 0);
++    ctx.lineTo(px, height);
++    ctx.stroke();
++  }
++  for (let row = 0; row <= geom.rows; row++) {
++    const py = row * square;
++    ctx.strokeStyle = row % 5 === 0 ? 'rgba(255,255,255,0.75)' : 'rgba(255,255,255,0.35)';
++    ctx.lineWidth = row % 5 === 0 ? 1.5 : 0.75;
++    ctx.beginPath();
++    ctx.moveTo(0, py);
++    ctx.lineTo(width, py);
++    ctx.stroke();
++  }
++
++  // Tokens.
++  for (const token of tokens) {
++    const left = token.x * square;
++    const top = token.y * square;
++    const w = token.width * square;
++    const h = token.height * square;
++    ctx.lineWidth = 2;
++    ctx.strokeStyle = '#ff3b30';
++    ctx.fillStyle = 'rgba(255,59,48,0.3)';
++    ctx.beginPath();
++    ctx.arc(left + w / 2, top + h / 2, Math.min(w, h) / 2, 0, Math.PI * 2);
++    ctx.fill();
++    ctx.stroke();
++  }
++
++  // Labels: outlined text so they read on any map.
++  const fontSize = Math.max(9, Math.min(16, Math.round(square * 0.4)));
++  ctx.font = `bold ${fontSize}px sans-serif`;
++  ctx.textAlign = 'center';
++  ctx.textBaseline = 'middle';
++  const label = (text: string, x: number, y: number) => {
++    ctx.lineWidth = 3;
++    ctx.strokeStyle = '#000000';
++    ctx.strokeText(text, x, y);
++    ctx.fillStyle = '#ffffff';
++    ctx.fillText(text, x, y);
++  };
++  for (let col = 0; col < geom.columns; col += every) {
++    const x = (col + 0.5) * square;
++    label(String(col), x, fontSize);
++    label(String(col), x, height - fontSize);
++  }
++  for (let row = 0; row < geom.rows; row += every) {
++    const y = (row + 0.5) * square;
++    label(String(row), fontSize, y);
++    label(String(row), width - fontSize, y);
++  }
++  for (const token of tokens) {
++    label(
++      token.name,
++      (token.x + token.width / 2) * square,
++      (token.y + token.height) * square + fontSize
++    );
++  }
++
++  return { width, height };
++}
 diff --git a/packages/foundry-module/src/queries.ts b/packages/foundry-module/src/queries.ts
-index 9fe02ba..d1fb5f5 100644
+index 9fe02ba..cc74f85 100644
 --- a/packages/foundry-module/src/queries.ts
 +++ b/packages/foundry-module/src/queries.ts
 @@ -1,4 +1,4 @@
@@ -2185,17 +3256,19 @@ index 9fe02ba..d1fb5f5 100644
  
      // Character/Actor queries
      CONFIG.queries[`${modulePrefix}.getCharacterInfo`] = this.handleGetCharacterInfo.bind(this);
-@@ -46,6 +46,9 @@ export class QueryHandlers {
+@@ -46,6 +46,11 @@ export class QueryHandlers {
      CONFIG.queries[`${modulePrefix}.list-scenes`] = this.handleListScenes.bind(this);
      CONFIG.queries[`${modulePrefix}.switch-scene`] = this.handleSwitchScene.bind(this);
      CONFIG.queries[`${modulePrefix}.update-scene-music`] = this.handleUpdateSceneMusic.bind(this);
 +    CONFIG.queries[`${modulePrefix}.manage-scenes`] = this.handleManageScenes.bind(this);
 +    CONFIG.queries[`${modulePrefix}.upload-file`] = this.handleUploadFile.bind(this);
 +    CONFIG.queries[`${modulePrefix}.manage-journals`] = this.handleManageJournals.bind(this);
++    CONFIG.queries[`${modulePrefix}.manage-scene-objects`] = this.handleManageSceneObjects.bind(this);
++    CONFIG.queries[`${modulePrefix}.preview-scene`] = this.handlePreviewScene.bind(this);
      CONFIG.queries[`${modulePrefix}.manage-playlists`] = this.handleManagePlaylists.bind(this);
      CONFIG.queries[`${modulePrefix}.control-playlist`] = this.handleControlPlaylist.bind(this);
  
-@@ -184,7 +187,7 @@ export class QueryHandlers {
+@@ -184,7 +189,7 @@ export class QueryHandlers {
     * Unregister all query handlers
     */
    unregisterHandlers(): void {
@@ -2204,7 +3277,7 @@ index 9fe02ba..d1fb5f5 100644
      const keysToRemove = Object.keys(CONFIG.queries).filter(key => key.startsWith(modulePrefix));
  
      for (const key of keysToRemove) {
-@@ -477,7 +480,7 @@ export class QueryHandlers {
+@@ -477,7 +482,7 @@ export class QueryHandlers {
     * Get list of all registered query methods
     */
    getRegisteredMethods(): string[] {
@@ -2213,7 +3286,7 @@ index 9fe02ba..d1fb5f5 100644
      return Object.keys(CONFIG.queries)
        .filter(key => key.startsWith(modulePrefix))
        .map(key => key.replace(`${modulePrefix}.`, ''));
-@@ -487,7 +490,7 @@ export class QueryHandlers {
+@@ -487,7 +492,7 @@ export class QueryHandlers {
     * Test if a specific query handler is registered
     */
    isMethodRegistered(method: string): boolean {
@@ -2222,10 +3295,29 @@ index 9fe02ba..d1fb5f5 100644
      return queryKey in CONFIG.queries && typeof CONFIG.queries[queryKey] === 'function';
    }
  
-@@ -1218,6 +1221,55 @@ export class QueryHandlers {
+@@ -1218,6 +1223,74 @@ export class QueryHandlers {
      }
    }
  
++  private async handleManageSceneObjects(data: any): Promise<any> {
++    const gmCheck = this.validateGMAccess();
++    if (!gmCheck.allowed) {
++      return { error: 'Access denied', success: false };
++    }
++    if (!data?.action) {
++      throw new Error('action is required (place | describe | remove)');
++    }
++    return await this.dataAccess.manageSceneObjects(data);
++  }
++
++  private async handlePreviewScene(data: any): Promise<any> {
++    const gmCheck = this.validateGMAccess();
++    if (!gmCheck.allowed) {
++      return { error: 'Access denied', success: false };
++    }
++    return await this.dataAccess.previewScene(data ?? {});
++  }
++
 +  private async handleManageJournals(data: any): Promise<any> {
 +    try {
 +      const gmCheck = this.validateGMAccess();
@@ -2278,6 +3370,374 @@ index 9fe02ba..d1fb5f5 100644
    private async handleManagePlaylists(data: any): Promise<any> {
      try {
        const gmCheck = this.validateGMAccess();
+diff --git a/packages/foundry-module/src/scene-objects-utils.test.ts b/packages/foundry-module/src/scene-objects-utils.test.ts
+new file mode 100644
+index 0000000..6180ba3
+--- /dev/null
++++ b/packages/foundry-module/src/scene-objects-utils.test.ts
+@@ -0,0 +1,132 @@
++import { describe, expect, it } from 'vitest';
++import {
++  assertInsideScene,
++  buildLightData,
++  getGridGeometry,
++  pixelsToSquares,
++  squaresToPixels,
++} from './scene-objects-utils.js';
++
++const scene = (overrides: Record<string, any> = {}): any => ({
++  width: 4000,
++  height: 3000,
++  padding: 0.25,
++  grid: { size: 100, distance: 5, units: 'ft' },
++  dimensions: { sceneX: 1000, sceneY: 800, sceneWidth: 4000, sceneHeight: 3000 },
++  ...overrides,
++});
++
++describe('getGridGeometry', () => {
++  it('reads size, offset and the number of squares', () => {
++    expect(getGridGeometry(scene())).toEqual({
++      size: 100,
++      originX: 1000,
++      originY: 800,
++      sceneWidth: 4000,
++      sceneHeight: 3000,
++      columns: 40,
++      rows: 30,
++      distance: 5,
++      units: 'ft',
++    });
++  });
++
++  it('falls back to the padding formula without scene.dimensions', () => {
++    const geom = getGridGeometry(scene({ dimensions: undefined }));
++    // ceil(4000 * 0.25 / 100) * 100 = 1000; ceil(3000 * 0.25 / 100) * 100 = 800
++    expect([geom.originX, geom.originY]).toEqual([1000, 800]);
++  });
++
++  it('counts whole squares only', () => {
++    const geom = getGridGeometry(
++      scene({ dimensions: { sceneX: 0, sceneY: 0, sceneWidth: 4050, sceneHeight: 3000 } })
++    );
++    expect(geom.columns).toBe(40);
++  });
++
++  it('refuses a scene without a usable grid or size', () => {
++    expect(() => getGridGeometry(scene({ grid: { size: 0 } }))).toThrow('grid size');
++    expect(() => getGridGeometry(scene({ dimensions: undefined, width: 0 }))).toThrow('valid size');
++  });
++});
++
++describe('squares and pixels', () => {
++  const geom = getGridGeometry(scene());
++
++  it('converts including the padding offset', () => {
++    expect(squaresToPixels(geom, 0, 0)).toEqual({ x: 1000, y: 800 });
++    expect(squaresToPixels(geom, 2.5, 1.5)).toEqual({ x: 1250, y: 950 });
++  });
++
++  it('converts back', () => {
++    expect(pixelsToSquares(geom, 1250, 950)).toEqual({ x: 2.5, y: 1.5 });
++    expect(pixelsToSquares(geom, 1033, 800)).toEqual({ x: 0.33, y: 0 });
++  });
++});
++
++describe('assertInsideScene', () => {
++  const geom = getGridGeometry(scene());
++
++  it('accepts points on and inside the edges', () => {
++    expect(() => assertInsideScene(geom, 0, 0, 'p')).not.toThrow();
++    expect(() => assertInsideScene(geom, 40, 30, 'p')).not.toThrow();
++  });
++
++  it('rejects points outside and non-numbers, naming the valid range', () => {
++    expect(() => assertInsideScene(geom, 41, 5, 'p')).toThrow('40 x 30 squares');
++    expect(() => assertInsideScene(geom, -1, 5, 'p')).toThrow('outside the scene');
++    expect(() => assertInsideScene(geom, '3' as any, 5, 'p')).toThrow('must be numbers');
++    expect(() => assertInsideScene(geom, NaN, 5, 'p')).toThrow('must be numbers');
++  });
++});
++
++describe('buildLightData', () => {
++  const geom = getGridGeometry(scene());
++
++  it('converts radii from squares to scene distance and the point to pixels', () => {
++    expect(buildLightData({ x: 10, y: 5, bright: 2, dim: 4 }, geom, 'l')).toEqual({
++      x: 2000,
++      y: 1300,
++      config: { bright: 10, dim: 20 },
++    });
++  });
++
++  it('passes colour, alpha, cone, rotation, animation and hidden', () => {
++    const data = buildLightData(
++      {
++        x: 1,
++        y: 1,
++        dim: 3,
++        color: '#FFAA00',
++        alpha: 0.5,
++        angle: 90,
++        rotation: 180,
++        animation: 'torch',
++        hidden: true,
++      },
++      geom,
++      'l'
++    );
++    expect(data.config).toMatchObject({
++      color: '#ffaa00',
++      alpha: 0.5,
++      angle: 90,
++      animation: { type: 'torch' },
++    });
++    expect(data.rotation).toBe(180);
++    expect(data.hidden).toBe(true);
++  });
++
++  it.each([
++    ['no radius', { x: 1, y: 1 }, 'bright or dim'],
++    ['a negative radius', { x: 1, y: 1, dim: -1 }, 'from 0 to'],
++    ['a huge radius', { x: 1, y: 1, dim: 500 }, 'from 0 to'],
++    ['a bad colour', { x: 1, y: 1, dim: 2, color: 'red' }, '#RRGGBB'],
++    ['a bad alpha', { x: 1, y: 1, dim: 2, alpha: 2 }, 'alpha'],
++    ['a bad angle', { x: 1, y: 1, dim: 2, angle: 0 }, 'angle'],
++    ['an unknown animation', { x: 1, y: 1, dim: 2, animation: 'disco' }, 'animation must be'],
++    ['a point outside the scene', { x: 99, y: 1, dim: 2 }, 'outside the scene'],
++  ])('rejects %s', (_label, spec, message) => {
++    expect(() => buildLightData(spec as any, geom, 'l')).toThrow(message);
++  });
++});
+diff --git a/packages/foundry-module/src/scene-objects-utils.ts b/packages/foundry-module/src/scene-objects-utils.ts
+new file mode 100644
+index 0000000..19e3176
+--- /dev/null
++++ b/packages/foundry-module/src/scene-objects-utils.ts
+@@ -0,0 +1,224 @@
++/**
++ * Pure helpers for manage-scene-objects and preview-scene: grid geometry, converting grid
++ * squares to scene pixels, and building light data. No Foundry globals, so they can be tested.
++ *
++ * Coordinate convention used by the tools: positions are in grid squares, measured from the
++ * top-left corner of the scene image (the grid origin). (0, 0) is the top-left corner of the
++ * top-left square; (2.5, 1.5) is the centre of the square in column 2, row 1 (0-based).
++ */
++
++export interface GridGeometry {
++  /** Pixels per grid square. */
++  size: number;
++  /** Pixel offset of the scene image's top-left corner (the padding around the map). */
++  originX: number;
++  originY: number;
++  /** Size of the scene image in pixels (without padding). */
++  sceneWidth: number;
++  sceneHeight: number;
++  /** Whole squares across and down. */
++  columns: number;
++  rows: number;
++  /** Distance of one square (e.g. 5) and its unit (e.g. "ft"). */
++  distance: number;
++  units: string;
++}
++
++/** Marker stored on everything the tool creates, so only those objects can be removed. */
++export const CREATED_BY_FLAG = 'sceneObjectsTool';
++
++/**
++ * Read the grid geometry of a Foundry scene. Prefers scene.dimensions (which knows the real
++ * padding offset); falls back to Foundry's own padding formula.
++ */
++export function getGridGeometry(scene: any): GridGeometry {
++  const size = Number(scene?.grid?.size ?? scene?.dimensions?.size);
++  if (!Number.isFinite(size) || size <= 0) {
++    throw new Error('The scene has no valid grid size');
++  }
++  const dims = scene?.dimensions;
++  const sceneWidth = Number(dims?.sceneWidth ?? scene?.width);
++  const sceneHeight = Number(dims?.sceneHeight ?? scene?.height);
++  if (
++    !Number.isFinite(sceneWidth) ||
++    !Number.isFinite(sceneHeight) ||
++    sceneWidth <= 0 ||
++    sceneHeight <= 0
++  ) {
++    throw new Error('The scene has no valid size');
++  }
++  const padding = Number(scene?.padding ?? 0);
++  const fallbackX = Math.ceil((sceneWidth * padding) / size) * size;
++  const fallbackY = Math.ceil((sceneHeight * padding) / size) * size;
++  const originX = Number.isFinite(dims?.sceneX) ? Number(dims.sceneX) : fallbackX;
++  const originY = Number.isFinite(dims?.sceneY) ? Number(dims.sceneY) : fallbackY;
++  return {
++    size,
++    originX,
++    originY,
++    sceneWidth,
++    sceneHeight,
++    columns: Math.floor(sceneWidth / size),
++    rows: Math.floor(sceneHeight / size),
++    distance: Number(scene?.grid?.distance ?? 5),
++    units: String(scene?.grid?.units ?? ''),
++  };
++}
++
++export function squaresToPixels(
++  geom: GridGeometry,
++  x: number,
++  y: number
++): { x: number; y: number } {
++  return {
++    x: Math.round(geom.originX + x * geom.size),
++    y: Math.round(geom.originY + y * geom.size),
++  };
++}
++
++export function pixelsToSquares(
++  geom: GridGeometry,
++  px: number,
++  py: number
++): { x: number; y: number } {
++  const round = (value: number) => Math.round(value * 100) / 100;
++  return { x: round((px - geom.originX) / geom.size), y: round((py - geom.originY) / geom.size) };
++}
++
++/** Throw unless (x, y) is a finite point inside the scene image. */
++export function assertInsideScene(geom: GridGeometry, x: unknown, y: unknown, label: string): void {
++  if (
++    typeof x !== 'number' ||
++    typeof y !== 'number' ||
++    !Number.isFinite(x) ||
++    !Number.isFinite(y)
++  ) {
++    throw new Error(`${label}: x and y must be numbers (grid squares)`);
++  }
++  const maxX = geom.sceneWidth / geom.size;
++  const maxY = geom.sceneHeight / geom.size;
++  if (x < 0 || y < 0 || x > maxX || y > maxY) {
++    throw new Error(
++      `${label}: (${x}, ${y}) is outside the scene, which is ${geom.columns} x ${geom.rows} squares (x 0 to ${round2(maxX)}, y 0 to ${round2(maxY)})`
++    );
++  }
++}
++
++function round2(value: number): number {
++  return Math.round(value * 100) / 100;
++}
++
++export interface LightSpec {
++  x: number;
++  y: number;
++  /** Radius of bright light, in grid squares. */
++  bright?: number;
++  /** Radius of dim light, in grid squares. */
++  dim?: number;
++  /** Colour as #RRGGBB. */
++  color?: string;
++  /** Opacity of the colour, 0 to 1. */
++  alpha?: number;
++  /** Cone angle in degrees, 1 to 360 (default 360). */
++  angle?: number;
++  /** Direction of a cone in degrees (0 = down, clockwise). */
++  rotation?: number;
++  hidden?: boolean;
++  /** Animation type, e.g. torch, pulse, flame, ghost. */
++  animation?: string;
++  label?: string;
++}
++
++const LIGHT_ANIMATIONS = [
++  'torch',
++  'pulse',
++  'chroma',
++  'wave',
++  'fog',
++  'sunburst',
++  'dome',
++  'emanation',
++  'hexa',
++  'ghost',
++  'energy',
++  'roiling',
++  'hole',
++] as const;
++
++/** Maximum radius of a light, in grid squares. */
++export const MAX_LIGHT_RADIUS_SQUARES = 200;
++
++/**
++ * Validate a light spec and build the AmbientLight data for scene.createEmbeddedDocuments.
++ * Radii are converted from grid squares to scene distance units (Foundry stores distance).
++ */
++export function buildLightData(
++  spec: LightSpec,
++  geom: GridGeometry,
++  label: string
++): Record<string, any> {
++  assertInsideScene(geom, spec.x, spec.y, label);
++
++  const radius = (value: unknown, name: string): number => {
++    if (value === undefined) return 0;
++    if (
++      typeof value !== 'number' ||
++      !Number.isFinite(value) ||
++      value < 0 ||
++      value > MAX_LIGHT_RADIUS_SQUARES
++    ) {
++      throw new Error(
++        `${label}: ${name} must be a number of squares from 0 to ${MAX_LIGHT_RADIUS_SQUARES}`
++      );
++    }
++    return value;
++  };
++  const bright = radius(spec.bright, 'bright');
++  const dim = radius(spec.dim, 'dim');
++  if (bright === 0 && dim === 0) {
++    throw new Error(`${label}: a light needs a bright or dim radius (in squares)`);
++  }
++
++  const config: Record<string, any> = {
++    bright: bright * geom.distance,
++    dim: dim * geom.distance,
++  };
++
++  if (spec.color !== undefined) {
++    if (typeof spec.color !== 'string' || !/^#[0-9a-fA-F]{6}$/.test(spec.color)) {
++      throw new Error(`${label}: color must look like #RRGGBB`);
++    }
++    config.color = spec.color.toLowerCase();
++  }
++  if (spec.alpha !== undefined) {
++    if (typeof spec.alpha !== 'number' || spec.alpha < 0 || spec.alpha > 1) {
++      throw new Error(`${label}: alpha must be a number from 0 to 1`);
++    }
++    config.alpha = spec.alpha;
++  }
++  if (spec.angle !== undefined) {
++    if (typeof spec.angle !== 'number' || spec.angle < 1 || spec.angle > 360) {
++      throw new Error(`${label}: angle must be a number from 1 to 360`);
++    }
++    config.angle = spec.angle;
++  }
++  if (spec.animation !== undefined) {
++    if (!(LIGHT_ANIMATIONS as readonly string[]).includes(spec.animation)) {
++      throw new Error(`${label}: animation must be one of ${LIGHT_ANIMATIONS.join(', ')}`);
++    }
++    config.animation = { type: spec.animation, speed: 5, intensity: 5 };
++  }
++
++  const { x, y } = squaresToPixels(geom, spec.x, spec.y);
++  const data: Record<string, any> = { x, y, config };
++  if (spec.rotation !== undefined) {
++    if (typeof spec.rotation !== 'number' || !Number.isFinite(spec.rotation)) {
++      throw new Error(`${label}: rotation must be a number of degrees`);
++    }
++    data.rotation = spec.rotation;
++  }
++  if (spec.hidden !== undefined) data.hidden = !!spec.hidden;
++  return data;
++}
++
++export { LIGHT_ANIMATIONS };
 diff --git a/packages/foundry-module/src/upload-utils.test.ts b/packages/foundry-module/src/upload-utils.test.ts
 new file mode 100644
 index 0000000..909b7f5
@@ -2532,44 +3992,55 @@ index 0000000..d81af4a
 +  return bytes;
 +}
 diff --git a/packages/mcp-server/src/backend.ts b/packages/mcp-server/src/backend.ts
-index 8967e33..b76cef4 100644
+index 8967e33..87f75be 100644
 --- a/packages/mcp-server/src/backend.ts
 +++ b/packages/mcp-server/src/backend.ts
-@@ -48,6 +48,8 @@ import { DnD5eAddFeatureTool } from './tools/dnd5e/add-feature.js';
+@@ -48,6 +48,9 @@ import { DnD5eAddFeatureTool } from './tools/dnd5e/add-feature.js';
  import { DnD5eNpcTools } from './tools/dnd5e/npc.js';
  import { DnD5eFeaturesFromCompendiumTools } from './tools/dnd5e/features.js';
  import { ChatTools } from './tools/chat.js';
 +import { UploadTools } from './tools/upload.js';
 +import { JournalTools } from './tools/journal.js';
++import { SceneObjectTools } from './tools/scene-objects.js';
  
  const CONTROL_HOST = '127.0.0.1';
  
-@@ -1195,6 +1197,8 @@ async function startBackend(): Promise<void> {
+@@ -1195,6 +1198,9 @@ async function startBackend(): Promise<void> {
    const compendiumTools = new CompendiumTools({ foundryClient, logger, systemRegistry });
  
    const sceneTools = new SceneTools({ foundryClient, logger });
 +  const uploadTools = new UploadTools({ foundryClient, logger });
 +  const journalTools = new JournalTools({ foundryClient, logger });
++  const sceneObjectTools = new SceneObjectTools({ foundryClient, logger });
    const playlistTools = new PlaylistTools({ foundryClient, logger });
  
    const actorCreationTools = new ActorCreationTools({ foundryClient, logger });
-@@ -1429,6 +1433,9 @@ async function startBackend(): Promise<void> {
+@@ -1429,6 +1435,10 @@ async function startBackend(): Promise<void> {
  
      ...sceneTools.getToolDefinitions(),
  
 +    ...uploadTools.getToolDefinitions(),
 +    ...journalTools.getToolDefinitions(),
++    ...sceneObjectTools.getToolDefinitions(),
 +
      ...actorCreationTools.getToolDefinitions(),
      ...actorManagementTools.getToolDefinitions(),
      ...effectManagementTools.getToolDefinitions(),
-@@ -1805,6 +1812,20 @@ async function startBackend(): Promise<void> {
+@@ -1805,6 +1815,28 @@ async function startBackend(): Promise<void> {
  
                    break;
  
 +                case 'manage-scenes':
 +                  result = await sceneTools.handleManageScenes(args);
 +
++                  break;
++
++                case 'manage-scene-objects':
++                  result = await sceneObjectTools.handleManageSceneObjects(args);
++                  break;
++
++                case 'preview-scene':
++                  result = await sceneObjectTools.handlePreviewScene(args);
 +                  break;
 +
 +                case 'manage-journals':
@@ -2874,6 +4345,430 @@ index 0000000..942a444
 +      throw new Error(
 +        `Failed to manage journals: ${error instanceof Error ? error.message : 'Unknown error'}`
 +      );
++    }
++  }
++}
+diff --git a/packages/mcp-server/src/tools/scene-objects.test.ts b/packages/mcp-server/src/tools/scene-objects.test.ts
+new file mode 100644
+index 0000000..0030e31
+--- /dev/null
++++ b/packages/mcp-server/src/tools/scene-objects.test.ts
+@@ -0,0 +1,135 @@
++import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
++import { promises as fs } from 'fs';
++import { SceneObjectTools } from './scene-objects.js';
++
++function makeTools(queryImpl?: (method: string, data: any, timeout?: number) => unknown) {
++  const query = vi.fn(queryImpl ?? (async () => ({ success: true })));
++  const logger: any = {
++    info: vi.fn(),
++    debug: vi.fn(),
++    error: vi.fn(),
++    warn: vi.fn(),
++    child: () => logger,
++  };
++  return { tools: new SceneObjectTools({ foundryClient: { query } as any, logger }), query };
++}
++
++describe('definitions', () => {
++  it('exposes manage-scene-objects and preview-scene', () => {
++    const defs = makeTools().tools.getToolDefinitions();
++    expect(defs.map(d => d.name)).toEqual(['manage-scene-objects', 'preview-scene']);
++    expect(defs[0].inputSchema.required).toEqual(['action']);
++  });
++});
++
++describe('handleManageSceneObjects', () => {
++  it('forwards a place request, dropping the light label', async () => {
++    const { tools, query } = makeTools(async () => ({ success: true, created: [] }));
++
++    await tools.handleManageSceneObjects({
++      action: 'place',
++      scene: 'Cave',
++      objects: [
++        { kind: 'token', actor: 'Goblin', x: 3, y: 2 },
++        { kind: 'light', x: 4.5, y: 4.5, dim: 4, label: 'torch by the door' },
++      ],
++    });
++
++    expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.manage-scene-objects', {
++      action: 'place',
++      scene: 'Cave',
++      objects: [
++        { kind: 'token', actor: 'Goblin', x: 3, y: 2 },
++        { kind: 'light', x: 4.5, y: 4.5, dim: 4 },
++      ],
++    });
++  });
++
++  it('forwards describe and remove', async () => {
++    const { tools, query } = makeTools();
++    await tools.handleManageSceneObjects({ action: 'describe' });
++    await tools.handleManageSceneObjects({ action: 'remove', all_mine: true, kind: 'light' });
++    expect(query).toHaveBeenCalledTimes(2);
++  });
++
++  it.each([
++    ['place without objects', { action: 'place' }, 'objects is required'],
++    ['remove without ids or all_mine', { action: 'remove' }, 'ids or all_mine'],
++    ['an unknown kind', { action: 'place', objects: [{ kind: 'wall', x: 1, y: 1 }] }, ''],
++    ['a token without an actor', { action: 'place', objects: [{ kind: 'token', x: 1, y: 1 }] }, ''],
++    [
++      'an unknown field on a light',
++      { action: 'place', objects: [{ kind: 'light', x: 1, y: 1, dim: 1, glow: 3 }] },
++      '',
++    ],
++    [
++      'a bad colour',
++      { action: 'place', objects: [{ kind: 'light', x: 1, y: 1, dim: 1, color: 'red' }] },
++      '',
++    ],
++    [
++      'a bad disposition',
++      { action: 'place', objects: [{ kind: 'token', actor: 'a', x: 1, y: 1, disposition: 2 }] },
++      '',
++    ],
++    ['an unknown action', { action: 'delete-everything' }, ''],
++    ['an unknown top-level field', { action: 'describe', force: true }, ''],
++  ])('rejects %s before contacting Foundry', async (_label, args, message) => {
++    const { tools, query } = makeTools();
++    await expect(tools.handleManageSceneObjects(args)).rejects.toThrow(message || undefined);
++    expect(query).not.toHaveBeenCalled();
++  });
++
++  it('wraps a Foundry error once', async () => {
++    const { tools } = makeTools(async () => {
++      throw new Error('Failed to place scene objects: boom');
++    });
++    await expect(tools.handleManageSceneObjects({ action: 'describe' })).rejects.toThrow(
++      'Failed to manage scene objects: Failed to place scene objects: boom'
++    );
++  });
++});
++
++describe('handlePreviewScene', () => {
++  const created: string[] = [];
++  beforeAll(() => undefined);
++  afterAll(async () => {
++    for (const file of created) await fs.rm(file, { force: true });
++  });
++
++  it('saves the picture to a file and returns its path without the base64', async () => {
++    const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 1, 2, 3]);
++    const { tools, query } = makeTools(async () => ({
++      success: true,
++      scene: { id: 's', name: 'My Cave/../x' },
++      imageBase64: png.toString('base64'),
++      width: 100,
++      height: 50,
++    }));
++
++    const result = await tools.handlePreviewScene({ scene: 'My Cave', max_size: 800 });
++    created.push(result.file);
++
++    expect(query).toHaveBeenCalledWith(
++      'foundry-mcp-bridge.preview-scene',
++      { scene: 'My Cave', max_size: 800 },
++      60000
++    );
++    expect(result.imageBase64).toBeUndefined();
++    expect(result).toMatchObject({ width: 100, height: 50 });
++    expect(result.file).toMatch(/foundry-mcp-previews[\\/]My_Cave_x-\d+\.png$/);
++    expect(await fs.readFile(result.file)).toEqual(png);
++  });
++
++  it('fails clearly when Foundry returns no picture', async () => {
++    const { tools } = makeTools(async () => ({ success: true, scene: { name: 's' } }));
++    await expect(tools.handlePreviewScene({})).rejects.toThrow('returned no picture');
++  });
++
++  it('rejects bad options before contacting Foundry', async () => {
++    const { tools, query } = makeTools();
++    await expect(tools.handlePreviewScene({ max_size: 10 })).rejects.toThrow();
++    await expect(tools.handlePreviewScene({ extra: 1 })).rejects.toThrow();
++    expect(query).not.toHaveBeenCalled();
++  });
++});
+diff --git a/packages/mcp-server/src/tools/scene-objects.ts b/packages/mcp-server/src/tools/scene-objects.ts
+new file mode 100644
+index 0000000..f596ebf
+--- /dev/null
++++ b/packages/mcp-server/src/tools/scene-objects.ts
+@@ -0,0 +1,277 @@
++import { promises as fs } from 'fs';
++import os from 'os';
++import path from 'path';
++import { z } from 'zod';
++import { FoundryClient } from '../foundry-client.js';
++import { Logger } from '../logger.js';
++
++export interface SceneObjectToolsOptions {
++  foundryClient: FoundryClient;
++  logger: Logger;
++}
++
++/** Drawing the preview loads the map image in the GM's browser; allow more than 10 s. */
++const PREVIEW_TIMEOUT_MS = 60000;
++const KEEP_PREVIEWS = 20;
++
++const color = z.string().regex(/^#[0-9a-fA-F]{6}$/, 'color must look like #RRGGBB');
++
++const tokenSchema = z
++  .object({
++    kind: z.literal('token'),
++    actor: z.string().min(1),
++    x: z.number().finite(),
++    y: z.number().finite(),
++    name: z.string().min(1).optional(),
++    hidden: z.boolean().optional(),
++    disposition: z.union([z.literal(-1), z.literal(0), z.literal(1)]).optional(),
++    elevation: z.number().finite().optional(),
++  })
++  .strict();
++
++const lightSchema = z
++  .object({
++    kind: z.literal('light'),
++    x: z.number().finite(),
++    y: z.number().finite(),
++    bright: z.number().min(0).max(200).optional(),
++    dim: z.number().min(0).max(200).optional(),
++    color: color.optional(),
++    alpha: z.number().min(0).max(1).optional(),
++    angle: z.number().min(1).max(360).optional(),
++    rotation: z.number().finite().optional(),
++    hidden: z.boolean().optional(),
++    animation: z.string().min(1).optional(),
++    label: z.string().optional(),
++  })
++  .strict();
++
++const objectSchema = z.discriminatedUnion('kind', [tokenSchema, lightSchema]);
++
++const sceneObjectsSchema = z
++  .object({
++    action: z.enum(['place', 'describe', 'remove']),
++    scene: z.string().min(1).optional(),
++    objects: z.array(objectSchema).min(1).max(200).optional(),
++    ids: z.array(z.string().min(1)).max(500).optional(),
++    all_mine: z.boolean().optional(),
++    kind: z.enum(['token', 'light']).optional(),
++  })
++  .strict();
++
++const previewSchema = z
++  .object({
++    scene: z.string().min(1).optional(),
++    max_size: z.number().int().min(200).max(3000).optional(),
++    label_every: z.number().int().min(1).max(50).optional(),
++  })
++  .strict();
++
++export class SceneObjectTools {
++  private foundryClient: FoundryClient;
++  private logger: Logger;
++
++  constructor({ foundryClient, logger }: SceneObjectToolsOptions) {
++    this.foundryClient = foundryClient;
++    this.logger = logger.child({ component: 'SceneObjectTools' });
++  }
++
++  getToolDefinitions() {
++    return [
++      {
++        name: 'manage-scene-objects',
++        description:
++          'Place tokens and lights on a scene by grid square, describe what is on a scene, or remove objects this tool created (it never removes anything else). ' +
++          'Positions are in GRID SQUARES from the top-left corner of the map image: (0, 0) is the top-left corner of the first square, (2.5, 1.5) the centre of the square in column 2, row 1 (counting from 0). ' +
++          'Use preview-scene first to see the numbered grid. describe returns the scene grid size so you know the valid range. ' +
++          'place takes objects (up to 200): {kind:"token", actor, x, y} puts the actor\'s token with its top-left corner at that square (use whole numbers; actor is an id or exact name); {kind:"light", x, y, bright, dim} makes a light at that point with radii in squares (optional color, alpha, angle, rotation, animation, hidden). ' +
++          'remove needs ids or all_mine:true (optionally with kind) and only removes objects created by this tool. scene is an id or exact name; it defaults to the scene the GM is viewing.',
++        inputSchema: {
++          type: 'object',
++          properties: {
++            action: { type: 'string', enum: ['place', 'describe', 'remove'] },
++            scene: {
++              type: 'string',
++              description: 'Scene id or exact name (default: the scene being viewed)',
++            },
++            objects: {
++              type: 'array',
++              maxItems: 200,
++              description: 'Objects to place (action place)',
++              items: {
++                type: 'object',
++                properties: {
++                  kind: { type: 'string', enum: ['token', 'light'] },
++                  x: { type: 'number', description: 'Grid squares from the left edge of the map' },
++                  y: { type: 'number', description: 'Grid squares from the top edge of the map' },
++                  actor: { type: 'string', description: 'token: actor id or exact name' },
++                  name: {
++                    type: 'string',
++                    description: 'token: name to show instead of the actor name',
++                  },
++                  hidden: { type: 'boolean', description: 'token or light: hidden from players' },
++                  disposition: {
++                    type: 'number',
++                    enum: [-1, 0, 1],
++                    description: 'token: -1 hostile, 0 neutral, 1 friendly',
++                  },
++                  elevation: { type: 'number', description: 'token: elevation' },
++                  bright: { type: 'number', description: 'light: bright radius in squares' },
++                  dim: { type: 'number', description: 'light: dim radius in squares' },
++                  color: { type: 'string', description: 'light: #RRGGBB' },
++                  alpha: { type: 'number', description: 'light: colour opacity 0 to 1' },
++                  angle: {
++                    type: 'number',
++                    description: 'light: cone angle 1 to 360 (default 360)',
++                  },
++                  rotation: { type: 'number', description: 'light: cone direction in degrees' },
++                  animation: {
++                    type: 'string',
++                    description: 'light: animation type such as torch, pulse, ghost, wave, fog',
++                  },
++                  label: { type: 'string', description: 'light: note for yourself (not stored)' },
++                },
++                required: ['kind', 'x', 'y'],
++                additionalProperties: false,
++              },
++            },
++            ids: {
++              type: 'array',
++              items: { type: 'string' },
++              description: 'remove: ids of objects created by this tool',
++            },
++            all_mine: {
++              type: 'boolean',
++              description: 'remove: every object on the scene that this tool created',
++            },
++            kind: {
++              type: 'string',
++              enum: ['token', 'light'],
++              description: 'describe or remove: only this kind',
++            },
++          },
++          required: ['action'],
++          additionalProperties: false,
++        },
++      },
++      {
++        name: 'preview-scene',
++        description:
++          "Render a scene as a picture: the map image with a numbered grid (column numbers along the top and bottom, row numbers along the sides, stronger lines every 5 squares) and the scene's tokens (red) and lights (circles) on top. The picture is saved to a file on this computer; its path is returned, and you can open it to see where things are in grid squares. Read-only. Needs the Foundry tab open in a browser.",
++        inputSchema: {
++          type: 'object',
++          properties: {
++            scene: {
++              type: 'string',
++              description: 'Scene id or exact name (default: the scene being viewed)',
++            },
++            max_size: {
++              type: 'number',
++              description: 'Longest side of the picture in pixels, 200 to 3000 (default 1600)',
++            },
++            label_every: {
++              type: 'number',
++              description:
++                'Number every Nth column and row, 1 to 50 (default: chosen to stay readable)',
++            },
++          },
++          additionalProperties: false,
++        },
++      },
++    ];
++  }
++
++  async handleManageSceneObjects(args: any): Promise<any> {
++    const parsed = sceneObjectsSchema.parse(args);
++    if (parsed.action === 'place' && !parsed.objects) {
++      throw new Error('objects is required for place');
++    }
++    if (parsed.action === 'remove' && !parsed.all_mine && !(parsed.ids && parsed.ids.length)) {
++      throw new Error('remove needs ids or all_mine: true');
++    }
++
++    this.logger.info('Managing scene objects', { action: parsed.action, scene: parsed.scene });
++    try {
++      // The label of a light is only a note for the caller; do not send it.
++      const payload = {
++        ...parsed,
++        ...(parsed.objects
++          ? {
++              objects: parsed.objects.map(o => {
++                if (o.kind === 'light') {
++                  const { label: _label, ...rest } = o;
++                  return rest;
++                }
++                return o;
++              }),
++            }
++          : {}),
++      };
++      const result = await this.foundryClient.query(
++        'foundry-mcp-bridge.manage-scene-objects',
++        payload
++      );
++      if (result?.success === false) {
++        throw new Error(result.error || 'Request was refused');
++      }
++      return result;
++    } catch (error) {
++      this.logger.error('Failed to manage scene objects', error);
++      throw new Error(
++        `Failed to manage scene objects: ${error instanceof Error ? error.message : 'Unknown error'}`
++      );
++    }
++  }
++
++  async handlePreviewScene(args: any): Promise<any> {
++    const parsed = previewSchema.parse(args ?? {});
++
++    try {
++      const result = await this.foundryClient.query(
++        'foundry-mcp-bridge.preview-scene',
++        parsed,
++        PREVIEW_TIMEOUT_MS
++      );
++      if (result?.success === false) {
++        throw new Error(result.error || 'Request was refused');
++      }
++      const { imageBase64, ...info } = result;
++      if (typeof imageBase64 !== 'string' || imageBase64.length === 0) {
++        throw new Error('Foundry returned no picture');
++      }
++
++      const dir = path.join(os.tmpdir(), 'foundry-mcp-previews');
++      await fs.mkdir(dir, { recursive: true });
++      const safeName = String(info.scene?.name ?? 'scene')
++        .replace(/[^A-Za-z0-9_-]+/g, '_')
++        .slice(0, 40);
++      const file = path.join(dir, `${safeName}-${Date.now()}.png`);
++      await fs.writeFile(file, Buffer.from(imageBase64, 'base64'));
++      await this.pruneOldPreviews(dir);
++
++      this.logger.info('Scene preview saved', { file });
++      return { ...info, file };
++    } catch (error) {
++      this.logger.error('Failed to preview scene', error);
++      throw new Error(
++        `Failed to preview scene: ${error instanceof Error ? error.message : 'Unknown error'}`
++      );
++    }
++  }
++
++  /** Keep only the newest previews so the temp folder does not grow forever. */
++  private async pruneOldPreviews(dir: string): Promise<void> {
++    try {
++      const names = (await fs.readdir(dir)).filter(n => n.endsWith('.png'));
++      const withTimes = await Promise.all(
++        names.map(async name => ({ name, mtime: (await fs.stat(path.join(dir, name))).mtimeMs }))
++      );
++      withTimes.sort((a, b) => b.mtime - a.mtime);
++      for (const old of withTimes.slice(KEEP_PREVIEWS)) {
++        await fs.rm(path.join(dir, old.name), { force: true });
++      }
++    } catch {
++      // Cleaning up is best effort.
 +    }
 +  }
 +}
@@ -3551,7 +5446,7 @@ index 0000000..386d634
 +  }
 +}
 diff --git a/scripts/mcp-schema-smoke-test.mjs b/scripts/mcp-schema-smoke-test.mjs
-index c84dcd4..09914a3 100644
+index c84dcd4..f3b4f80 100644
 --- a/scripts/mcp-schema-smoke-test.mjs
 +++ b/scripts/mcp-schema-smoke-test.mjs
 @@ -22,7 +22,7 @@ const importDist = async (relativePath) =>
@@ -3559,25 +5454,27 @@ index c84dcd4..09914a3 100644
  const [{ config }, { Logger }, { FoundryClient }, { CharacterTools }, { CompendiumTools }, { SceneTools },
    { ActorCreationTools }, { QuestCreationTools }, { DiceRollTools }, { CampaignManagementTools },
 -  { OwnershipTools }, { TokenManipulationTools }, { MapGenerationTools }, { getSystemRegistry },
-+  { OwnershipTools }, { TokenManipulationTools }, { MapGenerationTools }, { UploadTools }, { JournalTools }, { getSystemRegistry },
++  { OwnershipTools }, { TokenManipulationTools }, { MapGenerationTools }, { UploadTools }, { JournalTools }, { SceneObjectTools }, { getSystemRegistry },
    { DnD5eAdapter }, { PF2eAdapter }, { DSA5Adapter }, { CosmereRpgAdapter }] = await Promise.all([
    importDist('config.js'),
    importDist('logger.js'),
-@@ -37,6 +37,8 @@ const [{ config }, { Logger }, { FoundryClient }, { CharacterTools }, { Compendi
+@@ -37,6 +37,9 @@ const [{ config }, { Logger }, { FoundryClient }, { CharacterTools }, { Compendi
    importDist('tools/ownership.js'),
    importDist('tools/token-manipulation.js'),
    importDist('tools/map-generation.js'),
 +  importDist('tools/upload.js'),
 +  importDist('tools/journal.js'),
++  importDist('tools/scene-objects.js'),
    importDist('systems/index.js'),
    importDist('systems/dnd5e/adapter.js'),
    importDist('systems/pf2e/adapter.js'),
-@@ -64,6 +66,8 @@ const tools = [
+@@ -64,6 +67,9 @@ const tools = [
    ...new OwnershipTools({ foundryClient, logger }).getToolDefinitions(),
    ...new TokenManipulationTools({ foundryClient, logger }).getToolDefinitions(),
    ...new MapGenerationTools({ foundryClient, logger, backendComfyUIHandlers: {} }).getToolDefinitions(),
 +  ...new UploadTools({ foundryClient, logger }).getToolDefinitions(),
 +  ...new JournalTools({ foundryClient, logger }).getToolDefinitions(),
++  ...new SceneObjectTools({ foundryClient, logger }).getToolDefinitions(),
  ];
  
  if (!tools.length) {

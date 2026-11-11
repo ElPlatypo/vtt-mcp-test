@@ -5,6 +5,7 @@ An unofficial variant of [Foundry MCP Bridge](https://github.com/adambdooley/fou
 - **`manage-scenes`**: describe, create and edit Foundry scenes (name, background image, background colour, size, grid, darkness, navigation). It never deletes anything, and it reports a warning if Foundry did not keep a requested change.
 - **`upload-file`**: upload an image from the PC running Claude into the world's own folder on the Foundry server (`worlds/<world>/uploads/...`), so it can be used as a scene background or token image. Only png, jpg, webp and gif up to 20 MB, and the file must really be an image.
 - **`manage-journals`**: create, update and describe journals (no delete): exact text and image pages, folders, who can see them, and `{{actor: Name}}`-style links that become clickable Foundry links. Scripts and event handlers are stripped from the HTML. Unit-tested with a faked Foundry only; not yet run against a real world.
+- **`manage-scene-objects`**: place tokens and lights by grid square (positions measured from the top-left of the map), describe what is on a scene, and remove only the objects this tool created. **`preview-scene`**: renders the map with a numbered grid plus its tokens and lights to a PNG so positions can be checked. Unit-tested with a faked Foundry only; not yet run against a real world.
 
 It installs under its own id, `foundry-mcp-bridge-scenes`, so it can sit next to the original module. **Enable only one of the two per world:** both connect to the same MCP server port and the modules are marked as conflicting.
 
