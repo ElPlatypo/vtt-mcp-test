@@ -1272,10 +1272,10 @@ index 0000000..bad3cea
 +});
 diff --git a/packages/foundry-module/src/data-access.manage-scenes.test.ts b/packages/foundry-module/src/data-access.manage-scenes.test.ts
 new file mode 100644
-index 0000000..f299714
+index 0000000..b892530
 --- /dev/null
 +++ b/packages/foundry-module/src/data-access.manage-scenes.test.ts
-@@ -0,0 +1,447 @@
+@@ -0,0 +1,494 @@
 +/**
 + * manage-scenes tests (create / update / describe).
 + *
@@ -1722,6 +1722,53 @@ index 0000000..f299714
 +      expect(result.scene.background).toBe('worlds/w/maps/road.webp');
 +    });
 +  });
++
++  describe('map extras', () => {
++    it('sends weather, fog, grid shift and grid style, and sets the opening view in pixels', async () => {
++      const { scene } = makeScene({
++        dimensions: { sceneX: 1000, sceneY: 800, sceneWidth: 4000, sceneHeight: 3000 },
++        weather: 'rain',
++        fog: { mode: 2 },
++        shiftX: 10,
++        shiftY: -5,
++      });
++      const { dataAccess } = setup({ scenes: [scene] });
++
++      const result = await dataAccess.manageScenes({
++        action: 'update',
++        scene_identifier: 'old name',
++        weather: 'rain',
++        fog_mode: 2,
++        grid_shift_x: 10,
++        grid_shift_y: -5,
++        grid_alpha: 0.4,
++        initial_view: { x: 10, y: 5, scale: 1.5 },
++      });
++
++      expect(scene.update).toHaveBeenCalledWith({
++        grid: { alpha: 0.4 },
++        shiftX: 10,
++        shiftY: -5,
++        fog: { mode: 2 },
++        weather: 'rain',
++      });
++      expect(scene.update).toHaveBeenCalledWith({ initial: { x: 2000, y: 1300, scale: 1.5 } });
++      expect(result.scene.weather).toBe('rain');
++      expect(result.scene.fogMode).toBe(2);
++    });
++
++    it('rejects a bad opening view', async () => {
++      const { scene } = makeScene();
++      const { dataAccess } = setup({ scenes: [scene] });
++      await expect(
++        dataAccess.manageScenes({
++          action: 'update',
++          scene_identifier: 'old name',
++          initial_view: { x: 1, y: 2, scale: 9 },
++        })
++      ).rejects.toThrow('initial_view');
++    });
++  });
 +});
 diff --git a/packages/foundry-module/src/data-access.regions.test.ts b/packages/foundry-module/src/data-access.regions.test.ts
 new file mode 100644
@@ -1959,10 +2006,10 @@ index 0000000..0cc8cfa
 +});
 diff --git a/packages/foundry-module/src/data-access.scene-objects.test.ts b/packages/foundry-module/src/data-access.scene-objects.test.ts
 new file mode 100644
-index 0000000..0a5a35c
+index 0000000..94cee28
 --- /dev/null
 +++ b/packages/foundry-module/src/data-access.scene-objects.test.ts
-@@ -0,0 +1,599 @@
+@@ -0,0 +1,651 @@
 +/**
 + * manage-scene-objects and preview-scene tests. Foundry is stubbed: these check the data sent
 + * to createEmbeddedDocuments / deleteEmbeddedDocuments, the grid conversion, validation, the
@@ -2562,11 +2609,63 @@ index 0000000..0a5a35c
 +    expect(result).toMatchObject({ walls: 1, notes: 1 });
 +  });
 +});
++
++describe('FoundryDataAccess.manageSceneObjects tiles, sounds and token size', () => {
++  beforeEach(() => vi.unstubAllGlobals());
++  afterEach(() => vi.unstubAllGlobals());
++
++  function withExtras() {
++    const { scene } = makeScene();
++    scene.tiles = { contents: [{ id: 't1', x: 1200, y: 900, width: 300, height: 200, texture: { src: 'rug.png' }, flags: MINE }] };
++    scene.sounds = { contents: [{ id: 's9', x: 1400, y: 1200, radius: 30, path: 'a.ogg', volume: 0.5, repeat: true, flags: MINE }] };
++    return { ...setup({ scene }), scene };
++  }
++
++  it('creates tiles and sounds in pixels and distance units, marked as tool-made', async () => {
++    const { dataAccess, scene } = withExtras();
++    const result = await dataAccess.manageSceneObjects({
++      action: 'place',
++      objects: [
++        { kind: 'tile', x: 2, y: 1, width: 3, height: 2, src: 'rug.png' },
++        { kind: 'sound', x: 4, y: 4, radius: 6, path: 'a.ogg' },
++      ],
++    });
++    const calls = Object.fromEntries(scene.createEmbeddedDocuments.mock.calls.map((c: any[]) => [c[0], c[1]]));
++    expect(calls.Tile[0]).toMatchObject({ x: 1200, y: 900, width: 300, height: 200, flags: MINE });
++    expect(calls.AmbientSound[0]).toMatchObject({ x: 1400, y: 1200, radius: 30, flags: MINE });
++    expect(result.created.map((c: any) => c.kind).sort()).toEqual(['sound', 'tile']);
++  });
++
++  it('sets token size in squares', async () => {
++    const { dataAccess, scene } = withExtras();
++    await dataAccess.manageSceneObjects({
++      action: 'place',
++      objects: [{ kind: 'token', actor: 'Goblin', x: 1, y: 1, width: 2, height: 2 }],
++    });
++    expect(scene.createEmbeddedDocuments.mock.calls[0][1][0]).toMatchObject({ width: 2, height: 2 });
++    await expect(
++      dataAccess.manageSceneObjects({
++        action: 'place',
++        objects: [{ kind: 'token', actor: 'Goblin', x: 1, y: 1, width: 99 }],
++      })
++    ).rejects.toThrow('width');
++  });
++
++  it('describes and removes tiles and sounds it made', async () => {
++    const { dataAccess, scene } = withExtras();
++    const described = await dataAccess.manageSceneObjects({ action: 'describe' });
++    expect(described.tiles[0]).toMatchObject({ id: 't1', x: 2, y: 1, width: 3, height: 2, createdByTool: true });
++    expect(described.sounds[0]).toMatchObject({ id: 's9', radiusSquares: 6, createdByTool: true });
++    const removed = await dataAccess.manageSceneObjects({ action: 'remove', all_mine: true, kind: 'tile' });
++    expect(scene.deleteEmbeddedDocuments).toHaveBeenCalledWith('Tile', ['t1']);
++    expect(removed.removed).toEqual([{ kind: 'tile', id: 't1' }]);
++  });
++});
 diff --git a/packages/foundry-module/src/data-access.ts b/packages/foundry-module/src/data-access.ts
-index eecda7e..b55403b 100644
+index eecda7e..c7638d1 100644
 --- a/packages/foundry-module/src/data-access.ts
 +++ b/packages/foundry-module/src/data-access.ts
-@@ -1,5 +1,61 @@
+@@ -1,5 +1,63 @@
  import { MODULE_ID, ERROR_MESSAGES, TOKEN_DISPOSITIONS } from './constants.js';
  import { permissionManager } from './permissions.js';
 +import {
@@ -2584,6 +2683,8 @@ index eecda7e..b55403b 100644
 +  MAX_WALL_SEGMENTS,
 +  buildLightData,
 +  buildWallData,
++  buildTileData,
++  buildSoundData,
 +  getGridGeometry,
 +  pixelsToSquares,
 +  squaresToPixels,
@@ -2628,7 +2729,7 @@ index eecda7e..b55403b 100644
  import { transactionManager } from './transaction-manager.js';
  
  // The same five characters foundry.utils.escapeHTML replaces in v14, kept local because
-@@ -6714,7 +6770,7 @@ export class FoundryDataAccess {
+@@ -6714,7 +6772,7 @@ export class FoundryDataAccess {
  
          // Send socket request to GM
          if (game.socket) {
@@ -2637,7 +2738,7 @@ index eecda7e..b55403b 100644
              type: 'requestMessageUpdate',
              buttonId,
              userId,
-@@ -8101,6 +8157,1708 @@ export class FoundryDataAccess {
+@@ -8101,6 +8159,1827 @@ export class FoundryDataAccess {
      }
    }
  
@@ -2671,6 +2772,14 @@ index eecda7e..b55403b 100644
 +      globalLight: scene.environment?.globalLight?.enabled,
 +      navigation: scene.navigation,
 +      navName: scene.navName || '',
++      weather: scene.weather || null,
++      fogMode: scene.fog?.mode ?? null,
++      gridShift: { x: scene.shiftX ?? 0, y: scene.shiftY ?? 0 },
++      gridColor: scene.grid?.color != null ? String(scene.grid.color) : null,
++      gridAlpha: scene.grid?.alpha ?? null,
++      initialView: scene.initial
++        ? { x: scene.initial.x ?? null, y: scene.initial.y ?? null, scale: scene.initial.scale ?? null }
++        : null,
 +    };
 +  }
 +
@@ -2728,7 +2837,30 @@ index eecda7e..b55403b 100644
 +      if (typeof options.grid_units !== 'string') throw new Error('grid_units must be a string');
 +      grid.units = options.grid_units;
 +    }
++    if (options.grid_color !== undefined) {
++      if (typeof options.grid_color !== 'string' || !/^#[0-9a-fA-F]{6}$/.test(options.grid_color)) {
++        throw new Error('grid_color must be a #RRGGBB hex string');
++      }
++      grid.color = options.grid_color;
++    }
++    const gridAlpha = number('grid_alpha', 'grid_alpha', 0, 1, false);
++    if (gridAlpha !== undefined) grid.alpha = gridAlpha;
 +    if (Object.keys(grid).length > 0) data.grid = grid;
++
++    const shiftX = number('grid_shift_x', 'grid_shift_x', -5000, 5000, true);
++    if (shiftX !== undefined) data.shiftX = shiftX;
++    const shiftY = number('grid_shift_y', 'grid_shift_y', -5000, 5000, true);
++    if (shiftY !== undefined) data.shiftY = shiftY;
++
++    const fogMode = number('fog_mode', 'fog_mode', 0, 2, true);
++    if (fogMode !== undefined) data.fog = { mode: fogMode };
++
++    if (options.weather !== undefined) {
++      if (options.weather !== null && (typeof options.weather !== 'string' || options.weather.length > 64)) {
++        throw new Error('weather must be a weather effect id (such as rain, snow, fog) or null for none');
++      }
++      data.weather = options.weather ?? '';
++    }
 +
 +    if (options.background_color !== undefined) {
 +      const color = options.background_color;
@@ -2845,6 +2977,15 @@ index eecda7e..b55403b 100644
 +    check('navigation', options.navigation, summary.navigation);
 +    check('nav_name', options.nav_name, summary.navName);
 +    check('background', options.background, summary.background);
++    check('fog_mode', options.fog_mode, summary.fogMode);
++    check('grid_shift_x', options.grid_shift_x, summary.gridShift?.x);
++    check('grid_shift_y', options.grid_shift_y, summary.gridShift?.y);
++    check('grid_alpha', options.grid_alpha, summary.gridAlpha);
++    check('grid_color', options.grid_color, summary.gridColor);
++    if (options.weather !== undefined) check('weather', options.weather ?? '', summary.weather ?? '');
++    if (options.initial_view?.scale !== undefined) {
++      check('initial_view.scale', options.initial_view.scale, summary.initialView?.scale);
++    }
 +
 +    return warnings;
 +  }
@@ -2874,6 +3015,13 @@ index eecda7e..b55403b 100644
 +    global_light?: boolean;
 +    navigation?: boolean;
 +    nav_name?: string;
++    grid_color?: string;
++    grid_alpha?: number;
++    grid_shift_x?: number;
++    grid_shift_y?: number;
++    fog_mode?: number;
++    weather?: string | null;
++    initial_view?: { x: number; y: number; scale?: number };
 +    activate?: boolean;
 +  }): Promise<any> {
 +    this.validateFoundryState();
@@ -2904,6 +3052,13 @@ index eecda7e..b55403b 100644
 +      }
 +
 +      const data = this.buildSceneData(options);
++      const view = options.initial_view;
++      if (view !== undefined) {
++        const bad = (v: unknown) => typeof v !== 'number' || !Number.isFinite(v);
++        if (!view || bad(view.x) || bad(view.y) || (view.scale !== undefined && (bad(view.scale) || view.scale < 0.25 || view.scale > 3))) {
++          throw new Error('initial_view must be {x, y, scale?} with x and y in grid squares and scale 0.25 to 3');
++        }
++      }
 +
 +      // On v14 the canvas colour is a Level property, not a Scene field: split it out
 +      // so it is not sent to Scene.create / scene.update (where it is silently dropped).
@@ -2931,6 +3086,7 @@ index eecda7e..b55403b 100644
 +          Object.keys(data).length > 0 ||
 +          options.background !== undefined ||
 +          levelColor !== undefined ||
++          view !== undefined ||
 +          options.activate === true;
 +        if (!hasChange) {
 +          throw new Error('Nothing to update: pass at least one field to change');
@@ -2945,6 +3101,14 @@ index eecda7e..b55403b 100644
 +      }
 +      if (levelColor !== undefined) {
 +        await this.applySceneBackgroundColor(scene, levelColor);
++      }
++      if (view !== undefined) {
++        // x and y are the centre of the opening view, in grid squares like every other tool.
++        const geom = getGridGeometry(scene);
++        const centre = squaresToPixels(geom, view.x, view.y);
++        await scene.update({
++          initial: { x: centre.x, y: centre.y, ...(view.scale !== undefined ? { scale: view.scale } : {}) },
++        });
 +      }
 +      if (options.activate === true) {
 +        await scene.activate();
@@ -3065,6 +3229,30 @@ index eecda7e..b55403b 100644
 +        createdByTool: this.isToolObject(n),
 +      }));
 +    }
++    if (kinds.includes('tile')) {
++      out.tiles = ((scene.tiles?.contents || []) as any[]).map(t => ({
++        id: t.id,
++        ...pixelsToSquares(geom, t.x, t.y),
++        width: Math.round((t.width / geom.size) * 100) / 100,
++        height: Math.round((t.height / geom.size) * 100) / 100,
++        src: t.texture?.src ?? null,
++        rotation: t.rotation ?? 0,
++        hidden: !!t.hidden,
++        createdByTool: this.isToolObject(t),
++      }));
++    }
++    if (kinds.includes('sound')) {
++      out.sounds = ((scene.sounds?.contents || []) as any[]).map(s => ({
++        id: s.id,
++        ...pixelsToSquares(geom, s.x, s.y),
++        radiusSquares: Math.round(((s.radius ?? 0) / (geom.distance || 1)) * 100) / 100,
++        path: s.path ?? null,
++        volume: s.volume,
++        repeat: !!s.repeat,
++        hidden: !!s.hidden,
++        createdByTool: this.isToolObject(s),
++      }));
++    }
 +    return out;
 +  }
 +
@@ -3078,7 +3266,7 @@ index eecda7e..b55403b 100644
 +    objects?: Array<Record<string, any>>;
 +    ids?: string[];
 +    all_mine?: boolean;
-+    kind?: 'token' | 'light' | 'wall' | 'note';
++    kind?: 'token' | 'light' | 'wall' | 'note' | 'tile' | 'sound';
 +  }): Promise<any> {
 +    this.validateFoundryState();
 +
@@ -3091,7 +3279,7 @@ index eecda7e..b55403b 100644
 +      const geom = getGridGeometry(scene);
 +
 +      if (action === 'describe') {
-+        const kinds = options.kind ? [options.kind] : ['token', 'light', 'wall', 'note'];
++        const kinds = options.kind ? [options.kind] : ['token', 'light', 'wall', 'note', 'tile', 'sound'];
 +        return { success: true, ...this.describeSceneObjects(scene, geom, kinds) };
 +      }
 +
@@ -3113,6 +3301,8 @@ index eecda7e..b55403b 100644
 +        const lightData: any[] = [];
 +        const wallData: any[] = [];
 +        const noteData: any[] = [];
++        const tileData: any[] = [];
++        const soundData: any[] = [];
 +        const warnings: string[] = [];
 +
 +        specs.forEach((spec, index) => {
@@ -3133,6 +3323,14 @@ index eecda7e..b55403b 100644
 +            if (spec.disposition !== undefined && ![-1, 0, 1].includes(spec.disposition)) {
 +              throw new Error(`${label}: disposition must be -1 (hostile), 0 (neutral) or 1 (friendly)`);
 +            }
++            for (const dim of ['width', 'height'] as const) {
++              if (
++                spec[dim] !== undefined &&
++                (typeof spec[dim] !== 'number' || !(spec[dim] >= 0.5 && spec[dim] <= 20))
++              ) {
++                throw new Error(`${label}: ${dim} must be a number of squares from 0.5 to 20`);
++              }
++            }
 +            const actor = this.findActorForPlacement(spec.actor);
 +            const proto = (actor as any).prototypeToken.toObject();
 +            if (proto.texture?.src?.startsWith('http')) proto.texture.src = null;
@@ -3140,6 +3338,8 @@ index eecda7e..b55403b 100644
 +            tokenData.push({
 +              ...proto,
 +              ...(spec.name ? { name: String(spec.name) } : {}),
++              ...(spec.width !== undefined ? { width: spec.width } : {}),
++              ...(spec.height !== undefined ? { height: spec.height } : {}),
 +              actorId: actor.id,
 +              x: position.x,
 +              y: position.y,
@@ -3197,8 +3397,12 @@ index eecda7e..b55403b 100644
 +              global: !!spec.global,
 +              flags: flagData,
 +            });
++          } else if (spec.kind === 'tile') {
++            tileData.push({ ...buildTileData(spec as any, geom, label), flags: flagData });
++          } else if (spec.kind === 'sound') {
++            soundData.push({ ...buildSoundData(spec as any, geom, label), flags: flagData });
 +          } else {
-+            throw new Error(`${label}: kind must be "token", "light", "wall" or "note"`);
++            throw new Error(`${label}: kind must be "token", "light", "wall", "note", "tile" or "sound"`);
 +          }
 +        });
 +
@@ -3230,6 +3434,19 @@ index eecda7e..b55403b 100644
 +          }
 +        }
 +
++        if (tileData.length > 0) {
++          const docs = (await scene.createEmbeddedDocuments('Tile', tileData)) as any[];
++          for (const doc of docs ?? []) {
++            created.push({ kind: 'tile', id: doc.id, ...pixelsToSquares(geom, doc.x, doc.y) });
++          }
++        }
++        if (soundData.length > 0) {
++          const docs = (await scene.createEmbeddedDocuments('AmbientSound', soundData)) as any[];
++          for (const doc of docs ?? []) {
++            created.push({ kind: 'sound', id: doc.id, ...pixelsToSquares(geom, doc.x, doc.y) });
++          }
++        }
++
 +        this.auditLog('manageSceneObjects:place', { scene: scene.id, count: specs.length }, 'success');
 +        return {
 +          success: true,
@@ -3245,9 +3462,9 @@ index eecda7e..b55403b 100644
 +      if (!options.all_mine && ids.length === 0) {
 +        throw new Error('Pass ids, or all_mine: true, to say what to remove');
 +      }
-+      const kinds: Array<'token' | 'light' | 'wall' | 'note'> = options.kind
++      const kinds: Array<'token' | 'light' | 'wall' | 'note' | 'tile' | 'sound'> = options.kind
 +        ? [options.kind]
-+        : ['token', 'light', 'wall', 'note'];
++        : ['token', 'light', 'wall', 'note', 'tile', 'sound'];
 +      const removed: Array<{ kind: string; id: string }> = [];
 +      const skipped: Array<{ id: string; reason: string }> = [];
 +      const collections: Record<string, { collection: any; documentName: string }> = {
@@ -3255,6 +3472,8 @@ index eecda7e..b55403b 100644
 +        light: { collection: scene.lights, documentName: 'AmbientLight' },
 +        wall: { collection: scene.walls, documentName: 'Wall' },
 +        note: { collection: scene.notes, documentName: 'Note' },
++        tile: { collection: scene.tiles, documentName: 'Tile' },
++        sound: { collection: scene.sounds, documentName: 'AmbientSound' },
 +      };
 +
 +      const wanted = new Set(ids);
@@ -3492,9 +3711,10 @@ index eecda7e..b55403b 100644
 +          throw new Error(`At most ${MAX_REGIONS_PER_CALL} regions per call`);
 +        }
 +        const keys = this.movementCostKeys();
++        const dnd5eTerrain = !!(globalThis as any).CONFIG?.RegionBehavior?.dataModels?.['dnd5e.difficultTerrain'];
 +        const flags = { [this.moduleId]: { [CREATED_BY_FLAG]: true } };
 +        const data = specs.map((spec, index) => ({
-+          ...buildRegionData(spec, geom, keys, `regions[${index}]`),
++          ...buildRegionData(spec, geom, keys, `regions[${index}]`, dnd5eTerrain),
 +          flags,
 +        }));
 +        const created = (await scene.createEmbeddedDocuments('Region', data)) as any[];
@@ -4346,7 +4566,7 @@ index eecda7e..b55403b 100644
    // ===== PLAYLIST MANAGEMENT (CRUD + PLAYBACK) =====
  
    /**
-@@ -11274,6 +13032,7 @@ export class FoundryDataAccess {
+@@ -11274,6 +13153,7 @@ export class FoundryDataAccess {
        name: string;
        type: string;
        img?: string;
@@ -4354,7 +4574,7 @@ index eecda7e..b55403b 100644
        system?: Record<string, any>;
      }>;
      folder?: string;
-@@ -11286,6 +13045,8 @@ export class FoundryDataAccess {
+@@ -11286,6 +13166,8 @@ export class FoundryDataAccess {
      const docs = params.actors.map(a => {
        const doc: Record<string, any> = { name: a.name, type: a.type };
        if (a.img) doc.img = a.img;
@@ -4363,7 +4583,7 @@ index eecda7e..b55403b 100644
  
        // Merge system data, adding safe defaults for systems that require certain
        // fields to exist during data preparation (avoids non-fatal init errors).
-@@ -11471,7 +13232,13 @@ export class FoundryDataAccess {
+@@ -11471,7 +13353,13 @@ export class FoundryDataAccess {
     * Merges supplied fields into the actor (top-level keys overwrite).
     */
    async updateActors(
@@ -4378,7 +4598,7 @@ index eecda7e..b55403b 100644
    ): Promise<{ updated: Array<{ id: string; name: string }>; total: number }> {
      const updatedActors: Array<{ id: string; name: string }> = [];
  
-@@ -11482,6 +13249,7 @@ export class FoundryDataAccess {
+@@ -11482,6 +13370,7 @@ export class FoundryDataAccess {
        const patch: Record<string, any> = {};
        if (u.name !== undefined) patch.name = u.name;
        if (u.img !== undefined) patch.img = u.img;
@@ -6868,10 +7088,10 @@ index 9fe02ba..63153bc 100644
        const gmCheck = this.validateGMAccess();
 diff --git a/packages/foundry-module/src/region-utils.test.ts b/packages/foundry-module/src/region-utils.test.ts
 new file mode 100644
-index 0000000..370df76
+index 0000000..178985b
 --- /dev/null
 +++ b/packages/foundry-module/src/region-utils.test.ts
-@@ -0,0 +1,159 @@
+@@ -0,0 +1,175 @@
 +import { describe, expect, it } from 'vitest';
 +import {
 +  buildBehaviorData,
@@ -7031,12 +7251,28 @@ index 0000000..370df76
 +    expect(out.difficulties.fields.walk).toEqual({ kind: 'NumberField', initial: 1 });
 +  });
 +});
++
++describe('difficult terrain with the dnd5e behaviour', () => {
++  it('uses dnd5e.difficultTerrain at double cost when the system has it', () => {
++    const data = buildBehaviorData({ preset: 'difficult_terrain' }, keys, 'b', true);
++    expect(data).toEqual({ type: 'dnd5e.difficultTerrain', name: 'Difficult terrain', system: {} });
++  });
++
++  it('falls back to the core behaviour for another cost or without the system', () => {
++    expect(buildBehaviorData({ preset: 'difficult_terrain', cost: 3 }, keys, 'b', true).type).toBe(
++      'modifyMovementCost'
++    );
++    expect(buildBehaviorData({ preset: 'difficult_terrain' }, keys, 'b', false).type).toBe(
++      'modifyMovementCost'
++    );
++  });
++});
 diff --git a/packages/foundry-module/src/region-utils.ts b/packages/foundry-module/src/region-utils.ts
 new file mode 100644
-index 0000000..9bee513
+index 0000000..4f4d681
 --- /dev/null
 +++ b/packages/foundry-module/src/region-utils.ts
-@@ -0,0 +1,265 @@
+@@ -0,0 +1,281 @@
 +/**
 + * Pure helpers for manage-regions: turning grid-square shapes into Foundry v14 region data and
 + * describing region behaviours. No Foundry globals, so they can be tested.
@@ -7167,7 +7403,12 @@ index 0000000..9bee513
 + * The Foundry behaviour data for one behaviour spec. `movementKeys` are the movement types the
 + * running Foundry knows (walk, swim, ...), read from its own movement-cost schema.
 + */
-+export function buildBehaviorData(spec: BehaviorSpec, movementKeys: string[], label: string): any {
++export function buildBehaviorData(
++  spec: BehaviorSpec,
++  movementKeys: string[],
++  label: string,
++  dnd5eTerrain = false
++): any {
 +  const hasPreset = spec.preset !== undefined;
 +  const hasType = spec.type !== undefined;
 +  if (hasPreset === hasType) {
@@ -7181,6 +7422,16 @@ index 0000000..9bee513
 +    const cost = spec.cost === undefined ? 2 : spec.cost;
 +    if (typeof cost !== 'number' || !Number.isFinite(cost) || cost < 0 || cost > 10) {
 +      throw new Error(`${label}: cost must be a number from 0 to 10`);
++    }
++    // The dnd5e system's own behaviour (a normal "difficult terrain" region, honoured by its
++    // movement rules) is preferred; it is always double cost, so another cost uses the core one.
++    if (dnd5eTerrain && cost === 2) {
++      return {
++        type: 'dnd5e.difficultTerrain',
++        name: spec.name ?? 'Difficult terrain',
++        system: {},
++        ...(spec.disabled ? { disabled: true } : {}),
++      };
 +    }
 +    if (movementKeys.length === 0) {
 +      throw new Error(`${label}: this Foundry has no movement types to apply difficult terrain to`);
@@ -7212,7 +7463,8 @@ index 0000000..9bee513
 +  spec: RegionSpec,
 +  geom: GridGeometry,
 +  movementKeys: string[],
-+  label: string
++  label: string,
++  dnd5eTerrain = false
 +): any {
 +  if (!spec || typeof spec !== 'object') throw new Error(`${label}: must be an object`);
 +  if (typeof spec.name !== 'string' || !spec.name.trim()) {
@@ -7229,7 +7481,7 @@ index 0000000..9bee513
 +    name: spec.name.trim(),
 +    color: spec.color ?? defaultColor(spec),
 +    shapes: [buildRegionShape(spec, geom, label)],
-+    behaviors: behaviors.map((b, i) => buildBehaviorData(b, movementKeys, `${label} behaviors[${i}]`)),
++    behaviors: behaviors.map((b, i) => buildBehaviorData(b, movementKeys, `${label} behaviors[${i}]`, dnd5eTerrain)),
 +    ...(spec.hidden !== undefined ? { hidden: !!spec.hidden } : {}),
 +    ...(spec.display_measurements !== undefined
 +      ? { displayMeasurements: !!spec.display_measurements }
@@ -7304,15 +7556,17 @@ index 0000000..9bee513
 +}
 diff --git a/packages/foundry-module/src/scene-objects-utils.test.ts b/packages/foundry-module/src/scene-objects-utils.test.ts
 new file mode 100644
-index 0000000..6605914
+index 0000000..bd383bc
 --- /dev/null
 +++ b/packages/foundry-module/src/scene-objects-utils.test.ts
-@@ -0,0 +1,421 @@
+@@ -0,0 +1,465 @@
 +import { describe, expect, it } from 'vitest';
 +import {
 +  assertInsideScene,
 +  buildWallData,
 +  buildLightData,
++  buildSoundData,
++  buildTileData,
 +  getGridGeometry,
 +  pixelsToSquares,
 +  squaresToPixels,
@@ -7729,12 +7983,54 @@ index 0000000..6605914
 +    expect(() => buildWallData(spec as any, geom, 'w')).toThrow(message);
 +  });
 +});
++
++describe('buildTileData and buildSoundData', () => {
++  const geom = getGridGeometry(scene());
++
++  it('builds a tile in pixels from squares', () => {
++    expect(
++      buildTileData({ x: 2, y: 1, width: 3, height: 2, src: 'worlds/w/rug.png', rotation: 90, alpha: 0.5 }, geom, 't')
++    ).toEqual({
++      x: 1200,
++      y: 900,
++      width: 300,
++      height: 200,
++      texture: { src: 'worlds/w/rug.png' },
++      rotation: 90,
++      alpha: 0.5,
++    });
++  });
++
++  it('rejects bad tiles', () => {
++    expect(() => buildTileData({ x: 2, y: 1, width: 0, height: 2, src: 'a.png' }, geom, 't')).toThrow('width');
++    expect(() => buildTileData({ x: 2, y: 1, width: 1, height: 2, src: 'https://x/a.png' }, geom, 't')).toThrow('src');
++    expect(() => buildTileData({ x: 99, y: 1, width: 1, height: 2, src: 'a.png' }, geom, 't')).toThrow('outside');
++    expect(() => buildTileData({ x: 1, y: 1, width: 1, height: 2, src: 'a.png', alpha: 2 }, geom, 't')).toThrow('alpha');
++  });
++
++  it('builds a sound with its radius in distance units', () => {
++    expect(buildSoundData({ x: 4, y: 4, radius: 6, path: 'a.ogg', volume: 0.3, walls: false }, geom, 's')).toEqual({
++      x: 1400,
++      y: 1200,
++      radius: 30,
++      path: 'a.ogg',
++      volume: 0.3,
++      walls: false,
++    });
++  });
++
++  it('rejects bad sounds', () => {
++    expect(() => buildSoundData({ x: 4, y: 4, radius: 0, path: 'a.ogg' }, geom, 's')).toThrow('radius');
++    expect(() => buildSoundData({ x: 4, y: 4, radius: 2, path: '' }, geom, 's')).toThrow('path');
++    expect(() => buildSoundData({ x: 4, y: 4, radius: 2, path: 'a.ogg', volume: 3 }, geom, 's')).toThrow('volume');
++  });
++});
 diff --git a/packages/foundry-module/src/scene-objects-utils.ts b/packages/foundry-module/src/scene-objects-utils.ts
 new file mode 100644
-index 0000000..760d837
+index 0000000..f15ca97
 --- /dev/null
 +++ b/packages/foundry-module/src/scene-objects-utils.ts
-@@ -0,0 +1,349 @@
+@@ -0,0 +1,468 @@
 +/**
 + * Pure helpers for manage-scene-objects and preview-scene: grid geometry, converting grid
 + * squares to scene pixels, and building light data. No Foundry globals, so they can be tested.
@@ -8083,6 +8379,125 @@ index 0000000..760d837
 +      ds: door ? stateCode : 0,
 +    };
 +  });
++}
++
++// ===== TILES AND AMBIENT SOUNDS =====
++
++export interface TileSpec {
++  /** Top-left corner in grid squares. */
++  x: number;
++  y: number;
++  /** Size in grid squares. */
++  width: number;
++  height: number;
++  /** Image or video path in the Foundry files. */
++  src: string;
++  /** Degrees, clockwise. */
++  rotation?: number;
++  /** Opacity 0 to 1. */
++  alpha?: number;
++  hidden?: boolean;
++  elevation?: number;
++}
++
++export const MAX_TILE_SQUARES = 400;
++
++/** Validate a tile spec and build the Tile data (pixels) for createEmbeddedDocuments. */
++export function buildTileData(spec: TileSpec, geom: GridGeometry, label: string): Record<string, any> {
++  assertInsideScene(geom, spec.x, spec.y, label);
++  const size = (value: unknown, name: string): number => {
++    if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0 || value > MAX_TILE_SQUARES) {
++      throw new Error(`${label}: ${name} must be a number of squares above 0 (at most ${MAX_TILE_SQUARES})`);
++    }
++    return value;
++  };
++  const width = size(spec.width, 'width');
++  const height = size(spec.height, 'height');
++  if (typeof spec.src !== 'string' || !spec.src.trim() || /^[a-z]+:\/\//i.test(spec.src)) {
++    throw new Error(`${label}: src must be a path in the Foundry files, such as worlds/<world>/uploads/rug.png`);
++  }
++  const { x, y } = squaresToPixels(geom, spec.x, spec.y);
++  const data: Record<string, any> = {
++    x,
++    y,
++    width: Math.round(width * geom.size),
++    height: Math.round(height * geom.size),
++    texture: { src: spec.src.trim() },
++  };
++  if (spec.rotation !== undefined) {
++    if (typeof spec.rotation !== 'number' || !Number.isFinite(spec.rotation)) {
++      throw new Error(`${label}: rotation must be a number of degrees`);
++    }
++    data.rotation = spec.rotation;
++  }
++  if (spec.alpha !== undefined) {
++    if (typeof spec.alpha !== 'number' || spec.alpha < 0 || spec.alpha > 1) {
++      throw new Error(`${label}: alpha must be a number from 0 to 1`);
++    }
++    data.alpha = spec.alpha;
++  }
++  if (spec.elevation !== undefined) {
++    if (typeof spec.elevation !== 'number' || !Number.isFinite(spec.elevation)) {
++      throw new Error(`${label}: elevation must be a number`);
++    }
++    data.elevation = spec.elevation;
++  }
++  if (spec.hidden !== undefined) data.hidden = !!spec.hidden;
++  return data;
++}
++
++export interface SoundSpec {
++  x: number;
++  y: number;
++  /** Audible radius in grid squares. */
++  radius: number;
++  /** Audio file path in the Foundry files. */
++  path: string;
++  /** 0 to 1 (default 0.5). */
++  volume?: number;
++  /** Loop the sound (default true). */
++  repeat?: boolean;
++  /** Walls block the sound (default true). */
++  walls?: boolean;
++  /** Volume falls off smoothly with distance (default true). */
++  easing?: boolean;
++  hidden?: boolean;
++}
++
++export const MAX_SOUND_RADIUS_SQUARES = 400;
++
++/** Validate a sound spec and build the AmbientSound data. The radius is stored in distance units. */
++export function buildSoundData(spec: SoundSpec, geom: GridGeometry, label: string): Record<string, any> {
++  assertInsideScene(geom, spec.x, spec.y, label);
++  if (
++    typeof spec.radius !== 'number' ||
++    !Number.isFinite(spec.radius) ||
++    spec.radius <= 0 ||
++    spec.radius > MAX_SOUND_RADIUS_SQUARES
++  ) {
++    throw new Error(`${label}: radius must be a number of squares above 0 (at most ${MAX_SOUND_RADIUS_SQUARES})`);
++  }
++  if (typeof spec.path !== 'string' || !spec.path.trim() || /^[a-z]+:\/\//i.test(spec.path)) {
++    throw new Error(`${label}: path must be an audio file in the Foundry files`);
++  }
++  const { x, y } = squaresToPixels(geom, spec.x, spec.y);
++  const data: Record<string, any> = {
++    x,
++    y,
++    radius: spec.radius * geom.distance,
++    path: spec.path.trim(),
++  };
++  if (spec.volume !== undefined) {
++    if (typeof spec.volume !== 'number' || spec.volume < 0 || spec.volume > 1) {
++      throw new Error(`${label}: volume must be a number from 0 to 1`);
++    }
++    data.volume = spec.volume;
++  }
++  if (spec.repeat !== undefined) data.repeat = !!spec.repeat;
++  if (spec.walls !== undefined) data.walls = !!spec.walls;
++  if (spec.easing !== undefined) data.easing = !!spec.easing;
++  if (spec.hidden !== undefined) data.hidden = !!spec.hidden;
++  return data;
 +}
 diff --git a/packages/foundry-module/src/settings.ts b/packages/foundry-module/src/settings.ts
 index d689724..2dca548 100644
@@ -12088,10 +12503,10 @@ index 0000000..942a444
 +}
 diff --git a/packages/mcp-server/src/tools/scene-objects.test.ts b/packages/mcp-server/src/tools/scene-objects.test.ts
 new file mode 100644
-index 0000000..71b1bf0
+index 0000000..0d7429c
 --- /dev/null
 +++ b/packages/mcp-server/src/tools/scene-objects.test.ts
-@@ -0,0 +1,268 @@
+@@ -0,0 +1,296 @@
 +import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 +import { promises as fs } from 'fs';
 +import { SceneObjectTools } from './scene-objects.js';
@@ -12360,12 +12775,40 @@ index 0000000..71b1bf0
 +    expect(query).toHaveBeenCalledTimes(2);
 +  });
 +});
++
++describe('tiles, sounds and token size', () => {
++  it('forwards tiles, sounds and sized tokens', async () => {
++    const { tools, query } = makeTools();
++    const objects = [
++      { kind: 'tile', x: 1, y: 1, width: 2, height: 2, src: 'worlds/w/rug.png', alpha: 0.8 },
++      { kind: 'sound', x: 3, y: 3, radius: 8, path: 'worlds/w/fire.ogg', volume: 0.4 },
++      { kind: 'token', actor: 'Ogre', x: 2, y: 2, width: 2, height: 2 },
++    ];
++    await tools.handleManageSceneObjects({ action: 'place', objects });
++    expect(query.mock.calls[0][1].objects).toEqual(objects);
++    await tools.handleManageSceneObjects({ action: 'describe', kind: 'tile' });
++    await tools.handleManageSceneObjects({ action: 'remove', all_mine: true, kind: 'sound' });
++    expect(query).toHaveBeenCalledTimes(3);
++  });
++
++  it.each([
++    ['a tile without size', { kind: 'tile', x: 1, y: 1, src: 'a.png' }],
++    ['a tile without src', { kind: 'tile', x: 1, y: 1, width: 1, height: 1 }],
++    ['a sound without radius', { kind: 'sound', x: 1, y: 1, path: 'a.ogg' }],
++    ['a sound with volume above 1', { kind: 'sound', x: 1, y: 1, radius: 2, path: 'a.ogg', volume: 2 }],
++    ['a huge token', { kind: 'token', actor: 'a', x: 1, y: 1, width: 50 }],
++  ])('rejects %s', async (_l, object) => {
++    const { tools, query } = makeTools();
++    await expect(tools.handleManageSceneObjects({ action: 'place', objects: [object] })).rejects.toThrow();
++    expect(query).not.toHaveBeenCalled();
++  });
++});
 diff --git a/packages/mcp-server/src/tools/scene-objects.ts b/packages/mcp-server/src/tools/scene-objects.ts
 new file mode 100644
-index 0000000..85f3760
+index 0000000..047f2b5
 --- /dev/null
 +++ b/packages/mcp-server/src/tools/scene-objects.ts
-@@ -0,0 +1,562 @@
+@@ -0,0 +1,616 @@
 +import { promises as fs } from 'fs';
 +import os from 'os';
 +import path from 'path';
@@ -12413,6 +12856,8 @@ index 0000000..85f3760
 +    hidden: z.boolean().optional(),
 +    disposition: z.union([z.literal(-1), z.literal(0), z.literal(1)]).optional(),
 +    elevation: z.number().finite().optional(),
++    width: z.number().min(0.5).max(20).optional(),
++    height: z.number().min(0.5).max(20).optional(),
 +  })
 +  .strict();
 +
@@ -12474,7 +12919,44 @@ index 0000000..85f3760
 +  })
 +  .strict();
 +
-+const objectSchema = z.union([tokenSchema, lightSchema, wallSchema, noteSchema]);
++const tileSchema = z
++  .object({
++    kind: z.literal('tile'),
++    x: z.number().finite(),
++    y: z.number().finite(),
++    width: z.number().positive().max(400),
++    height: z.number().positive().max(400),
++    src: z.string().min(1),
++    rotation: z.number().finite().optional(),
++    alpha: z.number().min(0).max(1).optional(),
++    hidden: z.boolean().optional(),
++    elevation: z.number().finite().optional(),
++  })
++  .strict();
++
++const soundSchema = z
++  .object({
++    kind: z.literal('sound'),
++    x: z.number().finite(),
++    y: z.number().finite(),
++    radius: z.number().positive().max(400),
++    path: z.string().min(1),
++    volume: z.number().min(0).max(1).optional(),
++    repeat: z.boolean().optional(),
++    walls: z.boolean().optional(),
++    easing: z.boolean().optional(),
++    hidden: z.boolean().optional(),
++  })
++  .strict();
++
++const objectSchema = z.union([
++  tokenSchema,
++  lightSchema,
++  wallSchema,
++  noteSchema,
++  tileSchema,
++  soundSchema,
++]);
 +
 +const sceneObjectsSchema = z
 +  .object({
@@ -12483,7 +12965,7 @@ index 0000000..85f3760
 +    objects: z.array(objectSchema).min(1).max(200).optional(),
 +    ids: z.array(z.string().min(1)).max(500).optional(),
 +    all_mine: z.boolean().optional(),
-+    kind: z.enum(['token', 'light', 'wall', 'note']).optional(),
++    kind: z.enum(['token', 'light', 'wall', 'note', 'tile', 'sound']).optional(),
 +  })
 +  .strict();
 +
@@ -12552,10 +13034,10 @@ index 0000000..85f3760
 +      {
 +        name: 'manage-scene-objects',
 +        description:
-+          'Place tokens, lights, walls and map pins on a scene by grid square, describe what is on a scene, or remove objects this tool created (it never removes anything else). ' +
++          'Place tokens, lights, walls, map pins, tiles (pictures laid on the map: rugs, furniture, props) and ambient sounds on a scene by grid square, describe what is on a scene, or remove objects this tool created (it never removes anything else). ' +
 +          'Positions are in GRID SQUARES from the top-left corner of the map image: (0, 0) is the top-left corner of the first square, (2.5, 1.5) the centre of the square in column 2, row 1 (counting from 0). ' +
 +          'Use preview-scene first to see the numbered grid. describe returns the scene grid size so you know the valid range. ' +
-+          'place takes objects (up to 200): {kind:"token", actor, x, y} puts the actor\'s token with its top-left corner at that square (use whole numbers; actor is an id or exact name); {kind:"light", x, y, bright, dim} makes a light at that point with radii in squares (optional color, alpha, angle, rotation, animation, hidden); {kind:"wall", points:[[x1,y1],[x2,y2],...]} draws walls along a chain of points (add closed:true to join the ends) or {kind:"wall", rect:[x,y,width,height]} draws the four walls of a rectangle, with preset wall (default), door, secret_door, invisible (blocks movement only) or window (blocks movement, lets light and sight through), and for doors door_state closed, open or locked; {kind:"note", x, y, journal, page?, text?} puts a map pin (the label text defaults to the journal name) that opens that journal or page when clicked; pins are only seen by players who may read the journal unless global is true. Use whole or half squares for wall points and make wall ends meet exactly, otherwise light and sight leak through gaps. ' +
++          'place takes objects (up to 200): {kind:"token", actor, x, y} puts the actor\'s token with its top-left corner at that square (use whole numbers; actor is an id or exact name); {kind:"light", x, y, bright, dim} makes a light at that point with radii in squares (optional color, alpha, angle, rotation, animation, hidden); {kind:"wall", points:[[x1,y1],[x2,y2],...]} draws walls along a chain of points (add closed:true to join the ends) or {kind:"wall", rect:[x,y,width,height]} draws the four walls of a rectangle, with preset wall (default), door, secret_door, invisible (blocks movement only) or window (blocks movement, lets light and sight through), and for doors door_state closed, open or locked; {kind:"note", x, y, journal, page?, text?} puts a map pin (the label text defaults to the journal name) that opens that journal or page when clicked; pins are only seen by players who may read the journal unless global is true. {kind:"tile", x, y, width, height, src, rotation?, alpha?, hidden?, elevation?} lays an image (a path in the Foundry files, e.g. an uploaded prop) over the map with its top-left corner at x, y and the given size in squares; {kind:"sound", x, y, radius, path, volume?, repeat?, walls?, easing?, hidden?} places a looping ambient sound audible within radius squares (path is an audio file in the Foundry files); tokens also accept width and height in squares (e.g. 2 for a Large creature) to override the actor\'s size. Use whole or half squares for wall points and make wall ends meet exactly, otherwise light and sight leak through gaps. ' +
 +          'remove needs ids or all_mine:true (optionally with kind) and only removes objects created by this tool. scene is an id or exact name; it defaults to the scene the GM is viewing.',
 +        inputSchema: {
 +          type: 'object',
@@ -12572,7 +13054,7 @@ index 0000000..85f3760
 +              items: {
 +                type: 'object',
 +                properties: {
-+                  kind: { type: 'string', enum: ['token', 'light', 'wall', 'note'] },
++                  kind: { type: 'string', enum: ['token', 'light', 'wall', 'note', 'tile', 'sound'] },
 +                  x: { type: 'number', description: 'Grid squares from the left edge of the map' },
 +                  y: { type: 'number', description: 'Grid squares from the top edge of the map' },
 +                  actor: { type: 'string', description: 'token: actor id or exact name' },
@@ -12580,22 +13062,37 @@ index 0000000..85f3760
 +                    type: 'string',
 +                    description: 'token: name to show instead of the actor name',
 +                  },
-+                  hidden: { type: 'boolean', description: 'token or light: hidden from players' },
++                  hidden: { type: 'boolean', description: 'token, light, tile or sound: hidden from players' },
 +                  disposition: {
 +                    type: 'number',
 +                    enum: [-1, 0, 1],
 +                    description: 'token: -1 hostile, 0 neutral, 1 friendly',
 +                  },
-+                  elevation: { type: 'number', description: 'token: elevation' },
++                  elevation: { type: 'number', description: 'token or tile: elevation' },
++                  width: {
++                    type: 'number',
++                    description: 'token: size in squares (default the actor\'s); tile: width in squares',
++                  },
++                  height: {
++                    type: 'number',
++                    description: 'token: size in squares (default the actor\'s); tile: height in squares',
++                  },
++                  src: { type: 'string', description: 'tile: image or video path in the Foundry files' },
++                  radius: { type: 'number', description: 'sound: audible radius in squares' },
++                  path: { type: 'string', description: 'sound: audio file path in the Foundry files' },
++                  volume: { type: 'number', description: 'sound: 0 to 1 (default 0.5)' },
++                  repeat: { type: 'boolean', description: 'sound: loop (default true)' },
++                  walls: { type: 'boolean', description: 'sound: walls block it (default true)' },
++                  easing: { type: 'boolean', description: 'sound: volume fades with distance (default true)' },
 +                  bright: { type: 'number', description: 'light: bright radius in squares' },
 +                  dim: { type: 'number', description: 'light: dim radius in squares' },
 +                  color: { type: 'string', description: 'light: #RRGGBB' },
-+                  alpha: { type: 'number', description: 'light: colour opacity 0 to 1' },
++                  alpha: { type: 'number', description: 'light: colour opacity 0 to 1; tile: opacity 0 to 1' },
 +                  angle: {
 +                    type: 'number',
 +                    description: 'light: cone angle 1 to 360 (default 360)',
 +                  },
-+                  rotation: { type: 'number', description: 'light: cone direction in degrees' },
++                  rotation: { type: 'number', description: 'light: cone direction in degrees; tile: rotation in degrees' },
 +                  animation: {
 +                    type: 'string',
 +                    description: 'light: animation type such as torch, pulse, ghost, wave, fog',
@@ -12657,7 +13154,7 @@ index 0000000..85f3760
 +            },
 +            kind: {
 +              type: 'string',
-+              enum: ['token', 'light', 'wall', 'note'],
++              enum: ['token', 'light', 'wall', 'note', 'tile', 'sound'],
 +              description: 'describe or remove: only this kind',
 +            },
 +          },
@@ -12930,10 +13427,10 @@ index 0000000..85f3760
 +}
 diff --git a/packages/mcp-server/src/tools/scene.test.ts b/packages/mcp-server/src/tools/scene.test.ts
 new file mode 100644
-index 0000000..cc6efe5
+index 0000000..d4f0b89
 --- /dev/null
 +++ b/packages/mcp-server/src/tools/scene.test.ts
-@@ -0,0 +1,120 @@
+@@ -0,0 +1,140 @@
 +/**
 + * manage-scenes tool tests.
 + *
@@ -13054,11 +13551,31 @@ index 0000000..cc6efe5
 +    );
 +  });
 +});
++
++describe('manage-scenes map extras', () => {
++  it('forwards weather, fog, grid shift and opening view, and rejects bad ones', async () => {
++    const query = vi.fn(async () => ({}));
++    const logger: any = { info: vi.fn(), debug: vi.fn(), error: vi.fn(), warn: vi.fn(), child: () => logger };
++    const tools = new SceneTools({ foundryClient: { query } as any, logger });
++    const args = {
++      action: 'update',
++      scene_identifier: 'Cave',
++      weather: 'fog',
++      fog_mode: 1,
++      grid_shift_x: 12,
++      initial_view: { x: 10, y: 6, scale: 1.2 },
++    };
++    await tools.handleManageScenes(args);
++    expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.manage-scenes', args);
++    await expect(tools.handleManageScenes({ ...args, fog_mode: 7 })).rejects.toThrow();
++    await expect(tools.handleManageScenes({ ...args, initial_view: { x: 1 } })).rejects.toThrow();
++  });
++});
 diff --git a/packages/mcp-server/src/tools/scene.ts b/packages/mcp-server/src/tools/scene.ts
-index 1e422bf..3893b48 100644
+index 1e422bf..956dcab 100644
 --- a/packages/mcp-server/src/tools/scene.ts
 +++ b/packages/mcp-server/src/tools/scene.ts
-@@ -72,6 +72,75 @@ export class SceneTools {
+@@ -72,6 +72,102 @@ export class SceneTools {
            required: ['scene_identifier'],
          },
        },
@@ -13122,6 +13639,33 @@ index 1e422bf..3893b48 100644
 +              description: 'Show the scene in the top navigation bar',
 +            },
 +            nav_name: { type: 'string', description: 'Name shown in the navigation bar' },
++            grid_color: { type: 'string', description: 'Grid line colour as #RRGGBB' },
++            grid_alpha: { type: 'number', description: 'Grid line opacity, 0 to 1' },
++            grid_shift_x: {
++              type: 'number',
++              description:
++                'Move the grid right by this many pixels (-5000 to 5000), to line it up with a map whose lines do not start at the corner. measure-grid reports the offset.',
++            },
++            grid_shift_y: { type: 'number', description: 'Move the grid down by this many pixels' },
++            fog_mode: {
++              type: 'number',
++              description: 'Fog of war mode: 0 off, 1 and 2 are the Foundry fog settings (see describe for the current value)',
++            },
++            weather: {
++              type: ['string', 'null'],
++              description: 'Weather effect id such as rain, snow, fog, or null for none',
++            },
++            initial_view: {
++              type: 'object',
++              description:
++                'The view players open the scene with: x and y are the centre of the view in grid squares, scale the zoom (0.25 to 3)',
++              properties: {
++                x: { type: 'number' },
++                y: { type: 'number' },
++                scale: { type: 'number' },
++              },
++              required: ['x', 'y'],
++            },
 +            activate: {
 +              type: 'boolean',
 +              description:
@@ -13134,7 +13678,7 @@ index 1e422bf..3893b48 100644
      ];
    }
  
-@@ -147,6 +216,57 @@ export class SceneTools {
+@@ -147,6 +243,74 @@ export class SceneTools {
      }
    }
  
@@ -13162,6 +13706,23 @@ index 1e422bf..3893b48 100644
 +        global_light: z.boolean().optional(),
 +        navigation: z.boolean().optional(),
 +        nav_name: z.string().optional(),
++        grid_color: z
++          .string()
++          .regex(/^#[0-9a-fA-F]{6}$/)
++          .optional(),
++        grid_alpha: z.number().min(0).max(1).optional(),
++        grid_shift_x: z.number().int().min(-5000).max(5000).optional(),
++        grid_shift_y: z.number().int().min(-5000).max(5000).optional(),
++        fog_mode: z.number().int().min(0).max(2).optional(),
++        weather: z.string().min(1).max(64).nullable().optional(),
++        initial_view: z
++          .object({
++            x: z.number().finite(),
++            y: z.number().finite(),
++            scale: z.number().min(0.25).max(3).optional(),
++          })
++          .strict()
++          .optional(),
 +        activate: z.boolean().optional(),
 +      })
 +      .strict();

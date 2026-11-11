@@ -108080,6 +108080,31 @@ var SceneTools = class {
               description: "Show the scene in the top navigation bar"
             },
             nav_name: { type: "string", description: "Name shown in the navigation bar" },
+            grid_color: { type: "string", description: "Grid line colour as #RRGGBB" },
+            grid_alpha: { type: "number", description: "Grid line opacity, 0 to 1" },
+            grid_shift_x: {
+              type: "number",
+              description: "Move the grid right by this many pixels (-5000 to 5000), to line it up with a map whose lines do not start at the corner. measure-grid reports the offset."
+            },
+            grid_shift_y: { type: "number", description: "Move the grid down by this many pixels" },
+            fog_mode: {
+              type: "number",
+              description: "Fog of war mode: 0 off, 1 and 2 are the Foundry fog settings (see describe for the current value)"
+            },
+            weather: {
+              type: ["string", "null"],
+              description: "Weather effect id such as rain, snow, fog, or null for none"
+            },
+            initial_view: {
+              type: "object",
+              description: "The view players open the scene with: x and y are the centre of the view in grid squares, scale the zoom (0.25 to 3)",
+              properties: {
+                x: { type: "number" },
+                y: { type: "number" },
+                scale: { type: "number" }
+              },
+              required: ["x", "y"]
+            },
             activate: {
               type: "boolean",
               description: "Make this the active scene afterwards. This moves every connected player to it."
@@ -108160,6 +108185,17 @@ var SceneTools = class {
       global_light: external_exports.boolean().optional(),
       navigation: external_exports.boolean().optional(),
       nav_name: external_exports.string().optional(),
+      grid_color: external_exports.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
+      grid_alpha: external_exports.number().min(0).max(1).optional(),
+      grid_shift_x: external_exports.number().int().min(-5e3).max(5e3).optional(),
+      grid_shift_y: external_exports.number().int().min(-5e3).max(5e3).optional(),
+      fog_mode: external_exports.number().int().min(0).max(2).optional(),
+      weather: external_exports.string().min(1).max(64).nullable().optional(),
+      initial_view: external_exports.object({
+        x: external_exports.number().finite(),
+        y: external_exports.number().finite(),
+        scale: external_exports.number().min(0.25).max(3).optional()
+      }).strict().optional(),
       activate: external_exports.boolean().optional()
     }).strict();
     const parsed = schema.parse(args);
@@ -116478,7 +116514,9 @@ var tokenSchema = external_exports.object({
   name: external_exports.string().min(1).optional(),
   hidden: external_exports.boolean().optional(),
   disposition: external_exports.union([external_exports.literal(-1), external_exports.literal(0), external_exports.literal(1)]).optional(),
-  elevation: external_exports.number().finite().optional()
+  elevation: external_exports.number().finite().optional(),
+  width: external_exports.number().min(0.5).max(20).optional(),
+  height: external_exports.number().min(0.5).max(20).optional()
 }).strict();
 var lightSchema = external_exports.object({
   kind: external_exports.literal("light"),
@@ -116524,14 +116562,45 @@ var noteSchema = external_exports.object({
   font_size: external_exports.number().min(8).max(128).optional(),
   global: external_exports.boolean().optional()
 }).strict();
-var objectSchema = external_exports.union([tokenSchema, lightSchema, wallSchema, noteSchema]);
+var tileSchema = external_exports.object({
+  kind: external_exports.literal("tile"),
+  x: external_exports.number().finite(),
+  y: external_exports.number().finite(),
+  width: external_exports.number().positive().max(400),
+  height: external_exports.number().positive().max(400),
+  src: external_exports.string().min(1),
+  rotation: external_exports.number().finite().optional(),
+  alpha: external_exports.number().min(0).max(1).optional(),
+  hidden: external_exports.boolean().optional(),
+  elevation: external_exports.number().finite().optional()
+}).strict();
+var soundSchema = external_exports.object({
+  kind: external_exports.literal("sound"),
+  x: external_exports.number().finite(),
+  y: external_exports.number().finite(),
+  radius: external_exports.number().positive().max(400),
+  path: external_exports.string().min(1),
+  volume: external_exports.number().min(0).max(1).optional(),
+  repeat: external_exports.boolean().optional(),
+  walls: external_exports.boolean().optional(),
+  easing: external_exports.boolean().optional(),
+  hidden: external_exports.boolean().optional()
+}).strict();
+var objectSchema = external_exports.union([
+  tokenSchema,
+  lightSchema,
+  wallSchema,
+  noteSchema,
+  tileSchema,
+  soundSchema
+]);
 var sceneObjectsSchema = external_exports.object({
   action: external_exports.enum(["place", "describe", "remove"]),
   scene: external_exports.string().min(1).optional(),
   objects: external_exports.array(objectSchema).min(1).max(200).optional(),
   ids: external_exports.array(external_exports.string().min(1)).max(500).optional(),
   all_mine: external_exports.boolean().optional(),
-  kind: external_exports.enum(["token", "light", "wall", "note"]).optional()
+  kind: external_exports.enum(["token", "light", "wall", "note", "tile", "sound"]).optional()
 }).strict();
 var behaviorSchema = external_exports.object({
   preset: external_exports.enum(["difficult_terrain"]).optional(),
@@ -116580,7 +116649,7 @@ var SceneObjectTools = class {
     return [
       {
         name: "manage-scene-objects",
-        description: `Place tokens, lights, walls and map pins on a scene by grid square, describe what is on a scene, or remove objects this tool created (it never removes anything else). Positions are in GRID SQUARES from the top-left corner of the map image: (0, 0) is the top-left corner of the first square, (2.5, 1.5) the centre of the square in column 2, row 1 (counting from 0). Use preview-scene first to see the numbered grid. describe returns the scene grid size so you know the valid range. place takes objects (up to 200): {kind:"token", actor, x, y} puts the actor's token with its top-left corner at that square (use whole numbers; actor is an id or exact name); {kind:"light", x, y, bright, dim} makes a light at that point with radii in squares (optional color, alpha, angle, rotation, animation, hidden); {kind:"wall", points:[[x1,y1],[x2,y2],...]} draws walls along a chain of points (add closed:true to join the ends) or {kind:"wall", rect:[x,y,width,height]} draws the four walls of a rectangle, with preset wall (default), door, secret_door, invisible (blocks movement only) or window (blocks movement, lets light and sight through), and for doors door_state closed, open or locked; {kind:"note", x, y, journal, page?, text?} puts a map pin (the label text defaults to the journal name) that opens that journal or page when clicked; pins are only seen by players who may read the journal unless global is true. Use whole or half squares for wall points and make wall ends meet exactly, otherwise light and sight leak through gaps. remove needs ids or all_mine:true (optionally with kind) and only removes objects created by this tool. scene is an id or exact name; it defaults to the scene the GM is viewing.`,
+        description: `Place tokens, lights, walls, map pins, tiles (pictures laid on the map: rugs, furniture, props) and ambient sounds on a scene by grid square, describe what is on a scene, or remove objects this tool created (it never removes anything else). Positions are in GRID SQUARES from the top-left corner of the map image: (0, 0) is the top-left corner of the first square, (2.5, 1.5) the centre of the square in column 2, row 1 (counting from 0). Use preview-scene first to see the numbered grid. describe returns the scene grid size so you know the valid range. place takes objects (up to 200): {kind:"token", actor, x, y} puts the actor's token with its top-left corner at that square (use whole numbers; actor is an id or exact name); {kind:"light", x, y, bright, dim} makes a light at that point with radii in squares (optional color, alpha, angle, rotation, animation, hidden); {kind:"wall", points:[[x1,y1],[x2,y2],...]} draws walls along a chain of points (add closed:true to join the ends) or {kind:"wall", rect:[x,y,width,height]} draws the four walls of a rectangle, with preset wall (default), door, secret_door, invisible (blocks movement only) or window (blocks movement, lets light and sight through), and for doors door_state closed, open or locked; {kind:"note", x, y, journal, page?, text?} puts a map pin (the label text defaults to the journal name) that opens that journal or page when clicked; pins are only seen by players who may read the journal unless global is true. {kind:"tile", x, y, width, height, src, rotation?, alpha?, hidden?, elevation?} lays an image (a path in the Foundry files, e.g. an uploaded prop) over the map with its top-left corner at x, y and the given size in squares; {kind:"sound", x, y, radius, path, volume?, repeat?, walls?, easing?, hidden?} places a looping ambient sound audible within radius squares (path is an audio file in the Foundry files); tokens also accept width and height in squares (e.g. 2 for a Large creature) to override the actor's size. Use whole or half squares for wall points and make wall ends meet exactly, otherwise light and sight leak through gaps. remove needs ids or all_mine:true (optionally with kind) and only removes objects created by this tool. scene is an id or exact name; it defaults to the scene the GM is viewing.`,
         inputSchema: {
           type: "object",
           properties: {
@@ -116596,7 +116665,7 @@ var SceneObjectTools = class {
               items: {
                 type: "object",
                 properties: {
-                  kind: { type: "string", enum: ["token", "light", "wall", "note"] },
+                  kind: { type: "string", enum: ["token", "light", "wall", "note", "tile", "sound"] },
                   x: { type: "number", description: "Grid squares from the left edge of the map" },
                   y: { type: "number", description: "Grid squares from the top edge of the map" },
                   actor: { type: "string", description: "token: actor id or exact name" },
@@ -116604,22 +116673,37 @@ var SceneObjectTools = class {
                     type: "string",
                     description: "token: name to show instead of the actor name"
                   },
-                  hidden: { type: "boolean", description: "token or light: hidden from players" },
+                  hidden: { type: "boolean", description: "token, light, tile or sound: hidden from players" },
                   disposition: {
                     type: "number",
                     enum: [-1, 0, 1],
                     description: "token: -1 hostile, 0 neutral, 1 friendly"
                   },
-                  elevation: { type: "number", description: "token: elevation" },
+                  elevation: { type: "number", description: "token or tile: elevation" },
+                  width: {
+                    type: "number",
+                    description: "token: size in squares (default the actor's); tile: width in squares"
+                  },
+                  height: {
+                    type: "number",
+                    description: "token: size in squares (default the actor's); tile: height in squares"
+                  },
+                  src: { type: "string", description: "tile: image or video path in the Foundry files" },
+                  radius: { type: "number", description: "sound: audible radius in squares" },
+                  path: { type: "string", description: "sound: audio file path in the Foundry files" },
+                  volume: { type: "number", description: "sound: 0 to 1 (default 0.5)" },
+                  repeat: { type: "boolean", description: "sound: loop (default true)" },
+                  walls: { type: "boolean", description: "sound: walls block it (default true)" },
+                  easing: { type: "boolean", description: "sound: volume fades with distance (default true)" },
                   bright: { type: "number", description: "light: bright radius in squares" },
                   dim: { type: "number", description: "light: dim radius in squares" },
                   color: { type: "string", description: "light: #RRGGBB" },
-                  alpha: { type: "number", description: "light: colour opacity 0 to 1" },
+                  alpha: { type: "number", description: "light: colour opacity 0 to 1; tile: opacity 0 to 1" },
                   angle: {
                     type: "number",
                     description: "light: cone angle 1 to 360 (default 360)"
                   },
-                  rotation: { type: "number", description: "light: cone direction in degrees" },
+                  rotation: { type: "number", description: "light: cone direction in degrees; tile: rotation in degrees" },
                   animation: {
                     type: "string",
                     description: "light: animation type such as torch, pulse, ghost, wave, fog"
@@ -116680,7 +116764,7 @@ var SceneObjectTools = class {
             },
             kind: {
               type: "string",
-              enum: ["token", "light", "wall", "note"],
+              enum: ["token", "light", "wall", "note", "tile", "sound"],
               description: "describe or remove: only this kind"
             }
           },
