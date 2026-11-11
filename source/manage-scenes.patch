@@ -1948,6 +1948,117 @@ index 0000000..b892530
 +    });
 +  });
 +});
+diff --git a/packages/foundry-module/src/data-access.play.test.ts b/packages/foundry-module/src/data-access.play.test.ts
+new file mode 100644
+index 0000000..fd1d7d0
+--- /dev/null
++++ b/packages/foundry-module/src/data-access.play.test.ts
+@@ -0,0 +1,105 @@
++/** manage-roll-tables and manage-macros tests with Foundry stubbed. */
++import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
++import { FoundryDataAccess } from './data-access.js';
++
++function setup(allow = true) {
++  const table: any = {
++    id: 't1',
++    name: 'Trail Encounters',
++    formula: '1d4',
++    replacement: true,
++    results: { contents: [{ id: 'r1', name: 'Wolves', range: [1, 1], weight: 1 }] },
++    update: vi.fn(async () => undefined),
++    deleteEmbeddedDocuments: vi.fn(async () => undefined),
++    createEmbeddedDocuments: vi.fn(async () => undefined),
++    draw: vi.fn(async () => ({ roll: { total: 1 }, results: [{ name: 'Wolves', description: '' }] })),
++  };
++  const macro: any = {
++    id: 'm1',
++    uuid: 'Macro.m1',
++    name: 'Pit',
++    type: 'script',
++    command: 'return 7;',
++    update: vi.fn(async () => undefined),
++    execute: vi.fn(async () => 7),
++  };
++  const RollTable = {
++    create: vi.fn(async (d: any) => ({ id: 't2', name: d.name, formula: d.formula, results: { contents: d.results } })),
++  };
++  const Macro = { create: vi.fn(async (d: any) => ({ id: 'm2', name: d.name, type: d.type })) };
++  vi.stubGlobal('Hooks', { on: vi.fn(), callAll: vi.fn() });
++  vi.stubGlobal('RollTable', RollTable);
++  vi.stubGlobal('Macro', Macro);
++  vi.stubGlobal('Folder', { create: vi.fn(async (d: any) => ({ id: 'f9', name: d.name })) });
++  vi.stubGlobal('game', {
++    ready: true,
++    world: { id: 'w', getFlag: vi.fn(() => []), setFlag: vi.fn() },
++    user: { id: 'gm', name: 'GM' },
++    tables: { contents: [table] },
++    macros: { contents: [macro] },
++    folders: { contents: [] },
++    settings: { get: (_m: string, k: string) => (k === 'allowWriteOperations' ? allow : undefined) },
++  });
++  return { da: new FoundryDataAccess(), table, macro, RollTable, Macro };
++}
++
++describe('manageRollTables', () => {
++  beforeEach(() => vi.unstubAllGlobals());
++  afterEach(() => vi.unstubAllGlobals());
++
++  it('creates a table with ranges and a formula', async () => {
++    const { da, RollTable } = setup();
++    await da.manageRollTables({ action: 'create', name: 'Loot', results: [{ text: 'Gold' }, { text: 'Gem', weight: 2 }] });
++    const data = RollTable.create.mock.calls[0][0];
++    expect(data).toMatchObject({ name: 'Loot', formula: '1d3', replacement: true, displayRoll: true });
++    expect(data.results.map((r: any) => r.range)).toEqual([[1, 1], [2, 3]]);
++  });
++
++  it('lists, describes and rolls', async () => {
++    const { da, table } = setup();
++    expect((await da.manageRollTables({ action: 'list' })).tables[0]).toMatchObject({ name: 'Trail Encounters', rows: 1 });
++    expect((await da.manageRollTables({ action: 'describe', table: 'trail encounters' })).table.results[0].text).toBe('Wolves');
++    const r = await da.manageRollTables({ action: 'roll', table: 't1', times: 2 });
++    expect(table.draw).toHaveBeenCalledTimes(2);
++    expect(r.rolled[0]).toEqual({ roll: 1, results: [{ text: 'Wolves', description: undefined }] });
++  });
++
++  it('replaces the rows on update', async () => {
++    const { da, table } = setup();
++    await da.manageRollTables({ action: 'update', table: 't1', results: [{ text: 'A' }, { text: 'B' }] });
++    expect(table.update).toHaveBeenCalledWith({ formula: '1d2' });
++    expect(table.deleteEmbeddedDocuments).toHaveBeenCalledWith('TableResult', ['r1']);
++    expect(table.createEmbeddedDocuments.mock.calls[0][1]).toHaveLength(2);
++  });
++
++  it('is blocked when writes are off, but listing works', async () => {
++    const { da, RollTable } = setup(false);
++    await expect(da.manageRollTables({ action: 'create', name: 'x', results: [{ text: 'a' }] })).rejects.toThrow();
++    expect(RollTable.create).not.toHaveBeenCalled();
++    await expect(da.manageRollTables({ action: 'list' })).resolves.toMatchObject({ success: true });
++  });
++});
++
++describe('manageMacros', () => {
++  beforeEach(() => vi.unstubAllGlobals());
++  afterEach(() => vi.unstubAllGlobals());
++
++  it('creates, describes, updates and executes', async () => {
++    const { da, macro, Macro } = setup();
++    await da.manageMacros({ action: 'create', name: 'New', command: 'x' });
++    expect(Macro.create.mock.calls[0][0]).toMatchObject({ name: 'New', type: 'script', scope: 'global' });
++    expect((await da.manageMacros({ action: 'describe', macro: 'Pit' })).macro.command).toBe('return 7;');
++    await da.manageMacros({ action: 'update', macro: 'm1', command: 'return 8;' });
++    expect(macro.update).toHaveBeenCalledWith({ name: 'Pit', type: 'script', command: 'return 8;' });
++    const run = await da.manageMacros({ action: 'execute', macro: 'Pit' });
++    expect(run.returned).toBe(7);
++    expect(run.macro.uuid).toBe('Macro.m1');
++  });
++
++  it('refuses to run or create when writes are off', async () => {
++    const { da, macro } = setup(false);
++    await expect(da.manageMacros({ action: 'execute', macro: 'Pit' })).rejects.toThrow();
++    expect(macro.execute).not.toHaveBeenCalled();
++    await expect(da.manageMacros({ action: 'list' })).resolves.toMatchObject({ success: true });
++  });
++});
 diff --git a/packages/foundry-module/src/data-access.regions.test.ts b/packages/foundry-module/src/data-access.regions.test.ts
 new file mode 100644
 index 0000000..0cc8cfa
@@ -2840,10 +2951,10 @@ index 0000000..94cee28
 +  });
 +});
 diff --git a/packages/foundry-module/src/data-access.ts b/packages/foundry-module/src/data-access.ts
-index eecda7e..3b0cc15 100644
+index eecda7e..bc63bd1 100644
 --- a/packages/foundry-module/src/data-access.ts
 +++ b/packages/foundry-module/src/data-access.ts
-@@ -1,5 +1,68 @@
+@@ -1,5 +1,69 @@
  import { MODULE_ID, ERROR_MESSAGES, TOKEN_DISPOSITIONS } from './constants.js';
  import { permissionManager } from './permissions.js';
 +import {
@@ -2879,6 +2990,7 @@ index eecda7e..3b0cc15 100644
 +  type PreviewView,
 +  type PreviewWall,
 +} from './preview-utils.js';
++import { buildMacroData, buildTableResults } from './play-utils.js';
 +import {
 +  buildHpPatch,
 +  buildPrototypeTokenPatch,
@@ -2912,7 +3024,7 @@ index eecda7e..3b0cc15 100644
  import { transactionManager } from './transaction-manager.js';
  
  // The same five characters foundry.utils.escapeHTML replaces in v14, kept local because
-@@ -4681,12 +4744,28 @@ export class FoundryDataAccess {
+@@ -4681,12 +4745,28 @@ export class FoundryDataAccess {
        type: 'random' | 'grid' | 'center' | 'coordinates';
        coordinates?: { x: number; y: number }[];
      };
@@ -2941,7 +3053,7 @@ index eecda7e..3b0cc15 100644
        // Validate inputs
        if (!packId || !itemId) {
          throw new Error('Both packId and itemId are required');
-@@ -4753,10 +4832,33 @@ export class FoundryDataAccess {
+@@ -4753,10 +4833,33 @@ export class FoundryDataAccess {
            }
  
            // Organize created actors in a folder - use "Foundry MCP Creatures" for generic monsters
@@ -2976,7 +3088,7 @@ index eecda7e..3b0cc15 100644
  
            // Create the actor
            const newActor = await Actor.create(actorData);
-@@ -6714,7 +6816,7 @@ export class FoundryDataAccess {
+@@ -6714,7 +6817,7 @@ export class FoundryDataAccess {
  
          // Send socket request to GM
          if (game.socket) {
@@ -2985,7 +3097,7 @@ index eecda7e..3b0cc15 100644
              type: 'requestMessageUpdate',
              buttonId,
              userId,
-@@ -7941,162 +8043,2171 @@ export class FoundryDataAccess {
+@@ -7941,162 +8044,2392 @@ export class FoundryDataAccess {
  
        return {
          success: true,
@@ -3733,6 +3845,227 @@ index eecda7e..3b0cc15 100644
 +      );
 +      throw new Error(
 +        `Failed to ${options?.action ?? 'manage'} world: ${error instanceof Error ? error.message : 'Unknown error'}`
++      );
++    }
++  }
++
++  // ===== ROLL TABLES AND MACROS =====
++
++  private tableSummary(table: any, withResults: boolean): Record<string, any> {
++    return {
++      id: table.id,
++      name: table.name,
++      formula: table.formula,
++      rows: table.results?.contents?.length ?? table.results?.size ?? 0,
++      replacement: table.replacement,
++      folder: table.folder?.name ?? null,
++      ...(withResults
++        ? {
++            description: table.description ?? '',
++            results: ((table.results?.contents || []) as any[]).map(r => ({
++              range: r.range,
++              weight: r.weight,
++              text: r.name,
++              ...(r.description ? { description: r.description } : {}),
++            })),
++          }
++        : {}),
++    };
++  }
++
++  /**
++   * Create, update, list, describe and roll on roll tables. Deleting goes through manage-world.
++   */
++  async manageRollTables(options: {
++    action: 'create' | 'update' | 'list' | 'describe' | 'roll';
++    table?: string;
++    name?: string;
++    description?: string;
++    formula?: string;
++    results?: Array<Record<string, any>>;
++    replacement?: boolean;
++    display_roll?: boolean;
++    folder?: string;
++    times?: number;
++    to_chat?: boolean;
++  }): Promise<any> {
++    this.validateFoundryState();
++
++    try {
++      const action = options.action;
++      const known = ['create', 'update', 'list', 'describe', 'roll'];
++      if (!known.includes(action)) {
++        throw new Error(`Unknown action: ${String(action)} (${known.join(' | ')})`);
++      }
++      const tables = (((game as any).tables?.contents || []) as any[]);
++
++      if (action === 'list') {
++        return { success: true, tables: tables.map(t => this.tableSummary(t, false)) };
++      }
++      if (action === 'describe') {
++        if (!options.table) throw new Error('table (id or exact name) is required');
++        return { success: true, table: this.tableSummary(this.findWorldDocument('RollTable', options.table), true) };
++      }
++
++      if (action === 'roll') {
++        if (!options.table) throw new Error('table (id or exact name) is required');
++        const gate = permissionManager.checkWritePermission('createChatMessage');
++        const toChat = options.to_chat !== false;
++        if (toChat && !gate.allowed) throw new Error(`${ERROR_MESSAGES.ACCESS_DENIED}: ${gate.reason}`);
++        const times = options.times === undefined ? 1 : options.times;
++        if (!Number.isInteger(times) || times < 1 || times > 20) throw new Error('times must be 1 to 20');
++        const table = this.findWorldDocument('RollTable', options.table);
++        const rolled: Array<Record<string, any>> = [];
++        for (let i = 0; i < times; i++) {
++          const draw = await table.draw({ displayChat: toChat, rollMode: toChat ? 'gmroll' : undefined });
++          rolled.push({
++            roll: draw.roll?.total ?? null,
++            results: ((draw.results || []) as any[]).map(r => ({ text: r.name, description: r.description || undefined })),
++          });
++        }
++        return { success: true, action, table: { id: table.id, name: table.name }, rolled, toChat };
++      }
++
++      const gate = permissionManager.checkWritePermission('modifyWorld');
++      if (!gate.allowed) throw new Error(`${ERROR_MESSAGES.ACCESS_DENIED}: ${gate.reason}`);
++
++      const folderId =
++        options.folder !== undefined
++          ? await this.getOrCreateFolder(options.folder, 'RollTable' as any)
++          : undefined;
++
++      if (action === 'create') {
++        if (typeof options.name !== 'string' || !options.name.trim()) throw new Error('name is required');
++        const built = buildTableResults(options.results);
++        const table = await (globalThis as any).RollTable.create({
++          name: options.name.trim(),
++          description: options.description ?? '',
++          formula: options.formula ?? built.formula,
++          replacement: options.replacement ?? true,
++          displayRoll: options.display_roll ?? true,
++          results: built.results,
++          ...(folderId ? { folder: folderId } : {}),
++        });
++        this.auditLog('manageRollTables:create', { name: options.name }, 'success');
++        return { success: true, action, table: this.tableSummary(table, false) };
++      }
++
++      // update
++      if (!options.table) throw new Error('table (id or exact name) is required');
++      const table = this.findWorldDocument('RollTable', options.table);
++      const patch: Record<string, any> = {};
++      if (options.name !== undefined) patch.name = options.name;
++      if (options.description !== undefined) patch.description = options.description;
++      if (options.formula !== undefined) patch.formula = options.formula;
++      if (options.replacement !== undefined) patch.replacement = options.replacement;
++      if (options.display_roll !== undefined) patch.displayRoll = options.display_roll;
++      if (folderId !== undefined) patch.folder = folderId;
++      let built: ReturnType<typeof buildTableResults> | undefined;
++      if (options.results !== undefined) {
++        built = buildTableResults(options.results);
++        if (options.formula === undefined) patch.formula = built.formula;
++      }
++      if (Object.keys(patch).length === 0 && !built) throw new Error('Nothing to update');
++      if (Object.keys(patch).length > 0) await table.update(patch);
++      if (built) {
++        const old = ((table.results?.contents || []) as any[]).map(r => r.id);
++        if (old.length > 0) await table.deleteEmbeddedDocuments('TableResult', old);
++        await table.createEmbeddedDocuments('TableResult', built.results);
++      }
++      this.auditLog('manageRollTables:update', { id: table.id }, 'success');
++      return { success: true, action, table: this.tableSummary(table, false) };
++    } catch (error) {
++      this.auditLog(`manageRollTables:${options?.action}`, { table: options?.table }, 'failure', error instanceof Error ? error.message : 'Unknown error');
++      throw new Error(
++        `Failed to ${options?.action ?? 'manage'} roll table: ${error instanceof Error ? error.message : 'Unknown error'}`
++      );
++    }
++  }
++
++  /**
++   * Create, update, list, describe and run macros. Deleting goes through manage-world.
++   * Script macros run in the GM's browser with the GM's permissions.
++   */
++  async manageMacros(options: {
++    action: 'create' | 'update' | 'list' | 'describe' | 'execute';
++    macro?: string;
++    name?: string;
++    type?: string;
++    command?: string;
++    img?: string;
++    folder?: string;
++  }): Promise<any> {
++    this.validateFoundryState();
++
++    try {
++      const action = options.action;
++      const known = ['create', 'update', 'list', 'describe', 'execute'];
++      if (!known.includes(action)) {
++        throw new Error(`Unknown action: ${String(action)} (${known.join(' | ')})`);
++      }
++      const summary = (m: any, full: boolean) => ({
++        id: m.id,
++        uuid: m.uuid ?? `Macro.${m.id}`,
++        name: m.name,
++        type: m.type,
++        folder: m.folder?.name ?? null,
++        ...(full ? { command: m.command } : {}),
++      });
++
++      if (action === 'list') {
++        return { success: true, macros: (((game as any).macros?.contents || []) as any[]).map(m => summary(m, false)) };
++      }
++      if (action === 'describe') {
++        if (!options.macro) throw new Error('macro (id or exact name) is required');
++        return { success: true, macro: summary(this.findWorldDocument('Macro', options.macro), true) };
++      }
++
++      const gate = permissionManager.checkWritePermission('modifyWorld');
++      if (!gate.allowed) throw new Error(`${ERROR_MESSAGES.ACCESS_DENIED}: ${gate.reason}`);
++
++      if (action === 'execute') {
++        if (!options.macro) throw new Error('macro (id or exact name) is required');
++        const macro = this.findWorldDocument('Macro', options.macro);
++        const result = await macro.execute();
++        this.auditLog('manageMacros:execute', { id: macro.id }, 'success');
++        let returned: unknown = null;
++        try {
++          returned = result === undefined ? null : JSON.parse(JSON.stringify(result));
++        } catch {
++          returned = String(result);
++        }
++        return { success: true, action, macro: summary(macro, false), returned };
++      }
++
++      const folderId =
++        options.folder !== undefined ? await this.getOrCreateFolder(options.folder, 'Macro' as any) : undefined;
++
++      if (action === 'create') {
++        const data = buildMacroData(options);
++        const macro = await (globalThis as any).Macro.create({ ...data, ...(folderId ? { folder: folderId } : {}) });
++        this.auditLog('manageMacros:create', { name: data.name }, 'success');
++        return { success: true, action, macro: summary(macro, false) };
++      }
++
++      // update
++      if (!options.macro) throw new Error('macro (id or exact name) is required');
++      const macro = this.findWorldDocument('Macro', options.macro);
++      const merged = buildMacroData({
++        name: options.name ?? macro.name,
++        type: options.type ?? macro.type,
++        command: options.command ?? macro.command,
++        img: options.img,
++      });
++      const patch: Record<string, any> = { name: merged.name, type: merged.type, command: merged.command };
++      if (options.img !== undefined) patch.img = options.img;
++      if (folderId !== undefined) patch.folder = folderId;
++      await macro.update(patch);
++      this.auditLog('manageMacros:update', { id: macro.id }, 'success');
++      return { success: true, action, macro: summary(macro, false) };
++    } catch (error) {
++      this.auditLog(`manageMacros:${options?.action}`, { macro: options?.macro }, 'failure', error instanceof Error ? error.message : 'Unknown error');
++      throw new Error(
++        `Failed to ${options?.action ?? 'manage'} macro: ${error instanceof Error ? error.message : 'Unknown error'}`
 +      );
 +    }
 +  }
@@ -5275,7 +5608,7 @@ index eecda7e..3b0cc15 100644
        );
      }
    }
-@@ -11274,7 +13385,10 @@ export class FoundryDataAccess {
+@@ -11274,7 +13607,10 @@ export class FoundryDataAccess {
        name: string;
        type: string;
        img?: string;
@@ -5286,7 +5619,7 @@ index eecda7e..3b0cc15 100644
      }>;
      folder?: string;
    }): Promise<{ created: Array<{ id: string; name: string; type: string }>; total: number }> {
-@@ -11286,6 +13400,19 @@ export class FoundryDataAccess {
+@@ -11286,6 +13622,19 @@ export class FoundryDataAccess {
      const docs = params.actors.map(a => {
        const doc: Record<string, any> = { name: a.name, type: a.type };
        if (a.img) doc.img = a.img;
@@ -5306,7 +5639,7 @@ index eecda7e..3b0cc15 100644
  
        // Merge system data, adding safe defaults for systems that require certain
        // fields to exist during data preparation (avoids non-fatal init errors).
-@@ -11471,7 +13598,16 @@ export class FoundryDataAccess {
+@@ -11471,7 +13820,16 @@ export class FoundryDataAccess {
     * Merges supplied fields into the actor (top-level keys overwrite).
     */
    async updateActors(
@@ -5324,7 +5657,7 @@ index eecda7e..3b0cc15 100644
    ): Promise<{ updated: Array<{ id: string; name: string }>; total: number }> {
      const updatedActors: Array<{ id: string; name: string }> = [];
  
-@@ -11482,6 +13618,7 @@ export class FoundryDataAccess {
+@@ -11482,6 +13840,7 @@ export class FoundryDataAccess {
        const patch: Record<string, any> = {};
        if (u.name !== undefined) patch.name = u.name;
        if (u.img !== undefined) patch.img = u.img;
@@ -5332,7 +5665,7 @@ index eecda7e..3b0cc15 100644
        if (u.system !== undefined) {
          // Build a single patch.system nested object so Foundry deep-merges everything
          // in one pass without flat-key vs nested-key conflicts.
-@@ -11504,6 +13641,19 @@ export class FoundryDataAccess {
+@@ -11504,6 +13863,19 @@ export class FoundryDataAccess {
          }
          patch.system = systemPatch;
        }
@@ -7282,6 +7615,197 @@ index 9024ead..26cc5c1 100644
        try {
          // Handle ChatMessage update requests (GM only)
          if (data.type === 'requestMessageUpdate' && data.buttonId && data.messageId) {
+diff --git a/packages/foundry-module/src/play-utils.test.ts b/packages/foundry-module/src/play-utils.test.ts
+new file mode 100644
+index 0000000..a9c8bf1
+--- /dev/null
++++ b/packages/foundry-module/src/play-utils.test.ts
+@@ -0,0 +1,49 @@
++import { describe, expect, it } from 'vitest';
++import { buildMacroData, buildTableResults } from './play-utils.js';
++
++describe('buildTableResults', () => {
++  it('numbers rows in order by weight and picks the formula', () => {
++    const t = buildTableResults([{ text: 'Wolves' }, { text: 'Goblins', weight: 3 }, { text: 'Nothing' }]);
++    expect(t.results.map(r => r.range)).toEqual([[1, 1], [2, 4], [5, 5]]);
++    expect(t.results[1]).toMatchObject({ type: 'text', name: 'Goblins', weight: 3, drawn: false });
++    expect(t.total).toBe(5);
++    expect(t.formula).toBe('1d5');
++  });
++
++  it('accepts exact ranges and derives weight from them', () => {
++    const t = buildTableResults([
++      { text: 'Low', range: [1, 10] },
++      { text: 'High', range: [11, 20] },
++    ]);
++    expect(t.results[0].weight).toBe(10);
++    expect(t.formula).toBe('1d20');
++  });
++
++  it('rejects bad tables', () => {
++    expect(() => buildTableResults([])).toThrow();
++    expect(() => buildTableResults([{ text: ' ' }])).toThrow('text');
++    expect(() => buildTableResults([{ text: 'a', range: [1, 2] }, { text: 'b' }])).toThrow('every row or on none');
++    expect(() => buildTableResults([{ text: 'a', range: [1, 5] }, { text: 'b', range: [5, 6] }])).toThrow('overlaps');
++    expect(() => buildTableResults([{ text: 'a', range: [3, 2] }])).toThrow('above high');
++    expect(() => buildTableResults([{ text: 'a', range: [2, 3] }])).toThrow('start at 1');
++    expect(() => buildTableResults([{ text: 'a', weight: 0 }])).toThrow('weight');
++  });
++});
++
++describe('buildMacroData', () => {
++  it('builds a global script macro by default', () => {
++    expect(buildMacroData({ name: ' Pit ', command: 'ui.notifications.info("x")' })).toEqual({
++      name: 'Pit',
++      type: 'script',
++      scope: 'global',
++      command: 'ui.notifications.info("x")',
++    });
++  });
++
++  it('rejects bad macros', () => {
++    expect(() => buildMacroData({ command: 'x' })).toThrow('name');
++    expect(() => buildMacroData({ name: 'a' })).toThrow('command');
++    expect(() => buildMacroData({ name: 'a', command: 'x', type: 'python' })).toThrow('type');
++    expect(() => buildMacroData({ name: 'a', command: 'x'.repeat(20001) })).toThrow('longer');
++  });
++});
+diff --git a/packages/foundry-module/src/play-utils.ts b/packages/foundry-module/src/play-utils.ts
+new file mode 100644
+index 0000000..66661f2
+--- /dev/null
++++ b/packages/foundry-module/src/play-utils.ts
+@@ -0,0 +1,130 @@
++/**
++ * Pure helpers for manage-roll-tables and manage-macros. No Foundry globals, so they can be tested.
++ */
++
++export interface TableRowSpec {
++  /** The result text (shown in chat when this result is rolled). */
++  text: string;
++  /** Longer text shown under the result. */
++  description?: string;
++  /** Relative chance, a whole number from 1 (default 1). Ignored when range is given. */
++  weight?: number;
++  /** Exact dice range [low, high] this result covers. Give a range on every row or on none. */
++  range?: [number, number];
++}
++
++export const MAX_TABLE_ROWS = 200;
++
++export interface BuiltTable {
++  results: Array<Record<string, any>>;
++  /** Highest number on the table. */
++  total: number;
++  /** The dice formula that covers the table, e.g. 1d20. */
++  formula: string;
++}
++
++/** The smallest sensible dice formula whose maximum is `total` (1d6, 1d20, 1d100, or 1d<n>). */
++export function formulaFor(total: number): string {
++  return `1d${total}`;
++}
++
++/** Turn table rows into Foundry TableResult data with ranges, and the formula that covers them. */
++export function buildTableResults(rows: unknown, label = 'results'): BuiltTable {
++  if (!Array.isArray(rows) || rows.length === 0 || rows.length > MAX_TABLE_ROWS) {
++    throw new Error(`${label} must be a list of 1 to ${MAX_TABLE_ROWS} rows`);
++  }
++  const specs = rows as TableRowSpec[];
++  const withRange = specs.filter(r => r && r.range !== undefined).length;
++  if (withRange !== 0 && withRange !== specs.length) {
++    throw new Error(`${label}: give a range on every row or on none`);
++  }
++
++  const results: Array<Record<string, any>> = [];
++  let next = 1;
++  const used: Array<[number, number]> = [];
++
++  specs.forEach((row, index) => {
++    const at = `${label}[${index}]`;
++    if (!row || typeof row !== 'object') throw new Error(`${at}: must be an object`);
++    if (typeof row.text !== 'string' || !row.text.trim()) throw new Error(`${at}: text is required`);
++    if (row.description !== undefined && typeof row.description !== 'string') {
++      throw new Error(`${at}: description must be a string`);
++    }
++    let range: [number, number];
++    let weight: number;
++    if (row.range !== undefined) {
++      if (
++        !Array.isArray(row.range) ||
++        row.range.length !== 2 ||
++        !row.range.every(n => Number.isInteger(n) && n >= 1)
++      ) {
++        throw new Error(`${at}: range must be [low, high] whole numbers from 1`);
++      }
++      const [low, high] = row.range;
++      if (low > high) throw new Error(`${at}: range low is above high`);
++      if (used.some(([a, b]) => low <= b && high >= a)) {
++        throw new Error(`${at}: range ${low}-${high} overlaps another row`);
++      }
++      used.push([low, high]);
++      range = [low, high];
++      weight = high - low + 1;
++    } else {
++      weight = row.weight === undefined ? 1 : row.weight;
++      if (!Number.isInteger(weight) || weight < 1 || weight > 1000) {
++        throw new Error(`${at}: weight must be a whole number from 1 to 1000`);
++      }
++      range = [next, next + weight - 1];
++      next += weight;
++    }
++    results.push({
++      type: 'text',
++      name: row.text.trim(),
++      description: row.description ?? '',
++      weight,
++      range,
++      drawn: false,
++    });
++  });
++
++  const total = Math.max(...results.map(r => r.range[1]));
++  if (withRange > 0) {
++    // A range table need not cover every number, but it must start at 1 to be rollable.
++    if (!used.some(([a]) => a === 1)) {
++      throw new Error(`${label}: ranges must start at 1`);
++    }
++  }
++  return { results, total, formula: formulaFor(total) };
++}
++
++export const MACRO_TYPES = ['script', 'chat'] as const;
++export const MAX_MACRO_CHARS = 20000;
++
++/** Validate a macro and build its Foundry data. */
++export function buildMacroData(spec: {
++  name?: unknown;
++  type?: unknown;
++  command?: unknown;
++  img?: unknown;
++}): Record<string, any> {
++  if (typeof spec.name !== 'string' || !spec.name.trim()) throw new Error('name is required');
++  const type = spec.type === undefined ? 'script' : spec.type;
++  if (!(MACRO_TYPES as readonly unknown[]).includes(type)) {
++    throw new Error(`type must be ${MACRO_TYPES.join(' or ')}`);
++  }
++  if (typeof spec.command !== 'string' || !spec.command.trim()) {
++    throw new Error('command is required (the script, or the chat text)');
++  }
++  if (spec.command.length > MAX_MACRO_CHARS) {
++    throw new Error(`command is longer than ${MAX_MACRO_CHARS} characters`);
++  }
++  if (spec.img !== undefined && (typeof spec.img !== 'string' || !spec.img.trim())) {
++    throw new Error('img must be a file path');
++  }
++  return {
++    name: spec.name.trim(),
++    type,
++    scope: 'global',
++    command: spec.command,
++    ...(spec.img ? { img: spec.img } : {}),
++  };
++}
 diff --git a/packages/foundry-module/src/preview-utils.test.ts b/packages/foundry-module/src/preview-utils.test.ts
 new file mode 100644
 index 0000000..5d8be30
@@ -7745,7 +8269,7 @@ index 0000000..ca891e2
 +  return view ? outSize : { width, height };
 +}
 diff --git a/packages/foundry-module/src/queries.ts b/packages/foundry-module/src/queries.ts
-index 9fe02ba..6e1c891 100644
+index 9fe02ba..54635e5 100644
 --- a/packages/foundry-module/src/queries.ts
 +++ b/packages/foundry-module/src/queries.ts
 @@ -1,7 +1,8 @@
@@ -7767,7 +8291,7 @@ index 9fe02ba..6e1c891 100644
  
      // Character/Actor queries
      CONFIG.queries[`${modulePrefix}.getCharacterInfo`] = this.handleGetCharacterInfo.bind(this);
-@@ -46,6 +47,16 @@ export class QueryHandlers {
+@@ -46,6 +47,18 @@ export class QueryHandlers {
      CONFIG.queries[`${modulePrefix}.list-scenes`] = this.handleListScenes.bind(this);
      CONFIG.queries[`${modulePrefix}.switch-scene`] = this.handleSwitchScene.bind(this);
      CONFIG.queries[`${modulePrefix}.update-scene-music`] = this.handleUpdateSceneMusic.bind(this);
@@ -7780,11 +8304,13 @@ index 9fe02ba..6e1c891 100644
 +    CONFIG.queries[`${modulePrefix}.measure-grid`] = this.handleMeasureGrid.bind(this);
 +    CONFIG.queries[`${modulePrefix}.manage-regions`] = this.handleManageRegions.bind(this);
 +    CONFIG.queries[`${modulePrefix}.manage-world`] = this.handleManageWorld.bind(this);
++    CONFIG.queries[`${modulePrefix}.manage-roll-tables`] = this.handleManageRollTables.bind(this);
++    CONFIG.queries[`${modulePrefix}.manage-macros`] = this.handleManageMacros.bind(this);
 +    CONFIG.queries[`${modulePrefix}.inspect-document`] = this.handleInspectDocument.bind(this);
      CONFIG.queries[`${modulePrefix}.manage-playlists`] = this.handleManagePlaylists.bind(this);
      CONFIG.queries[`${modulePrefix}.control-playlist`] = this.handleControlPlaylist.bind(this);
  
-@@ -184,7 +195,7 @@ export class QueryHandlers {
+@@ -184,7 +197,7 @@ export class QueryHandlers {
     * Unregister all query handlers
     */
    unregisterHandlers(): void {
@@ -7793,7 +8319,7 @@ index 9fe02ba..6e1c891 100644
      const keysToRemove = Object.keys(CONFIG.queries).filter(key => key.startsWith(modulePrefix));
  
      for (const key of keysToRemove) {
-@@ -477,7 +488,7 @@ export class QueryHandlers {
+@@ -477,7 +490,7 @@ export class QueryHandlers {
     * Get list of all registered query methods
     */
    getRegisteredMethods(): string[] {
@@ -7802,7 +8328,7 @@ index 9fe02ba..6e1c891 100644
      return Object.keys(CONFIG.queries)
        .filter(key => key.startsWith(modulePrefix))
        .map(key => key.replace(`${modulePrefix}.`, ''));
-@@ -487,7 +498,7 @@ export class QueryHandlers {
+@@ -487,7 +500,7 @@ export class QueryHandlers {
     * Test if a specific query handler is registered
     */
    isMethodRegistered(method: string): boolean {
@@ -7811,7 +8337,7 @@ index 9fe02ba..6e1c891 100644
      return queryKey in CONFIG.queries && typeof CONFIG.queries[queryKey] === 'function';
    }
  
-@@ -530,6 +541,9 @@ export class QueryHandlers {
+@@ -530,6 +543,9 @@ export class QueryHandlers {
        if (data.placement) {
          requestData.placement = data.placement;
        }
@@ -7821,7 +8347,7 @@ index 9fe02ba..6e1c891 100644
  
        return await this.dataAccess.createActorFromCompendiumEntry(requestData);
      } catch (error) {
-@@ -1218,6 +1232,135 @@ export class QueryHandlers {
+@@ -1218,6 +1234,151 @@ export class QueryHandlers {
      }
    }
  
@@ -7861,6 +8387,22 @@ index 9fe02ba..6e1c891 100644
 +      return { error: 'Access denied', success: false };
 +    }
 +    return await this.dataAccess.manageRegions(data ?? {});
++  }
++
++  private async handleManageRollTables(data: any): Promise<any> {
++    const gmCheck = this.validateGMAccess();
++    if (!gmCheck.allowed) {
++      return { error: 'Access denied', success: false };
++    }
++    return await this.dataAccess.manageRollTables(data ?? {});
++  }
++
++  private async handleManageMacros(data: any): Promise<any> {
++    const gmCheck = this.validateGMAccess();
++    if (!gmCheck.allowed) {
++      return { error: 'Access denied', success: false };
++    }
++    return await this.dataAccess.manageMacros(data ?? {});
 +  }
 +
 +  private async handleManageWorld(data: any): Promise<any> {
@@ -10456,10 +10998,10 @@ index 0000000..3adf228
 +  </div>
 +</form>
 diff --git a/packages/mcp-server/src/backend.ts b/packages/mcp-server/src/backend.ts
-index 8967e33..5d400e0 100644
+index 8967e33..e865147 100644
 --- a/packages/mcp-server/src/backend.ts
 +++ b/packages/mcp-server/src/backend.ts
-@@ -48,6 +48,21 @@ import { DnD5eAddFeatureTool } from './tools/dnd5e/add-feature.js';
+@@ -48,6 +48,22 @@ import { DnD5eAddFeatureTool } from './tools/dnd5e/add-feature.js';
  import { DnD5eNpcTools } from './tools/dnd5e/npc.js';
  import { DnD5eFeaturesFromCompendiumTools } from './tools/dnd5e/features.js';
  import { ChatTools } from './tools/chat.js';
@@ -10477,11 +11019,12 @@ index 8967e33..5d400e0 100644
 +  type ComfyTarget,
 +} from './comfyui-target.js';
 +import { SceneObjectTools } from './tools/scene-objects.js';
++import { PlayTools } from './tools/play-tools.js';
 +import { InspectTools } from './tools/inspect.js';
  
  const CONTROL_HOST = '127.0.0.1';
  
-@@ -174,6 +189,22 @@ let comfyuiProcess: ChildProcess | null = null;
+@@ -174,6 +190,22 @@ let comfyuiProcess: ChildProcess | null = null;
  
  let comfyuiStatus: 'stopped' | 'starting' | 'running' | 'error' = 'stopped';
  
@@ -10504,7 +11047,7 @@ index 8967e33..5d400e0 100644
  let lockFd: number | null = null;
  
  function acquireLock(): boolean {
-@@ -350,6 +381,18 @@ async function waitForComfyUIReady(timeoutMs: number = 60000): Promise<void> {
+@@ -350,6 +382,18 @@ async function waitForComfyUIReady(timeoutMs: number = 60000): Promise<void> {
  }
  
  async function startComfyUIService(logger: Logger): Promise<any> {
@@ -10523,7 +11066,7 @@ index 8967e33..5d400e0 100644
    if (comfyuiStatus === 'running') {
      return { status: 'already_running', message: 'ComfyUI service is already running' };
    }
-@@ -472,6 +515,14 @@ async function startComfyUIService(logger: Logger): Promise<any> {
+@@ -472,6 +516,14 @@ async function startComfyUIService(logger: Logger): Promise<any> {
  }
  
  async function stopComfyUIService(logger: Logger): Promise<any> {
@@ -10538,7 +11081,7 @@ index 8967e33..5d400e0 100644
    if (comfyuiStatus === 'stopped') {
      return { status: 'already_stopped', message: 'ComfyUI service is already stopped' };
    }
-@@ -510,7 +561,7 @@ async function checkComfyUIStatus(): Promise<any> {
+@@ -510,7 +562,7 @@ async function checkComfyUIStatus(): Promise<any> {
    // This handles both spawned processes and externally-started instances
  
    try {
@@ -10547,7 +11090,7 @@ index 8967e33..5d400e0 100644
        signal: AbortSignal.timeout(5000),
      });
  
-@@ -520,16 +571,23 @@ async function checkComfyUIStatus(): Promise<any> {
+@@ -520,16 +572,23 @@ async function checkComfyUIStatus(): Promise<any> {
        comfyuiStatus = 'error';
      }
    } catch (error) {
@@ -10573,7 +11116,7 @@ index 8967e33..5d400e0 100644
    };
  }
  
-@@ -1131,7 +1189,7 @@ async function processMapGenerationInBackend(
+@@ -1131,7 +1190,7 @@ async function processMapGenerationInBackend(
      );
  
      logger.error('Background map generation processing failed', { jobId, error });
@@ -10582,7 +11125,7 @@ index 8967e33..5d400e0 100644
  
      // Emit failure to Foundry module
      foundryClient.sendMessage({
-@@ -1195,6 +1253,26 @@ async function startBackend(): Promise<void> {
+@@ -1195,6 +1254,27 @@ async function startBackend(): Promise<void> {
    const compendiumTools = new CompendiumTools({ foundryClient, logger, systemRegistry });
  
    const sceneTools = new SceneTools({ foundryClient, logger });
@@ -10605,11 +11148,12 @@ index 8967e33..5d400e0 100644
 +  });
 +  const journalTools = new JournalTools({ foundryClient, logger });
 +  const sceneObjectTools = new SceneObjectTools({ foundryClient, logger });
++  const playTools = new PlayTools({ foundryClient, logger });
 +  const inspectTools = new InspectTools({ foundryClient, logger });
    const playlistTools = new PlaylistTools({ foundryClient, logger });
  
    const actorCreationTools = new ActorCreationTools({ foundryClient, logger });
-@@ -1301,6 +1379,13 @@ async function startBackend(): Promise<void> {
+@@ -1301,6 +1381,13 @@ async function startBackend(): Promise<void> {
  
          let result: any;
  
@@ -10623,7 +11167,7 @@ index 8967e33..5d400e0 100644
          switch (message.type) {
            case 'start-comfyui-service':
              result = await startComfyUIService(logger);
-@@ -1317,6 +1402,19 @@ async function startBackend(): Promise<void> {
+@@ -1317,6 +1404,19 @@ async function startBackend(): Promise<void> {
  
              break;
  
@@ -10643,7 +11187,7 @@ index 8967e33..5d400e0 100644
            // Map generation handlers (following existing tool pattern)
            case 'generate-map-request':
              await fs.appendFile(
-@@ -1429,6 +1527,12 @@ async function startBackend(): Promise<void> {
+@@ -1429,6 +1529,13 @@ async function startBackend(): Promise<void> {
  
      ...sceneTools.getToolDefinitions(),
  
@@ -10651,12 +11195,13 @@ index 8967e33..5d400e0 100644
 +    ...imageGenerationTools.getToolDefinitions(),
 +    ...journalTools.getToolDefinitions(),
 +    ...sceneObjectTools.getToolDefinitions(),
++    ...playTools.getToolDefinitions(),
 +    ...inspectTools.getToolDefinitions(),
 +
      ...actorCreationTools.getToolDefinitions(),
      ...actorManagementTools.getToolDefinitions(),
      ...effectManagementTools.getToolDefinitions(),
-@@ -1456,7 +1560,11 @@ async function startBackend(): Promise<void> {
+@@ -1456,7 +1563,11 @@ async function startBackend(): Promise<void> {
  
      ...tokenManipulationTools.getToolDefinitions(),
  
@@ -10669,7 +11214,7 @@ index 8967e33..5d400e0 100644
  
      ...playlistTools.getToolDefinitions(),
    ];
-@@ -1764,19 +1872,11 @@ async function startBackend(): Promise<void> {
+@@ -1764,19 +1875,11 @@ async function startBackend(): Promise<void> {
                  // Map generation tools
  
                  case 'generate-map':
@@ -10692,7 +11237,7 @@ index 8967e33..5d400e0 100644
  
                  case 'list-scenes':
                    result = await mapGenerationTools.listScenes(args);
-@@ -1805,6 +1905,52 @@ async function startBackend(): Promise<void> {
+@@ -1805,6 +1908,60 @@ async function startBackend(): Promise<void> {
  
                    break;
  
@@ -10719,6 +11264,14 @@ index 8967e33..5d400e0 100644
 +
 +                case 'manage-regions':
 +                  result = await sceneObjectTools.handleManageRegions(args);
++                  break;
++
++                case 'manage-roll-tables':
++                  result = await playTools.handleManageRollTables(args);
++                  break;
++
++                case 'manage-macros':
++                  result = await playTools.handleManageMacros(args);
 +                  break;
 +
 +                case 'manage-world':
@@ -13479,6 +14032,228 @@ index 0000000..942a444
 +      this.logger.error('Failed to manage journals', error);
 +      throw new Error(
 +        `Failed to manage journals: ${error instanceof Error ? error.message : 'Unknown error'}`
++      );
++    }
++  }
++}
+diff --git a/packages/mcp-server/src/tools/play-tools.test.ts b/packages/mcp-server/src/tools/play-tools.test.ts
+new file mode 100644
+index 0000000..69fdacc
+--- /dev/null
++++ b/packages/mcp-server/src/tools/play-tools.test.ts
+@@ -0,0 +1,44 @@
++import { describe, expect, it, vi } from 'vitest';
++import { PlayTools } from './play-tools.js';
++
++function make(impl?: (m: string, d: any) => unknown) {
++  const query = vi.fn(impl ?? (async () => ({ success: true })));
++  const logger: any = { info: vi.fn(), debug: vi.fn(), error: vi.fn(), warn: vi.fn(), child: () => logger };
++  return { tools: new PlayTools({ foundryClient: { query } as any, logger }), query };
++}
++
++describe('PlayTools', () => {
++  it('exposes the two tools', () => {
++    expect(make().tools.getToolDefinitions().map(d => d.name)).toEqual(['manage-roll-tables', 'manage-macros']);
++  });
++
++  it('forwards valid roll table and macro requests', async () => {
++    const { tools, query } = make();
++    const create = { action: 'create', name: 'Loot', results: [{ text: 'Gold' }, { text: 'Gem', range: [2, 3] }] };
++    await tools.handleManageRollTables(create);
++    expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.manage-roll-tables', create);
++    await tools.handleManageRollTables({ action: 'roll', table: 'Loot', times: 3 });
++    await tools.handleManageMacros({ action: 'create', name: 'Pit', command: 'return 1;' });
++    await tools.handleManageMacros({ action: 'execute', macro: 'Pit' });
++    expect(query).toHaveBeenCalledTimes(4);
++  });
++
++  it.each([
++    ['create table without results', 'handleManageRollTables', { action: 'create', name: 'x' }],
++    ['roll without table', 'handleManageRollTables', { action: 'roll' }],
++    ['too many rolls', 'handleManageRollTables', { action: 'roll', table: 'a', times: 99 }],
++    ['unknown field', 'handleManageRollTables', { action: 'list', extra: 1 }],
++    ['create macro without command', 'handleManageMacros', { action: 'create', name: 'x' }],
++    ['execute without macro', 'handleManageMacros', { action: 'execute' }],
++    ['bad macro type', 'handleManageMacros', { action: 'create', name: 'x', command: 'y', type: 'python' }],
++  ])('rejects %s before contacting Foundry', async (_l, method, args) => {
++    const { tools, query } = make();
++    await expect((tools as any)[method](args)).rejects.toThrow();
++    expect(query).not.toHaveBeenCalled();
++  });
++
++  it('reports a refusal from the module', async () => {
++    const { tools } = make(async () => ({ success: false, error: 'nope' }));
++    await expect(tools.handleManageMacros({ action: 'list' })).rejects.toThrow(/nope/);
++  });
++});
+diff --git a/packages/mcp-server/src/tools/play-tools.ts b/packages/mcp-server/src/tools/play-tools.ts
+new file mode 100644
+index 0000000..06e09dd
+--- /dev/null
++++ b/packages/mcp-server/src/tools/play-tools.ts
+@@ -0,0 +1,166 @@
++import { z } from 'zod';
++import { FoundryClient } from '../foundry-client.js';
++import { Logger } from '../logger.js';
++
++export interface PlayToolsOptions {
++  foundryClient: FoundryClient;
++  logger: Logger;
++}
++
++const row = z
++  .object({
++    text: z.string().min(1),
++    description: z.string().optional(),
++    weight: z.number().int().min(1).max(1000).optional(),
++    range: z.tuple([z.number().int().min(1), z.number().int().min(1)]).optional(),
++  })
++  .strict();
++
++const rollTablesSchema = z
++  .object({
++    action: z.enum(['create', 'update', 'list', 'describe', 'roll']),
++    table: z.string().min(1).optional(),
++    name: z.string().min(1).optional(),
++    description: z.string().optional(),
++    formula: z.string().min(1).optional(),
++    results: z.array(row).min(1).max(200).optional(),
++    replacement: z.boolean().optional(),
++    display_roll: z.boolean().optional(),
++    folder: z.string().min(1).optional(),
++    times: z.number().int().min(1).max(20).optional(),
++    to_chat: z.boolean().optional(),
++  })
++  .strict();
++
++const macrosSchema = z
++  .object({
++    action: z.enum(['create', 'update', 'list', 'describe', 'execute']),
++    macro: z.string().min(1).optional(),
++    name: z.string().min(1).optional(),
++    type: z.enum(['script', 'chat']).optional(),
++    command: z.string().min(1).max(20000).optional(),
++    img: z.string().min(1).optional(),
++    folder: z.string().min(1).optional(),
++  })
++  .strict();
++
++export class PlayTools {
++  private foundryClient: FoundryClient;
++  private logger: Logger;
++
++  constructor({ foundryClient, logger }: PlayToolsOptions) {
++    this.foundryClient = foundryClient;
++    this.logger = logger.child({ component: 'PlayTools' });
++  }
++
++  getToolDefinitions() {
++    return [
++      {
++        name: 'manage-roll-tables',
++        description:
++          'Create, change, list, describe and roll on Foundry roll tables (random encounters, loot, rumours). ' +
++          'create {name, results, description?, formula?, replacement?, display_roll?, folder?}: results is a list of rows {text, description?, weight?} (weight 1 by default) and the tool numbers them in order and picks the dice formula (a table of 6 rows gets 1d6; give a formula such as 2d6 together with range on every row to cover an uneven table). Or give range [low, high] on every row for exact dice ranges. ' +
++          'update {table, ...fields}: change name, description, formula or settings; passing results replaces all rows. ' +
++          'roll {table, times?, to_chat?}: roll on the table; the result is posted to chat (GM-only roll) unless to_chat is false, and returned either way. ' +
++          'list shows every table, describe {table} shows one with its rows. table is an id or exact name. Deleting goes through manage-world (type RollTable). Needs the Foundry tab open in a browser.',
++        inputSchema: {
++          type: 'object',
++          properties: {
++            action: { type: 'string', enum: ['create', 'update', 'list', 'describe', 'roll'] },
++            table: { type: 'string', description: 'update / describe / roll: table id or exact name' },
++            name: { type: 'string' },
++            description: { type: 'string', description: 'Text shown on the table' },
++            formula: { type: 'string', description: 'Dice formula, e.g. 1d20 (default: 1d<rows or total weight>)' },
++            results: {
++              type: 'array',
++              maxItems: 200,
++              items: {
++                type: 'object',
++                properties: {
++                  text: { type: 'string', description: 'The result' },
++                  description: { type: 'string', description: 'Extra text under the result' },
++                  weight: { type: 'number', description: 'Relative chance (whole number, default 1)' },
++                  range: {
++                    type: 'array',
++                    items: { type: 'number' },
++                    minItems: 2,
++                    maxItems: 2,
++                    description: 'Exact dice range [low, high]; use on every row or none',
++                  },
++                },
++                required: ['text'],
++                additionalProperties: false,
++              },
++            },
++            replacement: { type: 'boolean', description: 'A rolled result can come up again (default true)' },
++            display_roll: { type: 'boolean', description: 'Show the dice roll in chat (default true)' },
++            folder: { type: 'string', description: 'Roll table folder (created if absent)' },
++            times: { type: 'number', description: 'roll: how many times (1 to 20)' },
++            to_chat: { type: 'boolean', description: 'roll: post to chat (default true)' },
++          },
++          required: ['action'],
++          additionalProperties: false,
++        },
++      },
++      {
++        name: 'manage-macros',
++        description:
++          'Create, change, list, describe and run Foundry macros. ' +
++          'create {name, command, type?, img?, folder?}: type script (JavaScript, the default) or chat (the command is sent to chat). Script macros run in the GM\'s browser with the GM\'s permissions, so write them carefully. ' +
++          'update {macro, ...fields}, list, describe {macro} (shows the code), execute {macro} (runs it now and returns what it returned). macro is an id or exact name. ' +
++          'A macro can be run by a region when a token enters it: give manage-regions a behavior {type: "executeMacro", system: {events: ["tokenEnter"], uuid: "Macro.<id>"}}; the uuid is returned when you create the macro. Deleting goes through manage-world (type Macro). Needs the Foundry tab open in a browser.',
++        inputSchema: {
++          type: 'object',
++          properties: {
++            action: { type: 'string', enum: ['create', 'update', 'list', 'describe', 'execute'] },
++            macro: { type: 'string', description: 'update / describe / execute: macro id or exact name' },
++            name: { type: 'string' },
++            type: { type: 'string', enum: ['script', 'chat'] },
++            command: { type: 'string', description: 'The JavaScript, or the chat text' },
++            img: { type: 'string', description: 'Icon path' },
++            folder: { type: 'string', description: 'Macro folder (created if absent)' },
++          },
++          required: ['action'],
++          additionalProperties: false,
++        },
++      },
++    ];
++  }
++
++  async handleManageRollTables(args: any): Promise<any> {
++    const parsed = rollTablesSchema.parse(args ?? {});
++    if (parsed.action === 'create' && (!parsed.name || !parsed.results)) {
++      throw new Error('create needs name and results');
++    }
++    if (['update', 'describe', 'roll'].includes(parsed.action) && !parsed.table) {
++      throw new Error(`${parsed.action} needs table`);
++    }
++    return this.send('manage-roll-tables', parsed, 'roll tables');
++  }
++
++  async handleManageMacros(args: any): Promise<any> {
++    const parsed = macrosSchema.parse(args ?? {});
++    if (parsed.action === 'create' && (!parsed.name || !parsed.command)) {
++      throw new Error('create needs name and command');
++    }
++    if (['update', 'describe', 'execute'].includes(parsed.action) && !parsed.macro) {
++      throw new Error(`${parsed.action} needs macro`);
++    }
++    return this.send('manage-macros', parsed, 'macros');
++  }
++
++  private async send(method: string, parsed: unknown, label: string): Promise<any> {
++    try {
++      const result = await this.foundryClient.query(`foundry-mcp-bridge.${method}`, parsed);
++      if (result?.success === false) {
++        throw new Error(result.error || 'Request was refused');
++      }
++      return result;
++    } catch (error) {
++      this.logger.error(`Failed to manage ${label}`, error);
++      throw new Error(
++        `Failed to manage ${label}: ${error instanceof Error ? error.message : 'Unknown error'}`
 +      );
 +    }
 +  }

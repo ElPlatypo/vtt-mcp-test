@@ -13097,7 +13097,7 @@ var require_tail_file = __commonJS({
       const stream4 = new Stream();
       let buff = "";
       let pos = 0;
-      let row = 0;
+      let row2 = 0;
       if (options.start === -1) {
         delete options.start;
       }
@@ -13134,14 +13134,14 @@ var require_tail_file = __commonJS({
             }
             if (!bytes) {
               if (buff) {
-                if (options.start == null || row > options.start) {
+                if (options.start == null || row2 > options.start) {
                   if (!iter) {
                     stream4.emit("line", buff);
                   } else {
                     iter(null, buff);
                   }
                 }
-                row++;
+                row2++;
                 buff = "";
               }
               return setTimeout(read, 1e3);
@@ -13154,14 +13154,14 @@ var require_tail_file = __commonJS({
             const l = data.length - 1;
             let i = 0;
             for (; i < l; i++) {
-              if (options.start == null || row > options.start) {
+              if (options.start == null || row2 > options.start) {
                 if (!iter) {
                   stream4.emit("line", data[i]);
                 } else {
                   iter(null, data[i]);
                 }
               }
-              row++;
+              row2++;
             }
             buff = data[l];
             pos += bytes;
@@ -13365,7 +13365,7 @@ var require_file = __commonJS({
         const file = path9.join(this.dirname, this.filename);
         let buff = "";
         let results = [];
-        let row = 0;
+        let row2 = 0;
         const stream4 = fs8.createReadStream(file, {
           encoding: "utf8"
         });
@@ -13383,10 +13383,10 @@ var require_file = __commonJS({
           const l = data.length - 1;
           let i = 0;
           for (; i < l; i++) {
-            if (!options.start || row >= options.start) {
+            if (!options.start || row2 >= options.start) {
               add(data[i]);
             }
-            row++;
+            row2++;
           }
           buff = data[l];
         });
@@ -59132,15 +59132,15 @@ var require_x509_cjs = __commonJS({
         const view = pvtsutils.BufferSourceConverter.toUint8Array(buffer);
         const res = [];
         for (let i = 0; i < view.length; ) {
-          const row = [];
+          const row2 = [];
           for (let j = 0; j < 16 && i < view.length; j++) {
             if (j === 8) {
-              row.push("");
+              row2.push("");
             }
             const hex = view[i++].toString(16).padStart(2, "0");
-            row.push(hex);
+            row2.push(hex);
           }
-          res.push(`${pad}${row.join(" ")}`);
+          res.push(`${pad}${row2.join(" ")}`);
         }
         return res;
       }
@@ -117113,6 +117113,141 @@ var SceneObjectTools = class {
   }
 };
 
+// dist/tools/play-tools.js
+init_zod();
+var row = external_exports.object({
+  text: external_exports.string().min(1),
+  description: external_exports.string().optional(),
+  weight: external_exports.number().int().min(1).max(1e3).optional(),
+  range: external_exports.tuple([external_exports.number().int().min(1), external_exports.number().int().min(1)]).optional()
+}).strict();
+var rollTablesSchema = external_exports.object({
+  action: external_exports.enum(["create", "update", "list", "describe", "roll"]),
+  table: external_exports.string().min(1).optional(),
+  name: external_exports.string().min(1).optional(),
+  description: external_exports.string().optional(),
+  formula: external_exports.string().min(1).optional(),
+  results: external_exports.array(row).min(1).max(200).optional(),
+  replacement: external_exports.boolean().optional(),
+  display_roll: external_exports.boolean().optional(),
+  folder: external_exports.string().min(1).optional(),
+  times: external_exports.number().int().min(1).max(20).optional(),
+  to_chat: external_exports.boolean().optional()
+}).strict();
+var macrosSchema = external_exports.object({
+  action: external_exports.enum(["create", "update", "list", "describe", "execute"]),
+  macro: external_exports.string().min(1).optional(),
+  name: external_exports.string().min(1).optional(),
+  type: external_exports.enum(["script", "chat"]).optional(),
+  command: external_exports.string().min(1).max(2e4).optional(),
+  img: external_exports.string().min(1).optional(),
+  folder: external_exports.string().min(1).optional()
+}).strict();
+var PlayTools = class {
+  foundryClient;
+  logger;
+  constructor({ foundryClient, logger }) {
+    this.foundryClient = foundryClient;
+    this.logger = logger.child({ component: "PlayTools" });
+  }
+  getToolDefinitions() {
+    return [
+      {
+        name: "manage-roll-tables",
+        description: "Create, change, list, describe and roll on Foundry roll tables (random encounters, loot, rumours). create {name, results, description?, formula?, replacement?, display_roll?, folder?}: results is a list of rows {text, description?, weight?} (weight 1 by default) and the tool numbers them in order and picks the dice formula (a table of 6 rows gets 1d6; give a formula such as 2d6 together with range on every row to cover an uneven table). Or give range [low, high] on every row for exact dice ranges. update {table, ...fields}: change name, description, formula or settings; passing results replaces all rows. roll {table, times?, to_chat?}: roll on the table; the result is posted to chat (GM-only roll) unless to_chat is false, and returned either way. list shows every table, describe {table} shows one with its rows. table is an id or exact name. Deleting goes through manage-world (type RollTable). Needs the Foundry tab open in a browser.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            action: { type: "string", enum: ["create", "update", "list", "describe", "roll"] },
+            table: { type: "string", description: "update / describe / roll: table id or exact name" },
+            name: { type: "string" },
+            description: { type: "string", description: "Text shown on the table" },
+            formula: { type: "string", description: "Dice formula, e.g. 1d20 (default: 1d<rows or total weight>)" },
+            results: {
+              type: "array",
+              maxItems: 200,
+              items: {
+                type: "object",
+                properties: {
+                  text: { type: "string", description: "The result" },
+                  description: { type: "string", description: "Extra text under the result" },
+                  weight: { type: "number", description: "Relative chance (whole number, default 1)" },
+                  range: {
+                    type: "array",
+                    items: { type: "number" },
+                    minItems: 2,
+                    maxItems: 2,
+                    description: "Exact dice range [low, high]; use on every row or none"
+                  }
+                },
+                required: ["text"],
+                additionalProperties: false
+              }
+            },
+            replacement: { type: "boolean", description: "A rolled result can come up again (default true)" },
+            display_roll: { type: "boolean", description: "Show the dice roll in chat (default true)" },
+            folder: { type: "string", description: "Roll table folder (created if absent)" },
+            times: { type: "number", description: "roll: how many times (1 to 20)" },
+            to_chat: { type: "boolean", description: "roll: post to chat (default true)" }
+          },
+          required: ["action"],
+          additionalProperties: false
+        }
+      },
+      {
+        name: "manage-macros",
+        description: `Create, change, list, describe and run Foundry macros. create {name, command, type?, img?, folder?}: type script (JavaScript, the default) or chat (the command is sent to chat). Script macros run in the GM's browser with the GM's permissions, so write them carefully. update {macro, ...fields}, list, describe {macro} (shows the code), execute {macro} (runs it now and returns what it returned). macro is an id or exact name. A macro can be run by a region when a token enters it: give manage-regions a behavior {type: "executeMacro", system: {events: ["tokenEnter"], uuid: "Macro.<id>"}}; the uuid is returned when you create the macro. Deleting goes through manage-world (type Macro). Needs the Foundry tab open in a browser.`,
+        inputSchema: {
+          type: "object",
+          properties: {
+            action: { type: "string", enum: ["create", "update", "list", "describe", "execute"] },
+            macro: { type: "string", description: "update / describe / execute: macro id or exact name" },
+            name: { type: "string" },
+            type: { type: "string", enum: ["script", "chat"] },
+            command: { type: "string", description: "The JavaScript, or the chat text" },
+            img: { type: "string", description: "Icon path" },
+            folder: { type: "string", description: "Macro folder (created if absent)" }
+          },
+          required: ["action"],
+          additionalProperties: false
+        }
+      }
+    ];
+  }
+  async handleManageRollTables(args) {
+    const parsed = rollTablesSchema.parse(args ?? {});
+    if (parsed.action === "create" && (!parsed.name || !parsed.results)) {
+      throw new Error("create needs name and results");
+    }
+    if (["update", "describe", "roll"].includes(parsed.action) && !parsed.table) {
+      throw new Error(`${parsed.action} needs table`);
+    }
+    return this.send("manage-roll-tables", parsed, "roll tables");
+  }
+  async handleManageMacros(args) {
+    const parsed = macrosSchema.parse(args ?? {});
+    if (parsed.action === "create" && (!parsed.name || !parsed.command)) {
+      throw new Error("create needs name and command");
+    }
+    if (["update", "describe", "execute"].includes(parsed.action) && !parsed.macro) {
+      throw new Error(`${parsed.action} needs macro`);
+    }
+    return this.send("manage-macros", parsed, "macros");
+  }
+  async send(method, parsed, label) {
+    try {
+      const result = await this.foundryClient.query(`foundry-mcp-bridge.${method}`, parsed);
+      if (result?.success === false) {
+        throw new Error(result.error || "Request was refused");
+      }
+      return result;
+    } catch (error) {
+      this.logger.error(`Failed to manage ${label}`, error);
+      throw new Error(`Failed to manage ${label}: ${error instanceof Error ? error.message : "Unknown error"}`);
+    }
+  }
+};
+
 // dist/tools/inspect.js
 init_zod();
 var TYPES = [
@@ -118015,6 +118150,7 @@ async function startBackend() {
   });
   const journalTools = new JournalTools({ foundryClient, logger });
   const sceneObjectTools = new SceneObjectTools({ foundryClient, logger });
+  const playTools = new PlayTools({ foundryClient, logger });
   const inspectTools = new InspectTools({ foundryClient, logger });
   const playlistTools = new PlaylistTools({ foundryClient, logger });
   const actorCreationTools = new ActorCreationTools({ foundryClient, logger });
@@ -118180,6 +118316,7 @@ async function startBackend() {
     ...imageGenerationTools.getToolDefinitions(),
     ...journalTools.getToolDefinitions(),
     ...sceneObjectTools.getToolDefinitions(),
+    ...playTools.getToolDefinitions(),
     ...inspectTools.getToolDefinitions(),
     ...actorCreationTools.getToolDefinitions(),
     ...actorManagementTools.getToolDefinitions(),
@@ -118404,6 +118541,12 @@ async function startBackend() {
                   break;
                 case "manage-regions":
                   result = await sceneObjectTools.handleManageRegions(args);
+                  break;
+                case "manage-roll-tables":
+                  result = await playTools.handleManageRollTables(args);
+                  break;
+                case "manage-macros":
+                  result = await playTools.handleManageMacros(args);
                   break;
                 case "manage-world":
                   result = await sceneObjectTools.handleManageWorld(args);
