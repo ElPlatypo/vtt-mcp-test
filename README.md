@@ -1,10 +1,13 @@
 # Foundry MCP Bridge (Scenes), unofficial build
 
-An unofficial variant of [Foundry MCP Bridge](https://github.com/adambdooley/foundry-vtt-mcp) by Adam Dooley (MIT licence, see `LICENSE`). It adds one tool, **`manage-scenes`**, so Claude can describe, create and edit Foundry scenes (name, background image, size, grid, darkness, navigation). It never deletes anything.
+An unofficial variant of [Foundry MCP Bridge](https://github.com/adambdooley/foundry-vtt-mcp) by Adam Dooley (MIT licence, see `LICENSE`). It adds two tools:
+
+- **`manage-scenes`**: describe, create and edit Foundry scenes (name, background image, background colour, size, grid, darkness, navigation). It never deletes anything, and it reports a warning if Foundry did not keep a requested change.
+- **`upload-file`**: upload an image from the PC running Claude into the world's own folder on the Foundry server (`worlds/<world>/uploads/...`), so it can be used as a scene background or token image. Only png, jpg, webp and gif up to 20 MB, and the file must really be an image.
 
 It installs under its own id, `foundry-mcp-bridge-scenes`, so it can sit next to the original module. **Enable only one of the two per world:** both connect to the same MCP server port and the modules are marked as conflicting.
 
-> Status: unit-tested with a faked Foundry (25 module tests, 13 server tests), not yet verified against a real Foundry v14 world. The v14 background-image path is the part most likely to need fixes.
+> Status: `manage-scenes` has been checked against a real Foundry v14.369 world (describe, create, rename, grid, darkness, global light, background image set and clear). `upload-file` is unit-tested with a faked Foundry only and has not yet been run against a real world. On v14 the canvas colour and background image live on the scene's first Level, which this build handles.
 
 ## Install in Foundry (needs the Setup-screen admin)
 
@@ -34,7 +37,8 @@ Open your world in a browser tab (the bridge only works while a GM tab is open),
 - "Describe all scenes."
 - "Create a scene called Cave Mouth, 4000 by 3000, grid 100 px, 5 ft."
 - "Rename Cave Mouth to Cragmaw Entrance and set darkness to 0.6."
-- "Set the background of Cragmaw Entrance to worlds/my-world/maps/cave.webp." (the image must already be uploaded to Foundry)
+- "Set the background of Cragmaw Entrance to worlds/my-world/maps/cave.webp." (the image must already be on the Foundry server; `upload-file` can put it there)
+- "Upload C:\maps\cave.webp to the maps folder, then use it as the background of Cragmaw Entrance."
 
 ## Layout of this repository
 

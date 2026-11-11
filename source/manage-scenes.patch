@@ -65,10 +65,10 @@ index 864412c..71104a6 100644
   * Socket event names
 diff --git a/packages/foundry-module/src/data-access.manage-scenes.test.ts b/packages/foundry-module/src/data-access.manage-scenes.test.ts
 new file mode 100644
-index 0000000..d16d8f7
+index 0000000..561c7e4
 --- /dev/null
 +++ b/packages/foundry-module/src/data-access.manage-scenes.test.ts
-@@ -0,0 +1,317 @@
+@@ -0,0 +1,410 @@
 +/**
 + * manage-scenes tests (create / update / describe).
 + *
@@ -170,8 +170,8 @@ index 0000000..d16d8f7
 +        tokenVision: true,
 +        navigation: true,
 +        navName: 'Cave',
-+        backgroundColor: '#112233',
 +      });
++      // v14 has no Scene#backgroundColor field: the colour goes onto the first Level instead.
 +      expect(result.success).toBe(true);
 +      expect(result.action).toBe('create');
 +      expect(result.scene.id).toBe('scene-new');
@@ -300,6 +300,99 @@ index 0000000..d16d8f7
 +    });
 +  });
 +
++  describe('background colour', () => {
++    it('on v14 writes the colour to the first level, never to the scene', async () => {
++      const { scene, level } = makeScene();
++      const { dataAccess } = setup({ generation: 14, scenes: [scene] });
++
++      await dataAccess.manageScenes({
++        action: 'update',
++        scene_identifier: 'scene-1',
++        background_color: '#112233',
++      });
++
++      expect(level!.update).toHaveBeenCalledWith({ background: { color: '#112233' } });
++      expect(scene.update).not.toHaveBeenCalled();
++    });
++
++    it('on v14 resets the colour to the default #999999 with null', async () => {
++      const { scene, level } = makeScene();
++      const { dataAccess } = setup({ generation: 14, scenes: [scene] });
++
++      await dataAccess.manageScenes({
++        action: 'update',
++        scene_identifier: 'scene-1',
++        background_color: null,
++      });
++
++      expect(level!.update).toHaveBeenCalledWith({ background: { color: '#999999' } });
++    });
++
++    it('on v14 creates a Base level for the colour when the scene has no level', async () => {
++      const { dataAccess, create, created } = setup({ generation: 14 });
++
++      await dataAccess.manageScenes({
++        action: 'create',
++        name: 'Dark',
++        background_color: '#000000',
++      });
++
++      expect(create).toHaveBeenCalledWith({ name: 'Dark' });
++      expect(created.createEmbeddedDocuments).toHaveBeenCalledWith('Level', [
++        { name: 'Base', background: { color: '#000000' } },
++      ]);
++    });
++
++    it('on v13 still writes backgroundColor on the scene', async () => {
++      const { scene } = makeScene();
++      const { dataAccess } = setup({ generation: 13, scenes: [scene] });
++
++      await dataAccess.manageScenes({
++        action: 'update',
++        scene_identifier: 'scene-1',
++        background_color: '#112233',
++      });
++
++      expect(scene.update).toHaveBeenCalledWith({ backgroundColor: '#112233' });
++    });
++  });
++
++  describe('warnings for changes Foundry did not keep', () => {
++    it('reports a requested value the scene does not show afterwards', async () => {
++      // makeScene's update() is a no-op, like Foundry silently dropping a field.
++      const { scene } = makeScene();
++      const { dataAccess } = setup({ scenes: [scene] });
++
++      const result = await dataAccess.manageScenes({
++        action: 'update',
++        scene_identifier: 'scene-1',
++        grid_size: 120,
++      });
++
++      expect(result.success).toBe(true);
++      expect(result.warnings).toEqual(['grid_size was requested as 120 but the scene reports 100']);
++    });
++
++    it('adds no warnings when every requested change shows up', async () => {
++      const { scene } = makeScene();
++      scene.update = vi.fn(async (data: any) => {
++        if (data.name) scene.name = data.name;
++        if (data.grid?.size) scene.grid.size = data.grid.size;
++      });
++      const { dataAccess } = setup({ scenes: [scene] });
++
++      const result = await dataAccess.manageScenes({
++        action: 'update',
++        scene_identifier: 'scene-1',
++        name: 'New',
++        grid_size: 120,
++      });
++
++      expect(result.warnings).toBeUndefined();
++      expect(result.scene).toMatchObject({ name: 'New', grid: { size: 120 } });
++    });
++  });
++
 +  describe('validation', () => {
 +    it.each([
 +      [{ grid_size: 10 }, 'grid_size must be between 50 and 1000'],
@@ -387,10 +480,25 @@ index 0000000..d16d8f7
 +  });
 +});
 diff --git a/packages/foundry-module/src/data-access.ts b/packages/foundry-module/src/data-access.ts
-index eecda7e..db596d4 100644
+index eecda7e..7dc4185 100644
 --- a/packages/foundry-module/src/data-access.ts
 +++ b/packages/foundry-module/src/data-access.ts
-@@ -6714,7 +6714,7 @@ export class FoundryDataAccess {
+@@ -1,5 +1,14 @@
+ import { MODULE_ID, ERROR_MESSAGES, TOKEN_DISPOSITIONS } from './constants.js';
+ import { permissionManager } from './permissions.js';
++import {
++  UPLOAD_IMAGE_TYPES,
++  UPLOAD_MAX_BYTES,
++  decodeBase64,
++  detectImageType,
++  extensionMatchesType,
++  sanitizeUploadFilename,
++  sanitizeUploadFolder,
++} from './upload-utils.js';
+ import { transactionManager } from './transaction-manager.js';
+ 
+ // The same five characters foundry.utils.escapeHTML replaces in v14, kept local because
+@@ -6714,7 +6723,7 @@ export class FoundryDataAccess {
  
          // Send socket request to GM
          if (game.socket) {
@@ -399,7 +507,7 @@ index eecda7e..db596d4 100644
              type: 'requestMessageUpdate',
              buttonId,
              userId,
-@@ -8101,6 +8101,257 @@ export class FoundryDataAccess {
+@@ -8101,6 +8110,460 @@ export class FoundryDataAccess {
      }
    }
  
@@ -546,6 +654,70 @@ index eecda7e..db596d4 100644
 +  }
 +
 +  /**
++   * Set the canvas colour behind the background. Foundry v14 has no Scene#backgroundColor
++   * field in the document source: the colour lives on the first Level's background
++   * (Scene#backgroundColor is only a derived getter, and writing it is silently ignored).
++   * Verified against a v14.369 world.
++   */
++  private async applySceneBackgroundColor(scene: any, color: string): Promise<void> {
++    const level = scene.levels?.contents?.[0];
++    if (level) {
++      await level.update({ background: { color } });
++    } else {
++      await scene.createEmbeddedDocuments('Level', [{ name: 'Base', background: { color } }]);
++    }
++  }
++
++  /**
++   * Compare what was requested with what the scene reports afterwards, so a write that
++   * Foundry silently dropped is reported instead of claimed as a success.
++   */
++  private findUnappliedSceneChanges(
++    options: Record<string, any>,
++    summary: Record<string, any>
++  ): string[] {
++    const warnings: string[] = [];
++    const same = (wanted: unknown, actual: unknown): boolean => {
++      if (typeof wanted === 'number' && typeof actual === 'number') {
++        return Math.abs(wanted - actual) < 1e-6;
++      }
++      if (typeof wanted === 'string' && typeof actual === 'string') {
++        return wanted.toLowerCase() === actual.toLowerCase();
++      }
++      return wanted === actual;
++    };
++    const check = (label: string, wanted: unknown, actual: unknown) => {
++      if (wanted === undefined) return;
++      if (!same(wanted, actual)) {
++        warnings.push(
++          `${label} was requested as ${JSON.stringify(wanted)} but the scene reports ${JSON.stringify(actual ?? null)}`
++        );
++      }
++    };
++
++    check('name', typeof options.name === 'string' ? options.name.trim() : undefined, summary.name);
++    check('width', options.width, summary.width);
++    check('height', options.height, summary.height);
++    check('padding', options.padding, summary.padding);
++    check('grid_size', options.grid_size, summary.grid?.size);
++    check('grid_distance', options.grid_distance, summary.grid?.distance);
++    check('grid_units', options.grid_units, summary.grid?.units);
++    check('grid_type', options.grid_type, summary.grid?.type);
++    // null means "reset to default" on v14, so only a concrete colour can be compared.
++    if (typeof options.background_color === 'string') {
++      check('background_color', options.background_color, summary.backgroundColor);
++    }
++    check('token_vision', options.token_vision, summary.tokenVision);
++    check('darkness', options.darkness, summary.darkness);
++    check('global_light', options.global_light, summary.globalLight);
++    check('navigation', options.navigation, summary.navigation);
++    check('nav_name', options.nav_name, summary.navName);
++    check('background', options.background, summary.background);
++
++    return warnings;
++  }
++
++  /**
 +   * Create, update or describe scenes.
 +   * create: builds a new scene (name required).
 +   * update: edits an existing scene found by id or exact name (case-insensitive).
@@ -601,6 +773,14 @@ index eecda7e..db596d4 100644
 +
 +      const data = this.buildSceneData(options);
 +
++      // On v14 the canvas colour is a Level property, not a Scene field: split it out
++      // so it is not sent to Scene.create / scene.update (where it is silently dropped).
++      let levelColor: string | undefined;
++      if ('backgroundColor' in data && ((game as any).release?.generation ?? 0) >= 14) {
++        levelColor = data.backgroundColor ?? '#999999';
++        delete data.backgroundColor;
++      }
++
 +      let scene: any;
 +      if (options.action === 'create') {
 +        if (!data.name) {
@@ -618,6 +798,7 @@ index eecda7e..db596d4 100644
 +        const hasChange =
 +          Object.keys(data).length > 0 ||
 +          options.background !== undefined ||
++          levelColor !== undefined ||
 +          options.activate === true;
 +        if (!hasChange) {
 +          throw new Error('Nothing to update: pass at least one field to change');
@@ -630,16 +811,22 @@ index eecda7e..db596d4 100644
 +      if (options.background !== undefined) {
 +        await this.applySceneBackground(scene, options.background);
 +      }
++      if (levelColor !== undefined) {
++        await this.applySceneBackgroundColor(scene, levelColor);
++      }
 +      if (options.activate === true) {
 +        await scene.activate();
 +      }
 +
 +      this.auditLog(`manageScenes:${options.action}`, options, 'success');
 +
++      const summary = this.summarizeScene(scene);
++      const warnings = this.findUnappliedSceneChanges(options, summary);
 +      return {
 +        success: true,
 +        action: options.action,
-+        scene: this.summarizeScene(scene),
++        scene: summary,
++        ...(warnings.length > 0 ? { warnings } : {}),
 +      };
 +    } catch (error) {
 +      this.auditLog(
@@ -654,9 +841,385 @@ index eecda7e..db596d4 100644
 +    }
 +  }
 +
++  // ===== FILE UPLOAD =====
++
++  /**
++   * Upload an image into the world's own upload folder (worlds/<world>/uploads/...),
++   * so it survives module updates and can be used as a scene background, token or
++   * portrait image. Only png, jpg, webp and gif are accepted, the bytes must match the
++   * extension, size is capped, and the folder is restricted to the world's upload tree.
++   * Existing files are not replaced unless overwrite is true.
++   */
++  async uploadFile(options: {
++    filename: string;
++    imageData: string;
++    folder?: string;
++    overwrite?: boolean;
++  }): Promise<any> {
++    this.validateFoundryState();
++
++    try {
++      const permissionCheck = permissionManager.checkWritePermission('modifyScene', {});
++      if (!permissionCheck.allowed) {
++        throw new Error(`${ERROR_MESSAGES.ACCESS_DENIED}: ${permissionCheck.reason}`);
++      }
++
++      const filename = sanitizeUploadFilename(options.filename);
++      const folder = sanitizeUploadFolder(options.folder);
++      const bytes = decodeBase64(options.imageData);
++
++      if (bytes.length === 0) {
++        throw new Error('The file is empty');
++      }
++      if (bytes.length > UPLOAD_MAX_BYTES) {
++        throw new Error(
++          `The file is ${(bytes.length / 1024 / 1024).toFixed(1)} MB; the limit is ${UPLOAD_MAX_BYTES / 1024 / 1024} MB`
++        );
++      }
++      const detected = detectImageType(bytes);
++      if (!detected) {
++        throw new Error('The file is not a PNG, JPEG, WebP or GIF image');
++      }
++      if (!extensionMatchesType(filename, detected)) {
++        throw new Error(
++          `The file content is ${detected.toUpperCase()} but the name says otherwise`
++        );
++      }
++
++      const worldId = (game as any).world?.id;
++      if (!worldId) {
++        throw new Error('No world is loaded');
++      }
++      const FilePickerAPI =
++        (globalThis as any).foundry?.applications?.apps?.FilePicker?.implementation ||
++        (globalThis as any).FilePicker;
++      if (!FilePickerAPI) {
++        throw new Error('Foundry file picker is not available');
++      }
++
++      // Create each level of worlds/<world>/uploads[/folder...]; existing ones are fine.
++      const segments = ['worlds', worldId, 'uploads', ...(folder ? folder.split('/') : [])];
++      let current = '';
++      for (const segment of segments) {
++        current = current ? `${current}/${segment}` : segment;
++        try {
++          await FilePickerAPI.createDirectory('data', current, { bucket: null });
++        } catch (dirError: any) {
++          const message = String(dirError?.message ?? dirError);
++          if (!message.includes('EEXIST') && !message.includes('already exists')) {
++            console.warn(`[${this.moduleId}] Directory creation warning for ${current}:`, message);
++          }
++        }
++      }
++      const directory = current;
++
++      // Do not silently replace an existing file.
++      if (!options.overwrite) {
++        let existing: string[] = [];
++        try {
++          const listing = await FilePickerAPI.browse('data', directory);
++          existing = (listing?.files ?? []).map((f: string) => {
++            try {
++              return decodeURIComponent(String(f));
++            } catch {
++              return String(f); // malformed %-encoding in one entry must not hide the others
++            }
++          });
++        } catch {
++          // Cannot list the folder: carry on rather than block the upload.
++        }
++        if (existing.some(f => f === `${directory}/${filename}` || f.endsWith(`/${filename}`))) {
++          throw new Error(
++            `File already exists: ${directory}/${filename}. Use a different filename or pass overwrite: true`
++          );
++        }
++      }
++
++      const mime = UPLOAD_IMAGE_TYPES[filename.slice(filename.lastIndexOf('.') + 1)];
++      const file = new File([bytes as BlobPart], filename, { type: mime });
++      const response = await FilePickerAPI.upload('data', directory, file, {}, { notify: false });
++      if (!response || !response.path) {
++        throw new Error('Foundry did not confirm the upload (it may have been rejected)');
++      }
++
++      this.auditLog('uploadFile', { filename, folder, bytes: bytes.length }, 'success');
++
++      return {
++        success: true,
++        path: response.path,
++        filename,
++        directory,
++        bytes: bytes.length,
++        contentType: mime,
++      };
++    } catch (error) {
++      this.auditLog(
++        'uploadFile',
++        { filename: options?.filename, folder: options?.folder },
++        'failure',
++        error instanceof Error ? error.message : 'Unknown error'
++      );
++      throw new Error(
++        `Failed to upload file: ${error instanceof Error ? error.message : 'Unknown error'}`
++      );
++    }
++  }
++
    // ===== PLAYLIST MANAGEMENT (CRUD + PLAYBACK) =====
  
    /**
+diff --git a/packages/foundry-module/src/data-access.upload-file.test.ts b/packages/foundry-module/src/data-access.upload-file.test.ts
+new file mode 100644
+index 0000000..83a409c
+--- /dev/null
++++ b/packages/foundry-module/src/data-access.upload-file.test.ts
+@@ -0,0 +1,246 @@
++/**
++ * upload-file tests. Foundry's file picker is stubbed: these check what the bridge asks
++ * Foundry to do (which folders, which file, which checks) and that unsafe input is refused
++ * before anything is uploaded. Whether a real Foundry accepts the upload needs a real world.
++ */
++
++import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
++import { FoundryDataAccess } from './data-access.js';
++import { UPLOAD_MAX_BYTES } from './upload-utils.js';
++
++const PNG_HEAD = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
++
++function pngBase64(extraBytes = 16): string {
++  return Buffer.from([...PNG_HEAD, ...new Array(extraBytes).fill(7)]).toString('base64');
++}
++
++function setup(
++  options: { allowWriteOperations?: boolean; existingFiles?: string[]; noWorld?: boolean } = {}
++) {
++  const createDirectory = vi.fn(async () => undefined);
++  const browse = vi.fn(async () => ({ files: options.existingFiles ?? [] }));
++  const upload = vi.fn(async (_source: string, directory: string, file: File) => ({
++    status: 'success',
++    path: `${directory}/${file.name}`,
++  }));
++
++  vi.stubGlobal('Hooks', { on: vi.fn(), callAll: vi.fn() });
++  vi.stubGlobal('FilePicker', { createDirectory, browse, upload });
++  vi.stubGlobal('game', {
++    ready: true,
++    world: options.noWorld
++      ? { getFlag: vi.fn(() => []), setFlag: vi.fn() }
++      : { id: 'world-1', getFlag: vi.fn(() => []), setFlag: vi.fn() },
++    user: { id: 'gm', name: 'Gamemaster' },
++    settings: {
++      get: (_module: string, key: string) =>
++        key === 'allowWriteOperations' ? (options.allowWriteOperations ?? true) : undefined,
++    },
++  });
++
++  return { dataAccess: new FoundryDataAccess(), createDirectory, browse, upload };
++}
++
++describe('FoundryDataAccess.uploadFile', () => {
++  beforeEach(() => vi.unstubAllGlobals());
++  afterEach(() => vi.unstubAllGlobals());
++
++  it('uploads into the world upload folder and returns the Foundry path', async () => {
++    const { dataAccess, createDirectory, upload } = setup();
++
++    const result = await dataAccess.uploadFile({ filename: 'Cave.PNG', imageData: pngBase64() });
++
++    expect(createDirectory.mock.calls.map(c => c[1])).toEqual([
++      'worlds',
++      'worlds/world-1',
++      'worlds/world-1/uploads',
++    ]);
++    expect(upload).toHaveBeenCalledTimes(1);
++    const [source, directory, file, , uploadOptions] = upload.mock.calls[0] as unknown as [
++      string,
++      string,
++      File,
++      unknown,
++      unknown,
++    ];
++    expect(source).toBe('data');
++    expect(directory).toBe('worlds/world-1/uploads');
++    expect(file.name).toBe('Cave.png');
++    expect(file.type).toBe('image/png');
++    expect(file.size).toBe(PNG_HEAD.length + 16);
++    expect(uploadOptions).toEqual({ notify: false });
++    expect(result).toMatchObject({
++      success: true,
++      path: 'worlds/world-1/uploads/Cave.png',
++      filename: 'Cave.png',
++      directory: 'worlds/world-1/uploads',
++      contentType: 'image/png',
++    });
++  });
++
++  it('creates and uses a nested sub-folder', async () => {
++    const { dataAccess, createDirectory, upload } = setup();
++
++    const result = await dataAccess.uploadFile({
++      filename: 'a.png',
++      imageData: pngBase64(),
++      folder: 'maps/phandelver',
++    });
++
++    expect(createDirectory.mock.calls.map(c => c[1])).toEqual([
++      'worlds',
++      'worlds/world-1',
++      'worlds/world-1/uploads',
++      'worlds/world-1/uploads/maps',
++      'worlds/world-1/uploads/maps/phandelver',
++    ]);
++    expect(upload.mock.calls[0][1]).toBe('worlds/world-1/uploads/maps/phandelver');
++    expect(result.path).toBe('worlds/world-1/uploads/maps/phandelver/a.png');
++  });
++
++  it('keeps going when a directory already exists', async () => {
++    const { dataAccess, createDirectory, upload } = setup();
++    createDirectory.mockRejectedValue(new Error('EEXIST: directory already exists'));
++
++    await expect(
++      dataAccess.uploadFile({ filename: 'a.png', imageData: pngBase64() })
++    ).resolves.toMatchObject({ success: true });
++    expect(upload).toHaveBeenCalled();
++  });
++
++  it('strips a directory or traversal from the filename', async () => {
++    const { dataAccess, upload } = setup();
++
++    const result = await dataAccess.uploadFile({
++      filename: '../../../secret/evil.png',
++      imageData: pngBase64(),
++    });
++
++    expect(result.filename).toBe('evil.png');
++    expect(upload.mock.calls[0][1]).toBe('worlds/world-1/uploads');
++  });
++
++  describe('existing files', () => {
++    it('refuses to replace an existing file by default, before uploading', async () => {
++      const { dataAccess, upload } = setup({
++        existingFiles: ['worlds/world-1/uploads/a.png'],
++      });
++
++      await expect(
++        dataAccess.uploadFile({ filename: 'a.png', imageData: pngBase64() })
++      ).rejects.toThrow('File already exists: worlds/world-1/uploads/a.png');
++      expect(upload).not.toHaveBeenCalled();
++    });
++
++    it('replaces it when overwrite is true, without listing the folder', async () => {
++      const { dataAccess, upload, browse } = setup({
++        existingFiles: ['worlds/world-1/uploads/a.png'],
++      });
++
++      await expect(
++        dataAccess.uploadFile({ filename: 'a.png', imageData: pngBase64(), overwrite: true })
++      ).resolves.toMatchObject({ success: true });
++      expect(upload).toHaveBeenCalledTimes(1);
++      expect(browse).not.toHaveBeenCalled();
++    });
++
++    it('compares against the cleaned name, so "my map.png" is stored as my_map.png', async () => {
++      const { dataAccess, upload } = setup({
++        existingFiles: ['worlds/world-1/uploads/my_map.png'],
++      });
++
++      await expect(
++        dataAccess.uploadFile({ filename: 'my map.png', imageData: pngBase64() })
++      ).rejects.toThrow('File already exists: worlds/world-1/uploads/my_map.png');
++      expect(upload).not.toHaveBeenCalled();
++    });
++
++    it('is not fooled by a malformed entry elsewhere in the listing', async () => {
++      const { dataAccess, upload } = setup({
++        existingFiles: ['worlds/world-1/uploads/bad%E0%A4%A.png', 'worlds/world-1/uploads/a.png'],
++      });
++
++      await expect(
++        dataAccess.uploadFile({ filename: 'a.png', imageData: pngBase64() })
++      ).rejects.toThrow('already exists');
++      expect(upload).not.toHaveBeenCalled();
++    });
++
++    it('still uploads when the folder cannot be listed', async () => {
++      const { dataAccess, browse, upload } = setup();
++      browse.mockRejectedValue(new Error('cannot browse'));
++
++      await dataAccess.uploadFile({ filename: 'a.png', imageData: pngBase64() });
++
++      expect(upload).toHaveBeenCalled();
++    });
++  });
++
++  describe('refuses bad input before uploading anything', () => {
++    it.each([
++      ['a file that is not an image', 'a.png', Buffer.from('just some text').toString('base64')],
++      ['an SVG', 'a.png', Buffer.from('<svg xmlns="x"></svg>').toString('base64')],
++      ['a name that disagrees with the content', 'a.jpg', pngBase64()],
++      ['an unsupported extension', 'a.txt', pngBase64()],
++      ['empty data', 'a.png', ''],
++      ['data that is not base64', 'a.png', '%%%%'],
++    ])('%s', async (_label, filename, imageData) => {
++      const { dataAccess, upload, createDirectory } = setup();
++
++      await expect(dataAccess.uploadFile({ filename, imageData })).rejects.toThrow(
++        /Failed to upload file/
++      );
++      expect(upload).not.toHaveBeenCalled();
++      expect(createDirectory).not.toHaveBeenCalled();
++    });
++
++    it('a file over the size limit', async () => {
++      const { dataAccess, upload } = setup();
++      const big = Buffer.alloc(UPLOAD_MAX_BYTES + 1);
++      Buffer.from(PNG_HEAD).copy(big);
++
++      await expect(
++        dataAccess.uploadFile({ filename: 'big.png', imageData: big.toString('base64') })
++      ).rejects.toThrow('the limit is 20 MB');
++      expect(upload).not.toHaveBeenCalled();
++    });
++
++    it.each(['..', '../outside', 'a/../../b', 'has space'])('the folder "%s"', async folder => {
++      const { dataAccess, upload, createDirectory } = setup();
++
++      await expect(
++        dataAccess.uploadFile({ filename: 'a.png', imageData: pngBase64(), folder })
++      ).rejects.toThrow(/Failed to upload file/);
++      expect(upload).not.toHaveBeenCalled();
++      expect(createDirectory).not.toHaveBeenCalled();
++    });
++  });
++
++  describe('permissions and failures', () => {
++    it('is blocked when write operations are disabled', async () => {
++      const { dataAccess, upload } = setup({ allowWriteOperations: false });
++
++      await expect(
++        dataAccess.uploadFile({ filename: 'a.png', imageData: pngBase64() })
++      ).rejects.toThrow(/disabled in module settings/);
++      expect(upload).not.toHaveBeenCalled();
++    });
++
++    it('needs a loaded world', async () => {
++      const { dataAccess } = setup({ noWorld: true });
++
++      await expect(
++        dataAccess.uploadFile({ filename: 'a.png', imageData: pngBase64() })
++      ).rejects.toThrow('No world is loaded');
++    });
++
++    it('reports an upload that Foundry did not confirm', async () => {
++      const { dataAccess, upload } = setup();
++      upload.mockResolvedValue(false as any);
++
++      await expect(
++        dataAccess.uploadFile({ filename: 'a.png', imageData: pngBase64() })
++      ).rejects.toThrow('did not confirm the upload');
++    });
++  });
++});
 diff --git a/packages/foundry-module/src/main.ts b/packages/foundry-module/src/main.ts
 index 9024ead..b6ea882 100644
 --- a/packages/foundry-module/src/main.ts
@@ -671,7 +1234,7 @@ index 9024ead..b6ea882 100644
          // Handle ChatMessage update requests (GM only)
          if (data.type === 'requestMessageUpdate' && data.buttonId && data.messageId) {
 diff --git a/packages/foundry-module/src/queries.ts b/packages/foundry-module/src/queries.ts
-index 9fe02ba..a9b98da 100644
+index 9fe02ba..0365ea7 100644
 --- a/packages/foundry-module/src/queries.ts
 +++ b/packages/foundry-module/src/queries.ts
 @@ -1,4 +1,4 @@
@@ -689,15 +1252,16 @@ index 9fe02ba..a9b98da 100644
  
      // Character/Actor queries
      CONFIG.queries[`${modulePrefix}.getCharacterInfo`] = this.handleGetCharacterInfo.bind(this);
-@@ -46,6 +46,7 @@ export class QueryHandlers {
+@@ -46,6 +46,8 @@ export class QueryHandlers {
      CONFIG.queries[`${modulePrefix}.list-scenes`] = this.handleListScenes.bind(this);
      CONFIG.queries[`${modulePrefix}.switch-scene`] = this.handleSwitchScene.bind(this);
      CONFIG.queries[`${modulePrefix}.update-scene-music`] = this.handleUpdateSceneMusic.bind(this);
 +    CONFIG.queries[`${modulePrefix}.manage-scenes`] = this.handleManageScenes.bind(this);
++    CONFIG.queries[`${modulePrefix}.upload-file`] = this.handleUploadFile.bind(this);
      CONFIG.queries[`${modulePrefix}.manage-playlists`] = this.handleManagePlaylists.bind(this);
      CONFIG.queries[`${modulePrefix}.control-playlist`] = this.handleControlPlaylist.bind(this);
  
-@@ -184,7 +185,7 @@ export class QueryHandlers {
+@@ -184,7 +186,7 @@ export class QueryHandlers {
     * Unregister all query handlers
     */
    unregisterHandlers(): void {
@@ -706,7 +1270,7 @@ index 9fe02ba..a9b98da 100644
      const keysToRemove = Object.keys(CONFIG.queries).filter(key => key.startsWith(modulePrefix));
  
      for (const key of keysToRemove) {
-@@ -477,7 +478,7 @@ export class QueryHandlers {
+@@ -477,7 +479,7 @@ export class QueryHandlers {
     * Get list of all registered query methods
     */
    getRegisteredMethods(): string[] {
@@ -715,7 +1279,7 @@ index 9fe02ba..a9b98da 100644
      return Object.keys(CONFIG.queries)
        .filter(key => key.startsWith(modulePrefix))
        .map(key => key.replace(`${modulePrefix}.`, ''));
-@@ -487,7 +488,7 @@ export class QueryHandlers {
+@@ -487,7 +489,7 @@ export class QueryHandlers {
     * Test if a specific query handler is registered
     */
    isMethodRegistered(method: string): boolean {
@@ -724,10 +1288,27 @@ index 9fe02ba..a9b98da 100644
      return queryKey in CONFIG.queries && typeof CONFIG.queries[queryKey] === 'function';
    }
  
-@@ -1218,6 +1219,23 @@ export class QueryHandlers {
+@@ -1218,6 +1220,40 @@ export class QueryHandlers {
      }
    }
  
++  private async handleUploadFile(data: any): Promise<any> {
++    try {
++      const gmCheck = this.validateGMAccess();
++      if (!gmCheck.allowed) {
++        return { error: 'Access denied', success: false };
++      }
++      if (!data?.filename || !data?.imageData) {
++        throw new Error('filename and imageData are required');
++      }
++      return await this.dataAccess.uploadFile(data);
++    } catch (error) {
++      throw new Error(
++        `Failed to upload file: ${error instanceof Error ? error.message : 'Unknown error'}`
++      );
++    }
++  }
++
 +  private async handleManageScenes(data: any): Promise<any> {
 +    try {
 +      const gmCheck = this.validateGMAccess();
@@ -748,11 +1329,289 @@ index 9fe02ba..a9b98da 100644
    private async handleManagePlaylists(data: any): Promise<any> {
      try {
        const gmCheck = this.validateGMAccess();
+diff --git a/packages/foundry-module/src/upload-utils.test.ts b/packages/foundry-module/src/upload-utils.test.ts
+new file mode 100644
+index 0000000..909b7f5
+--- /dev/null
++++ b/packages/foundry-module/src/upload-utils.test.ts
+@@ -0,0 +1,108 @@
++import { describe, expect, it } from 'vitest';
++import {
++  decodeBase64,
++  detectImageType,
++  extensionMatchesType,
++  sanitizeUploadFilename,
++  sanitizeUploadFolder,
++} from './upload-utils.js';
++
++const PNG = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0];
++const JPG = [0xff, 0xd8, 0xff, 0xe0, 0, 0x10];
++const GIF = [0x47, 0x49, 0x46, 0x38, 0x39, 0x61, 1, 0];
++const WEBP = [0x52, 0x49, 0x46, 0x46, 1, 2, 3, 4, 0x57, 0x45, 0x42, 0x50];
++
++describe('sanitizeUploadFilename', () => {
++  it('keeps a clean name and lower-cases the extension', () => {
++    expect(sanitizeUploadFilename('cave-map_01.PNG')).toBe('cave-map_01.png');
++  });
++
++  it('drops any directory part, including path traversal', () => {
++    expect(sanitizeUploadFilename('../../etc/evil.png')).toBe('evil.png');
++    expect(sanitizeUploadFilename('C:\\Users\\me\\map.webp')).toBe('map.webp');
++  });
++
++  it('replaces unsafe characters', () => {
++    expect(sanitizeUploadFilename('my map (final)!.jpg')).toBe('my_map__final__.jpg');
++  });
++
++  it('removes leading dots so the name cannot be hidden or relative', () => {
++    expect(sanitizeUploadFilename('..hidden.png')).toBe('hidden.png');
++  });
++
++  it.each(['notes.txt', 'script.js', 'image.svg', 'archive.zip', 'photo.bmp'])(
++    'rejects the extension of %s',
++    name => {
++      expect(() => sanitizeUploadFilename(name)).toThrow(/Unsupported file type/);
++    }
++  );
++
++  it.each(['', '   ', 'noextension', '.png', 'trailingdot.', 42, null, undefined])(
++    'rejects %j',
++    name => {
++      expect(() => sanitizeUploadFilename(name)).toThrow();
++    }
++  );
++});
++
++describe('sanitizeUploadFolder', () => {
++  it('treats empty input as the upload folder itself', () => {
++    expect(sanitizeUploadFolder(undefined)).toBe('');
++    expect(sanitizeUploadFolder('')).toBe('');
++  });
++
++  it('accepts up to three clean levels and normalises separators', () => {
++    expect(sanitizeUploadFolder('maps')).toBe('maps');
++    expect(sanitizeUploadFolder('maps\\phandelver/part_1')).toBe('maps/phandelver/part_1');
++  });
++
++  it.each(['..', '../x', 'a/../b', 'a/.hidden', 'a b', 'maps.old', 'a/b/c/d', 'ünï'])(
++    'rejects %s',
++    folder => {
++      expect(() => sanitizeUploadFolder(folder)).toThrow();
++    }
++  );
++
++  it('rejects a non-string', () => {
++    expect(() => sanitizeUploadFolder(5)).toThrow('folder must be a string');
++  });
++});
++
++describe('detectImageType', () => {
++  it('recognises the four supported formats', () => {
++    expect(detectImageType(Uint8Array.from(PNG))).toBe('png');
++    expect(detectImageType(Uint8Array.from(JPG))).toBe('jpg');
++    expect(detectImageType(Uint8Array.from(GIF))).toBe('gif');
++    expect(detectImageType(Uint8Array.from(WEBP))).toBe('webp');
++  });
++
++  it('returns null for anything else', () => {
++    expect(detectImageType(new TextEncoder().encode('<svg></svg>'))).toBeNull();
++    expect(detectImageType(new TextEncoder().encode('MZ executable'))).toBeNull();
++    expect(detectImageType(new Uint8Array())).toBeNull();
++  });
++
++  it('does not accept RIFF files that are not WebP', () => {
++    const wav = [0x52, 0x49, 0x46, 0x46, 1, 2, 3, 4, 0x57, 0x41, 0x56, 0x45];
++    expect(detectImageType(Uint8Array.from(wav))).toBeNull();
++  });
++});
++
++describe('extensionMatchesType', () => {
++  it('matches the extension to the content, treating jpeg as jpg', () => {
++    expect(extensionMatchesType('a.png', 'png')).toBe(true);
++    expect(extensionMatchesType('a.jpeg', 'jpg')).toBe(true);
++    expect(extensionMatchesType('a.jpg', 'png')).toBe(false);
++    expect(extensionMatchesType('a.webp', 'gif')).toBe(false);
++  });
++});
++
++describe('decodeBase64', () => {
++  it('decodes valid base64', () => {
++    expect(Array.from(decodeBase64(btoa('abc')))).toEqual([97, 98, 99]);
++  });
++
++  it.each(['', '!!!not base64!!!', 123, null])('rejects %j', value => {
++    expect(() => decodeBase64(value)).toThrow();
++  });
++});
+diff --git a/packages/foundry-module/src/upload-utils.ts b/packages/foundry-module/src/upload-utils.ts
+new file mode 100644
+index 0000000..d81af4a
+--- /dev/null
++++ b/packages/foundry-module/src/upload-utils.ts
+@@ -0,0 +1,133 @@
++/**
++ * Pure validation helpers for the upload-file tool.
++ *
++ * The MCP server checks files before sending them and the module checks them again
++ * here, so a bad request is refused on both sides. Only a small set of image types
++ * is accepted, and the bytes must really be that type.
++ */
++
++export const UPLOAD_MAX_BYTES = 20 * 1024 * 1024;
++
++export const UPLOAD_IMAGE_TYPES: Record<string, string> = {
++  png: 'image/png',
++  jpg: 'image/jpeg',
++  jpeg: 'image/jpeg',
++  webp: 'image/webp',
++  gif: 'image/gif',
++};
++
++export type DetectedImageType = 'png' | 'jpg' | 'webp' | 'gif';
++
++/**
++ * Reduce a name to letters, digits, dot, dash and underscore, drop any directory part
++ * and require an allowed image extension. Returns the safe name with a lower-case extension.
++ */
++export function sanitizeUploadFilename(raw: unknown): string {
++  if (typeof raw !== 'string' || !raw.trim()) {
++    throw new Error('filename is required and must be a string');
++  }
++  const base = raw.split(/[\\/]/).pop() ?? '';
++  const cleaned = base.replace(/[^a-zA-Z0-9_.-]/g, '_').replace(/^\.+/, '');
++  const dot = cleaned.lastIndexOf('.');
++  if (dot <= 0 || dot === cleaned.length - 1) {
++    throw new Error('filename needs a name and an extension, for example cave.webp');
++  }
++  const ext = cleaned.slice(dot + 1).toLowerCase();
++  if (!(ext in UPLOAD_IMAGE_TYPES)) {
++    throw new Error(`Unsupported file type ".${ext}". Allowed: png, jpg, jpeg, webp, gif`);
++  }
++  return `${cleaned.slice(0, dot)}.${ext}`;
++}
++
++/**
++ * Validate an optional sub-folder below the world's upload folder: up to three
++ * segments of letters, digits, dash and underscore. No dots, so no ".." either.
++ * Returns the cleaned relative path, or "" for the upload folder itself.
++ */
++export function sanitizeUploadFolder(raw: unknown): string {
++  if (raw === undefined || raw === null || raw === '') return '';
++  if (typeof raw !== 'string') {
++    throw new Error('folder must be a string');
++  }
++  const parts = raw.split(/[\\/]/).filter(Boolean);
++  if (parts.length > 3) {
++    throw new Error('folder may have at most 3 levels');
++  }
++  for (const part of parts) {
++    if (!/^[A-Za-z0-9_-]+$/.test(part)) {
++      throw new Error(
++        `Invalid folder name "${part}": use only letters, digits, dash and underscore`
++      );
++    }
++  }
++  return parts.join('/');
++}
++
++/** Identify an image by its first bytes. Returns null for anything else. */
++export function detectImageType(bytes: Uint8Array): DetectedImageType | null {
++  if (
++    bytes.length >= 8 &&
++    bytes[0] === 0x89 &&
++    bytes[1] === 0x50 &&
++    bytes[2] === 0x4e &&
++    bytes[3] === 0x47 &&
++    bytes[4] === 0x0d &&
++    bytes[5] === 0x0a &&
++    bytes[6] === 0x1a &&
++    bytes[7] === 0x0a
++  ) {
++    return 'png';
++  }
++  if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) {
++    return 'jpg';
++  }
++  if (
++    bytes.length >= 6 &&
++    bytes[0] === 0x47 &&
++    bytes[1] === 0x49 &&
++    bytes[2] === 0x46 &&
++    bytes[3] === 0x38 &&
++    (bytes[4] === 0x37 || bytes[4] === 0x39) &&
++    bytes[5] === 0x61
++  ) {
++    return 'gif';
++  }
++  if (
++    bytes.length >= 12 &&
++    bytes[0] === 0x52 && // R
++    bytes[1] === 0x49 && // I
++    bytes[2] === 0x46 && // F
++    bytes[3] === 0x46 && // F
++    bytes[8] === 0x57 && // W
++    bytes[9] === 0x45 && // E
++    bytes[10] === 0x42 && // B
++    bytes[11] === 0x50 // P
++  ) {
++    return 'webp';
++  }
++  return null;
++}
++
++/** True when a file extension agrees with the detected image type ("jpeg" counts as "jpg"). */
++export function extensionMatchesType(filename: string, detected: DetectedImageType): boolean {
++  const ext = filename.slice(filename.lastIndexOf('.') + 1).toLowerCase();
++  return (ext === 'jpeg' ? 'jpg' : ext) === detected;
++}
++
++/** Decode base64 into bytes. Throws a clear error for text that is not base64. */
++export function decodeBase64(data: unknown): Uint8Array {
++  if (typeof data !== 'string' || !data) {
++    throw new Error('file data is required and must be a base64 string');
++  }
++  let binary: string;
++  try {
++    binary = atob(data);
++  } catch {
++    throw new Error('file data is not valid base64');
++  }
++  const bytes = new Uint8Array(binary.length);
++  for (let i = 0; i < binary.length; i++) {
++    bytes[i] = binary.charCodeAt(i);
++  }
++  return bytes;
++}
 diff --git a/packages/mcp-server/src/backend.ts b/packages/mcp-server/src/backend.ts
-index 8967e33..0db714a 100644
+index 8967e33..b0aefaf 100644
 --- a/packages/mcp-server/src/backend.ts
 +++ b/packages/mcp-server/src/backend.ts
-@@ -1805,6 +1805,11 @@ async function startBackend(): Promise<void> {
+@@ -48,6 +48,7 @@ import { DnD5eAddFeatureTool } from './tools/dnd5e/add-feature.js';
+ import { DnD5eNpcTools } from './tools/dnd5e/npc.js';
+ import { DnD5eFeaturesFromCompendiumTools } from './tools/dnd5e/features.js';
+ import { ChatTools } from './tools/chat.js';
++import { UploadTools } from './tools/upload.js';
+ 
+ const CONTROL_HOST = '127.0.0.1';
+ 
+@@ -1195,6 +1196,7 @@ async function startBackend(): Promise<void> {
+   const compendiumTools = new CompendiumTools({ foundryClient, logger, systemRegistry });
+ 
+   const sceneTools = new SceneTools({ foundryClient, logger });
++  const uploadTools = new UploadTools({ foundryClient, logger });
+   const playlistTools = new PlaylistTools({ foundryClient, logger });
+ 
+   const actorCreationTools = new ActorCreationTools({ foundryClient, logger });
+@@ -1429,6 +1431,8 @@ async function startBackend(): Promise<void> {
+ 
+     ...sceneTools.getToolDefinitions(),
+ 
++    ...uploadTools.getToolDefinitions(),
++
+     ...actorCreationTools.getToolDefinitions(),
+     ...actorManagementTools.getToolDefinitions(),
+     ...effectManagementTools.getToolDefinitions(),
+@@ -1805,6 +1809,16 @@ async function startBackend(): Promise<void> {
  
                    break;
  
@@ -761,9 +1620,58 @@ index 8967e33..0db714a 100644
 +
 +                  break;
 +
++                case 'upload-file':
++                  result = await uploadTools.handleUploadFile(args);
++
++                  break;
++
                  default:
                    throw new Error(`Unknown tool: ${name}`);
                }
+diff --git a/packages/mcp-server/src/foundry-client.ts b/packages/mcp-server/src/foundry-client.ts
+index f3e6d5a..45323a3 100644
+--- a/packages/mcp-server/src/foundry-client.ts
++++ b/packages/mcp-server/src/foundry-client.ts
+@@ -54,7 +54,7 @@ export class FoundryClient {
+     return this.connector.getConnectionType();
+   }
+ 
+-  async query(method: string, data?: any): Promise<any> {
++  async query(method: string, data?: any, timeoutMs?: number): Promise<any> {
+     if (!this.connector.isConnected()) {
+       throw new Error(
+         'Foundry VTT module not connected. Please ensure Foundry is running and the MCP Bridge module is enabled.'
+@@ -64,7 +64,7 @@ export class FoundryClient {
+     this.logger.debug('Sending query to Foundry module', { method, data });
+ 
+     try {
+-      const result = await this.connector.query(method, data);
++      const result = await this.connector.query(method, data, timeoutMs);
+       this.logger.debug('Query successful', { method, hasResult: !!result });
+       return result;
+     } catch (error) {
+diff --git a/packages/mcp-server/src/foundry-connector.ts b/packages/mcp-server/src/foundry-connector.ts
+index 6495485..e335970 100644
+--- a/packages/mcp-server/src/foundry-connector.ts
++++ b/packages/mcp-server/src/foundry-connector.ts
+@@ -356,7 +356,7 @@ export class FoundryConnector {
+     }
+   }
+ 
+-  async query(method: string, data?: any): Promise<any> {
++  async query(method: string, data?: any, timeoutMs: number = 10000): Promise<any> {
+     // Check connection based on active connection type
+     const isConnected =
+       this.activeConnectionType === 'webrtc'
+@@ -379,7 +379,7 @@ export class FoundryConnector {
+       const timeout = setTimeout(() => {
+         this.pendingQueries.delete(queryId);
+         reject(new Error(`Query timeout: ${method}`));
+-      }, 10000); // 10 second timeout
++      }, timeoutMs); // 10 seconds unless a slow call (e.g. a file upload) asks for longer
+ 
+       this.pendingQueries.set(queryId, { resolve, reject, timeout });
+ 
 diff --git a/packages/mcp-server/src/tools/scene.test.ts b/packages/mcp-server/src/tools/scene.test.ts
 new file mode 100644
 index 0000000..cc6efe5
@@ -891,10 +1799,10 @@ index 0000000..cc6efe5
 +  });
 +});
 diff --git a/packages/mcp-server/src/tools/scene.ts b/packages/mcp-server/src/tools/scene.ts
-index 1e422bf..9f9fb11 100644
+index 1e422bf..3893b48 100644
 --- a/packages/mcp-server/src/tools/scene.ts
 +++ b/packages/mcp-server/src/tools/scene.ts
-@@ -72,6 +72,74 @@ export class SceneTools {
+@@ -72,6 +72,75 @@ export class SceneTools {
            required: ['scene_identifier'],
          },
        },
@@ -947,7 +1855,8 @@ index 1e422bf..9f9fb11 100644
 +            },
 +            background_color: {
 +              type: ['string', 'null'],
-+              description: 'Canvas color behind the background, as #RRGGBB, or null',
++              description:
++                "Canvas color behind the background, as #RRGGBB, or null to reset to the default #999999. On Foundry v14 this is stored on the scene's first Level.",
 +            },
 +            token_vision: { type: 'boolean', description: 'Whether tokens need vision to see' },
 +            darkness: { type: 'number', description: 'Ambient darkness, 0 (day) to 1 (night)' },
@@ -969,7 +1878,7 @@ index 1e422bf..9f9fb11 100644
      ];
    }
  
-@@ -147,6 +215,57 @@ export class SceneTools {
+@@ -147,6 +216,57 @@ export class SceneTools {
      }
    }
  
@@ -1027,3 +1936,441 @@ index 1e422bf..9f9fb11 100644
    private formatSceneResponse(sceneData: any, includeTokens: boolean, includeHidden: boolean): any {
      const response: any = {
        id: sceneData.id,
+diff --git a/packages/mcp-server/src/tools/upload.test.ts b/packages/mcp-server/src/tools/upload.test.ts
+new file mode 100644
+index 0000000..941b06b
+--- /dev/null
++++ b/packages/mcp-server/src/tools/upload.test.ts
+@@ -0,0 +1,209 @@
++/**
++ * upload-file tool tests: the MCP server side. It reads a file from this computer, checks
++ * it really is an image, and forwards it to the bridge. The module re-checks everything
++ * and does the actual upload (see foundry-module/src/data-access.upload-file.test.ts).
++ */
++
++import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
++import { promises as fs } from 'fs';
++import os from 'os';
++import path from 'path';
++import { UploadTools, UPLOAD_MAX_BYTES, detectImageType } from './upload.js';
++
++const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3, 4]);
++
++let dir: string;
++
++beforeAll(async () => {
++  dir = await fs.mkdtemp(path.join(os.tmpdir(), 'upload-tool-test-'));
++});
++
++afterAll(async () => {
++  await fs.rm(dir, { recursive: true, force: true });
++});
++
++function makeTools(queryImpl?: (method: string, data: any, timeout?: number) => unknown) {
++  const query = vi.fn(
++    queryImpl ?? (async () => ({ success: true, path: 'worlds/w/uploads/map.png', bytes: 12 }))
++  );
++  const logger: any = {
++    info: vi.fn(),
++    debug: vi.fn(),
++    error: vi.fn(),
++    warn: vi.fn(),
++    child: () => logger,
++  };
++  const tools = new UploadTools({ foundryClient: { query } as any, logger });
++  return { tools, query };
++}
++
++async function writeFile(name: string, content: Buffer | string): Promise<string> {
++  const file = path.join(dir, name);
++  await fs.writeFile(file, content);
++  return file;
++}
++
++describe('upload-file tool definition', () => {
++  it('requires only file_path and advertises the options', () => {
++    const def = makeTools().tools.getToolDefinitions()[0];
++    expect(def.name).toBe('upload-file');
++    expect(def.inputSchema.required).toEqual(['file_path']);
++    const props = def.inputSchema.properties as Record<string, any>;
++    expect(Object.keys(props).sort()).toEqual(['file_path', 'filename', 'folder', 'overwrite']);
++  });
++});
++
++describe('UploadTools.handleUploadFile', () => {
++  it('reads the image, base64-encodes it and forwards it with a long timeout', async () => {
++    const file = await writeFile('map.png', PNG);
++    const { tools, query } = makeTools();
++
++    const result = await tools.handleUploadFile({ file_path: file });
++
++    expect(query).toHaveBeenCalledTimes(1);
++    const [method, data, timeout] = query.mock.calls[0];
++    expect(method).toBe('foundry-mcp-bridge.upload-file');
++    expect(data).toEqual({ filename: 'map.png', imageData: PNG.toString('base64') });
++    expect(timeout).toBe(120000);
++    expect(result).toMatchObject({ success: true, path: 'worlds/w/uploads/map.png' });
++  });
++
++  it('passes folder, filename and overwrite through', async () => {
++    const file = await writeFile('original.png', PNG);
++    const { tools, query } = makeTools();
++
++    await tools.handleUploadFile({
++      file_path: file,
++      folder: 'maps/cave',
++      filename: 'renamed.png',
++      overwrite: true,
++    });
++
++    expect(query.mock.calls[0][1]).toMatchObject({
++      filename: 'renamed.png',
++      folder: 'maps/cave',
++      overwrite: true,
++    });
++  });
++
++  it('refuses a relative path', async () => {
++    const { tools, query } = makeTools();
++
++    await expect(tools.handleUploadFile({ file_path: 'map.png' })).rejects.toThrow(
++      'file_path must be an absolute path'
++    );
++    expect(query).not.toHaveBeenCalled();
++  });
++
++  it('refuses a file that does not exist', async () => {
++    const { tools, query } = makeTools();
++
++    await expect(
++      tools.handleUploadFile({ file_path: path.join(dir, 'missing.png') })
++    ).rejects.toThrow('File not found');
++    expect(query).not.toHaveBeenCalled();
++  });
++
++  it('refuses a directory', async () => {
++    const sub = path.join(dir, 'folder.png');
++    await fs.mkdir(sub, { recursive: true });
++    const { tools, query } = makeTools();
++
++    await expect(tools.handleUploadFile({ file_path: sub })).rejects.toThrow('Not a regular file');
++    expect(query).not.toHaveBeenCalled();
++  });
++
++  it.each([
++    ['a text file', 'notes.txt', 'hello'],
++    ['a script', 'run.js', 'process.exit()'],
++    ['an SVG', 'pic.svg', '<svg></svg>'],
++  ])('refuses %s by extension', async (_label, name, content) => {
++    const file = await writeFile(name, content);
++    const { tools, query } = makeTools();
++
++    await expect(tools.handleUploadFile({ file_path: file })).rejects.toThrow(
++      /Unsupported file type/
++    );
++    expect(query).not.toHaveBeenCalled();
++  });
++
++  it('refuses a file that is not really an image, whatever its name says', async () => {
++    const file = await writeFile('fake.png', 'this is a text file renamed to .png');
++    const { tools, query } = makeTools();
++
++    await expect(tools.handleUploadFile({ file_path: file })).rejects.toThrow(
++      'not a PNG, JPEG, WebP or GIF image'
++    );
++    expect(query).not.toHaveBeenCalled();
++  });
++
++  it('refuses an image whose name says a different type', async () => {
++    const file = await writeFile('actually-png.jpg', PNG);
++    const { tools, query } = makeTools();
++
++    await expect(tools.handleUploadFile({ file_path: file })).rejects.toThrow(
++      'content is PNG but its name says ".jpg"'
++    );
++    expect(query).not.toHaveBeenCalled();
++  });
++
++  it('refuses an empty file', async () => {
++    const file = await writeFile('empty.png', Buffer.alloc(0));
++    const { tools, query } = makeTools();
++
++    await expect(tools.handleUploadFile({ file_path: file })).rejects.toThrow('The file is empty');
++    expect(query).not.toHaveBeenCalled();
++  });
++
++  it('refuses a file over the size limit without reading it', async () => {
++    const file = path.join(dir, 'huge.png');
++    const handle = await fs.open(file, 'w');
++    await handle.truncate(UPLOAD_MAX_BYTES + 1); // sparse: cheap to create
++    await handle.close();
++    const { tools, query } = makeTools();
++
++    await expect(tools.handleUploadFile({ file_path: file })).rejects.toThrow('the limit is 20 MB');
++    expect(query).not.toHaveBeenCalled();
++  });
++
++  it('rejects unknown arguments', async () => {
++    const file = await writeFile('map2.png', PNG);
++    const { tools } = makeTools();
++
++    await expect(
++      tools.handleUploadFile({ file_path: file, destination: '/etc' })
++    ).rejects.toThrow();
++  });
++
++  it('surfaces a module refusal clearly', async () => {
++    const file = await writeFile('map3.png', PNG);
++    const { tools } = makeTools(async () => ({ success: false, error: 'Access denied' }));
++
++    await expect(tools.handleUploadFile({ file_path: file })).rejects.toThrow(
++      'Failed to upload file: Access denied'
++    );
++  });
++
++  it('wraps a bridge failure with context', async () => {
++    const file = await writeFile('map4.png', PNG);
++    const { tools } = makeTools(async () => {
++      throw new Error('Foundry VTT module not connected');
++    });
++
++    await expect(tools.handleUploadFile({ file_path: file })).rejects.toThrow(
++      'Failed to upload file: Foundry VTT module not connected'
++    );
++  });
++});
++
++describe('detectImageType (server copy)', () => {
++  it('recognises png, jpg, gif and webp, and nothing else', () => {
++    expect(detectImageType(PNG)).toBe('png');
++    expect(detectImageType(Uint8Array.from([0xff, 0xd8, 0xff, 0xe0]))).toBe('jpg');
++    expect(detectImageType(Uint8Array.from([0x47, 0x49, 0x46, 0x38, 0x39, 0x61]))).toBe('gif');
++    expect(
++      detectImageType(Uint8Array.from([0x52, 0x49, 0x46, 0x46, 0, 0, 0, 0, 0x57, 0x45, 0x42, 0x50]))
++    ).toBe('webp');
++    expect(detectImageType(Buffer.from('<svg>'))).toBeNull();
++  });
++});
+diff --git a/packages/mcp-server/src/tools/upload.ts b/packages/mcp-server/src/tools/upload.ts
+new file mode 100644
+index 0000000..386d634
+--- /dev/null
++++ b/packages/mcp-server/src/tools/upload.ts
+@@ -0,0 +1,188 @@
++import { promises as fs } from 'fs';
++import path from 'path';
++import { z } from 'zod';
++import { FoundryClient } from '../foundry-client.js';
++import { Logger } from '../logger.js';
++
++export interface UploadToolsOptions {
++  foundryClient: FoundryClient;
++  logger: Logger;
++}
++
++/** 20 MB. The module enforces the same limit. */
++export const UPLOAD_MAX_BYTES = 20 * 1024 * 1024;
++
++/** Uploading to a remote server can take a while; the default query timeout is 10 s. */
++const UPLOAD_TIMEOUT_MS = 120000;
++
++const ALLOWED_EXTENSIONS = ['png', 'jpg', 'jpeg', 'webp', 'gif'];
++
++/** Identify an image by its first bytes (png, jpg, gif, webp). */
++export function detectImageType(bytes: Uint8Array): 'png' | 'jpg' | 'gif' | 'webp' | null {
++  const b = bytes;
++  if (
++    b.length >= 8 &&
++    b[0] === 0x89 &&
++    b[1] === 0x50 &&
++    b[2] === 0x4e &&
++    b[3] === 0x47 &&
++    b[4] === 0x0d &&
++    b[5] === 0x0a &&
++    b[6] === 0x1a &&
++    b[7] === 0x0a
++  ) {
++    return 'png';
++  }
++  if (b.length >= 3 && b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) return 'jpg';
++  if (
++    b.length >= 6 &&
++    b[0] === 0x47 &&
++    b[1] === 0x49 &&
++    b[2] === 0x46 &&
++    b[3] === 0x38 &&
++    (b[4] === 0x37 || b[4] === 0x39) &&
++    b[5] === 0x61
++  ) {
++    return 'gif';
++  }
++  if (
++    b.length >= 12 &&
++    b[0] === 0x52 &&
++    b[1] === 0x49 &&
++    b[2] === 0x46 &&
++    b[3] === 0x46 &&
++    b[8] === 0x57 &&
++    b[9] === 0x45 &&
++    b[10] === 0x42 &&
++    b[11] === 0x50
++  ) {
++    return 'webp';
++  }
++  return null;
++}
++
++export class UploadTools {
++  private foundryClient: FoundryClient;
++  private logger: Logger;
++
++  constructor({ foundryClient, logger }: UploadToolsOptions) {
++    this.foundryClient = foundryClient;
++    this.logger = logger.child({ component: 'UploadTools' });
++  }
++
++  getToolDefinitions() {
++    return [
++      {
++        name: 'upload-file',
++        description:
++          "Upload an image from this computer to the Foundry server, into the current world's own folder (worlds/<world>/uploads/...). Returns the Foundry path, which can be used directly as a scene background (manage-scenes) or an actor or token image. Only png, jpg, webp and gif images up to 20 MB are accepted; the file must really be an image. Existing files are not replaced unless overwrite is true.",
++        inputSchema: {
++          type: 'object',
++          properties: {
++            file_path: {
++              type: 'string',
++              description: 'Absolute path of the image file on this computer',
++            },
++            folder: {
++              type: 'string',
++              description:
++                'Optional sub-folder below the world upload folder, up to 3 levels of letters, digits, dash and underscore (e.g. "maps" or "maps/phandelver")',
++            },
++            filename: {
++              type: 'string',
++              description:
++                'Optional name to store it under (letters, digits, dot, dash, underscore). Defaults to the original file name.',
++            },
++            overwrite: {
++              type: 'boolean',
++              description: 'Replace a file with the same name if one exists (default: false)',
++            },
++          },
++          required: ['file_path'],
++        },
++      },
++    ];
++  }
++
++  async handleUploadFile(args: any): Promise<any> {
++    const schema = z
++      .object({
++        file_path: z.string().min(1),
++        folder: z.string().optional(),
++        filename: z.string().min(1).optional(),
++        overwrite: z.boolean().optional(),
++      })
++      .strict();
++    const parsed = schema.parse(args);
++
++    if (!path.isAbsolute(parsed.file_path)) {
++      throw new Error('file_path must be an absolute path');
++    }
++
++    const storedName = parsed.filename ?? path.basename(parsed.file_path);
++    const extension = path.extname(storedName).slice(1).toLowerCase();
++    if (!ALLOWED_EXTENSIONS.includes(extension)) {
++      throw new Error(
++        `Unsupported file type ".${extension}". Allowed: ${ALLOWED_EXTENSIONS.join(', ')}`
++      );
++    }
++
++    let stat;
++    try {
++      stat = await fs.stat(parsed.file_path);
++    } catch {
++      throw new Error(`File not found: ${parsed.file_path}`);
++    }
++    if (!stat.isFile()) {
++      throw new Error(`Not a regular file: ${parsed.file_path}`);
++    }
++    if (stat.size === 0) {
++      throw new Error('The file is empty');
++    }
++    if (stat.size > UPLOAD_MAX_BYTES) {
++      throw new Error(
++        `The file is ${(stat.size / 1024 / 1024).toFixed(1)} MB; the limit is ${UPLOAD_MAX_BYTES / 1024 / 1024} MB`
++      );
++    }
++
++    const bytes = await fs.readFile(parsed.file_path);
++    const detected = detectImageType(bytes);
++    if (!detected) {
++      throw new Error('The file is not a PNG, JPEG, WebP or GIF image');
++    }
++    if ((extension === 'jpeg' ? 'jpg' : extension) !== detected) {
++      throw new Error(
++        `The file content is ${detected.toUpperCase()} but its name says ".${extension}"`
++      );
++    }
++
++    this.logger.info('Uploading file to Foundry', {
++      name: storedName,
++      bytes: bytes.length,
++      folder: parsed.folder,
++    });
++
++    try {
++      const result = await this.foundryClient.query(
++        'foundry-mcp-bridge.upload-file',
++        {
++          filename: storedName,
++          imageData: bytes.toString('base64'),
++          ...(parsed.folder ? { folder: parsed.folder } : {}),
++          ...(parsed.overwrite ? { overwrite: true } : {}),
++        },
++        UPLOAD_TIMEOUT_MS
++      );
++      if (result?.success === false) {
++        throw new Error(result.error || 'Upload was refused');
++      }
++      this.logger.info('File uploaded to Foundry', { path: result?.path });
++      return { success: true, ...result };
++    } catch (error) {
++      this.logger.error('Failed to upload file', error);
++      throw new Error(
++        `Failed to upload file: ${error instanceof Error ? error.message : 'Unknown error'}`
++      );
++    }
++  }
++}
+diff --git a/scripts/mcp-schema-smoke-test.mjs b/scripts/mcp-schema-smoke-test.mjs
+index c84dcd4..639474c 100644
+--- a/scripts/mcp-schema-smoke-test.mjs
++++ b/scripts/mcp-schema-smoke-test.mjs
+@@ -22,7 +22,7 @@ const importDist = async (relativePath) =>
+ 
+ const [{ config }, { Logger }, { FoundryClient }, { CharacterTools }, { CompendiumTools }, { SceneTools },
+   { ActorCreationTools }, { QuestCreationTools }, { DiceRollTools }, { CampaignManagementTools },
+-  { OwnershipTools }, { TokenManipulationTools }, { MapGenerationTools }, { getSystemRegistry },
++  { OwnershipTools }, { TokenManipulationTools }, { MapGenerationTools }, { UploadTools }, { getSystemRegistry },
+   { DnD5eAdapter }, { PF2eAdapter }, { DSA5Adapter }, { CosmereRpgAdapter }] = await Promise.all([
+   importDist('config.js'),
+   importDist('logger.js'),
+@@ -37,6 +37,7 @@ const [{ config }, { Logger }, { FoundryClient }, { CharacterTools }, { Compendi
+   importDist('tools/ownership.js'),
+   importDist('tools/token-manipulation.js'),
+   importDist('tools/map-generation.js'),
++  importDist('tools/upload.js'),
+   importDist('systems/index.js'),
+   importDist('systems/dnd5e/adapter.js'),
+   importDist('systems/pf2e/adapter.js'),
+@@ -64,6 +65,7 @@ const tools = [
+   ...new OwnershipTools({ foundryClient, logger }).getToolDefinitions(),
+   ...new TokenManipulationTools({ foundryClient, logger }).getToolDefinitions(),
+   ...new MapGenerationTools({ foundryClient, logger, backendComfyUIHandlers: {} }).getToolDefinitions(),
++  ...new UploadTools({ foundryClient, logger }).getToolDefinitions(),
+ ];
+ 
+ if (!tools.length) {

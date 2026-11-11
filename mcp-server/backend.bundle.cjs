@@ -445,8 +445,8 @@ var init_parseUtil = __esm({
     init_errors();
     init_en();
     makeIssue = (params) => {
-      const { data, path: path6, errorMaps, issueData } = params;
-      const fullPath = [...path6, ...issueData.path || []];
+      const { data, path: path7, errorMaps, issueData } = params;
+      const fullPath = [...path7, ...issueData.path || []];
       const fullIssue = {
         ...issueData,
         path: fullPath
@@ -754,11 +754,11 @@ var init_types = __esm({
     init_parseUtil();
     init_util();
     ParseInputLazyPath = class {
-      constructor(parent, value, path6, key) {
+      constructor(parent, value, path7, key) {
         this._cachedPath = [];
         this.parent = parent;
         this.data = value;
-        this._path = path6;
+        this._path = path7;
         this._key = key;
       }
       get path() {
@@ -4210,8 +4210,8 @@ var require_package = __commonJS({
 // ../../node_modules/dotenv/lib/main.js
 var require_main = __commonJS({
   "../../node_modules/dotenv/lib/main.js"(exports2, module2) {
-    var fs5 = require("fs");
-    var path6 = require("path");
+    var fs6 = require("fs");
+    var path7 = require("path");
     var os2 = require("os");
     var crypto7 = require("crypto");
     var packageJson = require_package();
@@ -4319,7 +4319,7 @@ var require_main = __commonJS({
       if (options && options.path && options.path.length > 0) {
         if (Array.isArray(options.path)) {
           for (const filepath of options.path) {
-            if (fs5.existsSync(filepath)) {
+            if (fs6.existsSync(filepath)) {
               possibleVaultPath = filepath.endsWith(".vault") ? filepath : `${filepath}.vault`;
             }
           }
@@ -4327,15 +4327,15 @@ var require_main = __commonJS({
           possibleVaultPath = options.path.endsWith(".vault") ? options.path : `${options.path}.vault`;
         }
       } else {
-        possibleVaultPath = path6.resolve(process.cwd(), ".env.vault");
+        possibleVaultPath = path7.resolve(process.cwd(), ".env.vault");
       }
-      if (fs5.existsSync(possibleVaultPath)) {
+      if (fs6.existsSync(possibleVaultPath)) {
         return possibleVaultPath;
       }
       return null;
     }
     function _resolveHome(envPath) {
-      return envPath[0] === "~" ? path6.join(os2.homedir(), envPath.slice(1)) : envPath;
+      return envPath[0] === "~" ? path7.join(os2.homedir(), envPath.slice(1)) : envPath;
     }
     function _configVault(options) {
       const debug = Boolean(options && options.debug);
@@ -4352,7 +4352,7 @@ var require_main = __commonJS({
       return { parsed };
     }
     function configDotenv(options) {
-      const dotenvPath = path6.resolve(process.cwd(), ".env");
+      const dotenvPath = path7.resolve(process.cwd(), ".env");
       let encoding = "utf8";
       const debug = Boolean(options && options.debug);
       const quiet = options && "quiet" in options ? options.quiet : true;
@@ -4376,13 +4376,13 @@ var require_main = __commonJS({
       }
       let lastError;
       const parsedAll = {};
-      for (const path7 of optionPaths) {
+      for (const path8 of optionPaths) {
         try {
-          const parsed = DotenvModule.parse(fs5.readFileSync(path7, { encoding }));
+          const parsed = DotenvModule.parse(fs6.readFileSync(path8, { encoding }));
           DotenvModule.populate(parsedAll, parsed, options);
         } catch (e) {
           if (debug) {
-            _debug(`Failed to load ${path7} ${e.message}`);
+            _debug(`Failed to load ${path8} ${e.message}`);
           }
           lastError = e;
         }
@@ -4397,7 +4397,7 @@ var require_main = __commonJS({
         const shortPaths = [];
         for (const filePath of optionPaths) {
           try {
-            const relative = path6.relative(process.cwd(), filePath);
+            const relative = path7.relative(process.cwd(), filePath);
             shortPaths.push(relative);
           } catch (e) {
             if (debug) {
@@ -12421,15 +12421,15 @@ var require_route = __commonJS({
       };
     }
     function wrapConversion(toModel, graph) {
-      var path6 = [graph[toModel].parent, toModel];
+      var path7 = [graph[toModel].parent, toModel];
       var fn = conversions[graph[toModel].parent][toModel];
       var cur = graph[toModel].parent;
       while (graph[cur].parent) {
-        path6.unshift(graph[cur].parent);
+        path7.unshift(graph[cur].parent);
         fn = link(conversions[graph[cur].parent][cur], fn);
         cur = graph[cur].parent;
       }
-      fn.conversion = path6;
+      fn.conversion = path7;
       return fn;
     }
     module2.exports = function(fromModel) {
@@ -13086,7 +13086,7 @@ var require_node2 = __commonJS({
 var require_tail_file = __commonJS({
   "../../node_modules/winston/lib/winston/tail-file.js"(exports2, module2) {
     "use strict";
-    var fs5 = require("fs");
+    var fs6 = require("fs");
     var { StringDecoder } = require("string_decoder");
     var { Stream } = require_readable();
     function noop2() {
@@ -13107,7 +13107,7 @@ var require_tail_file = __commonJS({
         stream4.emit("end");
         stream4.emit("close");
       };
-      fs5.open(options.file, "a+", "0644", (err, fd) => {
+      fs6.open(options.file, "a+", "0644", (err, fd) => {
         if (err) {
           if (!iter) {
             stream4.emit("error", err);
@@ -13119,10 +13119,10 @@ var require_tail_file = __commonJS({
         }
         (function read() {
           if (stream4.destroyed) {
-            fs5.close(fd, noop2);
+            fs6.close(fd, noop2);
             return;
           }
-          return fs5.read(fd, buffer, 0, buffer.length, pos, (error, bytes) => {
+          return fs6.read(fd, buffer, 0, buffer.length, pos, (error, bytes) => {
             if (error) {
               if (!iter) {
                 stream4.emit("error", error);
@@ -13181,8 +13181,8 @@ var require_tail_file = __commonJS({
 var require_file = __commonJS({
   "../../node_modules/winston/lib/winston/transports/file.js"(exports2, module2) {
     "use strict";
-    var fs5 = require("fs");
-    var path6 = require("path");
+    var fs6 = require("fs");
+    var path7 = require("path");
     var asyncSeries = require_series();
     var zlib2 = require("zlib");
     var { MESSAGE } = require_triple_beam();
@@ -13212,14 +13212,14 @@ var require_file = __commonJS({
         this._onError = this._onError.bind(this);
         if (options.filename || options.dirname) {
           throwIf("filename or dirname", "stream");
-          this._basename = this.filename = options.filename ? path6.basename(options.filename) : "winston.log";
-          this.dirname = options.dirname || path6.dirname(options.filename);
+          this._basename = this.filename = options.filename ? path7.basename(options.filename) : "winston.log";
+          this.dirname = options.dirname || path7.dirname(options.filename);
           this.options = options.options || { flags: "a" };
         } else if (options.stream) {
           console.warn("options.stream will be removed in winston@4. Use winston.transports.Stream");
           throwIf("stream", "filename", "maxsize");
           this._dest = this._stream.pipe(this._setupStream(options.stream));
-          this.dirname = path6.dirname(this._dest.path);
+          this.dirname = path7.dirname(this._dest.path);
         } else {
           throw new Error("Cannot log to file without filename or stream.");
         }
@@ -13362,11 +13362,11 @@ var require_file = __commonJS({
           options = {};
         }
         options = normalizeQuery(options);
-        const file = path6.join(this.dirname, this.filename);
+        const file = path7.join(this.dirname, this.filename);
         let buff = "";
         let results = [];
         let row = 0;
-        const stream4 = fs5.createReadStream(file, {
+        const stream4 = fs6.createReadStream(file, {
           encoding: "utf8"
         });
         stream4.on("error", (err) => {
@@ -13468,7 +13468,7 @@ var require_file = __commonJS({
        * TODO: Refactor me.
        */
       stream(options = {}) {
-        const file = path6.join(this.dirname, this.filename);
+        const file = path7.join(this.dirname, this.filename);
         const stream4 = new Stream();
         const tail = {
           file,
@@ -13520,8 +13520,8 @@ var require_file = __commonJS({
        */
       stat(callback) {
         const target = this._getFile();
-        const fullpath = path6.join(this.dirname, target);
-        fs5.stat(fullpath, (err, stat) => {
+        const fullpath = path7.join(this.dirname, target);
+        fs6.stat(fullpath, (err, stat) => {
           if (err && err.code === "ENOENT") {
             debug("ENOENT\xA0ok", fullpath);
             this.filename = target;
@@ -13624,9 +13624,9 @@ var require_file = __commonJS({
        * @returns {WritableStream} Stream that writes to disk for the active file.
        */
       _createStream(source) {
-        const fullpath = path6.join(this.dirname, this.filename);
+        const fullpath = path7.join(this.dirname, this.filename);
         debug("create stream start", fullpath, this.options);
-        const dest = fs5.createWriteStream(fullpath, this.options).on("error", (err) => debug(err)).on("close", () => debug("close", dest.path, dest.bytesWritten)).on("open", () => {
+        const dest = fs6.createWriteStream(fullpath, this.options).on("error", (err) => debug(err)).on("close", () => debug("close", dest.path, dest.bytesWritten)).on("open", () => {
           debug("file open ok", fullpath);
           this.emit("open", fullpath);
           source.pipe(dest);
@@ -13649,16 +13649,16 @@ var require_file = __commonJS({
        */
       _incFile(callback) {
         debug("_incFile", this.filename);
-        const ext = path6.extname(this._basename);
-        const basename2 = path6.basename(this._basename, ext);
+        const ext = path7.extname(this._basename);
+        const basename2 = path7.basename(this._basename, ext);
         const tasks = [];
         if (this.zippedArchive) {
           tasks.push(
             function(cb) {
               const num = this._created > 0 && !this.tailable ? this._created : "";
               this._compressFile(
-                path6.join(this.dirname, `${basename2}${num}${ext}`),
-                path6.join(this.dirname, `${basename2}${num}${ext}.gz`),
+                path7.join(this.dirname, `${basename2}${num}${ext}`),
+                path7.join(this.dirname, `${basename2}${num}${ext}.gz`),
                 cb
               );
             }.bind(this)
@@ -13683,8 +13683,8 @@ var require_file = __commonJS({
        * @private
        */
       _getFile() {
-        const ext = path6.extname(this._basename);
-        const basename2 = path6.basename(this._basename, ext);
+        const ext = path7.extname(this._basename);
+        const basename2 = path7.basename(this._basename, ext);
         const isRotation = this.rotationFormat ? this.rotationFormat() : this._created;
         return !this.tailable && this._created ? `${basename2}${isRotation}${ext}` : `${basename2}${ext}`;
       }
@@ -13704,8 +13704,8 @@ var require_file = __commonJS({
         const isOldest = oldest !== 0 ? oldest : "";
         const isZipped = this.zippedArchive ? ".gz" : "";
         const filePath = `${basename2}${isOldest}${ext}${isZipped}`;
-        const target = path6.join(this.dirname, filePath);
-        fs5.unlink(target, callback);
+        const target = path7.join(this.dirname, filePath);
+        fs6.unlink(target, callback);
       }
       /**
        * Roll files forward based on integer, up to maxFiles. e.g. if base if
@@ -13727,20 +13727,20 @@ var require_file = __commonJS({
         for (let x = this.maxFiles - 1; x > 1; x--) {
           tasks.push(function(i, cb) {
             let fileName = `${basename2}${i - 1}${ext}${isZipped}`;
-            const tmppath = path6.join(this.dirname, fileName);
-            fs5.exists(tmppath, (exists) => {
+            const tmppath = path7.join(this.dirname, fileName);
+            fs6.exists(tmppath, (exists) => {
               if (!exists) {
                 return cb(null);
               }
               fileName = `${basename2}${i}${ext}${isZipped}`;
-              fs5.rename(tmppath, path6.join(this.dirname, fileName), cb);
+              fs6.rename(tmppath, path7.join(this.dirname, fileName), cb);
             });
           }.bind(this, x));
         }
         asyncSeries(tasks, () => {
-          fs5.rename(
-            path6.join(this.dirname, `${basename2}${ext}${isZipped}`),
-            path6.join(this.dirname, `${basename2}1${ext}${isZipped}`),
+          fs6.rename(
+            path7.join(this.dirname, `${basename2}${ext}${isZipped}`),
+            path7.join(this.dirname, `${basename2}1${ext}${isZipped}`),
             callback
           );
         });
@@ -13754,22 +13754,22 @@ var require_file = __commonJS({
        * @private
        */
       _compressFile(src, dest, callback) {
-        fs5.access(src, fs5.F_OK, (err) => {
+        fs6.access(src, fs6.F_OK, (err) => {
           if (err) {
             return callback();
           }
           var gzip = zlib2.createGzip();
-          var inp = fs5.createReadStream(src);
-          var out = fs5.createWriteStream(dest);
+          var inp = fs6.createReadStream(src);
+          var out = fs6.createWriteStream(dest);
           out.on("finish", () => {
-            fs5.unlink(src, callback);
+            fs6.unlink(src, callback);
           });
           inp.pipe(gzip).pipe(out);
         });
       }
       _createLogDirIfNotExist(dirPath) {
-        if (!fs5.existsSync(dirPath)) {
-          fs5.mkdirSync(dirPath, { recursive: true });
+        if (!fs6.existsSync(dirPath)) {
+          fs6.mkdirSync(dirPath, { recursive: true });
         }
       }
     };
@@ -13853,9 +13853,9 @@ var require_http = __commonJS({
         };
         const auth = options.params.auth || null;
         delete options.params.auth;
-        const path6 = options.params.path || null;
+        const path7 = options.params.path || null;
         delete options.params.path;
-        this._request(options, auth, path6, (err, res, body) => {
+        this._request(options, auth, path7, (err, res, body) => {
           if (res && res.statusCode !== 200) {
             err = new Error(`Invalid HTTP Status Code: ${res.statusCode}`);
           }
@@ -13883,12 +13883,12 @@ var require_http = __commonJS({
           method: "stream",
           params: options
         };
-        const path6 = options.params.path || null;
+        const path7 = options.params.path || null;
         delete options.params.path;
         const auth = options.params.auth || null;
         delete options.params.auth;
         let buff = "";
-        const req = this._request(options, auth, path6);
+        const req = this._request(options, auth, path7);
         stream4.destroy = () => req.destroy();
         req.on("data", (data) => {
           data = (buff + data).split(/\n+/);
@@ -13914,14 +13914,14 @@ var require_http = __commonJS({
        * @param {string} path - request path
        * @param {function} callback - Continuation to respond to when complete.
        */
-      _request(options, auth, path6, callback) {
+      _request(options, auth, path7, callback) {
         options = options || {};
         auth = auth || this.auth;
-        path6 = path6 || this.path || "";
+        path7 = path7 || this.path || "";
         if (this.batch) {
-          this._doBatch(options, callback, auth, path6);
+          this._doBatch(options, callback, auth, path7);
         } else {
-          this._doRequest(options, callback, auth, path6);
+          this._doRequest(options, callback, auth, path7);
         }
       }
       /**
@@ -13931,18 +13931,18 @@ var require_http = __commonJS({
        * @param {Object?} auth - authentication options
        * @param {string} path - request path
        */
-      _doBatch(options, callback, auth, path6) {
+      _doBatch(options, callback, auth, path7) {
         this.batchOptions.push(options);
         if (this.batchOptions.length === 1) {
           const me = this;
           this.batchCallback = callback;
           this.batchTimeoutID = setTimeout(function() {
             me.batchTimeoutID = -1;
-            me._doBatchRequest(me.batchCallback, auth, path6);
+            me._doBatchRequest(me.batchCallback, auth, path7);
           }, this.batchInterval);
         }
         if (this.batchOptions.length === this.batchCount) {
-          this._doBatchRequest(this.batchCallback, auth, path6);
+          this._doBatchRequest(this.batchCallback, auth, path7);
         }
       }
       /**
@@ -13951,14 +13951,14 @@ var require_http = __commonJS({
        * @param {Object?} auth - authentication options
        * @param {string} path - request path
        */
-      _doBatchRequest(callback, auth, path6) {
+      _doBatchRequest(callback, auth, path7) {
         if (this.batchTimeoutID > 0) {
           clearTimeout(this.batchTimeoutID);
           this.batchTimeoutID = -1;
         }
         const batchOptionsCopy = this.batchOptions.slice();
         this.batchOptions = [];
-        this._doRequest(batchOptionsCopy, callback, auth, path6);
+        this._doRequest(batchOptionsCopy, callback, auth, path7);
       }
       /**
        * Make a request to a winstond server or any http server which can
@@ -13968,7 +13968,7 @@ var require_http = __commonJS({
        * @param {Object?} auth - authentication options
        * @param {string} path - request path
        */
-      _doRequest(options, callback, auth, path6) {
+      _doRequest(options, callback, auth, path7) {
         const headers = Object.assign({}, this.headers);
         if (auth && auth.bearer) {
           headers.Authorization = `Bearer ${auth.bearer}`;
@@ -13978,7 +13978,7 @@ var require_http = __commonJS({
           method: "POST",
           host: this.host,
           port: this.port,
-          path: `/${path6.replace(/^\//, "")}`,
+          path: `/${path7.replace(/^\//, "")}`,
           headers,
           auth: auth && auth.username && auth.password ? `${auth.username}:${auth.password}` : "",
           agent: this.agent
@@ -28182,8 +28182,8 @@ var require_depacketizer = __commonJS({
     var __1 = require_src4();
     var codec_1 = require_codec();
     var helper_1 = require_helper2();
-    var path6 = `werift-rtp : packages/rtp/src/processor/depacketizer.ts`;
-    var log = (0, debug_1.default)(path6);
+    var path7 = `werift-rtp : packages/rtp/src/processor/depacketizer.ts`;
+    var log = (0, debug_1.default)(path7);
     var DepacketizeBase = class {
       constructor(codec, options = {}) {
         Object.defineProperty(this, "codec", {
@@ -30812,14 +30812,14 @@ var require_webmCallback = __commonJS({
       }
     };
     exports2.WebmCallback = WebmCallback;
-    var saveToFileSystem = (path6) => async (value) => {
+    var saveToFileSystem = (path7) => async (value) => {
       if (value.saveToFile) {
-        await (0, promises_1.appendFile)(path6, value.saveToFile);
+        await (0, promises_1.appendFile)(path7, value.saveToFile);
       } else if (value.eol) {
         const { durationElement } = value.eol;
-        const handler = await (0, promises_1.open)(path6, "r+");
+        const handler = await (0, promises_1.open)(path7, "r+");
         await handler.write(durationElement, 0, durationElement.length, webm_1.DurationPosition);
-        const meta = await (0, promises_1.stat)(path6);
+        const meta = await (0, promises_1.stat)(path7);
         const resize = (0, webm_1.replaceSegmentSize)(meta.size);
         await handler.write(resize, 0, resize.length, webm_1.SegmentSizePosition);
         await handler.close();
@@ -35384,12 +35384,12 @@ var require_writer = __commonJS({
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.MediaWriter = void 0;
     var MediaWriter = class {
-      constructor(path6, options) {
+      constructor(path7, options) {
         Object.defineProperty(this, "path", {
           enumerable: true,
           configurable: true,
           writable: true,
-          value: path6
+          value: path7
         });
         Object.defineProperty(this, "options", {
           enumerable: true,
@@ -35529,7 +35529,7 @@ var require_recorder = __commonJS({
     exports2.MediaRecorder = void 0;
     var webm_1 = require_webm3();
     var MediaRecorder = class {
-      constructor(tracks, path6, options = {}) {
+      constructor(tracks, path7, options = {}) {
         Object.defineProperty(this, "tracks", {
           enumerable: true,
           configurable: true,
@@ -35540,7 +35540,7 @@ var require_recorder = __commonJS({
           enumerable: true,
           configurable: true,
           writable: true,
-          value: path6
+          value: path7
         });
         Object.defineProperty(this, "options", {
           enumerable: true,
@@ -35560,11 +35560,11 @@ var require_recorder = __commonJS({
           writable: true,
           value: void 0
         });
-        this.ext = path6.split(".").slice(-1)[0];
+        this.ext = path7.split(".").slice(-1)[0];
         this.writer = (() => {
           switch (this.ext) {
             case "webm":
-              return new webm_1.WebmFactory(path6, options);
+              return new webm_1.WebmFactory(path7, options);
             default:
               throw new Error();
           }
@@ -35597,18 +35597,18 @@ var require_userMedia = __commonJS({
     var src_1 = require_src();
     var src_2 = require_src4();
     var track_1 = require_track();
-    var getUserMedia = async (path6, loop) => {
+    var getUserMedia = async (path7, loop) => {
       const audioPort = await (0, src_1.randomPort)();
       const videoPort = await (0, src_1.randomPort)();
-      if (path6.endsWith(".mp4")) {
-        return new MediaPlayerMp4(audioPort, videoPort, path6, loop);
+      if (path7.endsWith(".mp4")) {
+        return new MediaPlayerMp4(audioPort, videoPort, path7, loop);
       } else {
-        return new MediaPlayerWebm(audioPort, videoPort, path6, loop);
+        return new MediaPlayerWebm(audioPort, videoPort, path7, loop);
       }
     };
     exports2.getUserMedia = getUserMedia;
     var MediaPlayerMp4 = class {
-      constructor(videoPort, audioPort, path6, loop) {
+      constructor(videoPort, audioPort, path7, loop) {
         Object.defineProperty(this, "videoPort", {
           enumerable: true,
           configurable: true,
@@ -35625,7 +35625,7 @@ var require_userMedia = __commonJS({
           enumerable: true,
           configurable: true,
           writable: true,
-          value: path6
+          value: path7
         });
         Object.defineProperty(this, "loop", {
           enumerable: true,
@@ -35711,7 +35711,7 @@ var require_userMedia = __commonJS({
     };
     exports2.MediaPlayerMp4 = MediaPlayerMp4;
     var MediaPlayerWebm = class {
-      constructor(videoPort, audioPort, path6, loop) {
+      constructor(videoPort, audioPort, path7, loop) {
         Object.defineProperty(this, "videoPort", {
           enumerable: true,
           configurable: true,
@@ -35728,7 +35728,7 @@ var require_userMedia = __commonJS({
           enumerable: true,
           configurable: true,
           writable: true,
-          value: path6
+          value: path7
         });
         Object.defineProperty(this, "loop", {
           enumerable: true,
@@ -42097,13 +42097,13 @@ function __disposeResources(env) {
   }
   return next();
 }
-function __rewriteRelativeImportExtension(path6, preserveJsx) {
-  if (typeof path6 === "string" && /^\.\.?\//.test(path6)) {
-    return path6.replace(/\.(tsx)$|((?:\.d)?)((?:\.[^./]+?)?)\.([cm]?)ts$/i, function(m, tsx, d, ext, cm) {
+function __rewriteRelativeImportExtension(path7, preserveJsx) {
+  if (typeof path7 === "string" && /^\.\.?\//.test(path7)) {
+    return path7.replace(/\.(tsx)$|((?:\.d)?)((?:\.[^./]+?)?)\.([cm]?)ts$/i, function(m, tsx, d, ext, cm) {
       return tsx ? preserveJsx ? ".jsx" : ".js" : d && (!ext || !cm) ? m : d + ext + "." + cm.toLowerCase() + "js";
     });
   }
-  return path6;
+  return path7;
 }
 var extendStatics, __assign, __createBinding, __setModuleDefault, ownKeys, _SuppressedError, tslib_es6_default;
 var init_tslib_es6 = __esm({
@@ -57288,14 +57288,14 @@ var require_dependency_container = __commonJS({
           provider = providerOrConstructor;
         }
         if (providers_1.isTokenProvider(provider)) {
-          const path6 = [token];
+          const path7 = [token];
           let tokenProvider = provider;
           while (tokenProvider != null) {
             const currentToken = tokenProvider.useToken;
-            if (path6.includes(currentToken)) {
-              throw new Error(`Token registration cycle detected! ${[...path6, currentToken].join(" -> ")}`);
+            if (path7.includes(currentToken)) {
+              throw new Error(`Token registration cycle detected! ${[...path7, currentToken].join(" -> ")}`);
             }
-            path6.push(currentToken);
+            path7.push(currentToken);
             const registration = this._registry.get(currentToken);
             if (registration && providers_1.isTokenProvider(registration.provider)) {
               tokenProvider = registration.provider;
@@ -98343,11 +98343,11 @@ var require_mime_types = __commonJS({
       }
       return exts[0];
     }
-    function lookup(path6) {
-      if (!path6 || typeof path6 !== "string") {
+    function lookup(path7) {
+      if (!path7 || typeof path7 !== "string") {
         return false;
       }
-      var extension2 = extname("x." + path6).toLowerCase().substr(1);
+      var extension2 = extname("x." + path7).toLowerCase().substr(1);
       if (!extension2) {
         return false;
       }
@@ -99452,11 +99452,11 @@ var require_form_data = __commonJS({
     "use strict";
     var CombinedStream = require_combined_stream();
     var util4 = require("util");
-    var path6 = require("path");
+    var path7 = require("path");
     var http2 = require("http");
     var https2 = require("https");
     var parseUrl = require("url").parse;
-    var fs5 = require("fs");
+    var fs6 = require("fs");
     var Stream = require("stream").Stream;
     var crypto7 = require("crypto");
     var mime = require_mime_types();
@@ -99523,7 +99523,7 @@ var require_form_data = __commonJS({
         if (value.end != void 0 && value.end != Infinity && value.start != void 0) {
           callback(null, value.end + 1 - (value.start ? value.start : 0));
         } else {
-          fs5.stat(value.path, function(err, stat) {
+          fs6.stat(value.path, function(err, stat) {
             if (err) {
               callback(err);
               return;
@@ -99580,11 +99580,11 @@ var require_form_data = __commonJS({
     FormData3.prototype._getContentDisposition = function(value, options) {
       var filename;
       if (typeof options.filepath === "string") {
-        filename = path6.normalize(options.filepath).replace(/\\/g, "/");
+        filename = path7.normalize(options.filepath).replace(/\\/g, "/");
       } else if (options.filename || value && (value.name || value.path)) {
-        filename = path6.basename(options.filename || value && (value.name || value.path));
+        filename = path7.basename(options.filename || value && (value.name || value.path));
       } else if (value && value.readable && hasOwn(value, "httpVersion")) {
-        filename = path6.basename(value.client._httpMessage.path || "");
+        filename = path7.basename(value.client._httpMessage.path || "");
       }
       if (filename) {
         return 'filename="' + filename + '"';
@@ -99781,10 +99781,10 @@ function isVisitable(thing) {
 function removeBrackets(key) {
   return utils_default.endsWith(key, "[]") ? key.slice(0, -2) : key;
 }
-function renderKey(path6, key, dots) {
-  if (!path6)
+function renderKey(path7, key, dots) {
+  if (!path7)
     return key;
-  return path6.concat(key).map(function each(token, i) {
+  return path7.concat(key).map(function each(token, i) {
     token = removeBrackets(token);
     return !dots && i ? "[" + token + "]" : token;
   }).join(dots ? "." : "");
@@ -99830,9 +99830,9 @@ function toFormData(obj, formData, options) {
     }
     return value;
   }
-  function defaultVisitor(value, key, path6) {
+  function defaultVisitor(value, key, path7) {
     let arr = value;
-    if (value && !path6 && typeof value === "object") {
+    if (value && !path7 && typeof value === "object") {
       if (utils_default.endsWith(key, "{}")) {
         key = metaTokens ? key : key.slice(0, -2);
         value = JSON.stringify(value);
@@ -99851,7 +99851,7 @@ function toFormData(obj, formData, options) {
     if (isVisitable(value)) {
       return true;
     }
-    formData.append(renderKey(path6, key, dots), convertValue(value));
+    formData.append(renderKey(path7, key, dots), convertValue(value));
     return false;
   }
   const stack = [];
@@ -99860,11 +99860,11 @@ function toFormData(obj, formData, options) {
     convertValue,
     isVisitable
   });
-  function build(value, path6) {
+  function build(value, path7) {
     if (utils_default.isUndefined(value))
       return;
     if (stack.indexOf(value) !== -1) {
-      throw Error("Circular reference detected in " + path6.join("."));
+      throw Error("Circular reference detected in " + path7.join("."));
     }
     stack.push(value);
     utils_default.forEach(value, function each(el, key) {
@@ -99872,11 +99872,11 @@ function toFormData(obj, formData, options) {
         formData,
         el,
         utils_default.isString(key) ? key.trim() : key,
-        path6,
+        path7,
         exposedHelpers
       );
       if (result === true) {
-        build(el, path6 ? path6.concat(key) : [key]);
+        build(el, path7 ? path7.concat(key) : [key]);
       }
     });
     stack.pop();
@@ -100150,7 +100150,7 @@ var init_platform2 = __esm({
 // ../../node_modules/axios/lib/helpers/toURLEncodedForm.js
 function toURLEncodedForm(data, options) {
   return toFormData_default(data, new platform_default.classes.URLSearchParams(), {
-    visitor: function(value, key, path6, helpers) {
+    visitor: function(value, key, path7, helpers) {
       if (platform_default.isNode && utils_default.isBuffer(value)) {
         this.append(key, value.toString("base64"));
         return false;
@@ -100188,12 +100188,12 @@ function arrayToObject(arr) {
   return obj;
 }
 function formDataToJSON(formData) {
-  function buildPath(path6, value, target, index) {
-    let name = path6[index++];
+  function buildPath(path7, value, target, index) {
+    let name = path7[index++];
     if (name === "__proto__")
       return true;
     const isNumericKey = Number.isFinite(+name);
-    const isLast = index >= path6.length;
+    const isLast = index >= path7.length;
     name = !name && utils_default.isArray(target) ? target.length : name;
     if (isLast) {
       if (utils_default.hasOwnProp(target, name)) {
@@ -100206,7 +100206,7 @@ function formDataToJSON(formData) {
     if (!target[name] || !utils_default.isObject(target[name])) {
       target[name] = [];
     }
-    const result = buildPath(path6, value, target[name], index);
+    const result = buildPath(path7, value, target[name], index);
     if (result && utils_default.isArray(target[name])) {
       target[name] = arrayToObject(target[name]);
     }
@@ -102161,9 +102161,9 @@ var init_http = __esm({
           auth = urlUsername + ":" + urlPassword;
         }
         auth && headers.delete("authorization");
-        let path6;
+        let path7;
         try {
-          path6 = buildURL(
+          path7 = buildURL(
             parsed.pathname + parsed.search,
             config2.params,
             config2.paramsSerializer
@@ -102181,7 +102181,7 @@ var init_http = __esm({
           false
         );
         const options = {
-          path: path6,
+          path: path7,
           method,
           headers: headers.toJSON(),
           agents: { http: config2.httpAgent, https: config2.httpsAgent },
@@ -102426,10 +102426,10 @@ var init_cookies = __esm({
     cookies_default = platform_default.hasStandardBrowserEnv ? (
       // Standard browser envs support document.cookie
       {
-        write(name, value, expires, path6, domain, secure) {
+        write(name, value, expires, path7, domain, secure) {
           const cookie = [name + "=" + encodeURIComponent(value)];
           utils_default.isNumber(expires) && cookie.push("expires=" + new Date(expires).toGMTString());
-          utils_default.isString(path6) && cookie.push("path=" + path6);
+          utils_default.isString(path7) && cookie.push("path=" + path7);
           utils_default.isString(domain) && cookie.push("domain=" + domain);
           secure === true && cookie.push("secure");
           document.cookie = cookie.join("; ");
@@ -103759,8 +103759,8 @@ var init_axios2 = __esm({
 // dist/utils/comfyui-paths.js
 function isValidComfyUIPath(dirPath) {
   try {
-    const mainPyPath = path3.join(dirPath, "main.py");
-    return fs3.existsSync(mainPyPath) && fs3.statSync(mainPyPath).isFile();
+    const mainPyPath = path4.join(dirPath, "main.py");
+    return fs4.existsSync(mainPyPath) && fs4.statSync(mainPyPath).isFile();
   } catch (error) {
     return false;
   }
@@ -103803,13 +103803,13 @@ function getDefaultPythonCommand(installPath) {
     return "python/python.exe";
   } else if (isMac()) {
     if (installPath) {
-      const venvPython = path3.join(installPath, "venv", "bin", "python");
-      if (fs3.existsSync(venvPython)) {
+      const venvPython = path4.join(installPath, "venv", "bin", "python");
+      if (fs4.existsSync(venvPython)) {
         return venvPython;
       }
     }
     const systemPython311 = "/Library/Frameworks/Python.framework/Versions/3.11/bin/python3";
-    if (fs3.existsSync(systemPython311)) {
+    if (fs4.existsSync(systemPython311)) {
       return systemPython311;
     }
     return "python3";
@@ -103817,12 +103817,12 @@ function getDefaultPythonCommand(installPath) {
     return "python3";
   }
 }
-var fs3, path3;
+var fs4, path4;
 var init_comfyui_paths = __esm({
   "dist/utils/comfyui-paths.js"() {
     "use strict";
-    fs3 = __toESM(require("fs"), 1);
-    path3 = __toESM(require("path"), 1);
+    fs4 = __toESM(require("fs"), 1);
+    path4 = __toESM(require("path"), 1);
     init_platform();
   }
 });
@@ -103832,13 +103832,13 @@ var comfyui_client_exports = {};
 __export(comfyui_client_exports, {
   ComfyUIClient: () => ComfyUIClient
 });
-var import_child_process2, fss, path4, SIZE_MAPPING, ComfyUIClient;
+var import_child_process2, fss, path5, SIZE_MAPPING, ComfyUIClient;
 var init_comfyui_client = __esm({
   "dist/comfyui-client.js"() {
     "use strict";
     import_child_process2 = require("child_process");
     fss = __toESM(require("fs"), 1);
-    path4 = __toESM(require("path"), 1);
+    path5 = __toESM(require("path"), 1);
     init_axios2();
     init_wrapper();
     init_platform();
@@ -103928,7 +103928,7 @@ var init_comfyui_client = __esm({
         this.progressCallbacks.delete(promptId);
       }
       getDefaultInstallPath() {
-        return path4.join(getAppDataDir(), "foundry-mcp-server", "ComfyUI-headless");
+        return path5.join(getAppDataDir(), "foundry-mcp-server", "ComfyUI-headless");
       }
       async checkInstallation() {
         if (!this.config.installPath) {
@@ -104001,8 +104001,8 @@ var init_comfyui_client = __esm({
           pythonCommand: this.config.pythonCommand,
           port: this.config.port
         });
-        const mainPyPath = path4.join(this.config.installPath, "main.py");
-        const logPath = path4.join(getAppDataDir(), "comfyui.log");
+        const mainPyPath = path5.join(this.config.installPath, "main.py");
+        const logPath = path5.join(getAppDataDir(), "comfyui.log");
         this.logStream = fss.createWriteStream(logPath, { flags: "a" });
         const spawnOptions = getHiddenProcessSpawnOptions();
         this.process = (0, import_child_process2.spawn)(this.config.pythonCommand, [
@@ -104347,9 +104347,9 @@ var init_comfyui_client = __esm({
 });
 
 // dist/backend.js
-var fs4 = __toESM(require("fs"), 1);
+var fs5 = __toESM(require("fs"), 1);
 var os = __toESM(require("os"), 1);
-var path5 = __toESM(require("path"), 1);
+var path6 = __toESM(require("path"), 1);
 var net = __toESM(require("net"), 1);
 var import_child_process3 = require("child_process");
 
@@ -105182,7 +105182,7 @@ var FoundryConnector = class {
       }));
     }
   }
-  async query(method, data) {
+  async query(method, data, timeoutMs = 1e4) {
     const isConnected = this.activeConnectionType === "webrtc" ? this.webrtcPeer && this.webrtcPeer.getIsConnected() : this.foundrySocket && this.foundrySocket.readyState === import_websocket.default.OPEN;
     if (!isConnected) {
       throw new Error("Not connected to Foundry VTT module");
@@ -105198,7 +105198,7 @@ var FoundryConnector = class {
       const timeout = setTimeout(() => {
         this.pendingQueries.delete(queryId);
         reject(new Error(`Query timeout: ${method}`));
-      }, 1e4);
+      }, timeoutMs);
       this.pendingQueries.set(queryId, { resolve, reject, timeout });
       const message = {
         type: "mcp-query",
@@ -105301,13 +105301,13 @@ var FoundryClient = class {
   getConnectionType() {
     return this.connector.getConnectionType();
   }
-  async query(method, data) {
+  async query(method, data, timeoutMs) {
     if (!this.connector.isConnected()) {
       throw new Error("Foundry VTT module not connected. Please ensure Foundry is running and the MCP Bridge module is enabled.");
     }
     this.logger.debug("Sending query to Foundry module", { method, data });
     try {
-      const result = await this.connector.query(method, data);
+      const result = await this.connector.query(method, data, timeoutMs);
       this.logger.debug("Query successful", { method, hasResult: !!result });
       return result;
     } catch (error) {
@@ -105426,11 +105426,11 @@ var SystemPaths = {
     legendaryActions: null
   }
 };
-function extractSystemValue(data, path6) {
-  if (!path6 || !data) {
+function extractSystemValue(data, path7) {
+  if (!path7 || !data) {
     return void 0;
   }
-  const parts = path6.split(".");
+  const parts = path7.split(".");
   let value = data;
   for (const part of parts) {
     if (value === void 0 || value === null) {
@@ -107801,7 +107801,7 @@ var SceneTools = class {
             },
             background_color: {
               type: ["string", "null"],
-              description: "Canvas color behind the background, as #RRGGBB, or null"
+              description: "Canvas color behind the background, as #RRGGBB, or null to reset to the default #999999. On Foundry v14 this is stored on the scene's first Level."
             },
             token_vision: { type: "boolean", description: "Whether tokens need vision to see" },
             darkness: { type: "number", description: "Ambient darkness, 0 (day) to 1 (night)" },
@@ -112675,8 +112675,8 @@ var getByKeys = (source, keys) => {
   }
   return void 0;
 };
-var getNested = (source, path6) => {
-  const parts = path6.split(".");
+var getNested = (source, path7) => {
+  const parts = path7.split(".");
   let current = source;
   for (const part of parts) {
     if (!isRecord(current) || !(part in current))
@@ -115414,14 +115414,136 @@ var ChatTools = class {
   }
 };
 
+// dist/tools/upload.js
+var import_fs = require("fs");
+var import_path = __toESM(require("path"), 1);
+init_zod();
+var UPLOAD_MAX_BYTES = 20 * 1024 * 1024;
+var UPLOAD_TIMEOUT_MS = 12e4;
+var ALLOWED_EXTENSIONS = ["png", "jpg", "jpeg", "webp", "gif"];
+function detectImageType(bytes) {
+  const b = bytes;
+  if (b.length >= 8 && b[0] === 137 && b[1] === 80 && b[2] === 78 && b[3] === 71 && b[4] === 13 && b[5] === 10 && b[6] === 26 && b[7] === 10) {
+    return "png";
+  }
+  if (b.length >= 3 && b[0] === 255 && b[1] === 216 && b[2] === 255)
+    return "jpg";
+  if (b.length >= 6 && b[0] === 71 && b[1] === 73 && b[2] === 70 && b[3] === 56 && (b[4] === 55 || b[4] === 57) && b[5] === 97) {
+    return "gif";
+  }
+  if (b.length >= 12 && b[0] === 82 && b[1] === 73 && b[2] === 70 && b[3] === 70 && b[8] === 87 && b[9] === 69 && b[10] === 66 && b[11] === 80) {
+    return "webp";
+  }
+  return null;
+}
+var UploadTools = class {
+  foundryClient;
+  logger;
+  constructor({ foundryClient, logger }) {
+    this.foundryClient = foundryClient;
+    this.logger = logger.child({ component: "UploadTools" });
+  }
+  getToolDefinitions() {
+    return [
+      {
+        name: "upload-file",
+        description: "Upload an image from this computer to the Foundry server, into the current world's own folder (worlds/<world>/uploads/...). Returns the Foundry path, which can be used directly as a scene background (manage-scenes) or an actor or token image. Only png, jpg, webp and gif images up to 20 MB are accepted; the file must really be an image. Existing files are not replaced unless overwrite is true.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            file_path: {
+              type: "string",
+              description: "Absolute path of the image file on this computer"
+            },
+            folder: {
+              type: "string",
+              description: 'Optional sub-folder below the world upload folder, up to 3 levels of letters, digits, dash and underscore (e.g. "maps" or "maps/phandelver")'
+            },
+            filename: {
+              type: "string",
+              description: "Optional name to store it under (letters, digits, dot, dash, underscore). Defaults to the original file name."
+            },
+            overwrite: {
+              type: "boolean",
+              description: "Replace a file with the same name if one exists (default: false)"
+            }
+          },
+          required: ["file_path"]
+        }
+      }
+    ];
+  }
+  async handleUploadFile(args) {
+    const schema = external_exports.object({
+      file_path: external_exports.string().min(1),
+      folder: external_exports.string().optional(),
+      filename: external_exports.string().min(1).optional(),
+      overwrite: external_exports.boolean().optional()
+    }).strict();
+    const parsed = schema.parse(args);
+    if (!import_path.default.isAbsolute(parsed.file_path)) {
+      throw new Error("file_path must be an absolute path");
+    }
+    const storedName = parsed.filename ?? import_path.default.basename(parsed.file_path);
+    const extension = import_path.default.extname(storedName).slice(1).toLowerCase();
+    if (!ALLOWED_EXTENSIONS.includes(extension)) {
+      throw new Error(`Unsupported file type ".${extension}". Allowed: ${ALLOWED_EXTENSIONS.join(", ")}`);
+    }
+    let stat;
+    try {
+      stat = await import_fs.promises.stat(parsed.file_path);
+    } catch {
+      throw new Error(`File not found: ${parsed.file_path}`);
+    }
+    if (!stat.isFile()) {
+      throw new Error(`Not a regular file: ${parsed.file_path}`);
+    }
+    if (stat.size === 0) {
+      throw new Error("The file is empty");
+    }
+    if (stat.size > UPLOAD_MAX_BYTES) {
+      throw new Error(`The file is ${(stat.size / 1024 / 1024).toFixed(1)} MB; the limit is ${UPLOAD_MAX_BYTES / 1024 / 1024} MB`);
+    }
+    const bytes = await import_fs.promises.readFile(parsed.file_path);
+    const detected = detectImageType(bytes);
+    if (!detected) {
+      throw new Error("The file is not a PNG, JPEG, WebP or GIF image");
+    }
+    if ((extension === "jpeg" ? "jpg" : extension) !== detected) {
+      throw new Error(`The file content is ${detected.toUpperCase()} but its name says ".${extension}"`);
+    }
+    this.logger.info("Uploading file to Foundry", {
+      name: storedName,
+      bytes: bytes.length,
+      folder: parsed.folder
+    });
+    try {
+      const result = await this.foundryClient.query("foundry-mcp-bridge.upload-file", {
+        filename: storedName,
+        imageData: bytes.toString("base64"),
+        ...parsed.folder ? { folder: parsed.folder } : {},
+        ...parsed.overwrite ? { overwrite: true } : {}
+      }, UPLOAD_TIMEOUT_MS);
+      if (result?.success === false) {
+        throw new Error(result.error || "Upload was refused");
+      }
+      this.logger.info("File uploaded to Foundry", { path: result?.path });
+      return { success: true, ...result };
+    } catch (error) {
+      this.logger.error("Failed to upload file", error);
+      throw new Error(`Failed to upload file: ${error instanceof Error ? error.message : "Unknown error"}`);
+    }
+  }
+};
+
 // dist/backend.js
 var CONTROL_HOST = "127.0.0.1";
 var CONTROL_PORT = 31414;
-var LOCK_FILE = path5.join(os.tmpdir(), "foundry-mcp-backend.lock");
+var LOCK_FILE = path6.join(os.tmpdir(), "foundry-mcp-backend.lock");
 function getBundledPythonPath() {
-  let installDir = path5.join(os.homedir(), "AppData", "Local", "FoundryMCPServer");
+  let installDir = path6.join(os.homedir(), "AppData", "Local", "FoundryMCPServer");
   const currentDir = process.cwd();
-  const execDir = path5.dirname(process.execPath);
+  const execDir = path6.dirname(process.execPath);
   if (currentDir.includes("FoundryMCPServer") || execDir.includes("FoundryMCPServer")) {
     const foundryMcpIndex = currentDir.indexOf("FoundryMCPServer");
     if (foundryMcpIndex !== -1) {
@@ -115433,30 +115555,30 @@ function getBundledPythonPath() {
       }
     }
   }
-  const nestedComfyUIPythonPath = path5.join(installDir, "ComfyUI", "ComfyUI", "python_embeded", "python.exe");
-  if (fs4.existsSync(nestedComfyUIPythonPath)) {
+  const nestedComfyUIPythonPath = path6.join(installDir, "ComfyUI", "ComfyUI", "python_embeded", "python.exe");
+  if (fs5.existsSync(nestedComfyUIPythonPath)) {
     return nestedComfyUIPythonPath;
   }
-  const portablePythonPath = path5.join(installDir, "ComfyUI", "python_embeded", "python.exe");
-  if (fs4.existsSync(portablePythonPath)) {
+  const portablePythonPath = path6.join(installDir, "ComfyUI", "python_embeded", "python.exe");
+  if (fs5.existsSync(portablePythonPath)) {
     return portablePythonPath;
   }
-  const bundledPythonPath = path5.join(installDir, "ComfyUI-env", "Scripts", "python.exe");
-  if (fs4.existsSync(bundledPythonPath)) {
+  const bundledPythonPath = path6.join(installDir, "ComfyUI-env", "Scripts", "python.exe");
+  if (fs5.existsSync(bundledPythonPath)) {
     return bundledPythonPath;
   }
   const fallbackPaths = [
-    path5.join(os.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI", "ComfyUI", "python_embeded", "python.exe"),
-    path5.join(os.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI-headless", "ComfyUI", "python_embeded", "python.exe"),
-    path5.join(os.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI", "python_embeded", "python.exe"),
-    path5.join(os.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI-headless", "python_embeded", "python.exe"),
-    path5.join(os.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI-env", "Scripts", "python.exe"),
-    path5.join(process.cwd(), "..", "..", "ComfyUI-env", "Scripts", "python.exe"),
-    path5.join(__dirname, "..", "..", "..", "ComfyUI-env", "Scripts", "python.exe"),
-    path5.join(os.homedir(), "AppData", "Local", "FoundryMCPServer", "Python", "python.exe")
+    path6.join(os.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI", "ComfyUI", "python_embeded", "python.exe"),
+    path6.join(os.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI-headless", "ComfyUI", "python_embeded", "python.exe"),
+    path6.join(os.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI", "python_embeded", "python.exe"),
+    path6.join(os.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI-headless", "python_embeded", "python.exe"),
+    path6.join(os.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI-env", "Scripts", "python.exe"),
+    path6.join(process.cwd(), "..", "..", "ComfyUI-env", "Scripts", "python.exe"),
+    path6.join(__dirname, "..", "..", "..", "ComfyUI-env", "Scripts", "python.exe"),
+    path6.join(os.homedir(), "AppData", "Local", "FoundryMCPServer", "Python", "python.exe")
   ];
   for (const fallbackPath of fallbackPaths) {
-    if (fs4.existsSync(fallbackPath)) {
+    if (fs5.existsSync(fallbackPath)) {
       return fallbackPath;
     }
   }
@@ -115469,39 +115591,39 @@ var lockFd = null;
 function acquireLock() {
   try {
     try {
-      lockFd = fs4.openSync(LOCK_FILE, "wx");
+      lockFd = fs5.openSync(LOCK_FILE, "wx");
     } catch (err) {
       if (err && err.code === "EEXIST") {
         try {
-          const lockData = fs4.readFileSync(LOCK_FILE, "utf8");
+          const lockData = fs5.readFileSync(LOCK_FILE, "utf8");
           const lockPid = parseInt(lockData.trim(), 10);
           try {
             process.kill(lockPid, 0);
             if (evaluateLockFile(lockPid, LOCK_FILE) === "orphaned") {
               console.error(`Removing orphaned backend lock for PID ${lockPid} (process is not node.exe or lock file is stale)`);
               try {
-                fs4.unlinkSync(LOCK_FILE);
+                fs5.unlinkSync(LOCK_FILE);
               } catch {
               }
-              lockFd = fs4.openSync(LOCK_FILE, "wx");
+              lockFd = fs5.openSync(LOCK_FILE, "wx");
             } else {
               return false;
             }
           } catch {
             console.error(`Removing stale backend lock for PID ${lockPid}`);
             try {
-              fs4.unlinkSync(LOCK_FILE);
+              fs5.unlinkSync(LOCK_FILE);
             } catch {
             }
-            lockFd = fs4.openSync(LOCK_FILE, "wx");
+            lockFd = fs5.openSync(LOCK_FILE, "wx");
           }
         } catch (readErr) {
           console.error("Corrupt backend lock file, removing:", readErr);
           try {
-            fs4.unlinkSync(LOCK_FILE);
+            fs5.unlinkSync(LOCK_FILE);
           } catch {
           }
-          lockFd = fs4.openSync(LOCK_FILE, "wx");
+          lockFd = fs5.openSync(LOCK_FILE, "wx");
         }
       } else {
         console.error("Failed to open backend lock file:", err);
@@ -115510,9 +115632,9 @@ function acquireLock() {
     }
     if (lockFd === null)
       return false;
-    fs4.writeFileSync(lockFd, String(process.pid));
+    fs5.writeFileSync(lockFd, String(process.pid));
     try {
-      fs4.fsyncSync(lockFd);
+      fs5.fsyncSync(lockFd);
     } catch {
     }
     console.error(`Acquired backend lock with PID ${process.pid}`);
@@ -115526,14 +115648,14 @@ function releaseLock() {
   try {
     if (lockFd !== null) {
       try {
-        fs4.closeSync(lockFd);
+        fs5.closeSync(lockFd);
       } catch {
       }
       lockFd = null;
     }
-    if (fs4.existsSync(LOCK_FILE)) {
+    if (fs5.existsSync(LOCK_FILE)) {
       try {
-        fs4.unlinkSync(LOCK_FILE);
+        fs5.unlinkSync(LOCK_FILE);
       } catch {
       }
     }
@@ -115542,20 +115664,20 @@ function releaseLock() {
   }
 }
 async function findComfyUIPath() {
-  const nestedComfyUIPath = path5.join(os.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI", "ComfyUI");
-  if (fs4.existsSync(path5.join(nestedComfyUIPath, "main.py"))) {
+  const nestedComfyUIPath = path6.join(os.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI", "ComfyUI");
+  if (fs5.existsSync(path6.join(nestedComfyUIPath, "main.py"))) {
     return nestedComfyUIPath;
   }
-  const nestedHeadlessPath = path5.join(os.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI-headless", "ComfyUI");
-  if (fs4.existsSync(path5.join(nestedHeadlessPath, "main.py"))) {
+  const nestedHeadlessPath = path6.join(os.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI-headless", "ComfyUI");
+  if (fs5.existsSync(path6.join(nestedHeadlessPath, "main.py"))) {
     return nestedHeadlessPath;
   }
-  const flatPath = path5.join(os.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI");
-  if (fs4.existsSync(path5.join(flatPath, "main.py"))) {
+  const flatPath = path6.join(os.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI");
+  if (fs5.existsSync(path6.join(flatPath, "main.py"))) {
     return flatPath;
   }
-  const legacyFlatPath = path5.join(os.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI-headless");
-  if (fs4.existsSync(path5.join(legacyFlatPath, "main.py"))) {
+  const legacyFlatPath = path6.join(os.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI-headless");
+  if (fs5.existsSync(path6.join(legacyFlatPath, "main.py"))) {
     return legacyFlatPath;
   }
   throw new Error("ComfyUI installation not found");
@@ -115588,7 +115710,7 @@ async function startComfyUIService(logger) {
     logger.info("Starting ComfyUI service...");
     const comfyUIPath = await findComfyUIPath();
     logger.info("ComfyUI found", { path: comfyUIPath });
-    logger.info("Starting ComfyUI process", { path: path5.join(comfyUIPath, "main.py") });
+    logger.info("Starting ComfyUI process", { path: path6.join(comfyUIPath, "main.py") });
     const pythonExe = getBundledPythonPath();
     logger.info("Using bundled Python", { pythonPath: pythonExe });
     comfyuiProcess = (0, import_child_process3.spawn)(pythonExe, [
@@ -115980,8 +116102,8 @@ async function processMapGenerationInBackend(jobId, jobQueue, comfyuiClient, log
 `);
     await fs22.appendFile(processDebugLog, `[${(/* @__PURE__ */ new Date()).toISOString()}] About to import fs/path/os for upload...
 `);
-    const fs5 = await import("fs").then((m) => m.promises);
-    const path6 = await import("path");
+    const fs6 = await import("fs").then((m) => m.promises);
+    const path7 = await import("path");
     const os3 = await import("os");
     await fs22.appendFile(processDebugLog, `[${(/* @__PURE__ */ new Date()).toISOString()}] Imports complete
 `);
@@ -116007,8 +116129,8 @@ async function processMapGenerationInBackend(jobId, jobQueue, comfyuiClient, log
     await fs22.appendFile(processDebugLog, `[${(/* @__PURE__ */ new Date()).toISOString()}] Using upload method for all connections
 `);
     const debugLog = async (msg) => {
-      const logPath = path6.join(os3.tmpdir(), "foundry-mcp-upload-debug.log");
-      await fs5.appendFile(logPath, `[${(/* @__PURE__ */ new Date()).toISOString()}] ${msg}
+      const logPath = path7.join(os3.tmpdir(), "foundry-mcp-upload-debug.log");
+      await fs6.appendFile(logPath, `[${(/* @__PURE__ */ new Date()).toISOString()}] ${msg}
 `);
     };
     await debugLog(`=== MAP GENERATION DEBUG START ===`);
@@ -116127,7 +116249,7 @@ async function startBackend() {
     format: config.logFormat,
     enableConsole: false,
     enableFile: true,
-    filePath: path5.join(os.tmpdir(), "foundry-mcp-server", "mcp-server.log")
+    filePath: path6.join(os.tmpdir(), "foundry-mcp-server", "mcp-server.log")
   });
   logger.info("Starting Foundry MCP Backend", {
     version: config.server.version,
@@ -116155,6 +116277,7 @@ async function startBackend() {
   const characterTools = new CharacterTools({ foundryClient, logger, systemRegistry });
   const compendiumTools = new CompendiumTools({ foundryClient, logger, systemRegistry });
   const sceneTools = new SceneTools({ foundryClient, logger });
+  const uploadTools = new UploadTools({ foundryClient, logger });
   const playlistTools = new PlaylistTools({ foundryClient, logger });
   const actorCreationTools = new ActorCreationTools({ foundryClient, logger });
   const actorManagementTools = new ActorManagementTools({ foundryClient, logger, systemRegistry });
@@ -116207,11 +116330,11 @@ async function startBackend() {
   }
   globalThis.backendComfyUIHandlers = {
     handleMessage: async (message) => {
-      const fs5 = await import("fs").then((m) => m.promises);
-      const path6 = await import("path");
+      const fs6 = await import("fs").then((m) => m.promises);
+      const path7 = await import("path");
       const os2 = await import("os");
-      const debugLog = path6.join(os2.tmpdir(), "backend-handler-debug.log");
-      await fs5.appendFile(debugLog, `[${(/* @__PURE__ */ new Date()).toISOString()}] handleMessage called - type: ${message?.type}, requestId: ${message?.requestId}
+      const debugLog = path7.join(os2.tmpdir(), "backend-handler-debug.log");
+      await fs6.appendFile(debugLog, `[${(/* @__PURE__ */ new Date()).toISOString()}] handleMessage called - type: ${message?.type}, requestId: ${message?.requestId}
 `);
       logger.info("Handling ComfyUI message", {
         requestId: message.requestId,
@@ -116219,11 +116342,11 @@ async function startBackend() {
         hasData: !!message.data
       });
       try {
-        const fs6 = await import("fs").then((m) => m.promises);
-        const path7 = await import("path");
+        const fs7 = await import("fs").then((m) => m.promises);
+        const path8 = await import("path");
         const os3 = await import("os");
-        const debugLog2 = path7.join(os3.tmpdir(), "backend-handler-debug.log");
-        await fs6.appendFile(debugLog2, `[${(/* @__PURE__ */ new Date()).toISOString()}] About to switch on message.type: "${message.type}"
+        const debugLog2 = path8.join(os3.tmpdir(), "backend-handler-debug.log");
+        await fs7.appendFile(debugLog2, `[${(/* @__PURE__ */ new Date()).toISOString()}] About to switch on message.type: "${message.type}"
 `);
         let result;
         switch (message.type) {
@@ -116237,10 +116360,10 @@ async function startBackend() {
             result = await checkComfyUIStatus();
             break;
           case "generate-map-request":
-            await fs6.appendFile(debugLog2, `[${(/* @__PURE__ */ new Date()).toISOString()}] Matched generate-map-request case, calling handler...
+            await fs7.appendFile(debugLog2, `[${(/* @__PURE__ */ new Date()).toISOString()}] Matched generate-map-request case, calling handler...
 `);
             result = await handleGenerateMapRequest(message, mapGenerationJobQueue, mapGenerationComfyUIClient, logger, foundryClient);
-            await fs6.appendFile(debugLog2, `[${(/* @__PURE__ */ new Date()).toISOString()}] Handler returned: ${JSON.stringify(result)}
+            await fs7.appendFile(debugLog2, `[${(/* @__PURE__ */ new Date()).toISOString()}] Handler returned: ${JSON.stringify(result)}
 `);
             break;
           case "check-map-status-request":
@@ -116300,6 +116423,7 @@ async function startBackend() {
     ...characterTools.getToolDefinitions(),
     ...compendiumTools.getToolDefinitions(),
     ...sceneTools.getToolDefinitions(),
+    ...uploadTools.getToolDefinitions(),
     ...actorCreationTools.getToolDefinitions(),
     ...actorManagementTools.getToolDefinitions(),
     ...effectManagementTools.getToolDefinitions(),
@@ -116511,6 +116635,9 @@ async function startBackend() {
                   break;
                 case "manage-scenes":
                   result = await sceneTools.handleManageScenes(args);
+                  break;
+                case "upload-file":
+                  result = await uploadTools.handleUploadFile(args);
                   break;
                 default:
                   throw new Error(`Unknown tool: ${name}`);
