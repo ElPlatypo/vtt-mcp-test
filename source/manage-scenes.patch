@@ -4228,13 +4228,14 @@ index 0000000..83a409c
 +});
 diff --git a/packages/foundry-module/src/grid-measure-utils.test.ts b/packages/foundry-module/src/grid-measure-utils.test.ts
 new file mode 100644
-index 0000000..e2f1110
+index 0000000..c7214c2
 --- /dev/null
 +++ b/packages/foundry-module/src/grid-measure-utils.test.ts
-@@ -0,0 +1,118 @@
+@@ -0,0 +1,174 @@
 +import { describe, expect, it } from 'vitest';
 +import {
 +  clipRegion,
++  highPass,
 +  divisorSizes,
 +  measureAxis,
 +  measureGrid,
@@ -4325,6 +4326,61 @@ index 0000000..e2f1110
 +  });
 +});
 +
++describe('textured pictures without a grid', () => {
++  it('does not take foliage-like texture with a faint regular repeat for a grid', () => {
++    const width = 1024;
++    const height = 1024;
++    const gray = new Uint8Array(width * height);
++    let seed = 99;
++    const noise = () => {
++      seed = (seed * 1664525 + 1013904223) % 4294967296;
++      return seed / 4294967296;
++    };
++    for (let y = 0; y < height; y++) {
++      for (let x = 0; x < width; x++) {
++        // Big soft shapes, busy small detail, and a faint 32 px repeat like an image generator leaves.
++        const shape = 100 + 40 * Math.sin(x / 90) * Math.cos(y / 70);
++        const repeat = x % 32 === 0 || y % 32 === 0 ? 3 : 0;
++        gray[y * width + x] = shape + noise() * 60 + repeat;
++      }
++    }
++    const result = measureGrid(gray, width, height);
++    expect(result.detected).toBe(false);
++    expect(result.size).toBeNull();
++  });
++
++  it('still reports a real grid on top of the same texture', () => {
++    const width = 1024;
++    const height = 1024;
++    const gray = new Uint8Array(width * height);
++    let seed = 99;
++    const noise = () => {
++      seed = (seed * 1664525 + 1013904223) % 4294967296;
++      return seed / 4294967296;
++    };
++    for (let y = 0; y < height; y++) {
++      for (let x = 0; x < width; x++) {
++        const shape = 100 + 40 * Math.sin(x / 90) * Math.cos(y / 70);
++        const line = (x - 5) % 64 < 2 || (y - 9) % 64 < 2 ? -50 : 0;
++        gray[y * width + x] = shape + noise() * 60 + line;
++      }
++    }
++    const result = measureGrid(gray, width, height);
++    expect(result.detected).toBe(true);
++    expect(result.size).toBe(64);
++  });
++});
++
++describe('highPass', () => {
++  it('removes a slow trend but keeps a sharp spike', () => {
++    const p = new Float64Array(100).map((_, i) => i * 2);
++    p[50] += 80;
++    const out = highPass(p, 8);
++    expect(Math.abs(out[20]!)).toBeLessThan(1);
++    expect(out[50]!).toBeGreaterThan(60);
++  });
++});
++
 +describe('clipRegion', () => {
 +  it('uses the whole picture by default and keeps a region inside it', () => {
 +    expect(clipRegion(100, 80)).toEqual({ x: 0, y: 0, width: 100, height: 80 });
@@ -4352,10 +4408,10 @@ index 0000000..e2f1110
 +});
 diff --git a/packages/foundry-module/src/grid-measure-utils.ts b/packages/foundry-module/src/grid-measure-utils.ts
 new file mode 100644
-index 0000000..3ad057f
+index 0000000..f27f66e
 --- /dev/null
 +++ b/packages/foundry-module/src/grid-measure-utils.ts
-@@ -0,0 +1,258 @@
+@@ -0,0 +1,285 @@
 +/**
 + * Finding the grid that is drawn into a map picture: how many pixels one square is, and where
 + * the lines start. Works on the strength of vertical and horizontal edges, which line up every
@@ -4376,6 +4432,8 @@ index 0000000..3ad057f
 +  offset: number;
 +  /** 0 to 1: how well the edges repeat at that spacing. */
 +  confidence: number;
++  /** How much stronger the best line position is than the typical one (0 = flat, texture). */
++  contrast: number;
 +}
 +
 +
@@ -4409,6 +4467,22 @@ index 0000000..3ad057f
 +  return { columns, rows };
 +}
 +
++const HIGH_PASS_RADIUS = 8;
++
++/** The profile minus its moving average over +-radius positions. */
++export function highPass(profile: Float64Array, radius: number): Float64Array {
++  const n = profile.length;
++  const prefix = new Float64Array(n + 1);
++  for (let i = 0; i < n; i++) prefix[i + 1] = prefix[i]! + profile[i]!;
++  const out = new Float64Array(n);
++  for (let i = 0; i < n; i++) {
++    const a = Math.max(0, i - radius);
++    const b = Math.min(n, i + radius + 1);
++    out[i] = profile[i]! - (prefix[b]! - prefix[a]!) / (b - a);
++  }
++  return out;
++}
++
 +/** Normalised correlation of a profile with itself shifted by `lag`. */
 +function correlation(p: Float64Array, lag: number): number {
 +  let sum = 0;
@@ -4434,13 +4508,11 @@ index 0000000..3ad057f
 +): AxisMeasure {
 +  const length = profile.length;
 +  const top = Math.min(maxSize, Math.floor(length / 3));
-+  if (top <= minSize) return { size: null, offset: 0, confidence: 0, candidates: [] };
++  if (top <= minSize) return { size: null, offset: 0, confidence: 0, contrast: 0, candidates: [] };
 +
-+  let mean = 0;
-+  for (let i = 0; i < length; i++) mean += profile[i]!;
-+  mean /= length;
-+  const centred = new Float64Array(length);
-+  for (let i = 0; i < length; i++) centred[i] = profile[i]! - mean;
++  // High-pass: take out the slow swing of the profile (large shapes, light and dark areas), which
++  // otherwise correlates with itself at every distance and makes texture look like a grid.
++  const centred = highPass(profile, HIGH_PASS_RADIUS);
 +
 +  const scores: number[] = new Array(top + 2).fill(0);
 +  let best = 0;
@@ -4448,7 +4520,7 @@ index 0000000..3ad057f
 +    scores[lag] = correlation(centred, lag);
 +    if (scores[lag]! > best) best = scores[lag]!;
 +  }
-+  if (best <= 0) return { size: null, offset: 0, confidence: 0, candidates: [] };
++  if (best <= 0) return { size: null, offset: 0, confidence: 0, contrast: 0, candidates: [] };
 +
 +  const candidates: AxisCandidate[] = [];
 +  for (let lag = minSize + 1; lag < top; lag++) {
@@ -4470,7 +4542,7 @@ index 0000000..3ad057f
 +      break;
 +    }
 +  }
-+  if (chosen === 0) return { size: null, offset: 0, confidence: best, candidates };
++  if (chosen === 0) return { size: null, offset: 0, confidence: best, contrast: 0, candidates };
 +
 +  // The true spacing may fall between two whole pixels; settle on the strongest neighbour.
 +  let size = chosen;
@@ -4493,7 +4565,13 @@ index 0000000..3ad057f
 +    }
 +  }
 +
-+  return { size, offset, confidence: scores[size]!, candidates };
++  // Contrast: lines pile up at one position within a square, texture spreads evenly.
++  let phaseMean = 0;
++  for (let p = 0; p < size; p++) phaseMean += phase[p]!;
++  phaseMean /= size;
++  const contrast = phaseMean > 0 ? strongest / 3 / phaseMean - 1 : 0;
++
++  return { size, offset, confidence: scores[size]!, contrast, candidates };
 +}
 +
 +/** Grid sizes that divide both sides evenly, with a sensible number of squares. */
@@ -4538,6 +4616,11 @@ index 0000000..3ad057f
 +}
 +
 +export const MIN_CONFIDENCE = 0.3;
++/**
++ * Drawn lines stand out clearly at one position in each square (contrast above 1 in practice).
++ * Texture, foliage and the faint repeat that image generators leave behind stay below 0.2.
++ */
++export const MIN_CONTRAST = 0.5;
 +
 +/** Cut a rectangle out of a grey-scale picture. */
 +export function crop(
@@ -4585,8 +4668,8 @@ index 0000000..3ad057f
 +  const x = measureAxis(columns, options.minSize, options.maxSize);
 +  const y = measureAxis(rows, options.minSize, options.maxSize);
 +
-+  const xGood = x.size !== null && x.confidence >= MIN_CONFIDENCE;
-+  const yGood = y.size !== null && y.confidence >= MIN_CONFIDENCE;
++  const xGood = x.size !== null && x.confidence >= MIN_CONFIDENCE && x.contrast >= MIN_CONTRAST;
++  const yGood = y.size !== null && y.confidence >= MIN_CONFIDENCE && y.contrast >= MIN_CONTRAST;
 +  // Both directions must agree. A narrow region the caller picked has too little to say in
 +  // one direction, and then the other may stand alone.
 +  const bothAgree = xGood && yGood && Math.abs(x.size! - y.size!) <= 1;
