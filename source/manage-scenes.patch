@@ -4090,10 +4090,10 @@ index 0000000..83a409c
 +});
 diff --git a/packages/foundry-module/src/image-profiles-utils.test.ts b/packages/foundry-module/src/image-profiles-utils.test.ts
 new file mode 100644
-index 0000000..bee2147
+index 0000000..d1e0d72
 --- /dev/null
 +++ b/packages/foundry-module/src/image-profiles-utils.test.ts
-@@ -0,0 +1,75 @@
+@@ -0,0 +1,100 @@
 +import { describe, expect, it } from 'vitest';
 +import {
 +  DEFAULT_PROFILES,
@@ -4122,10 +4122,30 @@ index 0000000..bee2147
 +  });
 +
 +  it('keeps saved values and defaults the rest', () => {
-+    const p = profilesFromSetting(JSON.stringify({ portrait: { checkpoint: 'a.safetensors' } }));
++    const p = profilesFromSetting(
++      JSON.stringify({ portrait: { workflow: 'checkpoint', checkpoint: 'a.safetensors' } })
++    );
++    expect(p.portrait.workflow).toBe('checkpoint');
 +    expect(p.portrait.checkpoint).toBe('a.safetensors');
 +    expect(p.portrait.steps).toBe(DEFAULT_PROFILES.portrait.steps);
 +    expect(p.map).toEqual(DEFAULT_PROFILES.map);
++  });
++
++  it('defaults maps to a checkpoint and the rest to MiniMax H3', () => {
++    expect(DEFAULT_PROFILES.map.workflow).toBe('checkpoint');
++    expect(DEFAULT_PROFILES.portrait.workflow).toBe('minimax-h3');
++    expect(DEFAULT_PROFILES.token.steps).toBe(6);
++  });
++
++  it('treats profiles saved before workflows existed as old checkpoint settings', () => {
++    const p = profilesFromSetting({
++      map: { checkpoint: 'mine.safetensors', steps: 40 },
++      portrait: { checkpoint: '', steps: 25, cfg: 6 },
++    });
++    expect(p.map.workflow).toBe('checkpoint');
++    expect(p.map.checkpoint).toBe('mine.safetensors');
++    expect(p.map.steps).toBe(40);
++    expect(p.portrait).toEqual(DEFAULT_PROFILES.portrait);
 +  });
 +});
 +
@@ -4136,10 +4156,14 @@ index 0000000..bee2147
 +  });
 +
 +  it('uses what was typed', () => {
-+    const data = { ...formFrom(), portrait__checkpoint: ' face.safetensors ', portrait__steps: '31' };
++    const data = {
++      ...formFrom(),
++      portrait__diffusionModel: ' other.safetensors ',
++      portrait__steps: '31',
++    };
 +    const result = readProfilesForm(data);
 +    if (!result.ok) throw new Error(result.error);
-+    expect(result.value.portrait.checkpoint).toBe('face.safetensors');
++    expect(result.value.portrait.diffusionModel).toBe('other.safetensors');
 +    expect(result.value.portrait.steps).toBe(31);
 +  });
 +
@@ -4148,6 +4172,7 @@ index 0000000..bee2147
 +      const result = readProfilesForm({ ...formFrom(), [field]: value });
 +      return result.ok ? 'ok' : result.error;
 +    };
++    expect(bad('map__workflow', 'magic')).toContain('Maps: choose a workflow');
 +    expect(bad('map__steps', '0')).toContain('Maps: steps');
 +    expect(bad('map__steps', '2.5')).toContain('whole number');
 +    expect(bad('token__cfg', 'abc')).toContain('Tokens: CFG');
@@ -4171,10 +4196,10 @@ index 0000000..bee2147
 +});
 diff --git a/packages/foundry-module/src/image-profiles-utils.ts b/packages/foundry-module/src/image-profiles-utils.ts
 new file mode 100644
-index 0000000..64e0493
+index 0000000..b4f5e2d
 --- /dev/null
 +++ b/packages/foundry-module/src/image-profiles-utils.ts
-@@ -0,0 +1,242 @@
+@@ -0,0 +1,265 @@
 +/**
 + * Image generation profiles as the settings dialog handles them. The MCP server holds the real
 + * defaults and rules (packages/mcp-server/src/image-profiles.ts); this copy only pre-fills the
@@ -4184,8 +4209,19 @@ index 0000000..64e0493
 +export const IMAGE_KINDS = ['map', 'portrait', 'token', 'handout'] as const;
 +export type ImageKind = (typeof IMAGE_KINDS)[number];
 +
++export const WORKFLOWS = ['checkpoint', 'minimax-h3'] as const;
++export type ImageWorkflow = (typeof WORKFLOWS)[number];
++
++export const WORKFLOW_LABELS: Record<ImageWorkflow, string> = {
++  checkpoint: 'Checkpoint (Stable Diffusion / SDXL)',
++  'minimax-h3': 'MiniMax H3 Image (supports reference pictures)',
++};
++
 +export interface ImageProfile {
++  workflow: ImageWorkflow;
 +  checkpoint: string;
++  diffusionModel: string;
++  textEncoder: string;
 +  vae: string;
 +  steps: number;
 +  cfg: number;
@@ -4203,7 +4239,7 @@ index 0000000..64e0493
 +export const KIND_INFO: Record<ImageKind, { label: string; help: string }> = {
 +  map: {
 +    label: 'Maps',
-+    help: 'Top-down battlemaps. Needs a battlemap checkpoint.',
++    help: 'Top-down battlemaps. The default is a battlemap checkpoint.',
 +  },
 +  portrait: {
 +    label: 'Character portraits',
@@ -4219,9 +4255,27 @@ index 0000000..64e0493
 +  },
 +};
 +
++const H3_DEFAULTS = {
++  workflow: 'minimax-h3' as ImageWorkflow,
++  checkpoint: '',
++  diffusionModel: 'minimax_h3_image_pruned_w4a8.safetensors',
++  textEncoder: 'qwen3vl_32b_minimax_h3_int4_convrot.safetensors',
++  vae: 'minimax_h3_image_vae_fp16.safetensors',
++  steps: 6,
++  cfg: 1,
++  sampler: 'euler',
++  scheduler: 'simple',
++  promptPrefix: '',
++  promptSuffix: '',
++  negativePrompt: '',
++};
++
 +export const DEFAULT_PROFILES: ImageProfiles = {
 +  map: {
++    workflow: 'checkpoint',
 +    checkpoint: 'dDBattlemapsSDXL10_upscaleV10.safetensors',
++    diffusionModel: '',
++    textEncoder: '',
 +    vae: 'sdxl_vae.safetensors',
 +    steps: 30,
 +    cfg: 2.5,
@@ -4234,45 +4288,9 @@ index 0000000..64e0493
 +    negativePrompt:
 +      'grid, low angle, isometric, oblique, horizon, text, watermark, logo, caption, people, creatures, monsters, blurry, artifacts',
 +  },
-+  portrait: {
-+    checkpoint: '',
-+    vae: '',
-+    steps: 25,
-+    cfg: 6,
-+    sampler: 'dpmpp_2m',
-+    scheduler: 'karras',
-+    width: 832,
-+    height: 1216,
-+    promptPrefix: 'fantasy character portrait, ',
-+    promptSuffix: ', detailed face, painterly, dramatic lighting',
-+    negativePrompt: 'text, watermark, signature, blurry, deformed, extra fingers, lowres',
-+  },
-+  token: {
-+    checkpoint: '',
-+    vae: '',
-+    steps: 25,
-+    cfg: 6,
-+    sampler: 'dpmpp_2m',
-+    scheduler: 'karras',
-+    width: 1024,
-+    height: 1024,
-+    promptPrefix: 'round game token, centered bust of ',
-+    promptSuffix: ', plain dark background, fantasy illustration, thick border',
-+    negativePrompt: 'text, watermark, signature, blurry, full body, cropped, lowres',
-+  },
-+  handout: {
-+    checkpoint: '',
-+    vae: '',
-+    steps: 25,
-+    cfg: 6,
-+    sampler: 'dpmpp_2m',
-+    scheduler: 'karras',
-+    width: 1216,
-+    height: 832,
-+    promptPrefix: 'fantasy illustration, ',
-+    promptSuffix: ', aged parchment, detailed, no text',
-+    negativePrompt: 'text, letters, watermark, signature, blurry, lowres',
-+  },
++  portrait: { ...H3_DEFAULTS, width: 1664, height: 2432 },
++  token: { ...H3_DEFAULTS, width: 2048, height: 2048 },
++  handout: { ...H3_DEFAULTS, width: 2432, height: 1664 },
 +};
 +
 +/** Samplers and schedulers to offer until the real lists are read from ComfyUI. */
@@ -4301,11 +4319,25 @@ index 0000000..64e0493
 +export const FIELD_LIMITS = {
 +  steps: [1, 100],
 +  cfg: [0, 30],
-+  side: [256, 2048],
++  side: [256, 6400],
 +  text: 1000,
 +} as const;
 +
-+/** Saved profiles (the JSON text in the setting) over the defaults. */
++function pick<T>(value: unknown, fallback: T, valid: (v: unknown) => boolean): T {
++  return valid(value) ? (value as T) : fallback;
++}
++
++const isNumber = (v: unknown) => v !== undefined && v !== '' && Number.isFinite(Number(v));
++const isString = (v: unknown) => typeof v === 'string';
++const isName = (v: unknown) => typeof v === 'string' && v !== '';
++
++/**
++ * Saved profiles (the JSON text in the setting) over the defaults.
++ *
++ * Profiles saved before workflows existed have no "workflow" field: a saved map profile stays a
++ * checkpoint profile, the others only held settings for a checkpoint that was never chosen and
++ * take the new defaults (the MCP server applies the same rule).
++ */
 +export function profilesFromSetting(raw: unknown): ImageProfiles {
 +  let value: unknown = raw;
 +  if (typeof raw === 'string') {
@@ -4318,21 +4350,29 @@ index 0000000..64e0493
 +  const saved = (value && typeof value === 'object' ? value : {}) as Record<string, any>;
 +  const result = {} as ImageProfiles;
 +  for (const kind of IMAGE_KINDS) {
-+    const s = saved[kind] && typeof saved[kind] === 'object' ? saved[kind] : {};
 +    const d = DEFAULT_PROFILES[kind];
++    const entry = saved[kind] && typeof saved[kind] === 'object' ? saved[kind] : {};
++    const legacy = saved[kind] && typeof saved[kind] === 'object' && entry.workflow === undefined;
++    if (legacy && kind !== 'map') {
++      result[kind] = { ...d };
++      continue;
++    }
++    const s = legacy ? { ...entry, workflow: 'checkpoint' } : entry;
 +    result[kind] = {
-+      checkpoint: typeof s.checkpoint === 'string' ? s.checkpoint : d.checkpoint,
-+      vae: typeof s.vae === 'string' ? s.vae : d.vae,
-+      steps: Number.isFinite(Number(s.steps)) && s.steps !== undefined ? Number(s.steps) : d.steps,
-+      cfg: Number.isFinite(Number(s.cfg)) && s.cfg !== undefined ? Number(s.cfg) : d.cfg,
-+      sampler: typeof s.sampler === 'string' && s.sampler ? s.sampler : d.sampler,
-+      scheduler: typeof s.scheduler === 'string' && s.scheduler ? s.scheduler : d.scheduler,
-+      width: Number.isFinite(Number(s.width)) && s.width !== undefined ? Number(s.width) : d.width,
-+      height:
-+        Number.isFinite(Number(s.height)) && s.height !== undefined ? Number(s.height) : d.height,
-+      promptPrefix: typeof s.promptPrefix === 'string' ? s.promptPrefix : d.promptPrefix,
-+      promptSuffix: typeof s.promptSuffix === 'string' ? s.promptSuffix : d.promptSuffix,
-+      negativePrompt: typeof s.negativePrompt === 'string' ? s.negativePrompt : d.negativePrompt,
++      workflow: WORKFLOWS.includes(s.workflow) ? s.workflow : d.workflow,
++      checkpoint: pick(s.checkpoint, d.checkpoint, isString),
++      diffusionModel: pick(s.diffusionModel, d.diffusionModel, isString),
++      textEncoder: pick(s.textEncoder, d.textEncoder, isString),
++      vae: pick(s.vae, d.vae, isString),
++      steps: isNumber(s.steps) ? Number(s.steps) : d.steps,
++      cfg: isNumber(s.cfg) ? Number(s.cfg) : d.cfg,
++      sampler: pick(s.sampler, d.sampler, isName),
++      scheduler: pick(s.scheduler, d.scheduler, isName),
++      width: isNumber(s.width) ? Number(s.width) : d.width,
++      height: isNumber(s.height) ? Number(s.height) : d.height,
++      promptPrefix: pick(s.promptPrefix, d.promptPrefix, isString),
++      promptSuffix: pick(s.promptSuffix, d.promptSuffix, isString),
++      negativePrompt: pick(s.negativePrompt, d.negativePrompt, isString),
 +    };
 +  }
 +  return result;
@@ -4370,6 +4410,11 @@ index 0000000..64e0493
 +      return typeof v === 'string' ? v : '';
 +    };
 +
++    const workflow = str('workflow') as ImageWorkflow;
++    if (!WORKFLOWS.includes(workflow)) {
++      return { ok: false, error: `${label}: choose a workflow` };
++    }
++
 +    const steps = readNumber(get('steps'), `${label}: steps`, FIELD_LIMITS.steps, true);
 +    if (!steps.ok) return steps;
 +    const cfg = readNumber(get('cfg'), `${label}: CFG`, FIELD_LIMITS.cfg, false);
@@ -4395,7 +4440,10 @@ index 0000000..64e0493
 +    }
 +
 +    value[kind] = {
++      workflow,
 +      checkpoint: str('checkpoint').trim(),
++      diffusionModel: str('diffusionModel').trim(),
++      textEncoder: str('textEncoder').trim(),
 +      vae: str('vae').trim(),
 +      steps: steps.value,
 +      cfg: cfg.value,
@@ -4419,10 +4467,10 @@ index 0000000..64e0493
 +}
 diff --git a/packages/foundry-module/src/image-settings-dialog.ts b/packages/foundry-module/src/image-settings-dialog.ts
 new file mode 100644
-index 0000000..541e91c
+index 0000000..31f753f
 --- /dev/null
 +++ b/packages/foundry-module/src/image-settings-dialog.ts
-@@ -0,0 +1,128 @@
+@@ -0,0 +1,152 @@
 +import { MODULE_ID } from './constants.js';
 +import {
 +  COMMON_SAMPLERS,
@@ -4436,15 +4484,18 @@ index 0000000..541e91c
 +
 +interface KnownModels {
 +  checkpoints: string[];
++  diffusionModels: string[];
++  textEncoders: string[];
 +  vaes: string[];
 +  samplers: string[];
 +  schedulers: string[];
 +}
 +
++type ListKind = 'checkpoint' | 'diffusion' | 'textEncoder' | 'vae' | 'sampler' | 'scheduler';
++
 +/**
-+ * Settings dialog: which checkpoint and settings Claude's image generation uses for maps,
-+ * portraits, tokens and handouts. The choices come from the ComfyUI the map generation settings
-+ * point at.
++ * Settings dialog: which model and settings Claude's image generation uses for maps, portraits,
++ * tokens and handouts. The choices come from the ComfyUI the map generation settings point at.
 + */
 +export class ImageGenerationDialog extends FormApplication {
 +  private models: KnownModels | null = null;
@@ -4468,6 +4519,8 @@ index 0000000..541e91c
 +        open: index === 0,
 +        ...KIND_INFO[key],
 +        ...profiles[key],
++        isCheckpoint: profiles[key].workflow === 'checkpoint',
++        isH3: profiles[key].workflow === 'minimax-h3',
 +      })),
 +    };
 +  }
@@ -4479,36 +4532,55 @@ index 0000000..541e91c
 +    html.find('#igs-refresh-btn').click(async () => {
 +      await this.loadModels(html);
 +    });
++
++    // Show only the parts that belong to the chosen workflow.
++    html.find('select[data-role="workflow"]').on('change', (event: any) => {
++      const select = event.currentTarget as HTMLSelectElement;
++      const section = $(select).closest('details');
++      section.find('[data-workflow-group]').each((_index: number, element: HTMLElement) => {
++        element.hidden = element.dataset.workflowGroup !== select.value;
++      });
++    });
++  }
++
++  /** The values to offer in one kind of drop-down. */
++  private optionsFor(kind: ListKind): string[] {
++    switch (kind) {
++      case 'checkpoint':
++        return this.models?.checkpoints ?? [];
++      case 'diffusion':
++        return this.models?.diffusionModels ?? [];
++      case 'textEncoder':
++        return this.models?.textEncoders ?? [];
++      case 'vae':
++        return this.models?.vaes ?? [];
++      case 'sampler':
++        return this.models?.samplers?.length ? this.models.samplers : COMMON_SAMPLERS;
++      case 'scheduler':
++        return this.models?.schedulers?.length ? this.models.schedulers : COMMON_SCHEDULERS;
++    }
 +  }
 +
 +  /** Fill every drop-down from the known models (or sensible defaults), keeping the choice. */
 +  private fillSelects(html: JQuery) {
++    const emptyLabels: Partial<Record<ListKind, string>> = {
++      checkpoint: '(choose a checkpoint)',
++      diffusion: '(choose a diffusion model)',
++      textEncoder: '(choose a text encoder)',
++      vae: "(the checkpoint's own VAE)",
++    };
++
 +    html.find('select[data-list]').each((_index: number, element: HTMLElement) => {
 +      const select = element as HTMLSelectElement;
-+      const kind = select.dataset.list as 'checkpoint' | 'vae' | 'sampler' | 'scheduler';
++      const kind = select.dataset.list as ListKind;
 +      const current = select.value || select.dataset.current || '';
-+
-+      const options =
-+        kind === 'checkpoint'
-+          ? (this.models?.checkpoints ?? [])
-+          : kind === 'vae'
-+            ? (this.models?.vaes ?? [])
-+            : kind === 'sampler'
-+              ? this.models?.samplers?.length
-+                ? this.models.samplers
-+                : COMMON_SAMPLERS
-+              : this.models?.schedulers?.length
-+                ? this.models.schedulers
-+                : COMMON_SCHEDULERS;
-+
-+      const allowEmpty = kind === 'checkpoint' || kind === 'vae';
-+      const emptyLabel = kind === 'vae' ? "(the checkpoint's own VAE)" : '(choose a checkpoint)';
++      const emptyLabel = emptyLabels[kind];
 +
 +      select.innerHTML = '';
-+      for (const value of selectChoices(options, current, allowEmpty)) {
++      for (const value of selectChoices(this.optionsFor(kind), current, emptyLabel !== undefined)) {
 +        const option = document.createElement('option');
 +        option.value = value;
-+        option.textContent = value === '' ? emptyLabel : value;
++        option.textContent = value === '' ? (emptyLabel ?? '') : value;
 +        select.appendChild(option);
 +      }
 +      select.value = current;
@@ -4533,7 +4605,7 @@ index 0000000..541e91c
 +      this.models = response.models as KnownModels;
 +      this.fillSelects(html);
 +      status.text(
-+        `Found ${this.models.checkpoints.length} checkpoint(s) and ${this.models.vaes.length} VAE(s).`
++        `Found ${this.models.checkpoints.length} checkpoint(s), ${this.models.diffusionModels.length} diffusion model(s), ${this.models.textEncoders.length} text encoder(s) and ${this.models.vaes.length} VAE(s).`
 +      );
 +    } catch (error) {
 +      status.text(error instanceof Error ? error.message : 'Could not reach the MCP server.');
@@ -4553,10 +4625,10 @@ index 0000000..541e91c
 +}
 diff --git a/packages/foundry-module/src/image-template.test.ts b/packages/foundry-module/src/image-template.test.ts
 new file mode 100644
-index 0000000..051bfa5
+index 0000000..55dac44
 --- /dev/null
 +++ b/packages/foundry-module/src/image-template.test.ts
-@@ -0,0 +1,65 @@
+@@ -0,0 +1,68 @@
 +/**
 + * Guards the image generation dialog: the code finds its elements by id and builds the forms
 + * field names from a fixed pattern, so a template edit must not drift from either.
@@ -4584,7 +4656,10 @@ index 0000000..051bfa5
 +
 +  it('has a field for every profile setting, named <kind>__<field>', () => {
 +    for (const field of [
++      'workflow',
 +      'checkpoint',
++      'diffusionModel',
++      'textEncoder',
 +      'vae',
 +      'steps',
 +      'cfg',
@@ -6933,10 +7008,10 @@ index 0000000..d81af4a
 +}
 diff --git a/packages/foundry-module/styles/map-generation.css b/packages/foundry-module/styles/map-generation.css
 new file mode 100644
-index 0000000..ec4e2af
+index 0000000..5228f12
 --- /dev/null
 +++ b/packages/foundry-module/styles/map-generation.css
-@@ -0,0 +1,336 @@
+@@ -0,0 +1,346 @@
 +/* Map Generation Service settings dialog. Self-contained (mgs- prefix) so it does not depend on,
 +   or disturb, the Enhanced Creature Index dialog styles. Uses Foundry's theme variables with
 +   fallbacks so it reads on both the dark and light themes. */
@@ -7273,6 +7348,16 @@ index 0000000..ec4e2af
 +  border-color: var(--color-border-highlight, #ff9f1c);
 +  box-shadow: 0 0 0 2px rgba(255, 159, 28, 0.3);
 +}
++
++/* Parts of a profile that belong to one workflow only */
++.mgs-settings [data-workflow-group][hidden],
++.mgs-group[hidden] {
++  display: none;
++}
++
++.mgs-group {
++  margin: 0;
++}
 diff --git a/packages/foundry-module/templates/comfyui-settings.html b/packages/foundry-module/templates/comfyui-settings.html
 index 15d4166..de7aa2e 100644
 --- a/packages/foundry-module/templates/comfyui-settings.html
@@ -7413,16 +7498,16 @@ index 15d4166..de7aa2e 100644
 +</form>
 diff --git a/packages/foundry-module/templates/image-generation-settings.html b/packages/foundry-module/templates/image-generation-settings.html
 new file mode 100644
-index 0000000..b13fd14
+index 0000000..3adf228
 --- /dev/null
 +++ b/packages/foundry-module/templates/image-generation-settings.html
-@@ -0,0 +1,88 @@
+@@ -0,0 +1,117 @@
 +<form class="mgs-settings" autocomplete="off">
 +  <section class="mgs-block">
 +    <h2 class="mgs-title">Image Generation</h2>
 +    <p class="mgs-note">
-+      Claude can generate pictures with your ComfyUI. Choose here which checkpoint and settings are used
-+      for each kind of picture. Which ComfyUI is used (built-in or your own) is set in
++      Claude can generate pictures with your ComfyUI. Choose here which model and settings are used for
++      each kind of picture. Which ComfyUI is used (built-in or your own) is set in
 +      <strong>Configure Map Generation</strong>.
 +    </p>
 +  </section>
@@ -7435,8 +7520,9 @@ index 0000000..b13fd14
 +      <p class="mgs-status-detail" id="igs-model-status">Not loaded yet. The lists below show what is saved.</p>
 +    </div>
 +    <p class="mgs-hint">
-+      Checkpoints must be in ComfyUI's <code>models/checkpoints</code> folder. A VAE is optional: leave it
-+      empty to use the one inside the checkpoint.
++      Checkpoints go in ComfyUI's <code>models/checkpoints</code> folder, MiniMax H3 diffusion models in
++      <code>models/diffusion_models</code>, text encoders in <code>models/text_encoders</code> and VAEs in
++      <code>models/vae</code>.
 +    </p>
 +  </section>
 +
@@ -7445,15 +7531,39 @@ index 0000000..b13fd14
 +    <summary class="mgs-summary">{{label}}</summary>
 +    <p class="mgs-hint mgs-tight">{{help}}</p>
 +
-+    <div class="mgs-row-2">
-+      <div class="mgs-form-group">
-+        <label class="mgs-label">Checkpoint</label>
-+        <select name="{{key}}__checkpoint" data-list="checkpoint" data-current="{{checkpoint}}"></select>
++    <div class="mgs-form-group">
++      <label class="mgs-label">Workflow</label>
++      <select name="{{key}}__workflow" data-role="workflow">
++        <option value="checkpoint" {{#if isCheckpoint}}selected{{/if}}>Checkpoint (Stable Diffusion / SDXL)</option>
++        <option value="minimax-h3" {{#if isH3}}selected{{/if}}>MiniMax H3 Image (supports reference pictures)</option>
++      </select>
++    </div>
++
++    <div class="mgs-group" data-workflow-group="checkpoint" {{#unless isCheckpoint}}hidden{{/unless}}>
++      <div class="mgs-row-2">
++        <div class="mgs-form-group">
++          <label class="mgs-label">Checkpoint</label>
++          <select name="{{key}}__checkpoint" data-list="checkpoint" data-current="{{checkpoint}}"></select>
++        </div>
 +      </div>
-+      <div class="mgs-form-group">
-+        <label class="mgs-label">VAE</label>
-+        <select name="{{key}}__vae" data-list="vae" data-current="{{vae}}"></select>
++    </div>
++
++    <div class="mgs-group" data-workflow-group="minimax-h3" {{#unless isH3}}hidden{{/unless}}>
++      <div class="mgs-row-2">
++        <div class="mgs-form-group">
++          <label class="mgs-label">Diffusion model</label>
++          <select name="{{key}}__diffusionModel" data-list="diffusion" data-current="{{diffusionModel}}"></select>
++        </div>
++        <div class="mgs-form-group">
++          <label class="mgs-label">Text encoder</label>
++          <select name="{{key}}__textEncoder" data-list="textEncoder" data-current="{{textEncoder}}"></select>
++        </div>
 +      </div>
++    </div>
++
++    <div class="mgs-form-group">
++      <label class="mgs-label">VAE</label>
++      <select name="{{key}}__vae" data-list="vae" data-current="{{vae}}"></select>
 +    </div>
 +
 +    <div class="mgs-row-4">
@@ -7467,11 +7577,11 @@ index 0000000..b13fd14
 +      </div>
 +      <div class="mgs-form-group">
 +        <label class="mgs-label">Width</label>
-+        <input type="number" name="{{key}}__width" value="{{width}}" min="256" max="2048" step="8" />
++        <input type="number" name="{{key}}__width" value="{{width}}" min="256" max="6400" step="8" />
 +      </div>
 +      <div class="mgs-form-group">
 +        <label class="mgs-label">Height</label>
-+        <input type="number" name="{{key}}__height" value="{{height}}" min="256" max="2048" step="8" />
++        <input type="number" name="{{key}}__height" value="{{height}}" min="256" max="6400" step="8" />
 +      </div>
 +    </div>
 +
@@ -7485,6 +7595,10 @@ index 0000000..b13fd14
 +        <select name="{{key}}__scheduler" data-list="scheduler" data-current="{{scheduler}}"></select>
 +      </div>
 +    </div>
++    <p class="mgs-hint mgs-tight" data-workflow-group="minimax-h3" {{#unless isH3}}hidden{{/unless}}>
++      MiniMax H3 Image is made for 6 steps, CFG 1, Euler / Simple and about 4 megapixels or more
++      (for example 2048 x 2048). It has no negative prompt.
++    </p>
 +
 +    <div class="mgs-form-group">
 +      <label class="mgs-label">Text before the prompt</label>
@@ -7494,7 +7608,7 @@ index 0000000..b13fd14
 +      <label class="mgs-label">Text after the prompt</label>
 +      <textarea class="mgs-textarea" name="{{key}}__promptSuffix" rows="1">{{promptSuffix}}</textarea>
 +    </div>
-+    <div class="mgs-form-group">
++    <div class="mgs-form-group" data-workflow-group="checkpoint" {{#unless isCheckpoint}}hidden{{/unless}}>
 +      <label class="mgs-label">Negative prompt (what to avoid)</label>
 +      <textarea class="mgs-textarea" name="{{key}}__negativePrompt" rows="2">{{negativePrompt}}</textarea>
 +    </div>
@@ -7506,15 +7620,18 @@ index 0000000..b13fd14
 +  </div>
 +</form>
 diff --git a/packages/mcp-server/src/backend.ts b/packages/mcp-server/src/backend.ts
-index 8967e33..050640d 100644
+index 8967e33..f6bcf2c 100644
 --- a/packages/mcp-server/src/backend.ts
 +++ b/packages/mcp-server/src/backend.ts
-@@ -48,6 +48,18 @@ import { DnD5eAddFeatureTool } from './tools/dnd5e/add-feature.js';
+@@ -48,6 +48,21 @@ import { DnD5eAddFeatureTool } from './tools/dnd5e/add-feature.js';
  import { DnD5eNpcTools } from './tools/dnd5e/npc.js';
  import { DnD5eFeaturesFromCompendiumTools } from './tools/dnd5e/features.js';
  import { ChatTools } from './tools/chat.js';
 +import { UploadTools } from './tools/upload.js';
 +import { ImageGenerationTools } from './tools/image-generation.js';
++
++/** Old map generation tools that are no longer offered (see generate-image). */
++const DISABLED_LEGACY_MAP_TOOLS = ['generate-map', 'check-map-status', 'cancel-map-job'];
 +import { JournalTools } from './tools/journal.js';
 +import {
 +  BUILTIN_TARGET,
@@ -7528,7 +7645,7 @@ index 8967e33..050640d 100644
  
  const CONTROL_HOST = '127.0.0.1';
  
-@@ -174,6 +186,22 @@ let comfyuiProcess: ChildProcess | null = null;
+@@ -174,6 +189,22 @@ let comfyuiProcess: ChildProcess | null = null;
  
  let comfyuiStatus: 'stopped' | 'starting' | 'running' | 'error' = 'stopped';
  
@@ -7551,7 +7668,7 @@ index 8967e33..050640d 100644
  let lockFd: number | null = null;
  
  function acquireLock(): boolean {
-@@ -350,6 +378,18 @@ async function waitForComfyUIReady(timeoutMs: number = 60000): Promise<void> {
+@@ -350,6 +381,18 @@ async function waitForComfyUIReady(timeoutMs: number = 60000): Promise<void> {
  }
  
  async function startComfyUIService(logger: Logger): Promise<any> {
@@ -7570,7 +7687,7 @@ index 8967e33..050640d 100644
    if (comfyuiStatus === 'running') {
      return { status: 'already_running', message: 'ComfyUI service is already running' };
    }
-@@ -472,6 +512,14 @@ async function startComfyUIService(logger: Logger): Promise<any> {
+@@ -472,6 +515,14 @@ async function startComfyUIService(logger: Logger): Promise<any> {
  }
  
  async function stopComfyUIService(logger: Logger): Promise<any> {
@@ -7585,7 +7702,7 @@ index 8967e33..050640d 100644
    if (comfyuiStatus === 'stopped') {
      return { status: 'already_stopped', message: 'ComfyUI service is already stopped' };
    }
-@@ -510,7 +558,7 @@ async function checkComfyUIStatus(): Promise<any> {
+@@ -510,7 +561,7 @@ async function checkComfyUIStatus(): Promise<any> {
    // This handles both spawned processes and externally-started instances
  
    try {
@@ -7594,7 +7711,7 @@ index 8967e33..050640d 100644
        signal: AbortSignal.timeout(5000),
      });
  
-@@ -520,16 +568,23 @@ async function checkComfyUIStatus(): Promise<any> {
+@@ -520,16 +571,23 @@ async function checkComfyUIStatus(): Promise<any> {
        comfyuiStatus = 'error';
      }
    } catch (error) {
@@ -7620,7 +7737,7 @@ index 8967e33..050640d 100644
    };
  }
  
-@@ -1131,7 +1186,7 @@ async function processMapGenerationInBackend(
+@@ -1131,7 +1189,7 @@ async function processMapGenerationInBackend(
      );
  
      logger.error('Background map generation processing failed', { jobId, error });
@@ -7629,7 +7746,7 @@ index 8967e33..050640d 100644
  
      // Emit failure to Foundry module
      foundryClient.sendMessage({
-@@ -1195,6 +1250,26 @@ async function startBackend(): Promise<void> {
+@@ -1195,6 +1253,26 @@ async function startBackend(): Promise<void> {
    const compendiumTools = new CompendiumTools({ foundryClient, logger, systemRegistry });
  
    const sceneTools = new SceneTools({ foundryClient, logger });
@@ -7656,7 +7773,7 @@ index 8967e33..050640d 100644
    const playlistTools = new PlaylistTools({ foundryClient, logger });
  
    const actorCreationTools = new ActorCreationTools({ foundryClient, logger });
-@@ -1301,6 +1376,13 @@ async function startBackend(): Promise<void> {
+@@ -1301,6 +1379,13 @@ async function startBackend(): Promise<void> {
  
          let result: any;
  
@@ -7670,7 +7787,7 @@ index 8967e33..050640d 100644
          switch (message.type) {
            case 'start-comfyui-service':
              result = await startComfyUIService(logger);
-@@ -1317,6 +1399,19 @@ async function startBackend(): Promise<void> {
+@@ -1317,6 +1402,19 @@ async function startBackend(): Promise<void> {
  
              break;
  
@@ -7690,7 +7807,7 @@ index 8967e33..050640d 100644
            // Map generation handlers (following existing tool pattern)
            case 'generate-map-request':
              await fs.appendFile(
-@@ -1429,6 +1524,12 @@ async function startBackend(): Promise<void> {
+@@ -1429,6 +1527,12 @@ async function startBackend(): Promise<void> {
  
      ...sceneTools.getToolDefinitions(),
  
@@ -7703,7 +7820,43 @@ index 8967e33..050640d 100644
      ...actorCreationTools.getToolDefinitions(),
      ...actorManagementTools.getToolDefinitions(),
      ...effectManagementTools.getToolDefinitions(),
-@@ -1805,6 +1906,40 @@ async function startBackend(): Promise<void> {
+@@ -1456,7 +1560,11 @@ async function startBackend(): Promise<void> {
+ 
+     ...tokenManipulationTools.getToolDefinitions(),
+ 
+-    ...mapGenerationTools.getToolDefinitions(),
++    // The old async map tools are switched off: generate-image (kind "map") replaces them. The
++    // code stays; remove the names from this list to bring them back.
++    ...mapGenerationTools
++      .getToolDefinitions()
++      .filter(tool => !DISABLED_LEGACY_MAP_TOOLS.includes(tool.name)),
+ 
+     ...playlistTools.getToolDefinitions(),
+   ];
+@@ -1764,19 +1872,11 @@ async function startBackend(): Promise<void> {
+                 // Map generation tools
+ 
+                 case 'generate-map':
+-                  result = await mapGenerationTools.generateMap(args);
+-
+-                  break;
+-
+                 case 'check-map-status':
+-                  result = await mapGenerationTools.checkMapStatus(args);
+-
+-                  break;
+-
+                 case 'cancel-map-job':
+-                  result = await mapGenerationTools.cancelMapJob(args);
+-
+-                  break;
++                  throw new Error(
++                    `The ${name} tool is switched off. Use generate-image with kind "map" instead.`
++                  );
+ 
+                 case 'list-scenes':
+                   result = await mapGenerationTools.listScenes(args);
+@@ -1805,6 +1905,40 @@ async function startBackend(): Promise<void> {
  
                    break;
  
@@ -7745,7 +7898,7 @@ index 8967e33..050640d 100644
                    throw new Error(`Unknown tool: ${name}`);
                }
 diff --git a/packages/mcp-server/src/comfyui-client.ts b/packages/mcp-server/src/comfyui-client.ts
-index 99ac020..a3d09ec 100644
+index 99ac020..f53904a 100644
 --- a/packages/mcp-server/src/comfyui-client.ts
 +++ b/packages/mcp-server/src/comfyui-client.ts
 @@ -6,6 +6,15 @@ import * as os from 'os';
@@ -7830,7 +7983,7 @@ index 99ac020..a3d09ec 100644
  
      try {
        this.ws = new WebSocket(wsUrl);
-@@ -387,9 +436,83 @@ export class ComfyUIClient {
+@@ -387,9 +436,109 @@ export class ComfyUIClient {
      throw new Error('ComfyUI service failed to become ready within timeout');
    }
  
@@ -7845,12 +7998,38 @@ index 99ac020..a3d09ec 100644
 +        );
 +      }
 +    };
-+    const [checkpointLoader, vaeLoader, ksampler] = await Promise.all([
++    const [checkpointLoader, unetLoader, clipLoader, vaeLoader, ksampler] = await Promise.all([
 +      get('CheckpointLoaderSimple'),
++      get('UNETLoader'),
++      get('CLIPLoader'),
 +      get('VAELoader'),
 +      get('KSampler'),
 +    ]);
-+    return parseComfyModels({ checkpointLoader, vaeLoader, ksampler });
++    return parseComfyModels({ checkpointLoader, unetLoader, clipLoader, vaeLoader, ksampler });
++  }
++
++  /**
++   * Put a picture in ComfyUI's input folder so a workflow can load it (LoadImage). Returns the
++   * name to use. The same name overwrites, so callers should name by content.
++   */
++  async uploadImage(image: Buffer, filename: string): Promise<string> {
++    const form = new FormData();
++    form.append('image', new Blob([new Uint8Array(image)], { type: 'image/png' }), filename);
++    form.append('type', 'input');
++    form.append('overwrite', 'true');
++    try {
++      const response = await axios.post(`${this.baseUrl}/upload/image`, form, {
++        timeout: 60000,
++        maxBodyLength: Infinity,
++      });
++      const { name, subfolder } = response.data ?? {};
++      if (!name) throw new Error('ComfyUI did not say where it stored the picture');
++      return subfolder ? `${subfolder}/${name}` : name;
++    } catch (error) {
++      throw new Error(
++        `Could not upload a reference picture to ComfyUI: ${error instanceof Error ? error.message : 'Unknown error'}`
++      );
++    }
 +  }
 +
 +  /**
@@ -7915,7 +8094,7 @@ index 99ac020..a3d09ec 100644
      try {
        const response = await axios.post(
          `${this.baseUrl}/prompt`,
-@@ -416,7 +539,14 @@ export class ComfyUIClient {
+@@ -416,7 +565,14 @@ export class ComfyUIClient {
          status: responseStatus,
          response: responseData,
        });
@@ -8109,10 +8288,10 @@ index 0000000..0952b66
 +}
 diff --git a/packages/mcp-server/src/comfyui-models.test.ts b/packages/mcp-server/src/comfyui-models.test.ts
 new file mode 100644
-index 0000000..ec45916
+index 0000000..0b4e18c
 --- /dev/null
 +++ b/packages/mcp-server/src/comfyui-models.test.ts
-@@ -0,0 +1,57 @@
+@@ -0,0 +1,63 @@
 +import { describe, expect, it } from 'vitest';
 +import { comboOptions, parseComfyModels } from './comfyui-models.js';
 +
@@ -8136,11 +8315,13 @@ index 0000000..ec45916
 +});
 +
 +describe('parseComfyModels', () => {
-+  it('collects checkpoints, vaes, samplers and schedulers', () => {
++  it('collects checkpoints, diffusion models, text encoders, vaes, samplers and schedulers', () => {
 +    const models = parseComfyModels({
 +      checkpointLoader: {
 +        CheckpointLoaderSimple: { input: { required: { ckpt_name: [['m.safetensors']] } } },
 +      },
++      unetLoader: { UNETLoader: { input: { required: { unet_name: [['h3.safetensors']] } } } },
++      clipLoader: { CLIPLoader: { input: { required: { clip_name: [['qwen.safetensors']] } } } },
 +      vaeLoader: { VAELoader: { input: { required: { vae_name: [['sdxl_vae.safetensors']] } } } },
 +      ksampler: {
 +        KSampler: {
@@ -8155,6 +8336,8 @@ index 0000000..ec45916
 +    });
 +    expect(models).toEqual({
 +      checkpoints: ['m.safetensors'],
++      diffusionModels: ['h3.safetensors'],
++      textEncoders: ['qwen.safetensors'],
 +      vaes: ['sdxl_vae.safetensors'],
 +      samplers: ['euler', 'dpmpp_2m'],
 +      schedulers: ['normal', 'karras'],
@@ -8164,6 +8347,8 @@ index 0000000..ec45916
 +  it('copes with missing parts', () => {
 +    expect(parseComfyModels({})).toEqual({
 +      checkpoints: [],
++      diffusionModels: [],
++      textEncoders: [],
 +      vaes: [],
 +      samplers: [],
 +      schedulers: [],
@@ -8172,10 +8357,10 @@ index 0000000..ec45916
 +});
 diff --git a/packages/mcp-server/src/comfyui-models.ts b/packages/mcp-server/src/comfyui-models.ts
 new file mode 100644
-index 0000000..2ef9bbf
+index 0000000..0c22325
 --- /dev/null
 +++ b/packages/mcp-server/src/comfyui-models.ts
-@@ -0,0 +1,47 @@
+@@ -0,0 +1,53 @@
 +/**
 + * What a ComfyUI offers: its checkpoints, VAEs, samplers and schedulers, read from /object_info.
 + * Used to fill the choices in the image generation settings.
@@ -8183,6 +8368,8 @@ index 0000000..2ef9bbf
 +
 +export interface ComfyModels {
 +  checkpoints: string[];
++  diffusionModels: string[];
++  textEncoders: string[];
 +  vaes: string[];
 +  samplers: string[];
 +  schedulers: string[];
@@ -8213,11 +8400,15 @@ index 0000000..2ef9bbf
 +/** Combine the /object_info answers for the loader and sampler nodes. */
 +export function parseComfyModels(parts: {
 +  checkpointLoader?: unknown;
++  unetLoader?: unknown;
++  clipLoader?: unknown;
 +  vaeLoader?: unknown;
 +  ksampler?: unknown;
 +}): ComfyModels {
 +  return {
 +    checkpoints: inputOptions(parts.checkpointLoader, 'CheckpointLoaderSimple', 'ckpt_name'),
++    diffusionModels: inputOptions(parts.unetLoader, 'UNETLoader', 'unet_name'),
++    textEncoders: inputOptions(parts.clipLoader, 'CLIPLoader', 'clip_name'),
 +    vaes: inputOptions(parts.vaeLoader, 'VAELoader', 'vae_name'),
 +    samplers: inputOptions(parts.ksampler, 'KSampler', 'sampler_name'),
 +    schedulers: inputOptions(parts.ksampler, 'KSampler', 'scheduler'),
@@ -8438,13 +8629,13 @@ index 6495485..e335970 100644
  
 diff --git a/packages/mcp-server/src/image-profiles.test.ts b/packages/mcp-server/src/image-profiles.test.ts
 new file mode 100644
-index 0000000..081902e
+index 0000000..6a768d6
 --- /dev/null
 +++ b/packages/mcp-server/src/image-profiles.test.ts
-@@ -0,0 +1,128 @@
+@@ -0,0 +1,242 @@
 +import { describe, expect, it } from 'vitest';
 +import {
-+  buildTxt2ImgWorkflow,
++  buildWorkflow,
 +  DEFAULT_PROFILES,
 +  fitPixels,
 +  IMAGE_KINDS,
@@ -8464,27 +8655,54 @@ index 0000000..081902e
 +    expect(Object.keys(normalizeProfiles({})).sort()).toEqual([...IMAGE_KINDS].sort());
 +  });
 +
++  it('defaults maps to a checkpoint and the rest to MiniMax H3', () => {
++    expect(DEFAULT_PROFILES.map.workflow).toBe('checkpoint');
++    for (const kind of ['portrait', 'token', 'handout'] as const) {
++      expect(DEFAULT_PROFILES[kind].workflow).toBe('minimax-h3');
++      expect(DEFAULT_PROFILES[kind].steps).toBe(6);
++      expect(DEFAULT_PROFILES[kind].cfg).toBe(1);
++    }
++  });
++
 +  it('keeps saved values and fills in missing ones from that kind default', () => {
 +    const profiles = normalizeProfiles(
-+      JSON.stringify({ portrait: { checkpoint: 'face.safetensors', steps: 30 } })
++      JSON.stringify({ portrait: { workflow: 'minimax-h3', diffusionModel: 'other.safetensors' } })
 +    );
-+    expect(profiles.portrait.checkpoint).toBe('face.safetensors');
-+    expect(profiles.portrait.steps).toBe(30);
-+    expect(profiles.portrait.cfg).toBe(DEFAULT_PROFILES.portrait.cfg);
++    expect(profiles.portrait.diffusionModel).toBe('other.safetensors');
++    expect(profiles.portrait.steps).toBe(DEFAULT_PROFILES.portrait.steps);
 +    expect(profiles.map).toEqual(DEFAULT_PROFILES.map);
++  });
++
++  it('treats profiles saved before workflows existed as old checkpoint settings', () => {
++    const profiles = normalizeProfiles({
++      map: { checkpoint: 'mine.safetensors', steps: 40 },
++      portrait: { checkpoint: '', steps: 25, cfg: 6, sampler: 'dpmpp_2m' },
++    });
++    // The map stays a checkpoint profile with the saved values.
++    expect(profiles.map.workflow).toBe('checkpoint');
++    expect(profiles.map.checkpoint).toBe('mine.safetensors');
++    expect(profiles.map.steps).toBe(40);
++    // The rest only held settings for a checkpoint that was never chosen: new defaults.
++    expect(profiles.portrait).toEqual(DEFAULT_PROFILES.portrait);
 +  });
 +
 +  it('clamps and repairs bad numbers and names', () => {
 +    const p = normalizeProfile(
-+      { steps: 100000, cfg: -4, width: 5000, height: 10, sampler: 'bad name!', scheduler: 7 },
-+      DEFAULT_PROFILES.portrait
++      { steps: 100000, cfg: -4, width: 9000, height: 10, sampler: 'bad name!', scheduler: 7 },
++      DEFAULT_PROFILES.map
 +    );
 +    expect(p.steps).toBe(100);
 +    expect(p.cfg).toBe(0);
-+    expect(p.width).toBeLessThanOrEqual(2048);
++    expect(p.width).toBeLessThanOrEqual(6400);
++    expect(p.width * p.height).toBeLessThanOrEqual(4096 * 4096);
 +    expect(p.height).toBe(256);
-+    expect(p.sampler).toBe(DEFAULT_PROFILES.portrait.sampler);
-+    expect(p.scheduler).toBe(DEFAULT_PROFILES.portrait.scheduler);
++    expect(p.sampler).toBe(DEFAULT_PROFILES.map.sampler);
++    expect(p.scheduler).toBe(DEFAULT_PROFILES.map.scheduler);
++  });
++
++  it('rejects an unknown workflow', () => {
++    const p = normalizeProfile({ workflow: 'magic' }, DEFAULT_PROFILES.portrait);
++    expect(p.workflow).toBe('minimax-h3');
 +  });
 +
 +  it('accepts numbers sent as text', () => {
@@ -8495,20 +8713,21 @@ index 0000000..081902e
 +});
 +
 +describe('fitPixels', () => {
-+  it('snaps to multiples of 8', () => {
++  it('snaps to multiples of 8, or 32 when asked', () => {
 +    expect(fitPixels(1000, 1003)).toEqual({ width: 1000, height: 1000 });
++    expect(fitPixels(1650, 2440, 32)).toEqual({ width: 1664, height: 2432 });
 +  });
 +
 +  it('shrinks a picture that has too many pixels but keeps its shape', () => {
-+    const { width, height } = fitPixels(2048, 2048);
-+    expect(width * height).toBeLessThanOrEqual(2048 * 2048);
-+    const big = fitPixels(2048, 2000);
-+    expect(big.width * big.height).toBeLessThanOrEqual(2048 * 2048);
-+    expect(big.width % 8).toBe(0);
++    const big = fitPixels(6400, 6000, 32);
++    expect(big.width * big.height).toBeLessThanOrEqual(4096 * 4096);
++    expect(big.width % 32).toBe(0);
++    expect(big.height % 32).toBe(0);
++    expect(big.width).toBeGreaterThan(big.height);
 +  });
 +});
 +
-+describe('resolveGeneration', () => {
++describe('resolveGeneration (checkpoint)', () => {
 +  const profile = { ...DEFAULT_PROFILES.map };
 +
 +  it('wraps the prompt in the profile wording', () => {
@@ -8535,8 +8754,14 @@ index 0000000..081902e
 +  it('refuses an empty prompt and a missing checkpoint', () => {
 +    expect(() => resolveGeneration('map', profile, { prompt: '  ' })).toThrow('prompt');
 +    expect(() =>
-+      resolveGeneration('portrait', DEFAULT_PROFILES.portrait, { prompt: 'a dwarf' })
-+    ).toThrow(/No checkpoint is chosen for "portrait"/);
++      resolveGeneration('map', { ...profile, checkpoint: '' }, { prompt: 'a cave' })
++    ).toThrow(/No checkpoint is chosen for "map"/);
++  });
++
++  it('refuses reference pictures', () => {
++    expect(() =>
++      resolveGeneration('map', profile, { prompt: 'x', referenceImages: ['a.png'] })
++    ).toThrow(/cannot take reference images/);
 +  });
 +
 +  it('picks a seed when none is given', () => {
@@ -8546,11 +8771,41 @@ index 0000000..081902e
 +  });
 +});
 +
-+describe('buildTxt2ImgWorkflow', () => {
++describe('resolveGeneration (minimax-h3)', () => {
++  const profile = { ...DEFAULT_PROFILES.portrait };
++
++  it('uses the prompt as written, snaps the size to 32 and has no negative prompt', () => {
++    const gen = resolveGeneration('portrait', profile, {
++      prompt: 'A dwarf smith.',
++      width: 1650,
++      height: 2440,
++      negativePrompt: 'ignored',
++    });
++    expect(gen.positive).toBe('A dwarf smith.');
++    expect(gen.negative).toBe('');
++    expect([gen.width, gen.height]).toEqual([1664, 2432]);
++    expect([gen.steps, gen.cfg]).toEqual([6, 1]);
++  });
++
++  it('needs all three model files', () => {
++    expect(() =>
++      resolveGeneration('portrait', { ...profile, textEncoder: '' }, { prompt: 'x' })
++    ).toThrow(/missing its diffusion model, text encoder or VAE/);
++  });
++
++  it('limits the number of reference pictures to 16', () => {
++    const many = Array.from({ length: 17 }, (_, i) => `r${i}.png`);
++    expect(() =>
++      resolveGeneration('portrait', profile, { prompt: 'x', referenceImages: many })
++    ).toThrow(/At most 16/);
++  });
++});
++
++describe('buildWorkflow (checkpoint)', () => {
 +  const gen = resolveGeneration('map', DEFAULT_PROFILES.map, { prompt: 'a cave', seed: 1 });
 +
 +  it('wires the stock text-to-image nodes with a separate VAE', () => {
-+    const wf = buildTxt2ImgWorkflow(gen, 'claude-map');
++    const wf = buildWorkflow(gen, 'claude-map');
 +    expect(wf['1'].inputs.ckpt_name).toBe(DEFAULT_PROFILES.map.checkpoint);
 +    expect(wf['5'].inputs).toMatchObject({
 +      seed: 1,
@@ -8565,31 +8820,94 @@ index 0000000..081902e
 +  });
 +
 +  it("uses the checkpoint's own VAE when none is chosen", () => {
-+    const wf = buildTxt2ImgWorkflow({ ...gen, vae: '' }, 'p');
++    const wf = buildWorkflow({ ...gen, vae: '' }, 'p');
 +    expect(wf['9']).toBeUndefined();
 +    expect(wf['6'].inputs.vae).toEqual(['1', 2]);
 +  });
 +});
++
++describe('buildWorkflow (minimax-h3)', () => {
++  const base = resolveGeneration('portrait', DEFAULT_PROFILES.portrait, {
++    prompt: 'A dwarf smith.',
++    seed: 9,
++  });
++
++  it('loads the model, text encoder and VAE and samples with 6 steps at CFG 1', () => {
++    const wf = buildWorkflow(base, 'claude-portrait');
++    expect(wf['1']).toEqual({
++      class_type: 'UNETLoader',
++      inputs: { unet_name: 'minimax_h3_image_pruned_w4a8.safetensors', weight_dtype: 'default' },
++    });
++    expect(wf['2'].inputs).toMatchObject({ type: 'minimax', device: 'default' });
++    expect(wf['3'].inputs.vae_name).toBe('minimax_h3_image_vae_fp16.safetensors');
++    expect(wf['5'].class_type).toBe('MiniMaxH3ImageConditioning');
++    expect(wf['5'].inputs).toMatchObject({
++      prompt: 'A dwarf smith.',
++      width: 1664,
++      height: 2432,
++      clip: ['2', 0],
++      vae: ['3', 0],
++    });
++    expect(wf['6'].inputs.conditioning).toEqual(['5', 0]);
++    expect(wf['7'].inputs).toMatchObject({
++      seed: 9,
++      steps: 6,
++      cfg: 1,
++      sampler_name: 'euler',
++      scheduler: 'simple',
++      latent_image: ['5', 1],
++      negative: ['6', 0],
++    });
++    expect(wf['9'].inputs.filename_prefix).toBe('claude-portrait');
++  });
++
++  it('has no reference nodes without references', () => {
++    const wf = buildWorkflow(base, 'p');
++    expect(Object.keys(wf['5'].inputs).some(k => k.startsWith('images.'))).toBe(false);
++    expect(Object.values(wf).some((n: any) => n.class_type === 'LoadImage')).toBe(false);
++  });
++
++  it('feeds each reference through a LoadImage node as images.image_N', () => {
++    const wf = buildWorkflow({ ...base, referenceImages: ['a.png', 'b.png'] }, 'p');
++    expect(wf['20']).toEqual({ class_type: 'LoadImage', inputs: { image: 'a.png' } });
++    expect(wf['21']).toEqual({ class_type: 'LoadImage', inputs: { image: 'b.png' } });
++    expect(wf['5'].inputs['images.image_1']).toEqual(['20', 0]);
++    expect(wf['5'].inputs['images.image_2']).toEqual(['21', 0]);
++  });
++});
 diff --git a/packages/mcp-server/src/image-profiles.ts b/packages/mcp-server/src/image-profiles.ts
 new file mode 100644
-index 0000000..51c1943
+index 0000000..571d10c
 --- /dev/null
 +++ b/packages/mcp-server/src/image-profiles.ts
-@@ -0,0 +1,278 @@
+@@ -0,0 +1,399 @@
 +/**
-+ * Image generation profiles: what to generate with (checkpoint, sampler, size, prompt wording)
-+ * for each kind of picture. The GM edits them in the Foundry module's settings; this file turns
++ * Image generation profiles: what to generate with (model, sampler, size, prompt wording) for
++ * each kind of picture. The GM edits them in the Foundry module's settings; this file turns
 + * them into a ComfyUI workflow. The module keeps a copy of the defaults for its dialog
 + * (packages/foundry-module/src/image-profiles-utils.ts) - keep the two in step.
++ *
++ * Two workflows exist:
++ *  - "checkpoint": a Stable Diffusion style checkpoint (SDXL battlemaps), with a negative prompt.
++ *  - "minimax-h3": MiniMax H3 Image: diffusion model + Qwen3-VL text encoder + VAE, 6 steps,
++ *    no negative prompt, and up to 16 reference pictures (<Picture 1> ... in the prompt).
 + */
 +
 +export const IMAGE_KINDS = ['map', 'portrait', 'token', 'handout'] as const;
 +export type ImageKind = (typeof IMAGE_KINDS)[number];
 +
++export const WORKFLOWS = ['checkpoint', 'minimax-h3'] as const;
++export type ImageWorkflow = (typeof WORKFLOWS)[number];
++
 +export interface ImageProfile {
-+  /** Checkpoint file name as ComfyUI lists it (models/checkpoints). Empty = not chosen yet. */
++  workflow: ImageWorkflow;
++  /** "checkpoint" workflow: checkpoint file as ComfyUI lists it. Empty = not chosen yet. */
 +  checkpoint: string;
-+  /** VAE file name (models/vae). Empty = use the VAE inside the checkpoint. */
++  /** "minimax-h3" workflow: the diffusion model (models/diffusion_models). */
++  diffusionModel: string;
++  /** "minimax-h3" workflow: the Qwen3-VL text encoder (models/text_encoders). */
++  textEncoder: string;
++  /** VAE file name (models/vae). Empty = use the VAE inside the checkpoint (checkpoint only). */
 +  vae: string;
 +  steps: number;
 +  cfg: number;
@@ -8600,10 +8918,13 @@ index 0000000..51c1943
 +  /** Text put before / after what is asked for. */
 +  promptPrefix: string;
 +  promptSuffix: string;
++  /** Not used by the minimax-h3 workflow. */
 +  negativePrompt: string;
 +}
 +
 +export type ImageProfiles = Record<ImageKind, ImageProfile>;
++
++export const MAX_REFERENCE_IMAGES = 16;
 +
 +export const LIMITS = {
 +  minSteps: 1,
@@ -8611,14 +8932,32 @@ index 0000000..51c1943
 +  minCfg: 0,
 +  maxCfg: 30,
 +  minSide: 256,
-+  maxSide: 2048,
-+  maxPixels: 2048 * 2048,
++  maxSide: 6400,
++  maxPixels: 4096 * 4096,
 +  maxText: 1000,
 +} as const;
 +
++export const H3_DEFAULTS = {
++  workflow: 'minimax-h3' as const,
++  checkpoint: '',
++  diffusionModel: 'minimax_h3_image_pruned_w4a8.safetensors',
++  textEncoder: 'qwen3vl_32b_minimax_h3_int4_convrot.safetensors',
++  vae: 'minimax_h3_image_vae_fp16.safetensors',
++  steps: 6,
++  cfg: 1,
++  sampler: 'euler',
++  scheduler: 'simple',
++  promptPrefix: '',
++  promptSuffix: '',
++  negativePrompt: '',
++};
++
 +export const DEFAULT_PROFILES: ImageProfiles = {
 +  map: {
++    workflow: 'checkpoint',
 +    checkpoint: 'dDBattlemapsSDXL10_upscaleV10.safetensors',
++    diffusionModel: '',
++    textEncoder: '',
 +    vae: 'sdxl_vae.safetensors',
 +    steps: 30,
 +    cfg: 2.5,
@@ -8631,45 +8970,10 @@ index 0000000..51c1943
 +    negativePrompt:
 +      'grid, low angle, isometric, oblique, horizon, text, watermark, logo, caption, people, creatures, monsters, blurry, artifacts',
 +  },
-+  portrait: {
-+    checkpoint: '',
-+    vae: '',
-+    steps: 25,
-+    cfg: 6,
-+    sampler: 'dpmpp_2m',
-+    scheduler: 'karras',
-+    width: 832,
-+    height: 1216,
-+    promptPrefix: 'fantasy character portrait, ',
-+    promptSuffix: ', detailed face, painterly, dramatic lighting',
-+    negativePrompt: 'text, watermark, signature, blurry, deformed, extra fingers, lowres',
-+  },
-+  token: {
-+    checkpoint: '',
-+    vae: '',
-+    steps: 25,
-+    cfg: 6,
-+    sampler: 'dpmpp_2m',
-+    scheduler: 'karras',
-+    width: 1024,
-+    height: 1024,
-+    promptPrefix: 'round game token, centered bust of ',
-+    promptSuffix: ', plain dark background, fantasy illustration, thick border',
-+    negativePrompt: 'text, watermark, signature, blurry, full body, cropped, lowres',
-+  },
-+  handout: {
-+    checkpoint: '',
-+    vae: '',
-+    steps: 25,
-+    cfg: 6,
-+    sampler: 'dpmpp_2m',
-+    scheduler: 'karras',
-+    width: 1216,
-+    height: 832,
-+    promptPrefix: 'fantasy illustration, ',
-+    promptSuffix: ', aged parchment, detailed, no text',
-+    negativePrompt: 'text, letters, watermark, signature, blurry, lowres',
-+  },
++  // MiniMax H3 Image works best from about 4 megapixels up and wants long, detailed prompts.
++  portrait: { ...H3_DEFAULTS, width: 1664, height: 2432 },
++  token: { ...H3_DEFAULTS, width: 2048, height: 2048 },
++  handout: { ...H3_DEFAULTS, width: 2432, height: 1664 },
 +};
 +
 +function clamp(value: number, min: number, max: number): number {
@@ -8685,19 +8989,23 @@ index 0000000..51c1943
 +  return typeof value === 'string' ? value.slice(0, max) : fallback;
 +}
 +
-+/** Round to a multiple of 8 within the allowed side length (SDXL and SD need that). */
-+export function snapSide(value: number): number {
-+  return clamp(Math.round(value / 8) * 8, LIMITS.minSide, LIMITS.maxSide);
++/** Round to a multiple (8 for Stable Diffusion, 32 for MiniMax H3) within the allowed length. */
++export function snapSide(value: number, multiple = 8): number {
++  return clamp(Math.round(value / multiple) * multiple, LIMITS.minSide, LIMITS.maxSide);
 +}
 +
 +/** Keep the picture inside the pixel budget while keeping its shape. */
-+export function fitPixels(width: number, height: number): { width: number; height: number } {
-+  let w = snapSide(width);
-+  let h = snapSide(height);
++export function fitPixels(
++  width: number,
++  height: number,
++  multiple = 8
++): { width: number; height: number } {
++  let w = snapSide(width, multiple);
++  let h = snapSide(height, multiple);
 +  if (w * h > LIMITS.maxPixels) {
 +    const scale = Math.sqrt(LIMITS.maxPixels / (w * h));
-+    w = Math.max(LIMITS.minSide, Math.floor((w * scale) / 8) * 8);
-+    h = Math.max(LIMITS.minSide, Math.floor((h * scale) / 8) * 8);
++    w = Math.max(LIMITS.minSide, Math.floor((w * scale) / multiple) * multiple);
++    h = Math.max(LIMITS.minSide, Math.floor((h * scale) / multiple) * multiple);
 +  }
 +  return { width: w, height: h };
 +}
@@ -8716,8 +9024,14 @@ index 0000000..51c1943
 +export function normalizeProfile(raw: unknown, fallback: ImageProfile): ImageProfile {
 +  const r = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
 +  const size = fitPixels(num(r.width, fallback.width), num(r.height, fallback.height));
++  const workflow = WORKFLOWS.includes(r.workflow as ImageWorkflow)
++    ? (r.workflow as ImageWorkflow)
++    : fallback.workflow;
 +  return {
++    workflow,
 +    checkpoint: nameOrDefault(r.checkpoint, fallback.checkpoint),
++    diffusionModel: nameOrDefault(r.diffusionModel, fallback.diffusionModel),
++    textEncoder: nameOrDefault(r.textEncoder, fallback.textEncoder),
 +    vae: nameOrDefault(r.vae, fallback.vae),
 +    steps: Math.round(clamp(num(r.steps, fallback.steps), LIMITS.minSteps, LIMITS.maxSteps)),
 +    cfg: clamp(num(r.cfg, fallback.cfg), LIMITS.minCfg, LIMITS.maxCfg),
@@ -8731,7 +9045,13 @@ index 0000000..51c1943
 +  };
 +}
 +
-+/** All profiles from the saved setting (an object, or the JSON text of one). */
++/**
++ * All profiles from the saved setting (an object, or the JSON text of one).
++ *
++ * Profiles saved before workflows existed have no "workflow" field. A saved map profile was a
++ * checkpoint profile and stays one; the others only ever held settings for a checkpoint that was
++ * never chosen, so they take the new defaults.
++ */
 +export function normalizeProfiles(raw: unknown): ImageProfiles {
 +  let value = raw;
 +  if (typeof value === 'string') {
@@ -8741,10 +9061,18 @@ index 0000000..51c1943
 +      value = undefined;
 +    }
 +  }
-+  const saved = (value && typeof value === 'object' ? value : {}) as Record<string, unknown>;
++  const saved = (value && typeof value === 'object' ? value : {}) as Record<string, any>;
 +  const result = {} as ImageProfiles;
 +  for (const kind of IMAGE_KINDS) {
-+    result[kind] = normalizeProfile(saved[kind], DEFAULT_PROFILES[kind]);
++    const entry = saved[kind];
++    const legacy = entry && typeof entry === 'object' && entry.workflow === undefined;
++    if (legacy && kind !== 'map') {
++      result[kind] = { ...DEFAULT_PROFILES[kind] };
++    } else if (legacy) {
++      result[kind] = normalizeProfile({ ...entry, workflow: 'checkpoint' }, DEFAULT_PROFILES[kind]);
++    } else {
++      result[kind] = normalizeProfile(entry, DEFAULT_PROFILES[kind]);
++    }
 +  }
 +  return result;
 +}
@@ -8756,10 +9084,15 @@ index 0000000..51c1943
 +  height?: number | undefined;
 +  steps?: number | undefined;
 +  seed?: number | undefined;
++  /** Names of reference pictures already uploaded to ComfyUI (minimax-h3 only). */
++  referenceImages?: string[] | undefined;
 +}
 +
 +export interface ResolvedGeneration {
++  workflow: ImageWorkflow;
 +  checkpoint: string;
++  diffusionModel: string;
++  textEncoder: string;
 +  vae: string;
 +  steps: number;
 +  cfg: number;
@@ -8770,7 +9103,10 @@ index 0000000..51c1943
 +  seed: number;
 +  positive: string;
 +  negative: string;
++  referenceImages: string[];
 +}
++
++const SETTINGS_HINT = 'In Foundry open the module settings, click "Configure Image Generation"';
 +
 +/** Combine a profile with one request: the request's size, steps and seed win. */
 +export function resolveGeneration(
@@ -8780,22 +9116,42 @@ index 0000000..51c1943
 +): ResolvedGeneration {
 +  const prompt = request.prompt.trim();
 +  if (!prompt) throw new Error('prompt is required');
-+  if (!profile.checkpoint) {
++
++  if (profile.workflow === 'minimax-h3') {
++    if (!profile.diffusionModel || !profile.textEncoder || !profile.vae) {
++      throw new Error(
++        `The "${kind}" profile uses MiniMax H3 Image but is missing its diffusion model, text encoder or VAE. ${SETTINGS_HINT} and pick them.`
++      );
++    }
++  } else if (!profile.checkpoint) {
 +    throw new Error(
-+      `No checkpoint is chosen for "${kind}" images. In Foundry open the module settings, click "Configure Image Generation" and pick one.`
++      `No checkpoint is chosen for "${kind}" images. ${SETTINGS_HINT} and pick one.`
 +    );
 +  }
-+  const size = fitPixels(request.width ?? profile.width, request.height ?? profile.height);
-+  const steps = Math.round(
-+    clamp(request.steps ?? profile.steps, LIMITS.minSteps, LIMITS.maxSteps)
-+  );
++
++  const references = request.referenceImages ?? [];
++  if (references.length > 0 && profile.workflow !== 'minimax-h3') {
++    throw new Error(
++      `The "${kind}" profile uses a checkpoint workflow, which cannot take reference images. Only MiniMax H3 profiles can.`
++    );
++  }
++  if (references.length > MAX_REFERENCE_IMAGES) {
++    throw new Error(`At most ${MAX_REFERENCE_IMAGES} reference images are allowed`);
++  }
++
++  const multiple = profile.workflow === 'minimax-h3' ? 32 : 8;
++  const size = fitPixels(request.width ?? profile.width, request.height ?? profile.height, multiple);
++  const steps = Math.round(clamp(request.steps ?? profile.steps, LIMITS.minSteps, LIMITS.maxSteps));
 +  const seed =
 +    request.seed !== undefined && Number.isFinite(request.seed)
 +      ? Math.abs(Math.trunc(request.seed))
 +      : Math.floor(Math.random() * 2 ** 32);
 +  const negativeExtra = request.negativePrompt?.trim();
 +  return {
++    workflow: profile.workflow,
 +    checkpoint: profile.checkpoint,
++    diffusionModel: profile.diffusionModel,
++    textEncoder: profile.textEncoder,
 +    vae: profile.vae,
 +    steps,
 +    cfg: profile.cfg,
@@ -8805,14 +9161,18 @@ index 0000000..51c1943
 +    height: size.height,
 +    seed,
 +    positive: `${profile.promptPrefix}${prompt}${profile.promptSuffix}`,
-+    negative: negativeExtra
-+      ? [profile.negativePrompt, negativeExtra].filter(Boolean).join(', ')
-+      : profile.negativePrompt,
++    negative:
++      profile.workflow === 'minimax-h3'
++        ? ''
++        : negativeExtra
++          ? [profile.negativePrompt, negativeExtra].filter(Boolean).join(', ')
++          : profile.negativePrompt,
++    referenceImages: references,
 +  };
 +}
 +
-+/** The ComfyUI workflow (stock nodes only) for a plain text-to-image run. */
-+export function buildTxt2ImgWorkflow(
++/** The ComfyUI workflow (stock nodes only) for a plain text-to-image run with a checkpoint. */
++function buildCheckpointWorkflow(
 +  gen: ResolvedGeneration,
 +  filenamePrefix: string
 +): Record<string, any> {
@@ -8854,6 +9214,72 @@ index 0000000..51c1943
 +  };
 +  return workflow;
 +}
++
++/**
++ * MiniMax H3 Image: text to image, or with reference pictures an edit/guided generation. The
++ * conditioning node takes the pictures as images.image_1 ... and the prompt names them
++ * <Picture 1> ... Sampling is the model's own: 6 steps, CFG 1, empty negative conditioning.
++ */
++function buildMiniMaxH3Workflow(
++  gen: ResolvedGeneration,
++  filenamePrefix: string
++): Record<string, any> {
++  const workflow: Record<string, any> = {
++    '1': {
++      class_type: 'UNETLoader',
++      inputs: { unet_name: gen.diffusionModel, weight_dtype: 'default' },
++    },
++    '2': {
++      class_type: 'CLIPLoader',
++      inputs: { clip_name: gen.textEncoder, type: 'minimax', device: 'default' },
++    },
++    '3': { class_type: 'VAELoader', inputs: { vae_name: gen.vae } },
++    '5': {
++      class_type: 'MiniMaxH3ImageConditioning',
++      inputs: {
++        clip: ['2', 0],
++        vae: ['3', 0],
++        prompt: gen.positive,
++        width: gen.width,
++        height: gen.height,
++      },
++    },
++    '6': { class_type: 'ConditioningZeroOut', inputs: { conditioning: ['5', 0] } },
++    '7': {
++      class_type: 'KSampler',
++      inputs: {
++        model: ['1', 0],
++        positive: ['5', 0],
++        negative: ['6', 0],
++        latent_image: ['5', 1],
++        seed: gen.seed,
++        steps: gen.steps,
++        cfg: gen.cfg,
++        sampler_name: gen.sampler,
++        scheduler: gen.scheduler,
++        denoise: 1,
++      },
++    },
++    '8': { class_type: 'VAEDecode', inputs: { samples: ['7', 0], vae: ['3', 0] } },
++    '9': { class_type: 'SaveImage', inputs: { filename_prefix: filenamePrefix, images: ['8', 0] } },
++  };
++
++  gen.referenceImages.forEach((name, index) => {
++    const nodeId = String(20 + index);
++    workflow[nodeId] = { class_type: 'LoadImage', inputs: { image: name } };
++    workflow['5'].inputs[`images.image_${index + 1}`] = [nodeId, 0];
++  });
++  return workflow;
++}
++
++export function buildWorkflow(gen: ResolvedGeneration, filenamePrefix: string): Record<string, any> {
++  return gen.workflow === 'minimax-h3'
++    ? buildMiniMaxH3Workflow(gen, filenamePrefix)
++    : buildCheckpointWorkflow(gen, filenamePrefix);
++}
++
++/** Kept for callers and tests that build the checkpoint workflow directly. */
++export const buildTxt2ImgWorkflow = buildCheckpointWorkflow;
 diff --git a/packages/mcp-server/src/job-queue.test.ts b/packages/mcp-server/src/job-queue.test.ts
 index bd9ae9e..81cc789 100644
 --- a/packages/mcp-server/src/job-queue.test.ts
@@ -8918,11 +9344,11 @@ index fe400d1..0bdee03 100644
      if (!job) {
 diff --git a/packages/mcp-server/src/tools/image-generation.test.ts b/packages/mcp-server/src/tools/image-generation.test.ts
 new file mode 100644
-index 0000000..3478089
+index 0000000..4b2190f
 --- /dev/null
 +++ b/packages/mcp-server/src/tools/image-generation.test.ts
-@@ -0,0 +1,155 @@
-+import { mkdtempSync, existsSync } from 'fs';
+@@ -0,0 +1,257 @@
++import { mkdtempSync, existsSync, writeFileSync } from 'fs';
 +import os from 'os';
 +import path from 'path';
 +import { describe, expect, it, vi } from 'vitest';
@@ -8931,11 +9357,19 @@ index 0000000..3478089
 +
 +const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3]);
 +
++const SAVED_PROFILES = {
++  map: { workflow: 'checkpoint', checkpoint: 'battle.safetensors' },
++  portrait: {
++    workflow: 'minimax-h3',
++    diffusionModel: 'h3.safetensors',
++    textEncoder: 'qwen.safetensors',
++    vae: 'h3vae.safetensors',
++  },
++  token: { workflow: 'minimax-h3', diffusionModel: '' },
++};
++
 +function makeTools(options: { profiles?: any; uploadResult?: any; runError?: Error } = {}) {
-+  const profiles = options.profiles ?? {
-+    map: { checkpoint: 'battle.safetensors' },
-+    portrait: { checkpoint: 'face.safetensors', vae: '' },
-+  };
++  const profiles = options.profiles ?? SAVED_PROFILES;
 +  const query = vi.fn(async (method: string) => {
 +    if (method === 'foundry-mcp-bridge.get-image-settings') {
 +      return { success: true, target: { mode: 'custom', host: 'h', port: 1 }, profiles };
@@ -8949,9 +9383,12 @@ index 0000000..3478089
 +    if (options.runError) throw options.runError;
 +    return { image: PNG, filename: 'f.png', promptId: 'p1' };
 +  });
++  const uploadImage = vi.fn(async (_bytes: Buffer, name: string) => name);
 +  const getModels = vi.fn(async () => ({
-+    checkpoints: ['battle.safetensors', 'face.safetensors'],
-+    vaes: ['sdxl_vae.safetensors'],
++    checkpoints: ['battle.safetensors'],
++    diffusionModels: ['h3.safetensors'],
++    textEncoders: ['qwen.safetensors'],
++    vaes: ['sdxl_vae.safetensors', 'h3vae.safetensors'],
 +    samplers: [],
 +    schedulers: [],
 +  }));
@@ -8967,11 +9404,11 @@ index 0000000..3478089
 +  const tools = new ImageGenerationTools({
 +    foundryClient: { query } as any,
 +    logger,
-+    getClient: () => ({ runWorkflow, getModels }),
++    getClient: () => ({ runWorkflow, getModels, uploadImage }),
 +    applyTarget,
 +    outputDir,
 +  });
-+  return { tools, query, runWorkflow, getModels, applyTarget, outputDir };
++  return { tools, query, runWorkflow, getModels, uploadImage, applyTarget, outputDir };
 +}
 +
 +describe('slugify', () => {
@@ -8988,9 +9425,16 @@ index 0000000..3478089
 +    expect(defs.map(d => d.name)).toEqual(['generate-image', 'describe-image-generation']);
 +    expect(defs[0]!.inputSchema.required).toEqual(['kind', 'prompt']);
 +  });
++
++  it('tells Claude how to write H3 prompts and use references', () => {
++    const def = makeTools().tools.getToolDefinitions()[0]!;
++    expect(def.description).toContain('<Picture 1>');
++    expect(def.description).toContain('ONE detailed English paragraph');
++    expect(Object.keys(def.inputSchema.properties)).toContain('reference_images');
++  });
 +});
 +
-+describe('generate-image', () => {
++describe('generate-image (checkpoint)', () => {
 +  it('uses the profile, points at the chosen ComfyUI and uploads the result', async () => {
 +    const { tools, runWorkflow, query, applyTarget, outputDir } = makeTools();
 +    const result = await tools.handleGenerateImage({ kind: 'map', prompt: 'a cave', seed: 7 });
@@ -9002,7 +9446,6 @@ index 0000000..3478089
 +      '2d DnD battlemap of a cave, top-down view, overhead perspective, aerial'
 +    );
 +    expect(workflow['5'].inputs.seed).toBe(7);
-+    // Unset fields in the saved map profile fall back to its defaults.
 +    expect(workflow['5'].inputs.steps).toBe(DEFAULT_PROFILES.map.steps);
 +
 +    const uploadCall = query.mock.calls.find(c => c[0] === 'foundry-mcp-bridge.upload-file')!;
@@ -9016,6 +9459,9 @@ index 0000000..3478089
 +      uploaded: true,
 +      path: 'worlds/w/uploads/generated/x.png',
 +      kind: 'map',
++      workflow: 'checkpoint',
++      model: 'battle.safetensors',
++      references: 0,
 +      seed: 7,
 +    });
 +    expect(existsSync(result.local_path)).toBe(true);
@@ -9033,10 +9479,18 @@ index 0000000..3478089
 +    expect(query.mock.calls.some(c => c[0] === 'foundry-mcp-bridge.upload-file')).toBe(false);
 +  });
 +
-+  it('says so when no checkpoint is chosen for the kind', async () => {
++  it('refuses reference pictures for a checkpoint profile', async () => {
++    const { tools, runWorkflow } = makeTools();
++    await expect(
++      tools.handleGenerateImage({ kind: 'map', prompt: 'x', reference_images: ['C:/a.png'] })
++    ).rejects.toThrow(/cannot take reference images/);
++    expect(runWorkflow).not.toHaveBeenCalled();
++  });
++
++  it('says so when the kind is not set up', async () => {
 +    const { tools, runWorkflow } = makeTools();
 +    await expect(tools.handleGenerateImage({ kind: 'token', prompt: 'an orc' })).rejects.toThrow(
-+      /No checkpoint is chosen for "token"/
++      /missing its diffusion model, text encoder or VAE/
 +    );
 +    expect(runWorkflow).not.toHaveBeenCalled();
 +  });
@@ -9064,25 +9518,100 @@ index 0000000..3478089
 +  });
 +});
 +
++describe('generate-image (MiniMax H3 and reference pictures)', () => {
++  it('generates with the H3 workflow and the prompt as written', async () => {
++    const { tools, runWorkflow, uploadImage } = makeTools();
++    const result = await tools.handleGenerateImage({
++      kind: 'portrait',
++      prompt: 'A dwarf smith at a forge.',
++      seed: 3,
++    });
++    const workflow = (runWorkflow.mock.calls[0] as any[])[0];
++    expect(workflow['1'].inputs.unet_name).toBe('h3.safetensors');
++    expect(workflow['5'].inputs.prompt).toBe('A dwarf smith at a forge.');
++    expect(workflow['5'].inputs.width).toBe(1664);
++    expect(workflow['7'].inputs).toMatchObject({ steps: 6, cfg: 1 });
++    expect(uploadImage).not.toHaveBeenCalled();
++    expect(result).toMatchObject({ workflow: 'minimax-h3', model: 'h3.safetensors' });
++  });
++
++  it('uploads reference pictures to ComfyUI and wires them in', async () => {
++    const { tools, runWorkflow, uploadImage, outputDir } = makeTools();
++    const ref = path.join(outputDir, 'ref.png');
++    writeFileSync(ref, PNG);
++
++    const result = await tools.handleGenerateImage({
++      kind: 'portrait',
++      prompt: 'The same dwarf from <Picture 1>, now in a tavern.',
++      reference_images: [ref],
++      seed: 1,
++    });
++
++    expect(uploadImage).toHaveBeenCalledTimes(1);
++    const [bytes, comfyName] = uploadImage.mock.calls[0] as [Buffer, string];
++    expect(bytes.equals(PNG)).toBe(true);
++    expect(comfyName).toMatch(/^claude-ref-[0-9a-f]{16}\.png$/);
++
++    const workflow = (runWorkflow.mock.calls[0] as any[])[0];
++    expect(workflow['20']).toEqual({ class_type: 'LoadImage', inputs: { image: comfyName } });
++    expect(workflow['5'].inputs['images.image_1']).toEqual(['20', 0]);
++    expect(result.references).toBe(1);
++  });
++
++  it('checks reference pictures before generating anything', async () => {
++    const { tools, runWorkflow, outputDir } = makeTools();
++    const notImage = path.join(outputDir, 'x.png');
++    writeFileSync(notImage, Buffer.from('hello'));
++
++    for (const [file, message] of [
++      ['relative.png', /must be absolute/],
++      [path.join(outputDir, 'missing.png'), /not found/],
++      [notImage, /not a PNG, JPEG, WebP or GIF/],
++    ] as const) {
++      await expect(
++        tools.handleGenerateImage({ kind: 'portrait', prompt: 'x', reference_images: [file] })
++      ).rejects.toThrow(message);
++    }
++    expect(runWorkflow).not.toHaveBeenCalled();
++  });
++});
++
 +describe('describe-image-generation', () => {
 +  it('lists profiles, what ComfyUI offers and what is missing', async () => {
 +    const { tools } = makeTools();
 +    const result = await tools.handleDescribe();
 +    expect(result.reachable).toBe(true);
-+    expect(result.available.checkpoints).toContain('face.safetensors');
-+    expect(result.problems).toContain('token: no checkpoint chosen');
-+    expect(result.problems).toContain('handout: no checkpoint chosen');
++    expect(result.available.diffusion_models).toContain('h3.safetensors');
++    expect(result.profiles.portrait.workflow).toBe('minimax-h3');
++    expect(result.problems).toContain('token: no diffusion model chosen');
 +    expect(result.problems.some((p: string) => p.startsWith('map:'))).toBe(false);
-+    // The map profile's default VAE is one this ComfyUI has.
-+    expect(result.problems.some((p: string) => p.includes('VAE'))).toBe(false);
++    expect(result.problems.some((p: string) => p.startsWith('portrait:'))).toBe(false);
++  });
++
++  it('notices a model file that this ComfyUI does not have', async () => {
++    const { tools } = makeTools({
++      profiles: {
++        portrait: {
++          workflow: 'minimax-h3',
++          diffusionModel: 'gone.safetensors',
++          textEncoder: 'qwen.safetensors',
++          vae: 'h3vae.safetensors',
++        },
++      },
++    });
++    const result = await tools.handleDescribe();
++    expect(result.problems).toContain(
++      'portrait: diffusion model "gone.safetensors" is not in this ComfyUI'
++    );
 +  });
 +});
 diff --git a/packages/mcp-server/src/tools/image-generation.ts b/packages/mcp-server/src/tools/image-generation.ts
 new file mode 100644
-index 0000000..1853c3c
+index 0000000..232359d
 --- /dev/null
 +++ b/packages/mcp-server/src/tools/image-generation.ts
-@@ -0,0 +1,284 @@
+@@ -0,0 +1,353 @@
++import { createHash } from 'crypto';
 +import { promises as fs } from 'fs';
 +import os from 'os';
 +import path from 'path';
@@ -9090,9 +9619,11 @@ index 0000000..1853c3c
 +import { FoundryClient } from '../foundry-client.js';
 +import { Logger } from '../logger.js';
 +import type { ComfyModels } from '../comfyui-models.js';
++import { detectImageType, UPLOAD_MAX_BYTES } from './upload.js';
 +import {
-+  buildTxt2ImgWorkflow,
++  buildWorkflow,
 +  IMAGE_KINDS,
++  MAX_REFERENCE_IMAGES,
 +  normalizeProfiles,
 +  resolveGeneration,
 +  type ImageKind,
@@ -9106,6 +9637,7 @@ index 0000000..1853c3c
 +    options?: { timeoutMs?: number }
 +  ): Promise<{ image: Buffer; filename: string; promptId: string }>;
 +  getModels(): Promise<ComfyModels>;
++  uploadImage(image: Buffer, filename: string): Promise<string>;
 +}
 +
 +export interface ImageGenerationToolsOptions {
@@ -9120,7 +9652,7 @@ index 0000000..1853c3c
 +}
 +
 +const UPLOAD_TIMEOUT_MS = 120000;
-+const KEEP_LOCAL_COPIES = 40;
++const KEEP_LOCAL_COPIES = 200;
 +
 +const generateSchema = z
 +  .object({
@@ -9132,6 +9664,7 @@ index 0000000..1853c3c
 +    height: z.number().int().min(64).max(4096).optional(),
 +    steps: z.number().int().min(1).max(150).optional(),
 +    seed: z.number().int().min(0).optional(),
++    reference_images: z.array(z.string().min(1)).max(MAX_REFERENCE_IMAGES).optional(),
 +    upload: z.boolean().optional(),
 +    folder: z.string().max(80).optional(),
 +  })
@@ -9168,7 +9701,7 @@ index 0000000..1853c3c
 +      {
 +        name: 'generate-image',
 +        description:
-+          'Generate a picture with the GM\'s ComfyUI and (by default) upload it to the Foundry world. "kind" picks the profile the GM configured in the module settings (checkpoint, steps, size and prompt wording): map = top-down battlemap, portrait = character portrait, token = round token art, handout = illustration for players. The profile wraps your prompt, so describe only the subject. Returns the Foundry path (use it in manage-scenes, actors or journals) and a local file path you can open to look at the result. Takes about 10-90 seconds. A kind with no checkpoint chosen fails with a message saying so; describe-image-generation shows what is set up.',
++          'Generate a picture with the GM\'s ComfyUI and (by default) upload it to the Foundry world. "kind" picks the profile the GM configured in the module settings (checkpoint, steps, size and prompt wording): map = top-down battlemap, portrait = character portrait, token = round token art, handout = illustration for players. The profile wraps your prompt, so describe only the subject. Returns the Foundry path (use it in manage-scenes, actors or journals) and a local file path you can open to look at the result. Takes about 1-3 minutes with MiniMax H3 (10-90 seconds for a checkpoint). A kind that is not set up fails with a message saying so; describe-image-generation shows what is set up. MINIMAX H3 PROMPTS: there is no prompt expander, so write the prompt yourself as ONE detailed English paragraph (80-200 words): the subject and its exact visible features (face, hair, scar, clothes, props, colours), pose and expression, setting, camera/framing, lighting, medium or art style. Put any required text in quotes. Do not use keyword lists or negative wording; describe what should be there. REFERENCE IMAGES (MiniMax H3 only): pass absolute file paths in reference_images (for example the local_path of an earlier result) and refer to them in the prompt as <Picture 1>, <Picture 2>, ...; to keep a character consistent, say which features to keep ("the exact same woman from <Picture 1>: same face, scar, copper braids, green eyes, apron and pendant") and then describe the new scene. Repeat the features that matter in words, because the picture alone carries them only loosely.',
 +        inputSchema: {
 +          type: 'object',
 +          properties: {
@@ -9195,6 +9728,12 @@ index 0000000..1853c3c
 +            seed: {
 +              type: 'number',
 +              description: 'Use a fixed seed to repeat or tweak a result (default: random)',
++            },
++            reference_images: {
++              type: 'array',
++              items: { type: 'string' },
++              description:
++                'Absolute paths of up to 16 reference pictures on this computer (png, jpg, webp), named <Picture 1>, <Picture 2>... in the prompt. MiniMax H3 profiles only. Use the local_path returned by an earlier generate-image call to keep a character consistent.',
 +            },
 +            upload: {
 +              type: 'boolean',
@@ -9234,21 +9773,41 @@ index 0000000..1853c3c
 +    const settings = await this.readSettings();
 +    this.applyTarget(settings.target);
 +
-+    const generation = resolveGeneration(kind, settings.profiles[kind], {
++    const profile = settings.profiles[kind];
++    const references = parsed.reference_images ?? [];
++    if (references.length > 0 && profile.workflow !== 'minimax-h3') {
++      throw new Error(
++        `The "${kind}" profile uses a checkpoint workflow, which cannot take reference images. Only MiniMax H3 profiles can.`
++      );
++    }
++
++    // Check the pictures before spending time on generation.
++    const loaded = await Promise.all(references.map(file => this.loadReference(file)));
++
++    const client = this.getClient();
++    const uploadedNames: string[] = [];
++    for (const picture of loaded) {
++      uploadedNames.push(await client.uploadImage(picture.bytes, picture.comfyName));
++    }
++
++    const generation = resolveGeneration(kind, profile, {
 +      prompt: parsed.prompt,
 +      negativePrompt: parsed.negative_prompt,
 +      width: parsed.width,
 +      height: parsed.height,
 +      steps: parsed.steps,
 +      seed: parsed.seed,
++      referenceImages: uploadedNames,
 +    });
 +
 +    const baseName = `${slugify(parsed.name ?? parsed.prompt)}-${Date.now().toString(36)}`;
-+    const workflow = buildTxt2ImgWorkflow(generation, `claude-${kind}`);
++    const workflow = buildWorkflow(generation, `claude-${kind}`);
 +
 +    this.logger.info('Generating image', {
 +      kind,
-+      checkpoint: generation.checkpoint,
++      workflow: generation.workflow,
++      model: generation.checkpoint || generation.diffusionModel,
++      references: references.length,
 +      steps: generation.steps,
 +      size: `${generation.width}x${generation.height}`,
 +    });
@@ -9256,7 +9815,7 @@ index 0000000..1853c3c
 +    const started = Date.now();
 +    let result;
 +    try {
-+      result = await this.getClient().runWorkflow(workflow);
++      result = await client.runWorkflow(workflow, { timeoutMs: 15 * 60 * 1000 });
 +    } catch (error) {
 +      const message = error instanceof Error ? error.message : String(error);
 +      throw new Error(`Image generation failed: ${message}`);
@@ -9267,7 +9826,9 @@ index 0000000..1853c3c
 +
 +    const summary = {
 +      kind,
-+      checkpoint: generation.checkpoint,
++      workflow: generation.workflow,
++      model: generation.checkpoint || generation.diffusionModel,
++      references: references.length,
 +      steps: generation.steps,
 +      size: `${generation.width}x${generation.height}`,
 +      seed: generation.seed,
@@ -9318,13 +9879,22 @@ index 0000000..1853c3c
 +    const problems: string[] = [];
 +    for (const kind of IMAGE_KINDS) {
 +      const profile = settings.profiles[kind];
-+      if (!profile.checkpoint) {
-+        problems.push(`${kind}: no checkpoint chosen`);
-+      } else if (models && !models.checkpoints.includes(profile.checkpoint)) {
-+        problems.push(`${kind}: checkpoint "${profile.checkpoint}" is not in this ComfyUI`);
-+      }
-+      if (profile.vae && models && !models.vaes.includes(profile.vae)) {
-+        problems.push(`${kind}: VAE "${profile.vae}" is not in this ComfyUI`);
++      const check = (label: string, value: string, available: string[] | undefined) => {
++        if (!value) {
++          problems.push(`${kind}: no ${label} chosen`);
++        } else if (available && !available.includes(value)) {
++          problems.push(`${kind}: ${label} "${value}" is not in this ComfyUI`);
++        }
++      };
++      if (profile.workflow === 'minimax-h3') {
++        check('diffusion model', profile.diffusionModel, models?.diffusionModels);
++        check('text encoder', profile.textEncoder, models?.textEncoders);
++        check('VAE', profile.vae, models?.vaes);
++      } else {
++        check('checkpoint', profile.checkpoint, models?.checkpoints);
++        if (profile.vae && models && !models.vaes.includes(profile.vae)) {
++          problems.push(`${kind}: VAE "${profile.vae}" is not in this ComfyUI`);
++        }
 +      }
 +    }
 +
@@ -9335,10 +9905,37 @@ index 0000000..1853c3c
 +      ...(comfyError ? { comfyui_error: comfyError } : {}),
 +      profiles: settings.profiles,
 +      available: models
-+        ? { checkpoints: models.checkpoints, vaes: models.vaes }
++        ? {
++            checkpoints: models.checkpoints,
++            diffusion_models: models.diffusionModels,
++            text_encoders: models.textEncoders,
++            vaes: models.vaes,
++          }
 +        : undefined,
 +      problems,
 +    };
++  }
++
++  /** Read and check one reference picture; its ComfyUI name comes from its content. */
++  private async loadReference(file: string): Promise<{ bytes: Buffer; comfyName: string }> {
++    if (!path.isAbsolute(file)) {
++      throw new Error(`Reference image paths must be absolute: ${file}`);
++    }
++    let bytes: Buffer;
++    try {
++      bytes = await fs.readFile(file);
++    } catch {
++      throw new Error(`Reference image not found: ${file}`);
++    }
++    if (bytes.length === 0 || bytes.length > UPLOAD_MAX_BYTES) {
++      throw new Error(`Reference image has an unusable size (${bytes.length} bytes): ${file}`);
++    }
++    const type = detectImageType(bytes);
++    if (!type) {
++      throw new Error(`Reference image is not a PNG, JPEG, WebP or GIF picture: ${file}`);
++    }
++    const hash = createHash('sha1').update(bytes).digest('hex').slice(0, 16);
++    return { bytes, comfyName: `claude-ref-${hash}.${type}` };
 +  }
 +
 +  private async saveLocalCopy(filename: string, image: Buffer): Promise<string> {

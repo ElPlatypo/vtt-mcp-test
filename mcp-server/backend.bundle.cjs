@@ -17905,7 +17905,7 @@ var require_websocket = __commonJS({
     var http2 = require("http");
     var net2 = require("net");
     var tls = require("tls");
-    var { randomBytes, createHash: createHash2 } = require("crypto");
+    var { randomBytes, createHash: createHash3 } = require("crypto");
     var { Duplex, Readable: Readable2 } = require("stream");
     var { URL: URL3 } = require("url");
     var PerMessageDeflate = require_permessage_deflate();
@@ -18582,7 +18582,7 @@ var require_websocket = __commonJS({
           abortHandshake(websocket, socket, "Invalid Upgrade header");
           return;
         }
-        const digest = createHash2("sha1").update(key + GUID).digest("base64");
+        const digest = createHash3("sha1").update(key + GUID).digest("base64");
         if (res.headers["sec-websocket-accept"] !== digest) {
           abortHandshake(websocket, socket, "Invalid Sec-WebSocket-Accept header");
           return;
@@ -18969,7 +18969,7 @@ var require_websocket_server = __commonJS({
     var EventEmitter2 = require("events");
     var http2 = require("http");
     var { Duplex } = require("stream");
-    var { createHash: createHash2 } = require("crypto");
+    var { createHash: createHash3 } = require("crypto");
     var extension = require_extension();
     var PerMessageDeflate = require_permessage_deflate();
     var subprotocol = require_subprotocol();
@@ -19274,7 +19274,7 @@ var require_websocket_server = __commonJS({
         }
         if (this._state > RUNNING)
           return abortHandshake(socket, 503);
-        const digest = createHash2("sha1").update(key + GUID).digest("base64");
+        const digest = createHash3("sha1").update(key + GUID).digest("base64");
         const headers = [
           "HTTP/1.1 101 Switching Protocols",
           "Upgrade: websocket",
@@ -88778,11 +88778,11 @@ var job_queue_exports = {};
 __export(job_queue_exports, {
   JobQueue: () => JobQueue
 });
-var import_crypto5, JOB_STAGES, SIZE_CONFIG, JobQueue;
+var import_crypto6, JOB_STAGES, SIZE_CONFIG, JobQueue;
 var init_job_queue = __esm({
   "dist/job-queue.js"() {
     "use strict";
-    import_crypto5 = require("crypto");
+    import_crypto6 = require("crypto");
     JOB_STAGES = {
       QUEUED: "Queued for processing",
       VALIDATING: "Validating parameters",
@@ -89028,7 +89028,7 @@ var init_job_queue = __esm({
           grid_size: params.grid_size,
           quality: params.quality ?? ""
         });
-        return (0, import_crypto5.createHash)("sha256").update(hashInput).digest("hex").substring(0, 16);
+        return (0, import_crypto6.createHash)("sha256").update(hashInput).digest("hex").substring(0, 16);
       }
       startCleanupTimer() {
         const cleanupInterval = 5 * 60 * 1e3;
@@ -100141,10 +100141,10 @@ var init_URLSearchParams = __esm({
 });
 
 // ../../node_modules/axios/lib/platform/node/index.js
-var import_crypto6, ALPHA, DIGIT, ALPHABET, generateString, node_default;
+var import_crypto7, ALPHA, DIGIT, ALPHABET, generateString, node_default;
 var init_node = __esm({
   "../../node_modules/axios/lib/platform/node/index.js"() {
-    import_crypto6 = __toESM(require("crypto"), 1);
+    import_crypto7 = __toESM(require("crypto"), 1);
     init_URLSearchParams();
     init_FormData();
     ALPHA = "abcdefghijklmnopqrstuvwxyz";
@@ -100158,7 +100158,7 @@ var init_node = __esm({
       let str = "";
       const { length } = alphabet;
       const randomValues = new Uint32Array(size);
-      import_crypto6.default.randomFillSync(randomValues);
+      import_crypto7.default.randomFillSync(randomValues);
       for (let i = 0; i < size; i++) {
         str += alphabet[randomValues[i] % length];
       }
@@ -103894,6 +103894,8 @@ function inputOptions(info, node, input) {
 function parseComfyModels(parts) {
   return {
     checkpoints: inputOptions(parts.checkpointLoader, "CheckpointLoaderSimple", "ckpt_name"),
+    diffusionModels: inputOptions(parts.unetLoader, "UNETLoader", "unet_name"),
+    textEncoders: inputOptions(parts.clipLoader, "CLIPLoader", "clip_name"),
     vaes: inputOptions(parts.vaeLoader, "VAELoader", "vae_name"),
     samplers: inputOptions(parts.ksampler, "KSampler", "sampler_name"),
     schedulers: inputOptions(parts.ksampler, "KSampler", "scheduler")
@@ -104291,12 +104293,36 @@ var init_comfyui_client = __esm({
             throw new Error(`Could not read ${node} from ${this.baseUrl}: ${error instanceof Error ? error.message : "Unknown error"}`);
           }
         };
-        const [checkpointLoader, vaeLoader, ksampler] = await Promise.all([
+        const [checkpointLoader, unetLoader, clipLoader, vaeLoader, ksampler] = await Promise.all([
           get("CheckpointLoaderSimple"),
+          get("UNETLoader"),
+          get("CLIPLoader"),
           get("VAELoader"),
           get("KSampler")
         ]);
-        return parseComfyModels({ checkpointLoader, vaeLoader, ksampler });
+        return parseComfyModels({ checkpointLoader, unetLoader, clipLoader, vaeLoader, ksampler });
+      }
+      /**
+       * Put a picture in ComfyUI's input folder so a workflow can load it (LoadImage). Returns the
+       * name to use. The same name overwrites, so callers should name by content.
+       */
+      async uploadImage(image, filename) {
+        const form = new FormData();
+        form.append("image", new Blob([new Uint8Array(image)], { type: "image/png" }), filename);
+        form.append("type", "input");
+        form.append("overwrite", "true");
+        try {
+          const response = await axios_default.post(`${this.baseUrl}/upload/image`, form, {
+            timeout: 6e4,
+            maxBodyLength: Infinity
+          });
+          const { name, subfolder } = response.data ?? {};
+          if (!name)
+            throw new Error("ComfyUI did not say where it stored the picture");
+          return subfolder ? `${subfolder}/${name}` : name;
+        } catch (error) {
+          throw new Error(`Could not upload a reference picture to ComfyUI: ${error instanceof Error ? error.message : "Unknown error"}`);
+        }
       }
       /**
        * Run a workflow to the end and return its first image. Throws with ComfyUI's own words if the
@@ -115780,6 +115806,7 @@ var UploadTools = class {
 };
 
 // dist/tools/image-generation.js
+var import_crypto5 = require("crypto");
 var import_fs2 = require("fs");
 var import_os = __toESM(require("os"), 1);
 var import_path2 = __toESM(require("path"), 1);
@@ -115787,19 +115814,38 @@ init_zod();
 
 // dist/image-profiles.js
 var IMAGE_KINDS = ["map", "portrait", "token", "handout"];
+var WORKFLOWS = ["checkpoint", "minimax-h3"];
+var MAX_REFERENCE_IMAGES = 16;
 var LIMITS = {
   minSteps: 1,
   maxSteps: 100,
   minCfg: 0,
   maxCfg: 30,
   minSide: 256,
-  maxSide: 2048,
-  maxPixels: 2048 * 2048,
+  maxSide: 6400,
+  maxPixels: 4096 * 4096,
   maxText: 1e3
+};
+var H3_DEFAULTS = {
+  workflow: "minimax-h3",
+  checkpoint: "",
+  diffusionModel: "minimax_h3_image_pruned_w4a8.safetensors",
+  textEncoder: "qwen3vl_32b_minimax_h3_int4_convrot.safetensors",
+  vae: "minimax_h3_image_vae_fp16.safetensors",
+  steps: 6,
+  cfg: 1,
+  sampler: "euler",
+  scheduler: "simple",
+  promptPrefix: "",
+  promptSuffix: "",
+  negativePrompt: ""
 };
 var DEFAULT_PROFILES = {
   map: {
+    workflow: "checkpoint",
     checkpoint: "dDBattlemapsSDXL10_upscaleV10.safetensors",
+    diffusionModel: "",
+    textEncoder: "",
     vae: "sdxl_vae.safetensors",
     steps: 30,
     cfg: 2.5,
@@ -115811,45 +115857,10 @@ var DEFAULT_PROFILES = {
     promptSuffix: ", top-down view, overhead perspective, aerial",
     negativePrompt: "grid, low angle, isometric, oblique, horizon, text, watermark, logo, caption, people, creatures, monsters, blurry, artifacts"
   },
-  portrait: {
-    checkpoint: "",
-    vae: "",
-    steps: 25,
-    cfg: 6,
-    sampler: "dpmpp_2m",
-    scheduler: "karras",
-    width: 832,
-    height: 1216,
-    promptPrefix: "fantasy character portrait, ",
-    promptSuffix: ", detailed face, painterly, dramatic lighting",
-    negativePrompt: "text, watermark, signature, blurry, deformed, extra fingers, lowres"
-  },
-  token: {
-    checkpoint: "",
-    vae: "",
-    steps: 25,
-    cfg: 6,
-    sampler: "dpmpp_2m",
-    scheduler: "karras",
-    width: 1024,
-    height: 1024,
-    promptPrefix: "round game token, centered bust of ",
-    promptSuffix: ", plain dark background, fantasy illustration, thick border",
-    negativePrompt: "text, watermark, signature, blurry, full body, cropped, lowres"
-  },
-  handout: {
-    checkpoint: "",
-    vae: "",
-    steps: 25,
-    cfg: 6,
-    sampler: "dpmpp_2m",
-    scheduler: "karras",
-    width: 1216,
-    height: 832,
-    promptPrefix: "fantasy illustration, ",
-    promptSuffix: ", aged parchment, detailed, no text",
-    negativePrompt: "text, letters, watermark, signature, blurry, lowres"
-  }
+  // MiniMax H3 Image works best from about 4 megapixels up and wants long, detailed prompts.
+  portrait: { ...H3_DEFAULTS, width: 1664, height: 2432 },
+  token: { ...H3_DEFAULTS, width: 2048, height: 2048 },
+  handout: { ...H3_DEFAULTS, width: 2432, height: 1664 }
 };
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
@@ -115861,16 +115872,16 @@ function num(value, fallback) {
 function text(value, fallback, max = LIMITS.maxText) {
   return typeof value === "string" ? value.slice(0, max) : fallback;
 }
-function snapSide(value) {
-  return clamp(Math.round(value / 8) * 8, LIMITS.minSide, LIMITS.maxSide);
+function snapSide(value, multiple = 8) {
+  return clamp(Math.round(value / multiple) * multiple, LIMITS.minSide, LIMITS.maxSide);
 }
-function fitPixels(width, height) {
-  let w = snapSide(width);
-  let h = snapSide(height);
+function fitPixels(width, height, multiple = 8) {
+  let w = snapSide(width, multiple);
+  let h = snapSide(height, multiple);
   if (w * h > LIMITS.maxPixels) {
     const scale = Math.sqrt(LIMITS.maxPixels / (w * h));
-    w = Math.max(LIMITS.minSide, Math.floor(w * scale / 8) * 8);
-    h = Math.max(LIMITS.minSide, Math.floor(h * scale / 8) * 8);
+    w = Math.max(LIMITS.minSide, Math.floor(w * scale / multiple) * multiple);
+    h = Math.max(LIMITS.minSide, Math.floor(h * scale / multiple) * multiple);
   }
   return { width: w, height: h };
 }
@@ -115883,8 +115894,12 @@ function tokenOrDefault(value, fallback) {
 function normalizeProfile(raw, fallback) {
   const r = raw && typeof raw === "object" ? raw : {};
   const size = fitPixels(num(r.width, fallback.width), num(r.height, fallback.height));
+  const workflow = WORKFLOWS.includes(r.workflow) ? r.workflow : fallback.workflow;
   return {
+    workflow,
     checkpoint: nameOrDefault(r.checkpoint, fallback.checkpoint),
+    diffusionModel: nameOrDefault(r.diffusionModel, fallback.diffusionModel),
+    textEncoder: nameOrDefault(r.textEncoder, fallback.textEncoder),
     vae: nameOrDefault(r.vae, fallback.vae),
     steps: Math.round(clamp(num(r.steps, fallback.steps), LIMITS.minSteps, LIMITS.maxSteps)),
     cfg: clamp(num(r.cfg, fallback.cfg), LIMITS.minCfg, LIMITS.maxCfg),
@@ -115909,23 +115924,47 @@ function normalizeProfiles(raw) {
   const saved = value && typeof value === "object" ? value : {};
   const result = {};
   for (const kind of IMAGE_KINDS) {
-    result[kind] = normalizeProfile(saved[kind], DEFAULT_PROFILES[kind]);
+    const entry = saved[kind];
+    const legacy = entry && typeof entry === "object" && entry.workflow === void 0;
+    if (legacy && kind !== "map") {
+      result[kind] = { ...DEFAULT_PROFILES[kind] };
+    } else if (legacy) {
+      result[kind] = normalizeProfile({ ...entry, workflow: "checkpoint" }, DEFAULT_PROFILES[kind]);
+    } else {
+      result[kind] = normalizeProfile(entry, DEFAULT_PROFILES[kind]);
+    }
   }
   return result;
 }
+var SETTINGS_HINT = 'In Foundry open the module settings, click "Configure Image Generation"';
 function resolveGeneration(kind, profile, request) {
   const prompt = request.prompt.trim();
   if (!prompt)
     throw new Error("prompt is required");
-  if (!profile.checkpoint) {
-    throw new Error(`No checkpoint is chosen for "${kind}" images. In Foundry open the module settings, click "Configure Image Generation" and pick one.`);
+  if (profile.workflow === "minimax-h3") {
+    if (!profile.diffusionModel || !profile.textEncoder || !profile.vae) {
+      throw new Error(`The "${kind}" profile uses MiniMax H3 Image but is missing its diffusion model, text encoder or VAE. ${SETTINGS_HINT} and pick them.`);
+    }
+  } else if (!profile.checkpoint) {
+    throw new Error(`No checkpoint is chosen for "${kind}" images. ${SETTINGS_HINT} and pick one.`);
   }
-  const size = fitPixels(request.width ?? profile.width, request.height ?? profile.height);
+  const references = request.referenceImages ?? [];
+  if (references.length > 0 && profile.workflow !== "minimax-h3") {
+    throw new Error(`The "${kind}" profile uses a checkpoint workflow, which cannot take reference images. Only MiniMax H3 profiles can.`);
+  }
+  if (references.length > MAX_REFERENCE_IMAGES) {
+    throw new Error(`At most ${MAX_REFERENCE_IMAGES} reference images are allowed`);
+  }
+  const multiple = profile.workflow === "minimax-h3" ? 32 : 8;
+  const size = fitPixels(request.width ?? profile.width, request.height ?? profile.height, multiple);
   const steps = Math.round(clamp(request.steps ?? profile.steps, LIMITS.minSteps, LIMITS.maxSteps));
   const seed = request.seed !== void 0 && Number.isFinite(request.seed) ? Math.abs(Math.trunc(request.seed)) : Math.floor(Math.random() * 2 ** 32);
   const negativeExtra = request.negativePrompt?.trim();
   return {
+    workflow: profile.workflow,
     checkpoint: profile.checkpoint,
+    diffusionModel: profile.diffusionModel,
+    textEncoder: profile.textEncoder,
     vae: profile.vae,
     steps,
     cfg: profile.cfg,
@@ -115935,10 +115974,11 @@ function resolveGeneration(kind, profile, request) {
     height: size.height,
     seed,
     positive: `${profile.promptPrefix}${prompt}${profile.promptSuffix}`,
-    negative: negativeExtra ? [profile.negativePrompt, negativeExtra].filter(Boolean).join(", ") : profile.negativePrompt
+    negative: profile.workflow === "minimax-h3" ? "" : negativeExtra ? [profile.negativePrompt, negativeExtra].filter(Boolean).join(", ") : profile.negativePrompt,
+    referenceImages: references
   };
 }
-function buildTxt2ImgWorkflow(gen, filenamePrefix) {
+function buildCheckpointWorkflow(gen, filenamePrefix) {
   const workflow = {
     "1": { inputs: { ckpt_name: gen.checkpoint }, class_type: "CheckpointLoaderSimple" },
     "2": { inputs: { text: gen.positive, clip: ["1", 1] }, class_type: "CLIPTextEncode" },
@@ -115976,10 +116016,60 @@ function buildTxt2ImgWorkflow(gen, filenamePrefix) {
   };
   return workflow;
 }
+function buildMiniMaxH3Workflow(gen, filenamePrefix) {
+  const workflow = {
+    "1": {
+      class_type: "UNETLoader",
+      inputs: { unet_name: gen.diffusionModel, weight_dtype: "default" }
+    },
+    "2": {
+      class_type: "CLIPLoader",
+      inputs: { clip_name: gen.textEncoder, type: "minimax", device: "default" }
+    },
+    "3": { class_type: "VAELoader", inputs: { vae_name: gen.vae } },
+    "5": {
+      class_type: "MiniMaxH3ImageConditioning",
+      inputs: {
+        clip: ["2", 0],
+        vae: ["3", 0],
+        prompt: gen.positive,
+        width: gen.width,
+        height: gen.height
+      }
+    },
+    "6": { class_type: "ConditioningZeroOut", inputs: { conditioning: ["5", 0] } },
+    "7": {
+      class_type: "KSampler",
+      inputs: {
+        model: ["1", 0],
+        positive: ["5", 0],
+        negative: ["6", 0],
+        latent_image: ["5", 1],
+        seed: gen.seed,
+        steps: gen.steps,
+        cfg: gen.cfg,
+        sampler_name: gen.sampler,
+        scheduler: gen.scheduler,
+        denoise: 1
+      }
+    },
+    "8": { class_type: "VAEDecode", inputs: { samples: ["7", 0], vae: ["3", 0] } },
+    "9": { class_type: "SaveImage", inputs: { filename_prefix: filenamePrefix, images: ["8", 0] } }
+  };
+  gen.referenceImages.forEach((name, index) => {
+    const nodeId = String(20 + index);
+    workflow[nodeId] = { class_type: "LoadImage", inputs: { image: name } };
+    workflow["5"].inputs[`images.image_${index + 1}`] = [nodeId, 0];
+  });
+  return workflow;
+}
+function buildWorkflow(gen, filenamePrefix) {
+  return gen.workflow === "minimax-h3" ? buildMiniMaxH3Workflow(gen, filenamePrefix) : buildCheckpointWorkflow(gen, filenamePrefix);
+}
 
 // dist/tools/image-generation.js
 var UPLOAD_TIMEOUT_MS2 = 12e4;
-var KEEP_LOCAL_COPIES = 40;
+var KEEP_LOCAL_COPIES = 200;
 var generateSchema = external_exports.object({
   kind: external_exports.enum(IMAGE_KINDS),
   prompt: external_exports.string().min(1).max(2e3),
@@ -115989,6 +116079,7 @@ var generateSchema = external_exports.object({
   height: external_exports.number().int().min(64).max(4096).optional(),
   steps: external_exports.number().int().min(1).max(150).optional(),
   seed: external_exports.number().int().min(0).optional(),
+  reference_images: external_exports.array(external_exports.string().min(1)).max(MAX_REFERENCE_IMAGES).optional(),
   upload: external_exports.boolean().optional(),
   folder: external_exports.string().max(80).optional()
 }).strict();
@@ -116013,7 +116104,7 @@ var ImageGenerationTools = class {
     return [
       {
         name: "generate-image",
-        description: `Generate a picture with the GM's ComfyUI and (by default) upload it to the Foundry world. "kind" picks the profile the GM configured in the module settings (checkpoint, steps, size and prompt wording): map = top-down battlemap, portrait = character portrait, token = round token art, handout = illustration for players. The profile wraps your prompt, so describe only the subject. Returns the Foundry path (use it in manage-scenes, actors or journals) and a local file path you can open to look at the result. Takes about 10-90 seconds. A kind with no checkpoint chosen fails with a message saying so; describe-image-generation shows what is set up.`,
+        description: `Generate a picture with the GM's ComfyUI and (by default) upload it to the Foundry world. "kind" picks the profile the GM configured in the module settings (checkpoint, steps, size and prompt wording): map = top-down battlemap, portrait = character portrait, token = round token art, handout = illustration for players. The profile wraps your prompt, so describe only the subject. Returns the Foundry path (use it in manage-scenes, actors or journals) and a local file path you can open to look at the result. Takes about 1-3 minutes with MiniMax H3 (10-90 seconds for a checkpoint). A kind that is not set up fails with a message saying so; describe-image-generation shows what is set up. MINIMAX H3 PROMPTS: there is no prompt expander, so write the prompt yourself as ONE detailed English paragraph (80-200 words): the subject and its exact visible features (face, hair, scar, clothes, props, colours), pose and expression, setting, camera/framing, lighting, medium or art style. Put any required text in quotes. Do not use keyword lists or negative wording; describe what should be there. REFERENCE IMAGES (MiniMax H3 only): pass absolute file paths in reference_images (for example the local_path of an earlier result) and refer to them in the prompt as <Picture 1>, <Picture 2>, ...; to keep a character consistent, say which features to keep ("the exact same woman from <Picture 1>: same face, scar, copper braids, green eyes, apron and pendant") and then describe the new scene. Repeat the features that matter in words, because the picture alone carries them only loosely.`,
         inputSchema: {
           type: "object",
           properties: {
@@ -116040,6 +116131,11 @@ var ImageGenerationTools = class {
             seed: {
               type: "number",
               description: "Use a fixed seed to repeat or tweak a result (default: random)"
+            },
+            reference_images: {
+              type: "array",
+              items: { type: "string" },
+              description: "Absolute paths of up to 16 reference pictures on this computer (png, jpg, webp), named <Picture 1>, <Picture 2>... in the prompt. MiniMax H3 profiles only. Use the local_path returned by an earlier generate-image call to keep a character consistent."
             },
             upload: {
               type: "boolean",
@@ -116072,26 +116168,40 @@ var ImageGenerationTools = class {
     const kind = parsed.kind;
     const settings = await this.readSettings();
     this.applyTarget(settings.target);
-    const generation = resolveGeneration(kind, settings.profiles[kind], {
+    const profile = settings.profiles[kind];
+    const references = parsed.reference_images ?? [];
+    if (references.length > 0 && profile.workflow !== "minimax-h3") {
+      throw new Error(`The "${kind}" profile uses a checkpoint workflow, which cannot take reference images. Only MiniMax H3 profiles can.`);
+    }
+    const loaded = await Promise.all(references.map((file) => this.loadReference(file)));
+    const client = this.getClient();
+    const uploadedNames = [];
+    for (const picture of loaded) {
+      uploadedNames.push(await client.uploadImage(picture.bytes, picture.comfyName));
+    }
+    const generation = resolveGeneration(kind, profile, {
       prompt: parsed.prompt,
       negativePrompt: parsed.negative_prompt,
       width: parsed.width,
       height: parsed.height,
       steps: parsed.steps,
-      seed: parsed.seed
+      seed: parsed.seed,
+      referenceImages: uploadedNames
     });
     const baseName = `${slugify(parsed.name ?? parsed.prompt)}-${Date.now().toString(36)}`;
-    const workflow = buildTxt2ImgWorkflow(generation, `claude-${kind}`);
+    const workflow = buildWorkflow(generation, `claude-${kind}`);
     this.logger.info("Generating image", {
       kind,
-      checkpoint: generation.checkpoint,
+      workflow: generation.workflow,
+      model: generation.checkpoint || generation.diffusionModel,
+      references: references.length,
       steps: generation.steps,
       size: `${generation.width}x${generation.height}`
     });
     const started = Date.now();
     let result;
     try {
-      result = await this.getClient().runWorkflow(workflow);
+      result = await client.runWorkflow(workflow, { timeoutMs: 15 * 60 * 1e3 });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       throw new Error(`Image generation failed: ${message}`);
@@ -116100,7 +116210,9 @@ var ImageGenerationTools = class {
     const localPath = await this.saveLocalCopy(`${baseName}.png`, result.image);
     const summary = {
       kind,
-      checkpoint: generation.checkpoint,
+      workflow: generation.workflow,
+      model: generation.checkpoint || generation.diffusionModel,
+      references: references.length,
       steps: generation.steps,
       size: `${generation.width}x${generation.height}`,
       seed: generation.seed,
@@ -116139,13 +116251,22 @@ var ImageGenerationTools = class {
     const problems = [];
     for (const kind of IMAGE_KINDS) {
       const profile = settings.profiles[kind];
-      if (!profile.checkpoint) {
-        problems.push(`${kind}: no checkpoint chosen`);
-      } else if (models && !models.checkpoints.includes(profile.checkpoint)) {
-        problems.push(`${kind}: checkpoint "${profile.checkpoint}" is not in this ComfyUI`);
-      }
-      if (profile.vae && models && !models.vaes.includes(profile.vae)) {
-        problems.push(`${kind}: VAE "${profile.vae}" is not in this ComfyUI`);
+      const check = (label, value, available) => {
+        if (!value) {
+          problems.push(`${kind}: no ${label} chosen`);
+        } else if (available && !available.includes(value)) {
+          problems.push(`${kind}: ${label} "${value}" is not in this ComfyUI`);
+        }
+      };
+      if (profile.workflow === "minimax-h3") {
+        check("diffusion model", profile.diffusionModel, models?.diffusionModels);
+        check("text encoder", profile.textEncoder, models?.textEncoders);
+        check("VAE", profile.vae, models?.vaes);
+      } else {
+        check("checkpoint", profile.checkpoint, models?.checkpoints);
+        if (profile.vae && models && !models.vaes.includes(profile.vae)) {
+          problems.push(`${kind}: VAE "${profile.vae}" is not in this ComfyUI`);
+        }
       }
     }
     return {
@@ -116154,9 +116275,35 @@ var ImageGenerationTools = class {
       reachable: !comfyError,
       ...comfyError ? { comfyui_error: comfyError } : {},
       profiles: settings.profiles,
-      available: models ? { checkpoints: models.checkpoints, vaes: models.vaes } : void 0,
+      available: models ? {
+        checkpoints: models.checkpoints,
+        diffusion_models: models.diffusionModels,
+        text_encoders: models.textEncoders,
+        vaes: models.vaes
+      } : void 0,
       problems
     };
+  }
+  /** Read and check one reference picture; its ComfyUI name comes from its content. */
+  async loadReference(file) {
+    if (!import_path2.default.isAbsolute(file)) {
+      throw new Error(`Reference image paths must be absolute: ${file}`);
+    }
+    let bytes;
+    try {
+      bytes = await import_fs2.promises.readFile(file);
+    } catch {
+      throw new Error(`Reference image not found: ${file}`);
+    }
+    if (bytes.length === 0 || bytes.length > UPLOAD_MAX_BYTES) {
+      throw new Error(`Reference image has an unusable size (${bytes.length} bytes): ${file}`);
+    }
+    const type = detectImageType(bytes);
+    if (!type) {
+      throw new Error(`Reference image is not a PNG, JPEG, WebP or GIF picture: ${file}`);
+    }
+    const hash = (0, import_crypto5.createHash)("sha1").update(bytes).digest("hex").slice(0, 16);
+    return { bytes, comfyName: `claude-ref-${hash}.${type}` };
   }
   async saveLocalCopy(filename, image) {
     await import_fs2.promises.mkdir(this.outputDir, { recursive: true });
@@ -116695,6 +116842,7 @@ var InspectTools = class {
 };
 
 // dist/backend.js
+var DISABLED_LEGACY_MAP_TOOLS = ["generate-map", "check-map-status", "cancel-map-job"];
 var CONTROL_HOST = "127.0.0.1";
 var CONTROL_PORT = 31414;
 var LOCK_FILE = path8.join(os3.tmpdir(), "foundry-mcp-backend.lock");
@@ -117665,7 +117813,9 @@ async function startBackend() {
     ...wfrp4eUpdateActorTools.getToolDefinitions(),
     ...wfrp4eAddItemsTools.getToolDefinitions(),
     ...tokenManipulationTools.getToolDefinitions(),
-    ...mapGenerationTools.getToolDefinitions(),
+    // The old async map tools are switched off: generate-image (kind "map") replaces them. The
+    // code stays; remove the names from this list to bring them back.
+    ...mapGenerationTools.getToolDefinitions().filter((tool) => !DISABLED_LEGACY_MAP_TOOLS.includes(tool.name)),
     ...playlistTools.getToolDefinitions()
   ];
   foundryClient.connect().catch((e) => {
@@ -117835,14 +117985,9 @@ async function startBackend() {
                   result = await tokenManipulationTools.handleGetAvailableConditions(args);
                   break;
                 case "generate-map":
-                  result = await mapGenerationTools.generateMap(args);
-                  break;
                 case "check-map-status":
-                  result = await mapGenerationTools.checkMapStatus(args);
-                  break;
                 case "cancel-map-job":
-                  result = await mapGenerationTools.cancelMapJob(args);
-                  break;
+                  throw new Error(`The ${name} tool is switched off. Use generate-image with kind "map" instead.`);
                 case "list-scenes":
                   result = await mapGenerationTools.listScenes(args);
                   break;
