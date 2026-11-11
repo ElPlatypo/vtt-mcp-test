@@ -1,0 +1,1029 @@
+diff --git a/packages/foundry-module/lang/en.json b/packages/foundry-module/lang/en.json
+index f74967f..8c2f0f6 100644
+--- a/packages/foundry-module/lang/en.json
++++ b/packages/foundry-module/lang/en.json
+@@ -1,5 +1,5 @@
+ {
+-  "foundry-mcp-bridge": {
++  "foundry-mcp-bridge-scenes": {
+     "settings": {
+       "enabled": {
+         "name": "Enable MCP Bridge",
+diff --git a/packages/foundry-module/module.json b/packages/foundry-module/module.json
+index 59aaa6c..d38b7a0 100644
+--- a/packages/foundry-module/module.json
++++ b/packages/foundry-module/module.json
+@@ -1,13 +1,22 @@
+ {
+-  "id": "foundry-mcp-bridge",
+-  "title": "Foundry MCP Bridge",
+-  "description": "Connect Foundry VTT to Claude through MCP protocol. Enable AI-powered actor creation, intelligent compendium search, campaign analysis, and interactive dice roll coordination with comprehensive GM-only security.",
++  "id": "foundry-mcp-bridge-scenes",
++  "title": "Foundry MCP Bridge (Scenes)",
++  "description": "Unofficial variant of Foundry MCP Bridge by Adam Dooley (MIT licence) that adds a manage-scenes tool for creating and editing scenes. Installs next to the original under its own id; enable only one of the two per world.",
+   "version": "0.8.6",
+   "compatibility": {
+     "minimum": "13",
+     "verified": "14",
+     "maximum": "14"
+   },
++  "relationships": {
++    "conflicts": [
++      {
++        "id": "foundry-mcp-bridge",
++        "type": "module",
++        "reason": "Both modules connect to the same MCP server port (31415) and register the same queries. Enable only one per world."
++      }
++    ]
++  },
+   "authors": [
+     {
+       "name": "Adam Dooley",
+diff --git a/packages/foundry-module/src/constants.ts b/packages/foundry-module/src/constants.ts
+index 864412c..71104a6 100644
+--- a/packages/foundry-module/src/constants.ts
++++ b/packages/foundry-module/src/constants.ts
+@@ -3,8 +3,17 @@
+ /**
+  * Module constants
+  */
+-export const MODULE_ID = 'foundry-mcp-bridge';
+-export const MODULE_TITLE = 'Foundry MCP Bridge';
++export const MODULE_ID = 'foundry-mcp-bridge-scenes';
++export const MODULE_TITLE = 'Foundry MCP Bridge (Scenes)';
++
++/**
++ * Prefix of the query names exchanged with the MCP server (for example
++ * "foundry-mcp-bridge.ping"). This is a wire-protocol label that the server
++ * hard-codes, so it is deliberately NOT tied to MODULE_ID: it lets this module
++ * keep its own Foundry id (separate settings, socket and install folder) while
++ * staying compatible with the unmodified server.
++ */
++export const QUERY_NAMESPACE = 'foundry-mcp-bridge';
+ 
+ /**
+  * Socket event names
+diff --git a/packages/foundry-module/src/data-access.manage-scenes.test.ts b/packages/foundry-module/src/data-access.manage-scenes.test.ts
+new file mode 100644
+index 0000000..d16d8f7
+--- /dev/null
++++ b/packages/foundry-module/src/data-access.manage-scenes.test.ts
+@@ -0,0 +1,317 @@
++/**
++ * manage-scenes tests (create / update / describe).
++ *
++ * Foundry itself is stubbed: these check the payload the bridge sends to
++ * Scene.create / scene.update, the v14 background-on-Level handling, validation
++ * and the write-permission gate. They cannot prove Foundry accepts the payload;
++ * that needs a real world (see the install and test guide).
++ */
++
++import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
++import { FoundryDataAccess } from './data-access.js';
++
++function makeScene(overrides: Record<string, any> = {}) {
++  const level = overrides.level === null ? undefined : { background: { src: '' }, update: vi.fn() };
++  const scene: any = {
++    id: 'scene-1',
++    name: 'Old Name',
++    active: false,
++    width: 4000,
++    height: 3000,
++    padding: 0.25,
++    backgroundColor: '#999999',
++    grid: { type: 1, size: 100, distance: 5, units: 'ft' },
++    tokenVision: true,
++    environment: { darknessLevel: 0, globalLight: { enabled: false } },
++    navigation: false,
++    navName: '',
++    _source: {},
++    levels: { contents: level ? [level] : [] },
++    update: vi.fn(async () => undefined),
++    activate: vi.fn(async () => undefined),
++    createEmbeddedDocuments: vi.fn(async () => []),
++    ...overrides,
++  };
++  delete scene.level;
++  return { scene, level };
++}
++
++function setup(
++  options: { generation?: number; allowWriteOperations?: boolean; scenes?: any[] } = {}
++) {
++  const created = makeScene({ id: 'scene-new', name: 'Created', level: null });
++  const create = vi.fn(async (data: any) => {
++    Object.assign(created.scene, { name: data.name });
++    return created.scene;
++  });
++
++  vi.stubGlobal('Hooks', { on: vi.fn(), callAll: vi.fn() });
++  vi.stubGlobal('Scene', { create });
++  vi.stubGlobal('game', {
++    ready: true,
++    world: { id: 'world-1', getFlag: vi.fn(() => []), setFlag: vi.fn() },
++    user: { id: 'gm', name: 'Gamemaster' },
++    release: { generation: options.generation ?? 14 },
++    scenes: { contents: options.scenes ?? [] },
++    settings: {
++      get: (_module: string, key: string) =>
++        key === 'allowWriteOperations' ? (options.allowWriteOperations ?? true) : undefined,
++    },
++  });
++
++  return {
++    dataAccess: new FoundryDataAccess(),
++    create,
++    created: created.scene,
++  };
++}
++
++describe('FoundryDataAccess.manageScenes', () => {
++  beforeEach(() => vi.unstubAllGlobals());
++  afterEach(() => vi.unstubAllGlobals());
++
++  describe('create', () => {
++    it('sends the scene fields to Scene.create, with the grid nested', async () => {
++      const { dataAccess, create } = setup();
++
++      const result = await dataAccess.manageScenes({
++        action: 'create',
++        name: '  Cragmaw Cave  ',
++        width: 5000,
++        height: 3500,
++        grid_size: 140,
++        grid_distance: 5,
++        grid_units: 'ft',
++        darkness: 0.8,
++        global_light: false,
++        token_vision: true,
++        navigation: true,
++        nav_name: 'Cave',
++        background_color: '#112233',
++      });
++
++      expect(create).toHaveBeenCalledWith({
++        name: 'Cragmaw Cave',
++        width: 5000,
++        height: 3500,
++        grid: { size: 140, distance: 5, units: 'ft' },
++        environment: { darknessLevel: 0.8, globalLight: { enabled: false } },
++        tokenVision: true,
++        navigation: true,
++        navName: 'Cave',
++        backgroundColor: '#112233',
++      });
++      expect(result.success).toBe(true);
++      expect(result.action).toBe('create');
++      expect(result.scene.id).toBe('scene-new');
++    });
++
++    it('on v14 puts the background on a new Base level when the scene has none', async () => {
++      const { dataAccess, created } = setup({ generation: 14 });
++
++      await dataAccess.manageScenes({
++        action: 'create',
++        name: 'Road',
++        background: 'worlds/w/maps/road.webp',
++      });
++
++      expect(created.createEmbeddedDocuments).toHaveBeenCalledWith('Level', [
++        { name: 'Base', background: { src: 'worlds/w/maps/road.webp' } },
++      ]);
++      expect(created.update).not.toHaveBeenCalled();
++    });
++
++    it('on v13 writes background.src on the scene itself', async () => {
++      const { dataAccess, created } = setup({ generation: 13 });
++
++      await dataAccess.manageScenes({
++        action: 'create',
++        name: 'Road',
++        background: 'worlds/w/maps/road.webp',
++      });
++
++      expect(created.update).toHaveBeenCalledWith({
++        background: { src: 'worlds/w/maps/road.webp' },
++      });
++      expect(created.createEmbeddedDocuments).not.toHaveBeenCalled();
++    });
++
++    it('requires a name', async () => {
++      const { dataAccess, create } = setup();
++
++      await expect(dataAccess.manageScenes({ action: 'create', width: 4000 })).rejects.toThrow(
++        'name is required for create'
++      );
++      expect(create).not.toHaveBeenCalled();
++    });
++
++    it('activates the scene only when asked', async () => {
++      const { dataAccess, created } = setup();
++
++      await dataAccess.manageScenes({ action: 'create', name: 'A' });
++      expect(created.activate).not.toHaveBeenCalled();
++
++      await dataAccess.manageScenes({ action: 'create', name: 'B', activate: true });
++      expect(created.activate).toHaveBeenCalledTimes(1);
++    });
++  });
++
++  describe('update', () => {
++    it('renames and edits the grid of a scene found by name', async () => {
++      const { scene } = makeScene();
++      const { dataAccess } = setup({ scenes: [scene] });
++
++      const result = await dataAccess.manageScenes({
++        action: 'update',
++        scene_identifier: 'old name',
++        name: 'Cave Mouth',
++        grid_size: 120,
++      });
++
++      expect(scene.update).toHaveBeenCalledWith({ name: 'Cave Mouth', grid: { size: 120 } });
++      expect(result.scene.id).toBe('scene-1');
++    });
++
++    it('updates the existing first level on v14 instead of creating one', async () => {
++      const { scene, level } = makeScene();
++      const { dataAccess } = setup({ generation: 14, scenes: [scene] });
++
++      await dataAccess.manageScenes({
++        action: 'update',
++        scene_identifier: 'scene-1',
++        background: 'worlds/w/maps/cave.webp',
++      });
++
++      expect(level!.update).toHaveBeenCalledWith({
++        background: { src: 'worlds/w/maps/cave.webp' },
++      });
++      expect(scene.createEmbeddedDocuments).not.toHaveBeenCalled();
++      expect(scene.update).not.toHaveBeenCalled();
++    });
++
++    it('clears the background with null', async () => {
++      const { scene, level } = makeScene();
++      const { dataAccess } = setup({ generation: 14, scenes: [scene] });
++
++      await dataAccess.manageScenes({
++        action: 'update',
++        scene_identifier: 'scene-1',
++        background: null,
++      });
++
++      expect(level!.update).toHaveBeenCalledWith({ background: { src: null } });
++    });
++
++    it('fails clearly for an unknown scene', async () => {
++      const { dataAccess } = setup();
++
++      await expect(
++        dataAccess.manageScenes({ action: 'update', scene_identifier: 'nope', name: 'x' })
++      ).rejects.toThrow('Scene not found: "nope"');
++    });
++
++    it('rejects an update that changes nothing', async () => {
++      const { scene } = makeScene();
++      const { dataAccess } = setup({ scenes: [scene] });
++
++      await expect(
++        dataAccess.manageScenes({ action: 'update', scene_identifier: 'scene-1' })
++      ).rejects.toThrow('Nothing to update');
++      expect(scene.update).not.toHaveBeenCalled();
++    });
++
++    it('requires scene_identifier', async () => {
++      const { dataAccess } = setup();
++
++      await expect(dataAccess.manageScenes({ action: 'update', name: 'x' })).rejects.toThrow(
++        'scene_identifier is required for update'
++      );
++    });
++  });
++
++  describe('validation', () => {
++    it.each([
++      [{ grid_size: 10 }, 'grid_size must be between 50 and 1000'],
++      [{ grid_size: 100.5 }, 'grid_size must be a whole number'],
++      [{ darkness: 2 }, 'darkness must be between 0 and 1'],
++      [{ width: 50 }, 'width must be between 100 and 20000'],
++      [{ padding: 0.9 }, 'padding must be between 0 and 0.5'],
++      [{ grid_type: 9 }, 'grid_type must be between 0 and 5'],
++      [{ background_color: 'red' }, 'background_color must be a #RRGGBB hex string or null'],
++      [{ name: '   ' }, 'name must be a non-empty string'],
++      [{ background: '  ' }, 'background must be a file path string or null to clear it'],
++    ])('rejects %j', async (extra, message) => {
++      const { scene } = makeScene();
++      const { dataAccess, create } = setup({ scenes: [scene] });
++
++      await expect(
++        dataAccess.manageScenes({ action: 'update', scene_identifier: 'scene-1', ...extra })
++      ).rejects.toThrow(message);
++      expect(scene.update).not.toHaveBeenCalled();
++      expect(create).not.toHaveBeenCalled();
++    });
++
++    it('rejects an unknown action', async () => {
++      const { dataAccess } = setup();
++
++      await expect(dataAccess.manageScenes({ action: 'delete' as any })).rejects.toThrow(
++        'Unknown action: delete'
++      );
++    });
++  });
++
++  describe('permissions', () => {
++    it('blocks create and update when write operations are disabled', async () => {
++      const { scene } = makeScene();
++      const { dataAccess, create } = setup({ allowWriteOperations: false, scenes: [scene] });
++
++      await expect(dataAccess.manageScenes({ action: 'create', name: 'x' })).rejects.toThrow(
++        /disabled in module settings/
++      );
++      await expect(
++        dataAccess.manageScenes({ action: 'update', scene_identifier: 'scene-1', name: 'x' })
++      ).rejects.toThrow(/disabled in module settings/);
++      expect(create).not.toHaveBeenCalled();
++      expect(scene.update).not.toHaveBeenCalled();
++    });
++
++    it('still allows describe, which only reads', async () => {
++      const { scene } = makeScene();
++      const { dataAccess } = setup({ allowWriteOperations: false, scenes: [scene] });
++
++      const result = await dataAccess.manageScenes({ action: 'describe' });
++
++      expect(result.success).toBe(true);
++    });
++  });
++
++  describe('describe', () => {
++    it('lists every scene with grid and size', async () => {
++      const a = makeScene({ id: 'a', name: 'A' }).scene;
++      const b = makeScene({ id: 'b', name: 'B' }).scene;
++      const { dataAccess } = setup({ scenes: [a, b] });
++
++      const result = await dataAccess.manageScenes({ action: 'describe' });
++
++      expect(result.scenes.map((s: any) => s.name)).toEqual(['A', 'B']);
++      expect(result.scenes[0]).toMatchObject({
++        width: 4000,
++        height: 3000,
++        grid: { type: 1, size: 100, distance: 5, units: 'ft' },
++      });
++    });
++
++    it('reads one scene and its v14 level background', async () => {
++      const { scene, level } = makeScene({ id: 'a', name: 'Road' });
++      level!.background.src = 'worlds/w/maps/road.webp';
++      const { dataAccess } = setup({ scenes: [scene] });
++
++      const result = await dataAccess.manageScenes({
++        action: 'describe',
++        scene_identifier: 'Road',
++      });
++
++      expect(result.scene.background).toBe('worlds/w/maps/road.webp');
++    });
++  });
++});
+diff --git a/packages/foundry-module/src/data-access.ts b/packages/foundry-module/src/data-access.ts
+index eecda7e..db596d4 100644
+--- a/packages/foundry-module/src/data-access.ts
++++ b/packages/foundry-module/src/data-access.ts
+@@ -6714,7 +6714,7 @@ export class FoundryDataAccess {
+ 
+         // Send socket request to GM
+         if (game.socket) {
+-          game.socket.emit('module.foundry-mcp-bridge', {
++          game.socket.emit(`module.${MODULE_ID}`, {
+             type: 'requestMessageUpdate',
+             buttonId,
+             userId,
+@@ -8101,6 +8101,257 @@ export class FoundryDataAccess {
+     }
+   }
+ 
++  // ===== SCENE MANAGEMENT (CREATE / UPDATE / DESCRIBE) =====
++
++  /**
++   * Compact scene summary returned by manage-scenes.
++   */
++  private summarizeScene(scene: any): Record<string, any> {
++    const level = scene.levels?.contents?.[0];
++    return {
++      id: scene.id,
++      name: scene.name,
++      active: !!scene.active,
++      width: scene.width,
++      height: scene.height,
++      padding: scene.padding,
++      // v14 keeps the image on the first Level; v13 and earlier on the Scene itself.
++      background: scene._source?.background?.src || level?.background?.src || null,
++      backgroundColor: scene.backgroundColor ?? null,
++      grid: {
++        type: scene.grid?.type,
++        size: scene.grid?.size,
++        distance: scene.grid?.distance,
++        units: scene.grid?.units,
++      },
++      tokenVision: scene.tokenVision,
++      darkness: scene.environment?.darknessLevel,
++      globalLight: scene.environment?.globalLight?.enabled,
++      navigation: scene.navigation,
++      navName: scene.navName || '',
++    };
++  }
++
++  /**
++   * Turn manage-scenes options into a Scene update payload, validating ranges.
++   * The background image is handled separately (it lives on a Level in v14).
++   */
++  private buildSceneData(options: Record<string, any>): Record<string, any> {
++    const data: Record<string, any> = {};
++
++    const number = (
++      key: string,
++      label: string,
++      min: number,
++      max: number,
++      integer: boolean
++    ): number | undefined => {
++      const value = options[key];
++      if (value === undefined) return undefined;
++      if (typeof value !== 'number' || !Number.isFinite(value)) {
++        throw new Error(`${label} must be a number`);
++      }
++      if (integer && !Number.isInteger(value)) {
++        throw new Error(`${label} must be a whole number`);
++      }
++      if (value < min || value > max) {
++        throw new Error(`${label} must be between ${min} and ${max}`);
++      }
++      return value;
++    };
++
++    if (options.name !== undefined) {
++      if (typeof options.name !== 'string' || !options.name.trim()) {
++        throw new Error('name must be a non-empty string');
++      }
++      data.name = options.name.trim();
++    }
++
++    const width = number('width', 'width', 100, 20000, true);
++    if (width !== undefined) data.width = width;
++    const height = number('height', 'height', 100, 20000, true);
++    if (height !== undefined) data.height = height;
++    const padding = number('padding', 'padding', 0, 0.5, false);
++    if (padding !== undefined) data.padding = padding;
++
++    const grid: Record<string, any> = {};
++    // 50 is Foundry's CONST.GRID_MIN_SIZE
++    const gridSize = number('grid_size', 'grid_size', 50, 1000, true);
++    if (gridSize !== undefined) grid.size = gridSize;
++    const gridDistance = number('grid_distance', 'grid_distance', 0.01, 1000, false);
++    if (gridDistance !== undefined) grid.distance = gridDistance;
++    const gridType = number('grid_type', 'grid_type', 0, 5, true);
++    if (gridType !== undefined) grid.type = gridType;
++    if (options.grid_units !== undefined) {
++      if (typeof options.grid_units !== 'string') throw new Error('grid_units must be a string');
++      grid.units = options.grid_units;
++    }
++    if (Object.keys(grid).length > 0) data.grid = grid;
++
++    if (options.background_color !== undefined) {
++      const color = options.background_color;
++      if (color !== null && (typeof color !== 'string' || !/^#[0-9a-fA-F]{6}$/.test(color))) {
++        throw new Error('background_color must be a #RRGGBB hex string or null');
++      }
++      data.backgroundColor = color;
++    }
++
++    if (options.token_vision !== undefined) {
++      if (typeof options.token_vision !== 'boolean')
++        throw new Error('token_vision must be boolean');
++      data.tokenVision = options.token_vision;
++    }
++
++    const environment: Record<string, any> = {};
++    const darkness = number('darkness', 'darkness', 0, 1, false);
++    if (darkness !== undefined) environment.darknessLevel = darkness;
++    if (options.global_light !== undefined) {
++      if (typeof options.global_light !== 'boolean')
++        throw new Error('global_light must be boolean');
++      environment.globalLight = { enabled: options.global_light };
++    }
++    if (Object.keys(environment).length > 0) data.environment = environment;
++
++    if (options.navigation !== undefined) {
++      if (typeof options.navigation !== 'boolean') throw new Error('navigation must be boolean');
++      data.navigation = options.navigation;
++    }
++    if (options.nav_name !== undefined) {
++      if (typeof options.nav_name !== 'string') throw new Error('nav_name must be a string');
++      data.navName = options.nav_name;
++    }
++
++    return data;
++  }
++
++  /**
++   * Set or clear a scene's background image. Foundry v14 removed Scene#background:
++   * the image lives on the scene's first Level (mirrors socket-bridge's scene creation).
++   * v13 and earlier use the flat background.src field on the Scene.
++   */
++  private async applySceneBackground(scene: any, src: string | null): Promise<void> {
++    const generation = (game as any).release?.generation ?? 0;
++    if (generation >= 14) {
++      const level = scene.levels?.contents?.[0];
++      if (level) {
++        await level.update({ background: { src } });
++      } else if (src) {
++        await scene.createEmbeddedDocuments('Level', [{ name: 'Base', background: { src } }]);
++      }
++    } else {
++      await scene.update({ background: { src } });
++    }
++  }
++
++  /**
++   * Create, update or describe scenes.
++   * create: builds a new scene (name required).
++   * update: edits an existing scene found by id or exact name (case-insensitive).
++   * describe: lists all scenes, or one scene when scene_identifier is given.
++   * Never deletes anything.
++   */
++  async manageScenes(options: {
++    action: 'create' | 'update' | 'describe';
++    scene_identifier?: string;
++    name?: string;
++    background?: string | null;
++    width?: number;
++    height?: number;
++    padding?: number;
++    grid_size?: number;
++    grid_distance?: number;
++    grid_units?: string;
++    grid_type?: number;
++    background_color?: string | null;
++    token_vision?: boolean;
++    darkness?: number;
++    global_light?: boolean;
++    navigation?: boolean;
++    nav_name?: string;
++    activate?: boolean;
++  }): Promise<any> {
++    this.validateFoundryState();
++
++    try {
++      if (options.action === 'describe') {
++        if (options.scene_identifier) {
++          const scene = this.findSceneByIdentifier(options.scene_identifier);
++          return { success: true, scene: this.summarizeScene(scene) };
++        }
++        const scenes = (game.scenes?.contents || []) as any[];
++        return { success: true, scenes: scenes.map(scene => this.summarizeScene(scene)) };
++      }
++
++      if (options.action !== 'create' && options.action !== 'update') {
++        throw new Error(`Unknown action: ${String(options.action)} (create | update | describe)`);
++      }
++
++      const permissionCheck = permissionManager.checkWritePermission('modifyScene', {});
++      if (!permissionCheck.allowed) {
++        throw new Error(`${ERROR_MESSAGES.ACCESS_DENIED}: ${permissionCheck.reason}`);
++      }
++
++      if (options.background !== undefined && options.background !== null) {
++        if (typeof options.background !== 'string' || !options.background.trim()) {
++          throw new Error('background must be a file path string or null to clear it');
++        }
++      }
++
++      const data = this.buildSceneData(options);
++
++      let scene: any;
++      if (options.action === 'create') {
++        if (!data.name) {
++          throw new Error('name is required for create');
++        }
++        scene = await (globalThis as any).Scene.create(data);
++        if (!scene) {
++          throw new Error('Foundry did not return the created scene');
++        }
++      } else {
++        if (!options.scene_identifier) {
++          throw new Error('scene_identifier is required for update');
++        }
++        scene = this.findSceneByIdentifier(options.scene_identifier);
++        const hasChange =
++          Object.keys(data).length > 0 ||
++          options.background !== undefined ||
++          options.activate === true;
++        if (!hasChange) {
++          throw new Error('Nothing to update: pass at least one field to change');
++        }
++        if (Object.keys(data).length > 0) {
++          await scene.update(data);
++        }
++      }
++
++      if (options.background !== undefined) {
++        await this.applySceneBackground(scene, options.background);
++      }
++      if (options.activate === true) {
++        await scene.activate();
++      }
++
++      this.auditLog(`manageScenes:${options.action}`, options, 'success');
++
++      return {
++        success: true,
++        action: options.action,
++        scene: this.summarizeScene(scene),
++      };
++    } catch (error) {
++      this.auditLog(
++        `manageScenes:${options?.action}`,
++        options,
++        'failure',
++        error instanceof Error ? error.message : 'Unknown error'
++      );
++      throw new Error(
++        `Failed to ${options?.action ?? 'manage'} scene: ${error instanceof Error ? error.message : 'Unknown error'}`
++      );
++    }
++  }
++
+   // ===== PLAYLIST MANAGEMENT (CRUD + PLAYBACK) =====
+ 
+   /**
+diff --git a/packages/foundry-module/src/main.ts b/packages/foundry-module/src/main.ts
+index 9024ead..b6ea882 100644
+--- a/packages/foundry-module/src/main.ts
++++ b/packages/foundry-module/src/main.ts
+@@ -522,7 +522,7 @@ Hooks.once('ready', async () => {
+ 
+     // Register socket listener for roll state management (after game.user is available)
+ 
+-    game.socket?.on('module.foundry-mcp-bridge', async data => {
++    game.socket?.on(`module.${MODULE_ID}`, async data => {
+       try {
+         // Handle ChatMessage update requests (GM only)
+         if (data.type === 'requestMessageUpdate' && data.buttonId && data.messageId) {
+diff --git a/packages/foundry-module/src/queries.ts b/packages/foundry-module/src/queries.ts
+index 9fe02ba..a9b98da 100644
+--- a/packages/foundry-module/src/queries.ts
++++ b/packages/foundry-module/src/queries.ts
+@@ -1,4 +1,4 @@
+-import { MODULE_ID } from './constants.js';
++import { MODULE_ID, QUERY_NAMESPACE } from './constants.js';
+ import { FoundryDataAccess } from './data-access.js';
+ import { ComfyUIManager } from './comfyui-manager.js';
+ import { guardQueryHandler } from './query-guard.js';
+@@ -27,7 +27,7 @@ export class QueryHandlers {
+    * Register all query handlers in CONFIG.queries
+    */
+   registerHandlers(): void {
+-    const modulePrefix = MODULE_ID;
++    const modulePrefix = QUERY_NAMESPACE;
+ 
+     // Character/Actor queries
+     CONFIG.queries[`${modulePrefix}.getCharacterInfo`] = this.handleGetCharacterInfo.bind(this);
+@@ -46,6 +46,7 @@ export class QueryHandlers {
+     CONFIG.queries[`${modulePrefix}.list-scenes`] = this.handleListScenes.bind(this);
+     CONFIG.queries[`${modulePrefix}.switch-scene`] = this.handleSwitchScene.bind(this);
+     CONFIG.queries[`${modulePrefix}.update-scene-music`] = this.handleUpdateSceneMusic.bind(this);
++    CONFIG.queries[`${modulePrefix}.manage-scenes`] = this.handleManageScenes.bind(this);
+     CONFIG.queries[`${modulePrefix}.manage-playlists`] = this.handleManagePlaylists.bind(this);
+     CONFIG.queries[`${modulePrefix}.control-playlist`] = this.handleControlPlaylist.bind(this);
+ 
+@@ -184,7 +185,7 @@ export class QueryHandlers {
+    * Unregister all query handlers
+    */
+   unregisterHandlers(): void {
+-    const modulePrefix = MODULE_ID;
++    const modulePrefix = QUERY_NAMESPACE;
+     const keysToRemove = Object.keys(CONFIG.queries).filter(key => key.startsWith(modulePrefix));
+ 
+     for (const key of keysToRemove) {
+@@ -477,7 +478,7 @@ export class QueryHandlers {
+    * Get list of all registered query methods
+    */
+   getRegisteredMethods(): string[] {
+-    const modulePrefix = MODULE_ID;
++    const modulePrefix = QUERY_NAMESPACE;
+     return Object.keys(CONFIG.queries)
+       .filter(key => key.startsWith(modulePrefix))
+       .map(key => key.replace(`${modulePrefix}.`, ''));
+@@ -487,7 +488,7 @@ export class QueryHandlers {
+    * Test if a specific query handler is registered
+    */
+   isMethodRegistered(method: string): boolean {
+-    const queryKey = `${MODULE_ID}.${method}`;
++    const queryKey = `${QUERY_NAMESPACE}.${method}`;
+     return queryKey in CONFIG.queries && typeof CONFIG.queries[queryKey] === 'function';
+   }
+ 
+@@ -1218,6 +1219,23 @@ export class QueryHandlers {
+     }
+   }
+ 
++  private async handleManageScenes(data: any): Promise<any> {
++    try {
++      const gmCheck = this.validateGMAccess();
++      if (!gmCheck.allowed) {
++        return { error: 'Access denied', success: false };
++      }
++      if (!data?.action) {
++        throw new Error('action is required (create | update | describe)');
++      }
++      return await this.dataAccess.manageScenes(data);
++    } catch (error) {
++      throw new Error(
++        `Failed to manage scenes: ${error instanceof Error ? error.message : 'Unknown error'}`
++      );
++    }
++  }
++
+   private async handleManagePlaylists(data: any): Promise<any> {
+     try {
+       const gmCheck = this.validateGMAccess();
+diff --git a/packages/mcp-server/src/backend.ts b/packages/mcp-server/src/backend.ts
+index 8967e33..0db714a 100644
+--- a/packages/mcp-server/src/backend.ts
++++ b/packages/mcp-server/src/backend.ts
+@@ -1805,6 +1805,11 @@ async function startBackend(): Promise<void> {
+ 
+                   break;
+ 
++                case 'manage-scenes':
++                  result = await sceneTools.handleManageScenes(args);
++
++                  break;
++
+                 default:
+                   throw new Error(`Unknown tool: ${name}`);
+               }
+diff --git a/packages/mcp-server/src/tools/scene.test.ts b/packages/mcp-server/src/tools/scene.test.ts
+new file mode 100644
+index 0000000..cc6efe5
+--- /dev/null
++++ b/packages/mcp-server/src/tools/scene.test.ts
+@@ -0,0 +1,120 @@
++/**
++ * manage-scenes tool tests.
++ *
++ * These cover the MCP tool layer: schema shape, validation, and forwarding to
++ * the bridge query. What Foundry does with the request is covered in
++ * foundry-module/src/data-access.manage-scenes.test.ts.
++ */
++
++import { describe, it, expect, vi } from 'vitest';
++import { SceneTools } from './scene.js';
++
++function makeTools(queryImpl?: (method: string, data: any) => unknown) {
++  const query = vi.fn(queryImpl ?? (async () => ({ scene: { id: 's1', name: 'Road' } })));
++  const logger: any = {
++    info: vi.fn(),
++    debug: vi.fn(),
++    error: vi.fn(),
++    warn: vi.fn(),
++    child: () => logger,
++  };
++  const foundryClient: any = { query };
++  const tools = new SceneTools({ foundryClient, logger });
++  return { tools, query };
++}
++
++describe('manage-scenes tool definition', () => {
++  const { tools } = makeTools();
++  const definition = tools.getToolDefinitions().find(d => d.name === 'manage-scenes')!;
++
++  it('is registered and requires only the action', () => {
++    expect(definition).toBeDefined();
++    expect(definition.inputSchema.required).toEqual(['action']);
++  });
++
++  it('offers create, update and describe but no delete', () => {
++    const props = definition.inputSchema.properties as Record<string, any>;
++    expect(props.action.enum).toEqual(['create', 'update', 'describe']);
++  });
++
++  it('advertises the name, background, size and grid fields', () => {
++    const props = definition.inputSchema.properties as Record<string, any>;
++    for (const key of [
++      'name',
++      'background',
++      'width',
++      'height',
++      'grid_size',
++      'grid_distance',
++      'grid_units',
++      'darkness',
++      'activate',
++    ]) {
++      expect(props[key], key).toBeDefined();
++    }
++  });
++});
++
++describe('SceneTools.handleManageScenes', () => {
++  it('forwards a valid create to the bridge query', async () => {
++    const { tools, query } = makeTools();
++
++    const result = await tools.handleManageScenes({
++      action: 'create',
++      name: 'Road',
++      grid_size: 100,
++    });
++
++    expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.manage-scenes', {
++      action: 'create',
++      name: 'Road',
++      grid_size: 100,
++    });
++    expect(result).toMatchObject({ success: true, scene: { id: 's1' } });
++  });
++
++  it('allows null to clear the background', async () => {
++    const { tools, query } = makeTools();
++
++    await tools.handleManageScenes({
++      action: 'update',
++      scene_identifier: 'Road',
++      background: null,
++    });
++
++    expect(query.mock.calls[0][1]).toMatchObject({ background: null });
++  });
++
++  it.each([
++    [{ action: 'create' }, 'name is required for create'],
++    [{ action: 'update', name: 'x' }, 'scene_identifier is required for update'],
++  ])('rejects %j before calling Foundry', async (args, message) => {
++    const { tools, query } = makeTools();
++
++    await expect(tools.handleManageScenes(args)).rejects.toThrow(message);
++    expect(query).not.toHaveBeenCalled();
++  });
++
++  it.each([
++    { action: 'delete' },
++    { action: 'create', name: 'x', grid_size: 10 },
++    { action: 'create', name: 'x', darkness: 5 },
++    { action: 'create', name: 'x', background_color: 'blue' },
++    { action: 'create', name: 'x', surprise: true },
++  ])('rejects the invalid input %j', async args => {
++    const { tools, query } = makeTools();
++
++    await expect(tools.handleManageScenes(args)).rejects.toThrow();
++    expect(query).not.toHaveBeenCalled();
++  });
++
++  it('wraps bridge failures with context', async () => {
++    const { tools } = makeTools(async () => {
++      throw new Error('Foundry VTT module not connected');
++    });
++
++    await expect(tools.handleManageScenes({ action: 'describe' })).rejects.toThrow(
++      'Failed to manage scenes: Foundry VTT module not connected'
++    );
++  });
++});
+diff --git a/packages/mcp-server/src/tools/scene.ts b/packages/mcp-server/src/tools/scene.ts
+index 1e422bf..9f9fb11 100644
+--- a/packages/mcp-server/src/tools/scene.ts
++++ b/packages/mcp-server/src/tools/scene.ts
+@@ -72,6 +72,74 @@ export class SceneTools {
+           required: ['scene_identifier'],
+         },
+       },
++      {
++        name: 'manage-scenes',
++        description:
++          'Create, update or describe scenes. create: makes a new scene (name required). update: edits an existing scene by id or exact name (rename, background image, size, grid, lighting, navigation). describe: lists all scenes, or one scene with scene_identifier. Never deletes. Background is a Foundry file path (e.g. "worlds/my-world/maps/bridge.webp") or null to clear it; the file must already exist on the Foundry server.',
++        inputSchema: {
++          type: 'object',
++          properties: {
++            action: {
++              type: 'string',
++              enum: ['create', 'update', 'describe'],
++              description: 'Operation to perform',
++            },
++            scene_identifier: {
++              type: 'string',
++              description: 'Scene id or exact name. Required for update; optional for describe.',
++            },
++            name: {
++              type: 'string',
++              description: 'Scene name. Required for create; renames on update.',
++            },
++            background: {
++              type: ['string', 'null'],
++              description: 'Foundry file path of the background image, or null to clear it',
++            },
++            width: {
++              type: 'number',
++              description: 'Scene width in pixels (100-20000, whole number)',
++            },
++            height: {
++              type: 'number',
++              description: 'Scene height in pixels (100-20000, whole number)',
++            },
++            padding: { type: 'number', description: 'Canvas padding proportion (0 to 0.5)' },
++            grid_size: {
++              type: 'number',
++              description: 'Pixels per grid square (50-1000, whole number)',
++            },
++            grid_distance: {
++              type: 'number',
++              description: 'Distance one grid square represents (e.g. 5)',
++            },
++            grid_units: { type: 'string', description: 'Distance unit label (e.g. "ft")' },
++            grid_type: {
++              type: 'number',
++              description:
++                'Grid type: 0 gridless, 1 square, 2-5 hexagonal variants (Foundry CONST.GRID_TYPES)',
++            },
++            background_color: {
++              type: ['string', 'null'],
++              description: 'Canvas color behind the background, as #RRGGBB, or null',
++            },
++            token_vision: { type: 'boolean', description: 'Whether tokens need vision to see' },
++            darkness: { type: 'number', description: 'Ambient darkness, 0 (day) to 1 (night)' },
++            global_light: { type: 'boolean', description: 'Enable global illumination' },
++            navigation: {
++              type: 'boolean',
++              description: 'Show the scene in the top navigation bar',
++            },
++            nav_name: { type: 'string', description: 'Name shown in the navigation bar' },
++            activate: {
++              type: 'boolean',
++              description:
++                'Make this the active scene afterwards. This moves every connected player to it.',
++            },
++          },
++          required: ['action'],
++        },
++      },
+     ];
+   }
+ 
+@@ -147,6 +215,57 @@ export class SceneTools {
+     }
+   }
+ 
++  async handleManageScenes(args: any): Promise<any> {
++    const schema = z
++      .object({
++        action: z.enum(['create', 'update', 'describe']),
++        scene_identifier: z.string().min(1).optional(),
++        name: z.string().min(1).optional(),
++        background: z.string().min(1).nullable().optional(),
++        width: z.number().int().min(100).max(20000).optional(),
++        height: z.number().int().min(100).max(20000).optional(),
++        padding: z.number().min(0).max(0.5).optional(),
++        grid_size: z.number().int().min(50).max(1000).optional(),
++        grid_distance: z.number().positive().max(1000).optional(),
++        grid_units: z.string().optional(),
++        grid_type: z.number().int().min(0).max(5).optional(),
++        background_color: z
++          .string()
++          .regex(/^#[0-9a-fA-F]{6}$/)
++          .nullable()
++          .optional(),
++        token_vision: z.boolean().optional(),
++        darkness: z.number().min(0).max(1).optional(),
++        global_light: z.boolean().optional(),
++        navigation: z.boolean().optional(),
++        nav_name: z.string().optional(),
++        activate: z.boolean().optional(),
++      })
++      .strict();
++    const parsed = schema.parse(args);
++
++    if (parsed.action === 'create' && !parsed.name) {
++      throw new Error('name is required for create');
++    }
++    if (parsed.action === 'update' && !parsed.scene_identifier) {
++      throw new Error('scene_identifier is required for update');
++    }
++
++    this.logger.info('Managing scenes', {
++      action: parsed.action,
++      scene_identifier: parsed.scene_identifier,
++    });
++    try {
++      const result = await this.foundryClient.query('foundry-mcp-bridge.manage-scenes', parsed);
++      return { success: true, ...result };
++    } catch (error) {
++      this.logger.error('Failed to manage scenes', error);
++      throw new Error(
++        `Failed to manage scenes: ${error instanceof Error ? error.message : 'Unknown error'}`
++      );
++    }
++  }
++
+   private formatSceneResponse(sceneData: any, includeTokens: boolean, includeHidden: boolean): any {
+     const response: any = {
+       id: sceneData.id,

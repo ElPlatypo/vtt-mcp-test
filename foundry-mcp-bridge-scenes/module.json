@@ -1,0 +1,67 @@
+{
+  "id": "foundry-mcp-bridge-scenes",
+  "title": "Foundry MCP Bridge (Scenes)",
+  "description": "Unofficial variant of Foundry MCP Bridge by Adam Dooley (MIT licence) that adds a manage-scenes tool for creating and editing scenes. Installs next to the original under its own id; enable only one of the two per world.",
+  "version": "0.8.6.1",
+  "compatibility": {
+    "minimum": "13",
+    "verified": "14",
+    "maximum": "14"
+  },
+  "relationships": {
+    "conflicts": [
+      {
+        "id": "foundry-mcp-bridge",
+        "type": "module",
+        "reason": "Both modules connect to the same MCP server port (31415) and register the same queries. Enable only one per world."
+      }
+    ]
+  },
+  "authors": [
+    {
+      "name": "Adam Dooley",
+      "email": "adambriandooley@gmail.com",
+      "url": "https://github.com/adambdooley"
+    }
+  ],
+  "url": "https://github.com/ElPlatypo/vtt-mcp-test",
+  "bugs": "https://github.com/ElPlatypo/vtt-mcp-test/issues",
+  "changelog": "https://github.com/ElPlatypo/vtt-mcp-test/releases",
+  "readme": "https://github.com/ElPlatypo/vtt-mcp-test",
+  "license": "https://github.com/adambdooley/foundry-vtt-mcp/blob/master/LICENSE",
+  "esmodules": [
+    "dist/main.js"
+  ],
+  "styles": [
+    "styles/module.css",
+    "styles/enhanced-creature-index.css"
+  ],
+  "languages": [
+    {
+      "lang": "en",
+      "name": "English",
+      "path": "lang/en.json"
+    }
+  ],
+  "socket": true,
+  "manifest": "https://raw.githubusercontent.com/ElPlatypo/vtt-mcp-test/main/foundry-mcp-bridge-scenes/module.json",
+  "download": "https://raw.githubusercontent.com/ElPlatypo/vtt-mcp-test/main/foundry-mcp-bridge-scenes/foundry-mcp-bridge-scenes.zip",
+  "protected": false,
+  "coreTranslation": false,
+  "library": false,
+  "flags": {
+    "hotReload": {
+      "extensions": [
+        "css",
+        "hbs",
+        "json"
+      ],
+      "paths": [
+        "scripts",
+        "styles",
+        "templates",
+        "lang"
+      ]
+    }
+  }
+}
