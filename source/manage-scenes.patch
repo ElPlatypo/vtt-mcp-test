@@ -10,7 +10,7 @@ index f74967f..8c2f0f6 100644
        "enabled": {
          "name": "Enable MCP Bridge",
 diff --git a/packages/foundry-module/module.json b/packages/foundry-module/module.json
-index 59aaa6c..d38b7a0 100644
+index 59aaa6c..dd5c8c6 100644
 --- a/packages/foundry-module/module.json
 +++ b/packages/foundry-module/module.json
 @@ -1,13 +1,22 @@
@@ -39,6 +39,450 @@ index 59aaa6c..d38b7a0 100644
    "authors": [
      {
        "name": "Adam Dooley",
+@@ -21,7 +30,7 @@
+   "readme": "https://github.com/adambdooley/foundry-vtt-mcp/blob/master/README.md",
+   "license": "https://github.com/adambdooley/foundry-vtt-mcp/blob/master/LICENSE",
+   "esmodules": ["dist/main.js"],
+-  "styles": ["styles/module.css", "styles/enhanced-creature-index.css"],
++  "styles": ["styles/module.css", "styles/enhanced-creature-index.css", "styles/map-generation.css"],
+   "languages": [
+     {
+       "lang": "en",
+diff --git a/packages/foundry-module/src/comfyui-manager.test.ts b/packages/foundry-module/src/comfyui-manager.test.ts
+new file mode 100644
+index 0000000..6034370
+--- /dev/null
++++ b/packages/foundry-module/src/comfyui-manager.test.ts
+@@ -0,0 +1,115 @@
++/**
++ * The ComfyUI manager must tell the MCP server which ComfyUI to use with every request,
++ * from the saved settings, or from an address being tried in the settings dialog.
++ */
++
++import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
++import { ComfyUIManager } from './comfyui-manager.js';
++
++function setup(settings: Record<string, unknown>) {
++  const sent: any[] = [];
++  const listeners: Array<(event: { data: string }) => void> = [];
++  const socketBridge = {
++    isConnected: () => true,
++    sendMessage: (request: any) => {
++      sent.push(request);
++      // Answer like the MCP server does.
++      queueMicrotask(() =>
++        listeners.forEach(listener =>
++          listener({ data: JSON.stringify({ requestId: request.requestId, status: 'running' }) })
++        )
++      );
++    },
++    ws: {
++      addEventListener: (_type: string, listener: any) => listeners.push(listener),
++      removeEventListener: (_type: string, listener: any) => {
++        const index = listeners.indexOf(listener);
++        if (index >= 0) listeners.splice(index, 1);
++      },
++    },
++  };
++  vi.stubGlobal('foundryMCPBridge', { socketBridge });
++  vi.stubGlobal('game', { settings: { get: (_module: string, key: string) => settings[key] } });
++  vi.stubGlobal('ui', { notifications: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } });
++  return { manager: new ComfyUIManager(), sent };
++}
++
++describe('ComfyUIManager target', () => {
++  beforeEach(() => vi.unstubAllGlobals());
++  afterEach(() => vi.unstubAllGlobals());
++
++  it('uses the built-in instance by default', () => {
++    const { manager } = setup({});
++    expect(manager.getTarget().mode).toBe('builtin');
++  });
++
++  it('reads a custom instance from the saved settings', () => {
++    const { manager } = setup({
++      mapGenMode: 'custom',
++      mapGenCustomHost: 'nexus',
++      mapGenCustomPort: 8188,
++      mapGenCustomSecure: false,
++    });
++    expect(manager.getTarget()).toEqual({
++      mode: 'custom',
++      host: 'nexus',
++      port: 8188,
++      secure: false,
++    });
++  });
++
++  it('falls back to built-in when the saved custom settings are unusable', () => {
++    const { manager } = setup({
++      mapGenMode: 'custom',
++      mapGenCustomHost: '',
++      mapGenCustomPort: 8188,
++    });
++    expect(manager.getTarget().mode).toBe('builtin');
++  });
++
++  it('sends the saved target with a status check', async () => {
++    const { manager, sent } = setup({
++      mapGenMode: 'custom',
++      mapGenCustomHost: '127.0.0.1',
++      mapGenCustomPort: 8188,
++    });
++
++    await manager.checkStatus();
++
++    expect(sent).toHaveLength(1);
++    expect(sent[0].type).toBe('check-comfyui-status');
++    expect(sent[0].data.comfyuiTarget).toEqual({
++      mode: 'custom',
++      host: '127.0.0.1',
++      port: 8188,
++      secure: false,
++    });
++  });
++
++  it('sends an address that is being tried instead of the saved one', async () => {
++    const { manager, sent } = setup({});
++
++    await manager.checkStatus({ mode: 'custom', host: 'nexus', port: 9000, secure: true });
++
++    expect(sent[0].data.comfyuiTarget).toEqual({
++      mode: 'custom',
++      host: 'nexus',
++      port: 9000,
++      secure: true,
++    });
++  });
++
++  it('sends the target with map generation requests too', async () => {
++    const { manager, sent } = setup({
++      mapGenMode: 'custom',
++      mapGenCustomHost: 'nexus',
++      mapGenCustomPort: 8188,
++    });
++
++    await manager.generateMap({ prompt: 'a cave' });
++
++    expect(sent[0].type).toBe('generate-map-request');
++    expect(sent[0].data.prompt).toBe('a cave');
++    expect(sent[0].data.comfyuiTarget.host).toBe('nexus');
++  });
++});
+diff --git a/packages/foundry-module/src/comfyui-manager.ts b/packages/foundry-module/src/comfyui-manager.ts
+index 7a88c06..26eedcd 100644
+--- a/packages/foundry-module/src/comfyui-manager.ts
++++ b/packages/foundry-module/src/comfyui-manager.ts
+@@ -1,4 +1,5 @@
+ import { MODULE_ID } from './constants.js';
++import { targetFromSettings, type ComfyTargetSetting } from './comfyui-settings-utils.js';
+ 
+ /**
+  * ComfyUI Service Manager - adapted from working foundry-mcp-mapgen implementation
+@@ -7,10 +8,27 @@ export class ComfyUIManager {
+   private serviceStatus: string = 'unknown';
+   private isStarting: boolean = false;
+ 
+-  async checkStatus(): Promise<{ status: string; message?: string; phase?: string }> {
++  /** The ComfyUI the settings point at: the built-in one, or a custom one. */
++  getTarget(): ComfyTargetSetting {
++    return targetFromSettings(key => {
++      try {
++        return game.settings.get(MODULE_ID, key as any);
++      } catch {
++        return undefined;
++      }
++    });
++  }
++
++  /**
++   * Ask the MCP server whether ComfyUI answers. Pass a target to try an address that is not
++   * saved yet (the settings dialog does this); otherwise the saved settings are used.
++   */
++  async checkStatus(
++    target?: ComfyTargetSetting
++  ): Promise<{ status: string; message?: string; phase?: string }> {
+     try {
+       // Always route through backend to avoid CORS issues
+-      const backendStatus = await this.requestBackendStatus();
++      const backendStatus = await this.requestBackendStatus(target);
+       this.serviceStatus = backendStatus.status;
+       return backendStatus;
+     } catch (error) {
+@@ -224,12 +242,15 @@ export class ComfyUIManager {
+   }
+ 
+   // Helper methods for backend communication
+-  private async requestBackendStatus(): Promise<{
++  private async requestBackendStatus(target?: ComfyTargetSetting): Promise<{
+     status: string;
+     message?: string;
+     phase?: string;
+   }> {
+-    return await this.sendBackendRequest('check-comfyui-status');
++    return await this.sendBackendRequest(
++      'check-comfyui-status',
++      target ? { comfyuiTarget: target } : {}
++    );
+   }
+ 
+   private async requestBackendStartService(): Promise<{
+@@ -325,10 +346,11 @@ export class ComfyUIManager {
+ 
+       // Send request with error handling
+       try {
++        // Every ComfyUI request says which ComfyUI to use, so the MCP server never has to guess.
+         const request = {
+           type,
+           requestId,
+-          data: data,
++          data: { ...data, comfyuiTarget: data.comfyuiTarget ?? this.getTarget() },
+         };
+ 
+         bridge.socketBridge.sendMessage(request);
+diff --git a/packages/foundry-module/src/comfyui-settings-utils.test.ts b/packages/foundry-module/src/comfyui-settings-utils.test.ts
+new file mode 100644
+index 0000000..53e8cef
+--- /dev/null
++++ b/packages/foundry-module/src/comfyui-settings-utils.test.ts
+@@ -0,0 +1,136 @@
++import { describe, expect, it } from 'vitest';
++import { readComfyForm, targetFromSettings } from './comfyui-settings-utils.js';
++
++describe('readComfyForm', () => {
++  it('uses the built-in instance unless custom is chosen', () => {
++    expect(readComfyForm({}).ok).toBe(true);
++    expect(readComfyForm({ mapGenMode: 'builtin', mapGenCustomHost: 'bad host!' })).toMatchObject({
++      ok: true,
++      value: { mode: 'builtin' },
++    });
++  });
++
++  it('reads a custom host, port and https flag', () => {
++    expect(
++      readComfyForm({
++        mapGenMode: 'custom',
++        mapGenCustomHost: ' nexus ',
++        mapGenCustomPort: '8188',
++        mapGenCustomSecure: true,
++      })
++    ).toEqual({ ok: true, value: { mode: 'custom', host: 'nexus', port: 8188, secure: true } });
++    expect(
++      readComfyForm({ mapGenMode: 'custom', mapGenCustomHost: '127.0.0.1', mapGenCustomPort: 8188 })
++    ).toEqual({
++      ok: true,
++      value: { mode: 'custom', host: '127.0.0.1', port: 8188, secure: false },
++    });
++  });
++
++  it('splits a pasted address into host, port and https', () => {
++    expect(
++      readComfyForm({
++        mapGenMode: 'custom',
++        mapGenCustomHost: 'http://nexus.lan:8189/',
++        mapGenCustomPort: 1,
++      })
++    ).toEqual({
++      ok: true,
++      value: { mode: 'custom', host: 'nexus.lan', port: 8189, secure: false },
++    });
++    expect(
++      readComfyForm({
++        mapGenMode: 'custom',
++        mapGenCustomHost: 'https://comfy.example.com',
++        mapGenCustomPort: '',
++      })
++    ).toEqual({
++      ok: true,
++      value: { mode: 'custom', host: 'comfy.example.com', port: 443, secure: true },
++    });
++  });
++
++  it.each([
++    [
++      'no host',
++      { mapGenMode: 'custom', mapGenCustomHost: '', mapGenCustomPort: 8188 },
++      'host must be',
++    ],
++    [
++      'a host with a path',
++      { mapGenMode: 'custom', mapGenCustomHost: 'nexus/api', mapGenCustomPort: 8188 },
++      'host must be',
++    ],
++    [
++      'spaces in the host',
++      { mapGenMode: 'custom', mapGenCustomHost: 'my host', mapGenCustomPort: 8188 },
++      'host must be',
++    ],
++    [
++      'a text port',
++      { mapGenMode: 'custom', mapGenCustomHost: 'nexus', mapGenCustomPort: 'abc' },
++      'port must be',
++    ],
++    [
++      'port 0',
++      { mapGenMode: 'custom', mapGenCustomHost: 'nexus', mapGenCustomPort: 0 },
++      'port must be',
++    ],
++    [
++      'port 99999',
++      { mapGenMode: 'custom', mapGenCustomHost: 'nexus', mapGenCustomPort: 99999 },
++      'port must be',
++    ],
++    [
++      'a decimal port',
++      { mapGenMode: 'custom', mapGenCustomHost: 'nexus', mapGenCustomPort: 80.5 },
++      'port must be',
++    ],
++    [
++      'an ftp address',
++      { mapGenMode: 'custom', mapGenCustomHost: 'ftp://nexus', mapGenCustomPort: 21 },
++      'http:// or https://',
++    ],
++    [
++      'a broken address',
++      { mapGenMode: 'custom', mapGenCustomHost: 'http://', mapGenCustomPort: 80 },
++      'not valid',
++    ],
++    [
++      'credentials in the address',
++      { mapGenMode: 'custom', mapGenCustomHost: 'http://user:pw@nexus:8188', mapGenCustomPort: 80 },
++      'user name',
++    ],
++  ])('rejects %s', (_label, form, message) => {
++    const result = readComfyForm(form);
++    expect(result.ok).toBe(false);
++    if (!result.ok) expect(result.error).toContain(message);
++  });
++});
++
++describe('targetFromSettings', () => {
++  it('builds the target from saved settings', () => {
++    const settings: Record<string, unknown> = {
++      mapGenMode: 'custom',
++      mapGenCustomHost: 'nexus',
++      mapGenCustomPort: 8188,
++      mapGenCustomSecure: false,
++    };
++    expect(targetFromSettings(key => settings[key])).toEqual({
++      mode: 'custom',
++      host: 'nexus',
++      port: 8188,
++      secure: false,
++    });
++  });
++
++  it('falls back to built-in when the saved settings are unusable', () => {
++    expect(targetFromSettings(() => undefined).mode).toBe('builtin');
++    const bad: Record<string, unknown> = {
++      mapGenMode: 'custom',
++      mapGenCustomHost: '',
++      mapGenCustomPort: 8188,
++    };
++    expect(targetFromSettings(key => bad[key]).mode).toBe('builtin');
++  });
++});
+diff --git a/packages/foundry-module/src/comfyui-settings-utils.ts b/packages/foundry-module/src/comfyui-settings-utils.ts
+new file mode 100644
+index 0000000..f7b92e5
+--- /dev/null
++++ b/packages/foundry-module/src/comfyui-settings-utils.ts
+@@ -0,0 +1,95 @@
++/**
++ * Helpers for the map generation settings: read the form, and turn the saved settings into
++ * the target the MCP server is told to use. No Foundry globals, so they can be tested.
++ */
++
++export interface ComfyTargetSetting {
++  mode: 'builtin' | 'custom';
++  host: string;
++  port: number;
++  secure: boolean;
++}
++
++export const DEFAULT_CUSTOM_HOST = '127.0.0.1';
++export const DEFAULT_CUSTOM_PORT = 8188;
++
++const HOSTNAME = /^[A-Za-z0-9](?:[A-Za-z0-9.-]{0,251}[A-Za-z0-9])?$/;
++const IPV6 = /^\[[0-9A-Fa-f:.]+\]$/;
++
++export type ComfyFormResult =
++  | { ok: true; value: ComfyTargetSetting }
++  | { ok: false; error: string };
++
++/**
++ * Read the ComfyUI fields of the settings form. The host box also accepts a pasted address
++ * such as "http://nexus:8188" or "https://comfy.example.com", which fills in the host, the
++ * port (when given) and whether to use https.
++ */
++export function readComfyForm(form: {
++  mapGenMode?: unknown;
++  mapGenCustomHost?: unknown;
++  mapGenCustomPort?: unknown;
++  mapGenCustomSecure?: unknown;
++}): ComfyFormResult {
++  if (form.mapGenMode !== 'custom') {
++    return {
++      ok: true,
++      value: {
++        mode: 'builtin',
++        host: DEFAULT_CUSTOM_HOST,
++        port: DEFAULT_CUSTOM_PORT,
++        secure: false,
++      },
++    };
++  }
++
++  let host = typeof form.mapGenCustomHost === 'string' ? form.mapGenCustomHost.trim() : '';
++  let secure = form.mapGenCustomSecure === true || form.mapGenCustomSecure === 'true';
++  let portInput: unknown = form.mapGenCustomPort;
++
++  if (host.includes('://')) {
++    let url: URL;
++    try {
++      url = new URL(host);
++    } catch {
++      return { ok: false, error: 'The ComfyUI address is not valid' };
++    }
++    if (url.protocol !== 'http:' && url.protocol !== 'https:') {
++      return { ok: false, error: 'The ComfyUI address must start with http:// or https://' };
++    }
++    if (url.username || url.password) {
++      return { ok: false, error: 'Do not put a user name or password in the ComfyUI address' };
++    }
++    secure = url.protocol === 'https:';
++    host = url.hostname;
++    if (url.port) portInput = Number(url.port);
++    else if (portInput === undefined || portInput === '') portInput = secure ? 443 : 80;
++  }
++
++  if (!host || !(HOSTNAME.test(host) || IPV6.test(host))) {
++    return {
++      ok: false,
++      error: 'The ComfyUI host must be a host name or IP address, for example 127.0.0.1 or nexus',
++    };
++  }
++
++  const port = typeof portInput === 'string' ? Number(portInput.trim()) : portInput;
++  if (typeof port !== 'number' || !Number.isInteger(port) || port < 1 || port > 65535) {
++    return { ok: false, error: 'The ComfyUI port must be a whole number from 1 to 65535' };
++  }
++
++  return { ok: true, value: { mode: 'custom', host, port, secure } };
++}
++
++/** The target to send to the MCP server, from the saved settings. Falls back to built-in. */
++export function targetFromSettings(get: (key: string) => unknown): ComfyTargetSetting {
++  const result = readComfyForm({
++    mapGenMode: get('mapGenMode'),
++    mapGenCustomHost: get('mapGenCustomHost'),
++    mapGenCustomPort: get('mapGenCustomPort'),
++    mapGenCustomSecure: get('mapGenCustomSecure'),
++  });
++  return result.ok
++    ? result.value
++    : { mode: 'builtin', host: DEFAULT_CUSTOM_HOST, port: DEFAULT_CUSTOM_PORT, secure: false };
++}
 diff --git a/packages/foundry-module/src/constants.ts b/packages/foundry-module/src/constants.ts
 index 864412c..71104a6 100644
 --- a/packages/foundry-module/src/constants.ts
@@ -78,6 +522,308 @@ index bcaadda..11b9dcc 100644
        },
        updateExisting: true,
        existingActorIdentifier: 'Nayeli',
+diff --git a/packages/foundry-module/src/data-access.inspect.test.ts b/packages/foundry-module/src/data-access.inspect.test.ts
+new file mode 100644
+index 0000000..f442fc4
+--- /dev/null
++++ b/packages/foundry-module/src/data-access.inspect.test.ts
+@@ -0,0 +1,296 @@
++/**
++ * inspect-document tests. Foundry is stubbed: these check lookups, the embedded-collection
++ * summary, depth and size limits, schema output, and that nothing is ever written.
++ */
++
++import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
++import { FoundryDataAccess } from './data-access.js';
++
++function makeActor() {
++  const items = [
++    { id: 'i1', name: 'Scimitar', type: 'weapon' },
++    { id: 'i2', name: 'Shortbow', type: 'weapon' },
++  ];
++  const actor: any = {
++    id: 'a1',
++    name: 'Sildar Hallwinter',
++    type: 'npc',
++    documentName: 'Actor',
++    uuid: 'Actor.a1',
++    folder: { name: 'Allies' },
++    constructor: { metadata: { embedded: { Item: 'items', ActiveEffect: 'effects' } } },
++    getEmbeddedCollection: (type: string) => ({
++      contents: type === 'Item' ? items.map(makeItem) : [],
++    }),
++    toObject: () => ({
++      name: 'Sildar Hallwinter',
++      system: { attributes: { hp: { value: 27, max: 27 } }, details: { cr: 2 } },
++      items: items.map(i => ({ ...i })),
++      effects: [],
++    }),
++    update: vi.fn(),
++    delete: vi.fn(),
++  };
++  return actor;
++}
++
++function makeItem(data: any): any {
++  return {
++    ...data,
++    documentName: 'Item',
++    uuid: `Actor.a1.Item.${data.id}`,
++    constructor: { metadata: { embedded: {} } },
++    toObject: () => ({ ...data, system: { damage: '1d6' } }),
++  };
++}
++
++function setup(options: { actors?: any[] } = {}) {
++  const actor = makeActor();
++  const actors = options.actors ?? [actor];
++  vi.stubGlobal('Hooks', { on: vi.fn(), callAll: vi.fn() });
++  vi.stubGlobal('game', {
++    ready: true,
++    world: { id: 'w', getFlag: vi.fn(() => []), setFlag: vi.fn() },
++    user: { id: 'gm', name: 'GM' },
++    collections: new Map([['Actor', { contents: actors }]]),
++    settings: { get: () => true },
++  });
++  vi.stubGlobal('CONFIG', {
++    Wall: {
++      documentClass: {
++        schema: { fields: { c: new (class ArrayField {})(), door: new (class NumberField {})() } },
++        metadata: { embedded: {} },
++      },
++    },
++    Scene: {
++      documentClass: {
++        schema: { fields: { name: new (class StringField {})() } },
++        metadata: { embedded: { Token: 'tokens', Wall: 'walls' } },
++      },
++    },
++  });
++  vi.stubGlobal(
++    'fromUuid',
++    vi.fn(async (uuid: string) => (uuid === 'Actor.a1' ? actor : null))
++  );
++  return { dataAccess: new FoundryDataAccess(), actor };
++}
++
++describe('FoundryDataAccess.inspectDocument', () => {
++  beforeEach(() => vi.unstubAllGlobals());
++  afterEach(() => vi.unstubAllGlobals());
++
++  describe('list', () => {
++    it('lists documents of a type with a search filter', async () => {
++      const { dataAccess } = setup();
++      const all = await dataAccess.inspectDocument({ action: 'list', type: 'Actor' });
++      expect(all).toMatchObject({
++        total: 1,
++        items: [{ id: 'a1', name: 'Sildar Hallwinter', subtype: 'npc', folder: 'Allies' }],
++      });
++
++      const none = await dataAccess.inspectDocument({
++        action: 'list',
++        type: 'Actor',
++        search: 'zzz',
++      });
++      expect(none.items).toEqual([]);
++      const some = await dataAccess.inspectDocument({
++        action: 'list',
++        type: 'Actor',
++        search: 'SILDAR',
++      });
++      expect(some.total).toBe(1);
++    });
++
++    it('limits the number shown', async () => {
++      const many = Array.from({ length: 5 }, (_, i) => ({ id: `x${i}`, name: `N${i}` }));
++      const { dataAccess } = setup({ actors: many });
++      const result = await dataAccess.inspectDocument({ action: 'list', type: 'Actor', limit: 2 });
++      expect(result).toMatchObject({ total: 5, shown: 2 });
++      expect(result.items).toHaveLength(2);
++    });
++
++    it('refuses types outside the allowed list', async () => {
++      const { dataAccess } = setup();
++      await expect(dataAccess.inspectDocument({ action: 'list', type: 'User' })).rejects.toThrow(
++        'type must be one of'
++      );
++      await expect(dataAccess.inspectDocument({ action: 'list', type: 'Setting' })).rejects.toThrow(
++        'type must be one of'
++      );
++    });
++  });
++
++  describe('get', () => {
++    it('reads a document by name, summarising embedded collections as counts', async () => {
++      const { dataAccess } = setup();
++      const result = await dataAccess.inspectDocument({
++        action: 'get',
++        type: 'Actor',
++        identifier: 'sildar hallwinter',
++      });
++
++      expect(result.document).toMatchObject({
++        documentName: 'Actor',
++        id: 'a1',
++        embeddedTypes: ['Item', 'ActiveEffect'],
++      });
++      const data = JSON.parse(result.data);
++      expect(data.system.attributes.hp).toEqual({ value: 27, max: 27 });
++      expect(data.items).toContain('2 items');
++      expect(result.truncated).toBe(false);
++    });
++
++    it('includes embedded documents when asked', async () => {
++      const { dataAccess } = setup();
++      const result = await dataAccess.inspectDocument({
++        action: 'get',
++        type: 'Actor',
++        identifier: 'a1',
++        include_embedded: true,
++      });
++      expect(JSON.parse(result.data).items).toHaveLength(2);
++    });
++
++    it('reads a part by path, and by uuid', async () => {
++      const { dataAccess } = setup();
++      const byPath = await dataAccess.inspectDocument({
++        action: 'get',
++        type: 'Actor',
++        identifier: 'a1',
++        path: 'system.attributes.hp.max',
++      });
++      expect(JSON.parse(byPath.data)).toBe(27);
++      expect(byPath.path).toBe('system.attributes.hp.max');
++
++      const byUuid = await dataAccess.inspectDocument({ action: 'get', uuid: 'Actor.a1' });
++      expect(byUuid.document.id).toBe('a1');
++      await expect(
++        dataAccess.inspectDocument({ action: 'get', uuid: 'Actor.zzz' })
++      ).rejects.toThrow('No document found');
++    });
++
++    it('limits depth and size and says when output was cut', async () => {
++      const { dataAccess } = setup();
++      const shallow = await dataAccess.inspectDocument({
++        action: 'get',
++        type: 'Actor',
++        identifier: 'a1',
++        depth: 1,
++      });
++      expect(JSON.parse(shallow.data).system).toBe('{object with 2 keys}');
++
++      const cut = await dataAccess.inspectDocument({
++        action: 'get',
++        type: 'Actor',
++        identifier: 'a1',
++        max_chars: 500,
++        include_embedded: true,
++        depth: 12,
++      });
++      expect(cut.data.length).toBeLessThanOrEqual(500);
++      if (cut.truncated) expect(cut.note).toContain('max_chars');
++    });
++
++    it('lists and reads embedded documents', async () => {
++      const { dataAccess } = setup();
++      const list = await dataAccess.inspectDocument({
++        action: 'get',
++        type: 'Actor',
++        identifier: 'a1',
++        embedded_type: 'Item',
++      });
++      expect(list).toMatchObject({ embeddedType: 'Item', total: 2 });
++      expect(list.items.map((i: any) => i.name)).toEqual(['Scimitar', 'Shortbow']);
++
++      const one = await dataAccess.inspectDocument({
++        action: 'get',
++        type: 'Actor',
++        identifier: 'a1',
++        embedded_type: 'Item',
++        embedded_identifier: 'shortbow',
++      });
++      expect(one.document.id).toBe('i2');
++      expect(JSON.parse(one.data).system.damage).toBe('1d6');
++    });
++
++    it.each([
++      ['an unknown document', { type: 'Actor', identifier: 'Nobody' }, 'not found'],
++      ['no identifier', { type: 'Actor' }, 'needs identifier'],
++      [
++        'a bad embedded type',
++        { type: 'Actor', identifier: 'a1', embedded_type: 'Token' },
++        'has no embedded "Token"',
++      ],
++      [
++        'an unknown embedded document',
++        { type: 'Actor', identifier: 'a1', embedded_type: 'Item', embedded_identifier: 'zz' },
++        'not found',
++      ],
++      ['a wrong path', { type: 'Actor', identifier: 'a1', path: 'system.nope' }, 'Nothing at'],
++      ['a bad depth', { type: 'Actor', identifier: 'a1', depth: 0 }, 'depth must be'],
++      ['a bad max_chars', { type: 'Actor', identifier: 'a1', max_chars: 10 }, 'max_chars must be'],
++    ])('rejects %s', async (_label, options, message) => {
++      const { dataAccess } = setup();
++      await expect(
++        dataAccess.inspectDocument({ action: 'get', ...(options as any) })
++      ).rejects.toThrow(message);
++    });
++
++    it('refuses several documents with the same name', async () => {
++      const twin = (id: string) => ({ ...makeActor(), id, name: 'Twin' });
++      const { dataAccess } = setup({ actors: [twin('t1'), twin('t2')] });
++      await expect(
++        dataAccess.inspectDocument({ action: 'get', type: 'Actor', identifier: 'twin' })
++      ).rejects.toThrow('Several Actor documents');
++    });
++
++    it('never changes anything', async () => {
++      const { dataAccess, actor } = setup();
++      await dataAccess.inspectDocument({
++        action: 'get',
++        type: 'Actor',
++        identifier: 'a1',
++        include_embedded: true,
++      });
++      expect(actor.update).not.toHaveBeenCalled();
++      expect(actor.delete).not.toHaveBeenCalled();
++    });
++  });
++
++  describe('schema', () => {
++    it('describes a type and its embedded types', async () => {
++      const { dataAccess } = setup();
++      const result = await dataAccess.inspectDocument({ action: 'schema', type: 'Scene' });
++      expect(result.embeddedTypes).toEqual({ Token: 'tokens', Wall: 'walls' });
++      expect(result.fields.name.type).toBe('StringField');
++    });
++
++    it('describes an embedded type by name', async () => {
++      const { dataAccess } = setup();
++      const result = await dataAccess.inspectDocument({ action: 'schema', embedded_type: 'Wall' });
++      expect(Object.keys(result.fields)).toEqual(['c', 'door']);
++    });
++
++    it('rejects unknown and malformed type names', async () => {
++      const { dataAccess } = setup();
++      await expect(
++        dataAccess.inspectDocument({ action: 'schema', type: 'Dragon' })
++      ).rejects.toThrow('No document type named "Dragon"');
++      await expect(dataAccess.inspectDocument({ action: 'schema', type: '../x' })).rejects.toThrow(
++        'schema needs type'
++      );
++      await expect(dataAccess.inspectDocument({ action: 'schema' })).rejects.toThrow(
++        'schema needs type'
++      );
++    });
++  });
++
++  it('rejects an unknown action', async () => {
++    const { dataAccess } = setup();
++    await expect(dataAccess.inspectDocument({ action: 'delete' as any })).rejects.toThrow(
++      'Unknown action'
++    );
++  });
++});
 diff --git a/packages/foundry-module/src/data-access.manage-journals.test.ts b/packages/foundry-module/src/data-access.manage-journals.test.ts
 new file mode 100644
 index 0000000..bad3cea
@@ -1506,12 +2252,21 @@ index 0000000..0a5a35c
 +  });
 +});
 diff --git a/packages/foundry-module/src/data-access.ts b/packages/foundry-module/src/data-access.ts
-index eecda7e..9c28acf 100644
+index eecda7e..8334a97 100644
 --- a/packages/foundry-module/src/data-access.ts
 +++ b/packages/foundry-module/src/data-access.ts
-@@ -1,5 +1,42 @@
+@@ -1,5 +1,51 @@
  import { MODULE_ID, ERROR_MESSAGES, TOKEN_DISPOSITIONS } from './constants.js';
  import { permissionManager } from './permissions.js';
++import {
++  DEFAULT_MAX_CHARS,
++  INSPECTABLE_TYPES,
++  MAX_MAX_CHARS,
++  describeFields,
++  limitJson,
++  pickPath,
++  trimDepth,
++} from './inspect-utils.js';
 +import {
 +  CREATED_BY_FLAG,
 +  assertInsideScene,
@@ -1552,7 +2307,7 @@ index eecda7e..9c28acf 100644
  import { transactionManager } from './transaction-manager.js';
  
  // The same five characters foundry.utils.escapeHTML replaces in v14, kept local because
-@@ -6714,7 +6751,7 @@ export class FoundryDataAccess {
+@@ -6714,7 +6760,7 @@ export class FoundryDataAccess {
  
          // Send socket request to GM
          if (game.socket) {
@@ -1561,7 +2316,7 @@ index eecda7e..9c28acf 100644
              type: 'requestMessageUpdate',
              buttonId,
              userId,
-@@ -8101,6 +8138,1230 @@ export class FoundryDataAccess {
+@@ -8101,6 +8147,1442 @@ export class FoundryDataAccess {
      }
    }
  
@@ -2343,6 +3098,218 @@ index eecda7e..9c28acf 100644
 +    }
 +  }
 +
++  // ===== INSPECT DOCUMENT (READ-ONLY) =====
++
++  /** Names of the embedded document types a document class has (e.g. Token, Wall for a Scene). */
++  private embeddedTypesOf(documentClass: any): Record<string, string> {
++    const embedded = documentClass?.metadata?.embedded;
++    return embedded && typeof embedded === 'object' ? { ...embedded } : {};
++  }
++
++  /**
++   * Read-only look at Foundry data, so the exact fields and values can be checked instead of
++   * guessed. list: documents of a type. get: one document's data (by type and name/id, or
++   * by uuid), optionally an embedded document or a part of it by path. schema: the fields a
++   * document type has, with their kinds and allowed values.
++   */
++  async inspectDocument(options: {
++    action: 'list' | 'get' | 'schema';
++    type?: string;
++    identifier?: string;
++    uuid?: string;
++    embedded_type?: string;
++    embedded_identifier?: string;
++    path?: string;
++    depth?: number;
++    max_chars?: number;
++    include_embedded?: boolean;
++    search?: string;
++    limit?: number;
++  }): Promise<any> {
++    this.validateFoundryState();
++
++    try {
++      const action = options.action;
++      if (action !== 'list' && action !== 'get' && action !== 'schema') {
++        throw new Error(`Unknown action: ${String(action)} (list | get | schema)`);
++      }
++
++      const intIn = (value: unknown, name: string, min: number, max: number, fallback: number) => {
++        if (value === undefined) return fallback;
++        if (typeof value !== 'number' || !Number.isInteger(value) || value < min || value > max) {
++          throw new Error(`${name} must be a whole number from ${min} to ${max}`);
++        }
++        return value;
++      };
++      const depth = intIn(options.depth, 'depth', 1, 12, 5);
++      const maxChars = intIn(options.max_chars, 'max_chars', 500, MAX_MAX_CHARS, DEFAULT_MAX_CHARS);
++
++      const checkType = (type: unknown): string => {
++        if (typeof type !== 'string' || !(INSPECTABLE_TYPES as readonly string[]).includes(type)) {
++          throw new Error(`type must be one of: ${INSPECTABLE_TYPES.join(', ')}`);
++        }
++        return type;
++      };
++
++      if (action === 'schema') {
++        const typeName = options.embedded_type ?? options.type;
++        if (typeof typeName !== 'string' || !/^[A-Za-z]+$/.test(typeName)) {
++          throw new Error('schema needs type (or embedded_type), e.g. Scene or Wall');
++        }
++        const documentClass = (CONFIG as any)[typeName]?.documentClass;
++        const fields = documentClass?.schema?.fields;
++        if (!fields) throw new Error(`No document type named "${typeName}"`);
++        const schemaDepth = intIn(options.depth, 'depth', 1, 6, 3);
++        return {
++          success: true,
++          action,
++          type: typeName,
++          embeddedTypes: this.embeddedTypesOf(documentClass),
++          fields: describeFields(fields, schemaDepth),
++        };
++      }
++
++      if (action === 'list') {
++        const type = checkType(options.type);
++        const collection = (game as any).collections?.get(type);
++        if (!collection) throw new Error(`Foundry has no collection for ${type}`);
++        const limit = intIn(options.limit, 'limit', 1, 500, 100);
++        const search = options.search?.trim().toLowerCase();
++        const all = ((collection.contents || []) as any[]).filter(doc => {
++          if (!search) return true;
++          return String(doc.name ?? '').toLowerCase().includes(search);
++        });
++        const items = all.slice(0, limit).map(doc => ({
++          id: doc.id,
++          name: doc.name ?? doc.alias ?? '',
++          ...(doc.type ? { subtype: doc.type } : {}),
++          folder: doc.folder?.name ?? null,
++        }));
++        return {
++          success: true,
++          action,
++          type,
++          total: all.length,
++          ...(all.length > limit ? { shown: limit } : {}),
++          items,
++        };
++      }
++
++      // get
++      let doc: any;
++      if (options.uuid) {
++        doc = await (globalThis as any).fromUuid(options.uuid);
++        if (!doc) throw new Error(`No document found for uuid ${options.uuid}`);
++      } else {
++        const type = checkType(options.type);
++        if (!options.identifier) throw new Error('get needs identifier (id or exact name) or uuid');
++        const collection = (game as any).collections?.get(type);
++        if (!collection) throw new Error(`Foundry has no collection for ${type}`);
++        const docs = (collection.contents || []) as any[];
++        const byId = docs.find(d => d.id === options.identifier);
++        if (byId) {
++          doc = byId;
++        } else {
++          const wanted = options.identifier.trim().toLowerCase();
++          const matches = docs.filter(d => String(d.name ?? '').toLowerCase() === wanted);
++          if (matches.length === 0) throw new Error(`${type} not found: "${options.identifier}"`);
++          if (matches.length > 1) {
++            throw new Error(
++              `Several ${type} documents are named "${options.identifier}" (ids: ${matches.map(m => m.id).join(', ')}); use the id`
++            );
++          }
++          doc = matches[0];
++        }
++      }
++
++      const topEmbedded = this.embeddedTypesOf(doc.constructor);
++
++      if (options.embedded_type) {
++        const embeddedType = options.embedded_type;
++        if (!(embeddedType in topEmbedded)) {
++          throw new Error(
++            `${doc.documentName ?? 'This document'} has no embedded "${embeddedType}". It has: ${Object.keys(topEmbedded).join(', ') || 'none'}`
++          );
++        }
++        const embeddedDocs = ((doc.getEmbeddedCollection(embeddedType)?.contents ?? []) as any[]);
++        if (!options.embedded_identifier) {
++          return {
++            success: true,
++            action,
++            parent: { id: doc.id, name: doc.name },
++            embeddedType,
++            total: embeddedDocs.length,
++            items: embeddedDocs.slice(0, 200).map(e => ({
++              id: e.id,
++              name: e.name ?? '',
++              ...(e.type ? { subtype: e.type } : {}),
++            })),
++          };
++        }
++        const wantedEmbedded = options.embedded_identifier.trim().toLowerCase();
++        const found =
++          embeddedDocs.find(e => e.id === options.embedded_identifier) ??
++          (() => {
++            const matches = embeddedDocs.filter(
++              e => String(e.name ?? '').toLowerCase() === wantedEmbedded
++            );
++            if (matches.length > 1) {
++              throw new Error(
++                `Several ${embeddedType} documents are named "${options.embedded_identifier}" (ids: ${matches.map(m => m.id).join(', ')}); use the id`
++              );
++            }
++            return matches[0];
++          })();
++        if (!found) {
++          throw new Error(`${embeddedType} not found: "${options.embedded_identifier}"`);
++        }
++        doc = found;
++      }
++
++      let data: unknown = doc.toObject();
++      const embeddedHere = Object.values(this.embeddedTypesOf(doc.constructor)) as string[];
++      if (!options.include_embedded && !options.path && data && typeof data === 'object') {
++        const counts: Record<string, string> = {};
++        for (const field of embeddedHere) {
++          const value = (data as any)[field];
++          if (Array.isArray(value)) {
++            counts[field] = `[${value.length} items: use embedded_type to list, or include_embedded]`;
++            (data as any)[field] = counts[field];
++          }
++        }
++      }
++      if (options.path) data = pickPath(data, options.path);
++      const trimmed = trimDepth(data, depth);
++      const { json, truncated } = limitJson(trimmed, maxChars);
++
++      return {
++        success: true,
++        action,
++        document: {
++          documentName: doc.documentName,
++          id: doc.id,
++          name: doc.name ?? null,
++          uuid: doc.uuid ?? null,
++          embeddedTypes: Object.keys(this.embeddedTypesOf(doc.constructor)),
++        },
++        ...(options.path ? { path: options.path } : {}),
++        depth,
++        truncated,
++        // A string, so the size limit is exact; the caller reads it as JSON.
++        data: json,
++        ...(truncated
++          ? {
++              note: `Output was cut at ${maxChars} characters. Use path to read one part, a smaller depth, or a larger max_chars.`,
++            }
++          : {}),
++      };
++    } catch (error) {
++      throw new Error(
++        `Failed to inspect: ${error instanceof Error ? error.message : 'Unknown error'}`
++      );
++    }
++  }
++
 +  // ===== JOURNAL MANAGEMENT (CREATE / UPDATE / DESCRIBE) =====
 +
 +  /** Find journals by id or exact (case-insensitive) name; throws if none or several. */
@@ -3044,6 +4011,263 @@ index 0000000..83a409c
 +    });
 +  });
 +});
+diff --git a/packages/foundry-module/src/inspect-utils.test.ts b/packages/foundry-module/src/inspect-utils.test.ts
+new file mode 100644
+index 0000000..df5970f
+--- /dev/null
++++ b/packages/foundry-module/src/inspect-utils.test.ts
+@@ -0,0 +1,123 @@
++import { describe, expect, it } from 'vitest';
++import { describeFields, limitJson, pickPath, trimDepth } from './inspect-utils.js';
++
++describe('trimDepth', () => {
++  const doc = { a: 1, b: { c: { d: 2 }, e: [1, 2, 3] }, f: 'text' };
++
++  it('keeps values within the depth and replaces deeper objects with a placeholder', () => {
++    expect(trimDepth(doc, 1)).toEqual({
++      a: 1,
++      b: '{object with 2 keys}',
++      f: 'text',
++    });
++    expect(trimDepth(doc, 2)).toEqual({
++      a: 1,
++      b: { c: '{object with 1 keys}', e: '[array of 3]' },
++      f: 'text',
++    });
++  });
++
++  it('keeps everything when deep enough and leaves primitives alone', () => {
++    expect(trimDepth(doc, 10)).toEqual(doc);
++    expect(trimDepth(5, 1)).toBe(5);
++    expect(trimDepth(null, 1)).toBeNull();
++  });
++});
++
++describe('pickPath', () => {
++  const doc = {
++    system: { attributes: { hp: { value: 7, max: 11 } } },
++    items: [{ name: 'Scimitar' }],
++  };
++
++  it('reads nested values and array entries', () => {
++    expect(pickPath(doc, 'system.attributes.hp')).toEqual({ value: 7, max: 11 });
++    expect(pickPath(doc, 'items.0.name')).toBe('Scimitar');
++  });
++
++  it('names the sibling keys when the path is wrong', () => {
++    expect(() => pickPath(doc, 'system.attributes.mana')).toThrow(
++      'Nothing at "system.attributes.mana". Keys of system.attributes: hp'
++    );
++    expect(() => pickPath(doc, 'nope')).toThrow('Keys of the document: system, items');
++    expect(() => pickPath(doc, 'items.0.name.length')).toThrow('(not an object)');
++  });
++
++  it('rejects an empty path', () => {
++    expect(() => pickPath(doc, '..')).toThrow('empty');
++  });
++});
++
++describe('limitJson', () => {
++  it('returns the whole text when it fits', () => {
++    expect(limitJson({ a: 1 }, 1000)).toEqual({ json: '{\n "a": 1\n}', truncated: false });
++  });
++
++  it('cuts to the limit and says so', () => {
++    const out = limitJson({ text: 'x'.repeat(500) }, 100);
++    expect(out.truncated).toBe(true);
++    expect(out.json).toHaveLength(100);
++  });
++});
++
++describe('describeFields', () => {
++  class StringField {
++    required = true;
++    initial = 'x';
++    choices = ['a', 'b'];
++  }
++  class NumberField {
++    min = 0;
++    max = 10;
++    nullable = true;
++  }
++  class SchemaField {
++    fields: Record<string, any>;
++    constructor(fields: Record<string, any>) {
++      this.fields = fields;
++    }
++  }
++  class ArrayField {
++    element: any;
++    constructor(element: any) {
++      this.element = element;
++    }
++  }
++
++  const fields = {
++    name: new StringField(),
++    size: new NumberField(),
++    grid: new SchemaField({
++      size: new NumberField(),
++      nested: new SchemaField({ deep: new StringField() }),
++    }),
++    tags: new ArrayField(new StringField()),
++    kind: Object.assign(new StringField(), {
++      choices: { one: 'One', two: 'Two' },
++      initial: () => 'z',
++    }),
++  };
++
++  it('reports kinds, required, initial, choices and limits', () => {
++    const out = describeFields(fields, 1);
++    expect(out.name).toEqual({
++      type: 'StringField',
++      required: true,
++      initial: 'x',
++      choices: ['a', 'b'],
++    });
++    expect(out.size).toEqual({ type: 'NumberField', nullable: true, min: 0, max: 10 });
++    expect(out.kind.choices).toEqual(['one', 'two']);
++    expect(out.kind.initial).toBeUndefined();
++  });
++
++  it('descends into nested fields and array elements only as deep as asked', () => {
++    const shallow = describeFields(fields, 1);
++    expect(shallow.grid.fields).toBeUndefined();
++
++    const deeper = describeFields(fields, 3);
++    expect(Object.keys(deeper.grid.fields!)).toEqual(['size', 'nested']);
++    expect(deeper.grid.fields!.nested.fields!.deep.type).toBe('StringField');
++    expect(deeper.tags.element?.type).toBe('StringField');
++  });
++});
+diff --git a/packages/foundry-module/src/inspect-utils.ts b/packages/foundry-module/src/inspect-utils.ts
+new file mode 100644
+index 0000000..687f021
+--- /dev/null
++++ b/packages/foundry-module/src/inspect-utils.ts
+@@ -0,0 +1,122 @@
++/**
++ * Pure helpers for inspect-document: limit how deep and how long returned data is, pick a
++ * part of a document by path, and describe a document's field schema. No Foundry globals.
++ */
++
++/** Document types that can be listed and read by name. Users and settings are left out. */
++export const INSPECTABLE_TYPES = [
++  'Actor',
++  'Item',
++  'Scene',
++  'JournalEntry',
++  'RollTable',
++  'Macro',
++  'Playlist',
++  'Cards',
++  'Folder',
++  'Combat',
++  'ChatMessage',
++] as const;
++export type InspectableType = (typeof INSPECTABLE_TYPES)[number];
++
++export const DEFAULT_MAX_CHARS = 20000;
++export const MAX_MAX_CHARS = 100000;
++
++/**
++ * Replace everything nested deeper than `depth` levels with a short placeholder, so a big
++ * document can be read level by level. Depth 1 keeps the top-level keys only.
++ */
++export function trimDepth(value: unknown, depth: number): unknown {
++  if (value === null || typeof value !== 'object') return value;
++  if (depth <= 0) {
++    return Array.isArray(value)
++      ? `[array of ${value.length}]`
++      : `{object with ${Object.keys(value).length} keys}`;
++  }
++  if (Array.isArray(value)) return value.map(item => trimDepth(item, depth - 1));
++  const out: Record<string, unknown> = {};
++  for (const [key, inner] of Object.entries(value as Record<string, unknown>)) {
++    out[key] = trimDepth(inner, depth - 1);
++  }
++  return out;
++}
++
++/** Read a part of an object by dotted path ("system.attributes.hp", "items.0.name"). */
++export function pickPath(value: unknown, path: string): unknown {
++  const parts = path.split('.').filter(part => part.length > 0);
++  if (parts.length === 0) throw new Error('path is empty');
++  let cursor: any = value;
++  const seen: string[] = [];
++  for (const part of parts) {
++    if (cursor === null || typeof cursor !== 'object' || !(part in cursor)) {
++      const where = seen.length ? seen.join('.') : 'the document';
++      const keys =
++        cursor !== null && typeof cursor === 'object'
++          ? Object.keys(cursor).slice(0, 30).join(', ')
++          : '(not an object)';
++      throw new Error(`Nothing at "${[...seen, part].join('.')}". Keys of ${where}: ${keys}`);
++    }
++    cursor = cursor[part];
++    seen.push(part);
++  }
++  return cursor;
++}
++
++/** Serialise, and cut off with a note if the result would be longer than maxChars. */
++export function limitJson(value: unknown, maxChars: number): { json: string; truncated: boolean } {
++  const json = JSON.stringify(value, null, 1) ?? 'null';
++  if (json.length <= maxChars) return { json, truncated: false };
++  return { json: json.slice(0, maxChars), truncated: true };
++}
++
++export interface SchemaNode {
++  type: string;
++  required?: boolean;
++  nullable?: boolean;
++  initial?: unknown;
++  choices?: unknown[];
++  min?: number;
++  max?: number;
++  fields?: Record<string, SchemaNode>;
++  element?: SchemaNode;
++}
++
++/**
++ * Describe a Foundry DataField tree as plain data: each field's kind (StringField,
++ * NumberField, ...), whether it is required, its allowed choices and its children.
++ * Works on any object shaped like a DataField, so it can be tested without Foundry.
++ */
++export function describeFields(
++  fields: Record<string, any>,
++  depth: number
++): Record<string, SchemaNode> {
++  const out: Record<string, SchemaNode> = {};
++  for (const [name, field] of Object.entries(fields ?? {})) {
++    out[name] = describeField(field, depth);
++  }
++  return out;
++}
++
++function describeField(field: any, depth: number): SchemaNode {
++  const node: SchemaNode = { type: String(field?.constructor?.name ?? 'Unknown') };
++  if (field?.required) node.required = true;
++  if (field?.nullable) node.nullable = true;
++  const initial = field?.initial;
++  if (initial !== undefined && typeof initial !== 'function') node.initial = initial;
++  if (typeof field?.min === 'number') node.min = field.min;
++  if (typeof field?.max === 'number') node.max = field.max;
++
++  const choices = field?.choices;
++  if (Array.isArray(choices)) node.choices = choices.slice(0, 40);
++  else if (choices && typeof choices === 'object') node.choices = Object.keys(choices).slice(0, 40);
++
++  if (depth > 1) {
++    if (field?.fields && typeof field.fields === 'object') {
++      node.fields = describeFields(field.fields, depth - 1);
++    }
++    if (field?.element && typeof field.element === 'object') {
++      node.element = describeField(field.element, depth - 1);
++    }
++  }
++  return node;
++}
 diff --git a/packages/foundry-module/src/journal-utils.test.ts b/packages/foundry-module/src/journal-utils.test.ts
 new file mode 100644
 index 0000000..1e9c3ce
@@ -3240,10 +4464,37 @@ index 0000000..cbd8013
 +  return { html: out, warnings };
 +}
 diff --git a/packages/foundry-module/src/main.ts b/packages/foundry-module/src/main.ts
-index 9024ead..b6ea882 100644
+index 9024ead..26cc5c1 100644
 --- a/packages/foundry-module/src/main.ts
 +++ b/packages/foundry-module/src/main.ts
-@@ -522,7 +522,7 @@ Hooks.once('ready', async () => {
+@@ -414,6 +414,26 @@ class FoundryMCPBridge {
+         return;
+       }
+ 
++      // A custom ComfyUI is not started by the bridge: check once, and say if it is unreachable.
++      const target = this.comfyuiManager.getTarget();
++      if (target.mode === 'custom') {
++        setTimeout(async () => {
++          try {
++            const status = await this.comfyuiManager.checkStatus();
++            if (status.status !== 'running') {
++              ui.notifications?.warn(
++                `Map generation: the custom ComfyUI at ${target.secure ? 'https' : 'http'}://${target.host}:${target.port} is not reachable. Start it, or check Configure Map Generation.`
++              );
++            } else if (this.settings.getSetting('informationNotifications')) {
++              ui.notifications?.info('✅ Custom ComfyUI is reachable for map generation.');
++            }
++          } catch (error) {
++            console.warn(`[${MODULE_ID}] Could not check the custom ComfyUI:`, error);
++          }
++        }, 2000);
++        return;
++      }
++
+       console.log(`[${MODULE_ID}] Starting ComfyUI monitoring...`);
+ 
+       // Show initial loading banner
+@@ -522,7 +542,7 @@ Hooks.once('ready', async () => {
  
      // Register socket listener for roll state management (after game.user is available)
  
@@ -3641,7 +4892,7 @@ index 0000000..8854585
 +  return { width, height };
 +}
 diff --git a/packages/foundry-module/src/queries.ts b/packages/foundry-module/src/queries.ts
-index 9fe02ba..cc74f85 100644
+index 9fe02ba..e409f79 100644
 --- a/packages/foundry-module/src/queries.ts
 +++ b/packages/foundry-module/src/queries.ts
 @@ -1,4 +1,4 @@
@@ -3659,7 +4910,7 @@ index 9fe02ba..cc74f85 100644
  
      // Character/Actor queries
      CONFIG.queries[`${modulePrefix}.getCharacterInfo`] = this.handleGetCharacterInfo.bind(this);
-@@ -46,6 +46,11 @@ export class QueryHandlers {
+@@ -46,6 +46,12 @@ export class QueryHandlers {
      CONFIG.queries[`${modulePrefix}.list-scenes`] = this.handleListScenes.bind(this);
      CONFIG.queries[`${modulePrefix}.switch-scene`] = this.handleSwitchScene.bind(this);
      CONFIG.queries[`${modulePrefix}.update-scene-music`] = this.handleUpdateSceneMusic.bind(this);
@@ -3668,10 +4919,11 @@ index 9fe02ba..cc74f85 100644
 +    CONFIG.queries[`${modulePrefix}.manage-journals`] = this.handleManageJournals.bind(this);
 +    CONFIG.queries[`${modulePrefix}.manage-scene-objects`] = this.handleManageSceneObjects.bind(this);
 +    CONFIG.queries[`${modulePrefix}.preview-scene`] = this.handlePreviewScene.bind(this);
++    CONFIG.queries[`${modulePrefix}.inspect-document`] = this.handleInspectDocument.bind(this);
      CONFIG.queries[`${modulePrefix}.manage-playlists`] = this.handleManagePlaylists.bind(this);
      CONFIG.queries[`${modulePrefix}.control-playlist`] = this.handleControlPlaylist.bind(this);
  
-@@ -184,7 +189,7 @@ export class QueryHandlers {
+@@ -184,7 +190,7 @@ export class QueryHandlers {
     * Unregister all query handlers
     */
    unregisterHandlers(): void {
@@ -3680,7 +4932,7 @@ index 9fe02ba..cc74f85 100644
      const keysToRemove = Object.keys(CONFIG.queries).filter(key => key.startsWith(modulePrefix));
  
      for (const key of keysToRemove) {
-@@ -477,7 +482,7 @@ export class QueryHandlers {
+@@ -477,7 +483,7 @@ export class QueryHandlers {
     * Get list of all registered query methods
     */
    getRegisteredMethods(): string[] {
@@ -3689,7 +4941,7 @@ index 9fe02ba..cc74f85 100644
      return Object.keys(CONFIG.queries)
        .filter(key => key.startsWith(modulePrefix))
        .map(key => key.replace(`${modulePrefix}.`, ''));
-@@ -487,7 +492,7 @@ export class QueryHandlers {
+@@ -487,7 +493,7 @@ export class QueryHandlers {
     * Test if a specific query handler is registered
     */
    isMethodRegistered(method: string): boolean {
@@ -3698,7 +4950,7 @@ index 9fe02ba..cc74f85 100644
      return queryKey in CONFIG.queries && typeof CONFIG.queries[queryKey] === 'function';
    }
  
-@@ -1218,6 +1223,74 @@ export class QueryHandlers {
+@@ -1218,6 +1224,85 @@ export class QueryHandlers {
      }
    }
  
@@ -3711,6 +4963,17 @@ index 9fe02ba..cc74f85 100644
 +      throw new Error('action is required (place | describe | remove)');
 +    }
 +    return await this.dataAccess.manageSceneObjects(data);
++  }
++
++  private async handleInspectDocument(data: any): Promise<any> {
++    const gmCheck = this.validateGMAccess();
++    if (!gmCheck.allowed) {
++      return { error: 'Access denied', success: false };
++    }
++    if (!data?.action) {
++      throw new Error('action is required (list | get | schema)');
++    }
++    return await this.dataAccess.inspectDocument(data);
 +  }
 +
 +  private async handlePreviewScene(data: any): Promise<any> {
@@ -4555,6 +5818,200 @@ index 0000000..760d837
 +    };
 +  });
 +}
+diff --git a/packages/foundry-module/src/settings.ts b/packages/foundry-module/src/settings.ts
+index d689724..e95c387 100644
+--- a/packages/foundry-module/src/settings.ts
++++ b/packages/foundry-module/src/settings.ts
+@@ -1,5 +1,11 @@
+ import { MODULE_ID, DEFAULT_CONFIG } from './constants.js';
+ import type { BridgeConfig } from './socket-bridge.js';
++import {
++  DEFAULT_CUSTOM_HOST,
++  DEFAULT_CUSTOM_PORT,
++  readComfyForm,
++  type ComfyTargetSetting,
++} from './comfyui-settings-utils.js';
+ 
+ export class ModuleSettings {
+   private moduleId: string = MODULE_ID;
+@@ -82,14 +88,45 @@ export class ModuleSettings {
+         }
+ 
+         getData(): any {
++          const get = (key: string) => game.settings.get(MODULE_ID, key as any) as unknown;
++          const mode = get('mapGenMode') === 'custom' ? 'custom' : 'builtin';
++          const quality = get('mapGenQuality');
+           return {
+-            autoStartService: game.settings.get(MODULE_ID, 'mapGenAutoStart') || true,
+-            mapGenQuality: game.settings.get(MODULE_ID, 'mapGenQuality') || 'low',
++            // ?? not ||: an unticked box must stay unticked.
++            autoStartService: (get('mapGenAutoStart') ?? true) === true,
++            modeBuiltin: mode === 'builtin',
++            modeCustom: mode === 'custom',
++            customHost: (get('mapGenCustomHost') as string) || DEFAULT_CUSTOM_HOST,
++            customPort: (get('mapGenCustomPort') as number) || DEFAULT_CUSTOM_PORT,
++            customSecure: get('mapGenCustomSecure') === true,
++            qualityLow: quality !== 'medium' && quality !== 'high',
++            qualityMedium: quality === 'medium',
++            qualityHigh: quality === 'high',
+             connectionStatus: this.getConnectionStatus(),
+             connectionStatusText: this.getConnectionStatusText(),
+           };
+         }
+ 
++        /** The ComfyUI choice as it is in the form right now (saved or not), or null if invalid. */
++        readForm(): ComfyTargetSetting | null {
++          const form = (this.element as any).find('form').addBack('form')[0] as
++            | HTMLFormElement
++            | undefined;
++          if (!form) return null;
++          const data = new FormData(form);
++          const result = readComfyForm({
++            mapGenMode: data.get('mapGenMode'),
++            mapGenCustomHost: data.get('mapGenCustomHost'),
++            mapGenCustomPort: data.get('mapGenCustomPort'),
++            mapGenCustomSecure: data.get('mapGenCustomSecure') !== null,
++          });
++          if (!result.ok) {
++            ui.notifications?.warn(result.error);
++            return null;
++          }
++          return result.value;
++        }
++
+         getConnectionStatus(): string {
+           const bridge = (globalThis as any).foundryMCPBridge;
+           return bridge?.comfyuiManager ? 'unknown' : 'stopped';
+@@ -114,13 +151,24 @@ export class ModuleSettings {
+           html.find('#stop-service-btn').click(async () => {
+             await this.stopService();
+           });
++
++          // Show the custom fields, and disable Start/Stop, only when custom is chosen.
++          html.find('#mapGenMode').on('change', (event: any) => {
++            const custom = event.currentTarget.value === 'custom';
++            html.find('#eci-custom-fields').prop('hidden', !custom);
++            html.find('#manage-hint').prop('hidden', !custom);
++            html.find('#start-service-btn, #stop-service-btn').prop('disabled', custom);
++          });
+         }
+ 
+         async checkServiceStatus() {
+           const bridge = (globalThis as any).foundryMCPBridge;
+           if (bridge?.comfyuiManager) {
+             try {
+-              const status = await bridge.comfyuiManager.checkStatus();
++              // Check what is in the form now, so a new address can be tried before saving.
++              const target = this.readForm();
++              if (!target) return;
++              const status = await bridge.comfyuiManager.checkStatus(target);
+               this.updateStatusDisplay(status);
+             } catch (error) {
+               console.error('Status check failed:', error);
+@@ -158,13 +206,24 @@ export class ModuleSettings {
+         updateStatusDisplay(status: any) {
+           const statusElement = this.element.find('#connection-status');
+           const statusText = this.element.find('#status-text');
++          const detail = this.element.find('#status-detail');
++
++          // The server also answers already_running, already_stopped, timeout and so on.
++          const aliases: { [key: string]: string } = {
++            already_running: 'running',
++            already_stopped: 'stopped',
++            timeout: 'error',
++            backend_unavailable: 'error',
++          };
++          const kind = aliases[status.status] ?? status.status;
++          const known = ['running', 'stopped', 'starting', 'error'].includes(kind)
++            ? kind
++            : 'unknown';
+ 
+-          // Remove all status classes
+           statusElement.removeClass('running stopped starting error unknown');
+-
+-          // Add current status class
+-          statusElement.addClass(status.status);
+-          statusText.text(this.getStatusText(status.status));
++          statusElement.addClass(known);
++          statusText.text(this.getStatusText(known));
++          detail.text(status.message ? String(status.message) : '');
+         }
+ 
+         getStatusText(status: string): string {
+@@ -179,9 +238,31 @@ export class ModuleSettings {
+         }
+ 
+         async _updateObject(_event: Event, formData: any) {
+-          await game.settings.set(MODULE_ID, 'mapGenAutoStart', formData.autoStartService);
++          const result = readComfyForm(formData);
++          if (!result.ok) {
++            ui.notifications?.error(result.error);
++            return; // keep the dialog open so the value can be fixed
++          }
++
++          await game.settings.set(MODULE_ID, 'mapGenAutoStart', !!formData.autoStartService);
+           await game.settings.set(MODULE_ID, 'mapGenQuality', formData.mapGenQuality);
++          await game.settings.set(MODULE_ID, 'mapGenMode', result.value.mode);
++          if (result.value.mode === 'custom') {
++            await game.settings.set(MODULE_ID, 'mapGenCustomHost', result.value.host);
++            await game.settings.set(MODULE_ID, 'mapGenCustomPort', result.value.port);
++            await game.settings.set(MODULE_ID, 'mapGenCustomSecure', result.value.secure);
++          }
+           ui.notifications?.info('Map generation service settings saved successfully');
++
++          // Tell the MCP server the new choice now, and show whether ComfyUI answers.
++          const bridge = (globalThis as any).foundryMCPBridge;
++          if (bridge?.comfyuiManager && bridge?.socketBridge?.isConnected?.()) {
++            try {
++              this.updateStatusDisplay(await bridge.comfyuiManager.checkStatus());
++            } catch (error) {
++              console.warn('Could not reach the MCP server after saving:', error);
++            }
++          }
+         }
+       },
+       restricted: true,
+@@ -295,6 +376,40 @@ export class ModuleSettings {
+       default: true,
+     });
+ 
++    // Which ComfyUI to use: the built-in one, or a custom one reachable from the MCP server.
++    game.settings.register(this.moduleId, 'mapGenMode', {
++      name: 'ComfyUI instance',
++      scope: 'world',
++      config: false,
++      type: String,
++      choices: { builtin: 'Built-in', custom: 'Custom' },
++      default: 'builtin',
++    });
++
++    game.settings.register(this.moduleId, 'mapGenCustomHost', {
++      name: 'Custom ComfyUI host',
++      scope: 'world',
++      config: false,
++      type: String,
++      default: DEFAULT_CUSTOM_HOST,
++    });
++
++    game.settings.register(this.moduleId, 'mapGenCustomPort', {
++      name: 'Custom ComfyUI port',
++      scope: 'world',
++      config: false,
++      type: Number,
++      default: DEFAULT_CUSTOM_PORT,
++    });
++
++    game.settings.register(this.moduleId, 'mapGenCustomSecure', {
++      name: 'Custom ComfyUI uses https',
++      scope: 'world',
++      config: false,
++      type: Boolean,
++      default: false,
++    });
++
+     game.settings.register(this.moduleId, 'mapGenQuality', {
+       name: 'Generation Quality',
+       hint: 'Higher quality = better detail but slower generation. Generation time depends on your hardware.',
 diff --git a/packages/foundry-module/src/upload-utils.test.ts b/packages/foundry-module/src/upload-utils.test.ts
 new file mode 100644
 index 0000000..909b7f5
@@ -4808,42 +6265,573 @@ index 0000000..d81af4a
 +  }
 +  return bytes;
 +}
+diff --git a/packages/foundry-module/styles/map-generation.css b/packages/foundry-module/styles/map-generation.css
+new file mode 100644
+index 0000000..e9646a9
+--- /dev/null
++++ b/packages/foundry-module/styles/map-generation.css
+@@ -0,0 +1,270 @@
++/* Map Generation Service settings dialog. Self-contained (mgs- prefix) so it does not depend on,
++   or disturb, the Enhanced Creature Index dialog styles. Uses Foundry's theme variables with
++   fallbacks so it reads on both the dark and light themes. */
++
++.mgs-settings {
++  --mgs-text: var(--color-text-primary, #f0f0e0);
++  --mgs-muted: var(--color-text-secondary, #b8b8a8);
++  --mgs-border: var(--color-border-light-tertiary, rgba(255, 255, 255, 0.22));
++  --mgs-panel: rgba(255, 255, 255, 0.05);
++  width: 100%;
++  min-width: 0;
++  box-sizing: border-box;
++  display: flex;
++  flex-direction: column;
++  gap: 1rem;
++  color: var(--mgs-text);
++  text-align: left;
++  max-height: calc(100vh - 9rem);
++  overflow-y: auto;
++  padding-right: 0.25rem;
++}
++
++.mgs-settings * {
++  box-sizing: border-box;
++}
++
++/* Sections */
++.mgs-block {
++  margin: 0;
++  padding: 0;
++}
++
++.mgs-settings-block {
++  padding: 0.9rem 1rem;
++  background: var(--mgs-panel);
++  border: 1px solid var(--mgs-border);
++  border-radius: 6px;
++}
++
++/* Headings: undo Foundry's default heading underline, margins and font */
++.mgs-settings h2,
++.mgs-settings h3 {
++  margin: 0 0 0.5rem;
++  padding: 0;
++  border: none;
++  font-family: inherit;
++  color: var(--mgs-text);
++}
++
++.mgs-title {
++  font-size: 1.35rem;
++  font-weight: 700;
++}
++
++.mgs-subtitle {
++  font-size: 1.05rem;
++  font-weight: 700;
++}
++
++.mgs-note,
++.mgs-hint,
++.mgs-status-detail {
++  margin: 0.25rem 0 0;
++  color: var(--mgs-muted);
++  font-size: 0.85rem;
++  line-height: 1.4;
++}
++
++.mgs-note {
++  font-size: 0.9rem;
++}
++
++.mgs-status-detail:empty {
++  display: none;
++}
++
++.mgs-hint code,
++.mgs-note code {
++  padding: 0 0.25rem;
++  border-radius: 3px;
++  background: rgba(255, 255, 255, 0.1);
++  color: var(--mgs-text);
++  font-size: 0.8rem;
++}
++
++.mgs-hint[hidden],
++.mgs-custom[hidden] {
++  display: none;
++}
++
++/* Fields: label above the control, not beside it */
++.mgs-form-group {
++  display: flex;
++  flex-direction: column;
++  align-items: stretch;
++  gap: 0.3rem;
++  margin: 0 0 0.9rem;
++}
++
++.mgs-form-group:last-child {
++  margin-bottom: 0;
++}
++
++.mgs-label {
++  flex: none;
++  margin: 0;
++  font-weight: 700;
++  color: var(--mgs-text);
++}
++
++.mgs-settings select,
++.mgs-settings input[type="text"],
++.mgs-settings input[type="number"] {
++  width: 100%;
++  min-width: 0;
++  height: 2.25rem;
++  padding: 0 0.6rem;
++  line-height: normal;
++  color: var(--mgs-text);
++  background: rgba(0, 0, 0, 0.3);
++  border: 1px solid var(--mgs-border);
++  border-radius: 4px;
++}
++
++.mgs-settings select option {
++  color: #111;
++}
++
++.mgs-settings select:focus,
++.mgs-settings input:focus {
++  outline: none;
++  border-color: var(--color-border-highlight, #ff9f1c);
++  box-shadow: 0 0 0 2px rgba(255, 159, 28, 0.3);
++}
++
++.mgs-settings input::placeholder {
++  color: var(--mgs-muted);
++  opacity: 0.8;
++}
++
++/* Checkboxes */
++.mgs-check {
++  display: flex;
++  align-items: flex-start;
++  gap: 0.6rem;
++  margin: 0 0 0.9rem;
++  cursor: pointer;
++}
++
++.mgs-check input[type="checkbox"] {
++  flex: none;
++  margin: 0.15rem 0 0;
++}
++
++.mgs-check span {
++  line-height: 1.4;
++}
++
++/* Status */
++.mgs-status-container {
++  display: flex;
++  flex-direction: column;
++  gap: 0.6rem;
++}
++
++.mgs-status {
++  padding: 0.6rem 1rem;
++  border: 1px solid var(--mgs-border);
++  border-radius: 4px;
++  font-weight: 700;
++  text-align: center;
++}
++
++.mgs-status.running {
++  background: rgba(76, 175, 80, 0.15);
++  border-color: rgba(76, 175, 80, 0.5);
++  color: #6fcf73;
++}
++
++.mgs-status.stopped,
++.mgs-status.error {
++  background: rgba(244, 67, 54, 0.15);
++  border-color: rgba(244, 67, 54, 0.5);
++  color: #ff7b72;
++}
++
++.mgs-status.starting {
++  background: rgba(255, 152, 0, 0.15);
++  border-color: rgba(255, 152, 0, 0.5);
++  color: #ffb347;
++}
++
++.mgs-status.unknown {
++  color: var(--mgs-muted);
++}
++
++/* Buttons: side by side, natural width */
++.mgs-controls {
++  display: flex;
++  flex-wrap: wrap;
++  gap: 0.5rem;
++}
++
++.mgs-btn {
++  flex: 1 1 8rem;
++  width: auto;
++  height: auto;
++  margin: 0;
++  padding: 0.5rem 0.9rem;
++  display: inline-flex;
++  align-items: center;
++  justify-content: center;
++  gap: 0.5rem;
++  line-height: 1.2;
++  font-weight: 700;
++  color: #fff;
++  background: #4a4a4a;
++  border: 1px solid rgba(255, 255, 255, 0.25);
++  border-radius: 4px;
++  cursor: pointer;
++}
++
++.mgs-btn:hover:not(:disabled) {
++  filter: brightness(1.15);
++}
++
++.mgs-btn:disabled {
++  opacity: 0.4;
++  cursor: not-allowed;
++}
++
++.mgs-btn.check {
++  background: #1f7ac4;
++}
++
++.mgs-btn.start {
++  background: #3d8b40;
++}
++
++.mgs-btn.stop {
++  background: #c0392b;
++}
++
++/* Footer */
++.mgs-footer {
++  display: flex;
++  justify-content: flex-end;
++  padding-top: 0.75rem;
++  border-top: 1px solid var(--mgs-border);
++}
++
++.mgs-footer .mgs-btn {
++  flex: 0 0 auto;
++  min-width: 10rem;
++}
++
++/* Host and port side by side */
++.mgs-row {
++  display: grid;
++  grid-template-columns: 1fr 7rem;
++  gap: 0.75rem;
++}
++
++.mgs-row .mgs-form-group {
++  margin-bottom: 0.4rem;
++}
++
++.mgs-tight {
++  margin: 0 0 0.9rem;
++}
+diff --git a/packages/foundry-module/templates/comfyui-settings.html b/packages/foundry-module/templates/comfyui-settings.html
+index 15d4166..2b9cc29 100644
+--- a/packages/foundry-module/templates/comfyui-settings.html
++++ b/packages/foundry-module/templates/comfyui-settings.html
+@@ -1,61 +1,99 @@
+-<form class="eci-settings">
+-  <section class="eci-block">
+-    <h2 class="eci-title">Map Generation Service</h2>
+-    <p class="eci-note">
+-      Configure your AI-powered battlemap creation service. ComfyUI runs locally on the same machine as your MCP server (where Claude Desktop is installed).
++<form class="mgs-settings" autocomplete="off">
++  <section class="mgs-block">
++    <h2 class="mgs-title">Map Generation Service</h2>
++    <p class="mgs-note">
++      AI battlemaps are made by a ComfyUI service: the one installed with the bridge, or one you already
++      run. The MCP server (on the computer where Claude is installed) talks to it, not your browser.
+     </p>
+   </section>
+ 
+-  <hr class="eci-divider"/>
+-
+-  <section class="eci-block">
+-    <h3 class="eci-subtitle">Service Status</h3>
+-    <div class="eci-status-container">
+-      <div class="eci-status {{connectionStatus}}" id="connection-status">
++  <section class="mgs-block">
++    <h3 class="mgs-subtitle">Service Status</h3>
++    <div class="mgs-status-container">
++      <div class="mgs-status {{connectionStatus}}" id="connection-status">
+         <span id="status-text">{{connectionStatusText}}</span>
+       </div>
+-      <div class="eci-controls">
+-        <button type="button" class="eci-btn check" id="check-status-btn">
++      <p class="mgs-status-detail" id="status-detail"></p>
++      <div class="mgs-controls">
++        <button type="button" class="mgs-btn check" id="check-status-btn">
+           <i class="fas fa-sync"></i> Check Status
+         </button>
+-        <button type="button" class="eci-btn start" id="start-service-btn">
++        <button type="button" class="mgs-btn start" id="start-service-btn" {{#if modeCustom}}disabled{{/if}}>
+           <i class="fas fa-play"></i> Start Service
+         </button>
+-        <button type="button" class="eci-btn stop" id="stop-service-btn">
++        <button type="button" class="mgs-btn stop" id="stop-service-btn" {{#if modeCustom}}disabled{{/if}}>
+           <i class="fas fa-stop"></i> Stop Service
+         </button>
+       </div>
++      <p class="mgs-hint" id="manage-hint" {{#unless modeCustom}}hidden{{/unless}}>
++        Start and Stop only manage the built-in service. A custom ComfyUI is started and stopped by you.
++      </p>
+     </div>
+   </section>
+ 
+-  <hr class="eci-divider"/>
++  <section class="mgs-block mgs-settings-block">
++    <h3 class="mgs-subtitle">Which ComfyUI</h3>
++
++    <div class="mgs-form-group">
++      <label class="mgs-label" for="mapGenMode">ComfyUI instance</label>
++      <select name="mapGenMode" id="mapGenMode" class="mgs-select">
++        <option value="builtin" {{#if modeBuiltin}}selected{{/if}}>Built-in (installed with the bridge)</option>
++        <option value="custom" {{#if modeCustom}}selected{{/if}}>Custom (a ComfyUI I already run)</option>
++      </select>
++    </div>
+ 
+-  <section class="eci-block eci-settings-block">
+-    <h3 class="eci-subtitle">Service Settings</h3>
++    <div class="mgs-custom" id="mgs-custom-fields" {{#unless modeCustom}}hidden{{/unless}}>
++      <div class="mgs-row">
++        <div class="mgs-form-group">
++          <label class="mgs-label" for="mapGenCustomHost">Host or address</label>
++          <input type="text" name="mapGenCustomHost" id="mapGenCustomHost" class="mgs-input"
++                 value="{{customHost}}" placeholder="127.0.0.1  or  http://nexus:8188" />
++        </div>
++        <div class="mgs-form-group">
++          <label class="mgs-label" for="mapGenCustomPort">Port</label>
++          <input type="number" name="mapGenCustomPort" id="mapGenCustomPort" class="mgs-input"
++                 value="{{customPort}}" min="1" max="65535" step="1" />
++        </div>
++      </div>
++      <p class="mgs-hint mgs-tight">
++        How the MCP server computer reaches ComfyUI: <code>127.0.0.1</code> for the same computer, or a
++        name such as <code>nexus</code>. Pasting <code>http://nexus:8188</code> fills in the port and https.
++      </p>
++
++      <label class="mgs-check">
++        <input type="checkbox" name="mapGenCustomSecure" {{#if customSecure}}checked{{/if}} />
++        <span><strong>Use https</strong> &mdash; only if ComfyUI sits behind a secure (TLS) proxy.</span>
++      </label>
+ 
+-    <label class="eci-check">
++      <p class="mgs-hint">
++        Another computer's ComfyUI must listen on a reachable address (<code>--listen</code>) and have the
++        <code>dDBattlemapsSDXL10_upscaleV10</code> checkpoint and <code>sdxl_vae.safetensors</code>.
++      </p>
++    </div>
++  </section>
++
++  <section class="mgs-block mgs-settings-block">
++    <h3 class="mgs-subtitle">Generation Settings</h3>
++
++    <label class="mgs-check" id="autostart-row">
+       <input type="checkbox" name="autoStartService" {{#if autoStartService}}checked{{/if}} />
+       <span>
+-        <strong>Auto-start Map Generation Service</strong> — Automatically start ComfyUI when Foundry loads.
++        <strong>Auto-start map generation</strong> &mdash; check or start the service when Foundry loads.
+       </span>
+     </label>
+ 
+-    <div class="form-group">
+-      <label for="mapGenQuality">
+-        <strong>Generation Quality</strong>
+-      </label>
+-      <select name="mapGenQuality" id="mapGenQuality">
+-        <option value="low" {{#if (eq mapGenQuality "low")}}selected{{/if}}>Low</option>
+-        <option value="medium" {{#if (eq mapGenQuality "medium")}}selected{{/if}}>Medium</option>
+-        <option value="high" {{#if (eq mapGenQuality "high")}}selected{{/if}}>High</option>
++    <div class="mgs-form-group">
++      <label class="mgs-label" for="mapGenQuality">Generation quality</label>
++      <select name="mapGenQuality" id="mapGenQuality" class="mgs-select">
++        <option value="low" {{#if qualityLow}}selected{{/if}}>Low (8 steps, fastest)</option>
++        <option value="medium" {{#if qualityMedium}}selected{{/if}}>Medium (20 steps)</option>
++        <option value="high" {{#if qualityHigh}}selected{{/if}}>High (35 steps, slowest)</option>
+       </select>
+-      <p class="notes">Higher quality = better detail but slower generation. Generation time depends on your hardware.</p>
++      <p class="mgs-hint">More steps give more detail but take longer.</p>
+     </div>
+   </section>
+ 
+-  <hr class="eci-divider"/>
+-
+-  <div class="form-footer">
+-    <button type="submit" class="eci-btn"><i class="fas fa-save"></i> Apply Settings</button>
++  <div class="mgs-footer">
++    <button type="submit" class="mgs-btn"><i class="fas fa-save"></i> Apply Settings</button>
+   </div>
+-</form>
+\ No newline at end of file
++</form>
 diff --git a/packages/mcp-server/src/backend.ts b/packages/mcp-server/src/backend.ts
-index 8967e33..87f75be 100644
+index 8967e33..cbc8cf2 100644
 --- a/packages/mcp-server/src/backend.ts
 +++ b/packages/mcp-server/src/backend.ts
-@@ -48,6 +48,9 @@ import { DnD5eAddFeatureTool } from './tools/dnd5e/add-feature.js';
+@@ -48,6 +48,17 @@ import { DnD5eAddFeatureTool } from './tools/dnd5e/add-feature.js';
  import { DnD5eNpcTools } from './tools/dnd5e/npc.js';
  import { DnD5eFeaturesFromCompendiumTools } from './tools/dnd5e/features.js';
  import { ChatTools } from './tools/chat.js';
 +import { UploadTools } from './tools/upload.js';
 +import { JournalTools } from './tools/journal.js';
++import {
++  BUILTIN_TARGET,
++  comfyBaseUrl,
++  describeComfyTarget,
++  parseComfyTarget,
++  type ComfyTarget,
++} from './comfyui-target.js';
 +import { SceneObjectTools } from './tools/scene-objects.js';
++import { InspectTools } from './tools/inspect.js';
  
  const CONTROL_HOST = '127.0.0.1';
  
-@@ -1195,6 +1198,9 @@ async function startBackend(): Promise<void> {
+@@ -174,6 +185,22 @@ let comfyuiProcess: ChildProcess | null = null;
+ 
+ let comfyuiStatus: 'stopped' | 'starting' | 'running' | 'error' = 'stopped';
+ 
++// Which ComfyUI map generation uses: the built-in one on this computer, or a custom one.
++// The Foundry module sends the chosen target with every ComfyUI request.
++let comfyTarget: ComfyTarget = { ...BUILTIN_TARGET };
++
++/** Switch to the target a request asks for. A bad target is refused and leaves the current one. */
++function applyComfyTarget(raw: unknown, client: any, logger: Logger): void {
++  if (raw === undefined) return;
++  const target = parseComfyTarget(raw);
++  if (target.mode === comfyTarget.mode && comfyBaseUrl(target) === comfyBaseUrl(comfyTarget)) {
++    return;
++  }
++  logger.info('ComfyUI target selected', { target: describeComfyTarget(target) });
++  comfyTarget = target;
++  client?.setTarget?.(target);
++}
++
+ let lockFd: number | null = null;
+ 
+ function acquireLock(): boolean {
+@@ -350,6 +377,18 @@ async function waitForComfyUIReady(timeoutMs: number = 60000): Promise<void> {
+ }
+ 
+ async function startComfyUIService(logger: Logger): Promise<any> {
++  if (comfyTarget.mode === 'custom') {
++    // A custom ComfyUI is started and stopped by you, not by this server.
++    const status = await checkComfyUIStatus();
++    return {
++      ...status,
++      message:
++        status.status === 'running'
++          ? `${describeComfyTarget(comfyTarget)} is reachable (you start and stop it yourself)`
++          : `${describeComfyTarget(comfyTarget)} is not reachable. Start ComfyUI there; this server does not manage a custom instance.`,
++    };
++  }
++
+   if (comfyuiStatus === 'running') {
+     return { status: 'already_running', message: 'ComfyUI service is already running' };
+   }
+@@ -472,6 +511,14 @@ async function startComfyUIService(logger: Logger): Promise<any> {
+ }
+ 
+ async function stopComfyUIService(logger: Logger): Promise<any> {
++  if (comfyTarget.mode === 'custom') {
++    const status = await checkComfyUIStatus();
++    return {
++      ...status,
++      message: `${describeComfyTarget(comfyTarget)} is managed by you; nothing was stopped`,
++    };
++  }
++
+   if (comfyuiStatus === 'stopped') {
+     return { status: 'already_stopped', message: 'ComfyUI service is already stopped' };
+   }
+@@ -510,7 +557,7 @@ async function checkComfyUIStatus(): Promise<any> {
+   // This handles both spawned processes and externally-started instances
+ 
+   try {
+-    const response = await fetch('http://127.0.0.1:31411/system_stats', {
++    const response = await fetch(`${comfyBaseUrl(comfyTarget)}/system_stats`, {
+       signal: AbortSignal.timeout(5000),
+     });
+ 
+@@ -520,16 +567,23 @@ async function checkComfyUIStatus(): Promise<any> {
+       comfyuiStatus = 'error';
+     }
+   } catch (error) {
+-    // ComfyUI is not responsive on port 31411
++    // ComfyUI is not responsive at the selected address
+     comfyuiStatus = 'stopped';
+   }
+ 
+   return {
+     status: comfyuiStatus,
+ 
+-    message: getStatusMessage(comfyuiStatus),
++    message:
++      comfyTarget.mode === 'custom'
++        ? `${describeComfyTarget(comfyTarget)}: ${getStatusMessage(comfyuiStatus)}`
++        : getStatusMessage(comfyuiStatus),
+ 
+     pid: comfyuiProcess?.pid || null,
++
++    mode: comfyTarget.mode,
++
++    target: comfyBaseUrl(comfyTarget),
+   };
+ }
+ 
+@@ -1195,6 +1249,10 @@ async function startBackend(): Promise<void> {
    const compendiumTools = new CompendiumTools({ foundryClient, logger, systemRegistry });
  
    const sceneTools = new SceneTools({ foundryClient, logger });
 +  const uploadTools = new UploadTools({ foundryClient, logger });
 +  const journalTools = new JournalTools({ foundryClient, logger });
 +  const sceneObjectTools = new SceneObjectTools({ foundryClient, logger });
++  const inspectTools = new InspectTools({ foundryClient, logger });
    const playlistTools = new PlaylistTools({ foundryClient, logger });
  
    const actorCreationTools = new ActorCreationTools({ foundryClient, logger });
-@@ -1429,6 +1435,10 @@ async function startBackend(): Promise<void> {
+@@ -1301,6 +1359,13 @@ async function startBackend(): Promise<void> {
+ 
+         let result: any;
+ 
++        // The module sends the selected ComfyUI target with every request.
++        try {
++          applyComfyTarget(message.data?.comfyuiTarget, mapGenerationComfyUIClient, logger);
++        } catch (targetError: any) {
++          throw new Error(`Invalid ComfyUI settings: ${targetError.message}`);
++        }
++
+         switch (message.type) {
+           case 'start-comfyui-service':
+             result = await startComfyUIService(logger);
+@@ -1429,6 +1494,11 @@ async function startBackend(): Promise<void> {
  
      ...sceneTools.getToolDefinitions(),
  
 +    ...uploadTools.getToolDefinitions(),
 +    ...journalTools.getToolDefinitions(),
 +    ...sceneObjectTools.getToolDefinitions(),
++    ...inspectTools.getToolDefinitions(),
 +
      ...actorCreationTools.getToolDefinitions(),
      ...actorManagementTools.getToolDefinitions(),
      ...effectManagementTools.getToolDefinitions(),
-@@ -1805,6 +1815,28 @@ async function startBackend(): Promise<void> {
+@@ -1805,6 +1875,32 @@ async function startBackend(): Promise<void> {
  
                    break;
  
@@ -4854,6 +6842,10 @@ index 8967e33..87f75be 100644
 +
 +                case 'manage-scene-objects':
 +                  result = await sceneObjectTools.handleManageSceneObjects(args);
++                  break;
++
++                case 'inspect-document':
++                  result = await inspectTools.handleInspectDocument(args);
 +                  break;
 +
 +                case 'preview-scene':
@@ -4872,6 +6864,259 @@ index 8967e33..87f75be 100644
                  default:
                    throw new Error(`Unknown tool: ${name}`);
                }
+diff --git a/packages/mcp-server/src/comfyui-client.ts b/packages/mcp-server/src/comfyui-client.ts
+index 99ac020..91d02e2 100644
+--- a/packages/mcp-server/src/comfyui-client.ts
++++ b/packages/mcp-server/src/comfyui-client.ts
+@@ -6,6 +6,13 @@ import * as os from 'os';
+ import axios from 'axios';
+ import WebSocket from 'ws';
+ import { Logger } from './logger.js';
++import {
++  comfyBaseUrl,
++  comfyWebSocketUrl,
++  describeComfyTarget,
++  sameComfyTarget,
++  type ComfyTarget,
++} from './comfyui-target.js';
+ import { getHiddenProcessSpawnOptions, getAppDataDir } from './utils/platform.js';
+ import {
+   detectComfyUIInstallation,
+@@ -53,6 +60,7 @@ export class ComfyUIClient {
+   private logger: Logger;
+   private process?: ChildProcess | undefined;
+   private baseUrl: string;
++  private target: ComfyTarget;
+   private clientId: string;
+   private logStream?: fss.WriteStream | undefined;
+   private ws?: WebSocket;
+@@ -80,7 +88,13 @@ export class ComfyUIClient {
+       ...options.config,
+     };
+ 
+-    this.baseUrl = `http://${this.config.host}:${this.config.port}`;
++    this.target = {
++      mode: 'builtin',
++      host: this.config.host,
++      port: this.config.port,
++      secure: false,
++    };
++    this.baseUrl = comfyBaseUrl(this.target);
+ 
+     this.logger.info('ComfyUI client initialized', {
+       baseUrl: this.baseUrl,
+@@ -93,8 +107,41 @@ export class ComfyUIClient {
+     this.connectWebSocket();
+   }
+ 
++  /** The ComfyUI this client currently talks to. */
++  getTarget(): ComfyTarget {
++    return { ...this.target };
++  }
++
++  getBaseUrl(): string {
++    return this.baseUrl;
++  }
++
++  /**
++   * Point the client at a different ComfyUI (the built-in one or a custom one). Requests and
++   * the progress WebSocket use the new address from now on. Does nothing if unchanged.
++   */
++  setTarget(target: ComfyTarget): void {
++    if (sameComfyTarget(this.target, target)) return;
++
++    this.logger.info('ComfyUI target changed', {
++      from: describeComfyTarget(this.target),
++      to: describeComfyTarget(target),
++    });
++    this.target = { ...target };
++    this.config.host = target.host;
++    this.config.port = target.port;
++    this.baseUrl = comfyBaseUrl(target);
++
++    // The socket's close handler reconnects, and now uses the new address.
++    try {
++      this.ws?.close();
++    } catch {
++      // Already closed.
++    }
++  }
++
+   private connectWebSocket(): void {
+-    const wsUrl = `ws://${this.config.host}:${this.config.port}/ws?clientId=${this.clientId}`;
++    const wsUrl = comfyWebSocketUrl(this.target, this.clientId);
+ 
+     try {
+       this.ws = new WebSocket(wsUrl);
+diff --git a/packages/mcp-server/src/comfyui-target.test.ts b/packages/mcp-server/src/comfyui-target.test.ts
+new file mode 100644
+index 0000000..6feede6
+--- /dev/null
++++ b/packages/mcp-server/src/comfyui-target.test.ts
+@@ -0,0 +1,83 @@
++import { describe, expect, it } from 'vitest';
++import {
++  BUILTIN_TARGET,
++  comfyBaseUrl,
++  comfyWebSocketUrl,
++  describeComfyTarget,
++  parseComfyTarget,
++  sameComfyTarget,
++} from './comfyui-target.js';
++
++describe('parseComfyTarget', () => {
++  it('defaults to the built-in instance', () => {
++    expect(parseComfyTarget(undefined)).toEqual(BUILTIN_TARGET);
++    expect(parseComfyTarget(null)).toEqual(BUILTIN_TARGET);
++    expect(parseComfyTarget({})).toEqual(BUILTIN_TARGET);
++    expect(parseComfyTarget({ mode: 'builtin', host: 'evil.example', port: 1 })).toEqual(
++      BUILTIN_TARGET
++    );
++  });
++
++  it('accepts a custom host name, address or IPv6 address', () => {
++    expect(parseComfyTarget({ mode: 'custom', host: 'localhost', port: 8188 })).toEqual({
++      mode: 'custom',
++      host: 'localhost',
++      port: 8188,
++      secure: false,
++    });
++    expect(
++      parseComfyTarget({ mode: 'custom', host: ' nexus.lan ', port: 443, secure: true })
++    ).toEqual({ mode: 'custom', host: 'nexus.lan', port: 443, secure: true });
++    expect(parseComfyTarget({ mode: 'custom', host: '192.168.1.20', port: 8188 }).host).toBe(
++      '192.168.1.20'
++    );
++    expect(parseComfyTarget({ mode: 'custom', host: '[::1]', port: 8188 }).host).toBe('[::1]');
++  });
++
++  it.each([
++    ['an unknown mode', { mode: 'cloud' }, 'mode must be'],
++    ['a missing host', { mode: 'custom', port: 8188 }, 'host must be'],
++    ['a URL as host', { mode: 'custom', host: 'http://nexus', port: 8188 }, 'host must be'],
++    ['a host with a port', { mode: 'custom', host: 'nexus:8188', port: 8188 }, 'host must be'],
++    ['a host with a path', { mode: 'custom', host: 'nexus/api', port: 8188 }, 'host must be'],
++    ['a host with credentials', { mode: 'custom', host: 'a@nexus', port: 8188 }, 'host must be'],
++    ['a host with spaces', { mode: 'custom', host: 'my host', port: 8188 }, 'host must be'],
++    ['a text port', { mode: 'custom', host: 'nexus', port: '8188' }, 'port must be'],
++    ['port 0', { mode: 'custom', host: 'nexus', port: 0 }, 'port must be'],
++    ['port 70000', { mode: 'custom', host: 'nexus', port: 70000 }, 'port must be'],
++    ['a fractional port', { mode: 'custom', host: 'nexus', port: 80.5 }, 'port must be'],
++    [
++      'a non-boolean secure',
++      { mode: 'custom', host: 'nexus', port: 80, secure: 'yes' },
++      'secure must be',
++    ],
++  ])('rejects %s', (_label, input, message) => {
++    expect(() => parseComfyTarget(input)).toThrow(message);
++  });
++
++  it('rejects a target that is not an object', () => {
++    expect(() => parseComfyTarget('nexus')).toThrow('must be an object');
++  });
++});
++
++describe('URLs and descriptions', () => {
++  const custom = { mode: 'custom', host: 'nexus', port: 8188, secure: false } as const;
++
++  it('builds http and ws URLs, or https and wss when secure', () => {
++    expect(comfyBaseUrl(BUILTIN_TARGET)).toBe('http://127.0.0.1:31411');
++    expect(comfyBaseUrl(custom)).toBe('http://nexus:8188');
++    expect(comfyBaseUrl({ ...custom, secure: true })).toBe('https://nexus:8188');
++    expect(comfyWebSocketUrl(custom, 'a b')).toBe('ws://nexus:8188/ws?clientId=a%20b');
++    expect(comfyWebSocketUrl({ ...custom, secure: true }, 'x')).toBe(
++      'wss://nexus:8188/ws?clientId=x'
++    );
++  });
++
++  it('compares and describes targets', () => {
++    expect(sameComfyTarget(custom, { ...custom })).toBe(true);
++    expect(sameComfyTarget(custom, { ...custom, port: 1 })).toBe(false);
++    expect(sameComfyTarget(custom, BUILTIN_TARGET)).toBe(false);
++    expect(describeComfyTarget(custom)).toBe('custom ComfyUI at http://nexus:8188');
++    expect(describeComfyTarget(BUILTIN_TARGET)).toBe('built-in ComfyUI at http://127.0.0.1:31411');
++  });
++});
+diff --git a/packages/mcp-server/src/comfyui-target.ts b/packages/mcp-server/src/comfyui-target.ts
+new file mode 100644
+index 0000000..be290a7
+--- /dev/null
++++ b/packages/mcp-server/src/comfyui-target.ts
+@@ -0,0 +1,74 @@
++/**
++ * Where the map generation service (ComfyUI) lives: the one the bridge installs and starts
++ * itself on this computer ("builtin"), or any ComfyUI you already run ("custom"), on this
++ * computer or another one. Pure helpers, so they can be tested without a server.
++ */
++
++export interface ComfyTarget {
++  mode: 'builtin' | 'custom';
++  host: string;
++  port: number;
++  /** Use https and wss instead of http and ws (for a ComfyUI behind a TLS reverse proxy). */
++  secure: boolean;
++}
++
++export const BUILTIN_COMFY_PORT = 31411;
++
++export const BUILTIN_TARGET: ComfyTarget = {
++  mode: 'builtin',
++  host: '127.0.0.1',
++  port: BUILTIN_COMFY_PORT,
++  secure: false,
++};
++
++const HOSTNAME = /^[A-Za-z0-9](?:[A-Za-z0-9.-]{0,251}[A-Za-z0-9])?$/;
++const IPV6 = /^\[[0-9A-Fa-f:.]+\]$/;
++
++/**
++ * Check a target sent by the Foundry module. Anything other than a clearly valid custom
++ * target is rejected, so a bad setting can never send requests to a strange address.
++ */
++export function parseComfyTarget(raw: unknown): ComfyTarget {
++  if (raw === undefined || raw === null) return { ...BUILTIN_TARGET };
++  if (typeof raw !== 'object') throw new Error('ComfyUI target must be an object');
++  const input = raw as Record<string, unknown>;
++
++  if (input.mode === undefined || input.mode === 'builtin') return { ...BUILTIN_TARGET };
++  if (input.mode !== 'custom') throw new Error('ComfyUI mode must be "builtin" or "custom"');
++
++  const host = typeof input.host === 'string' ? input.host.trim() : '';
++  if (!host || !(HOSTNAME.test(host) || IPV6.test(host))) {
++    throw new Error(
++      'ComfyUI host must be a host name or IP address (no http://, no port, no path)'
++    );
++  }
++
++  const port = input.port;
++  if (typeof port !== 'number' || !Number.isInteger(port) || port < 1 || port > 65535) {
++    throw new Error('ComfyUI port must be a whole number from 1 to 65535');
++  }
++
++  const secure = input.secure === undefined ? false : input.secure;
++  if (typeof secure !== 'boolean') throw new Error('ComfyUI secure must be true or false');
++
++  return { mode: 'custom', host, port, secure };
++}
++
++export function comfyBaseUrl(target: ComfyTarget): string {
++  return `${target.secure ? 'https' : 'http'}://${target.host}:${target.port}`;
++}
++
++export function comfyWebSocketUrl(target: ComfyTarget, clientId: string): string {
++  return `${target.secure ? 'wss' : 'ws'}://${target.host}:${target.port}/ws?clientId=${encodeURIComponent(clientId)}`;
++}
++
++export function sameComfyTarget(a: ComfyTarget, b: ComfyTarget): boolean {
++  return a.mode === b.mode && a.host === b.host && a.port === b.port && a.secure === b.secure;
++}
++
++/** A short description for messages, e.g. "custom ComfyUI at http://nexus:8188". */
++export function describeComfyTarget(target: ComfyTarget): string {
++  return target.mode === 'builtin'
++    ? `built-in ComfyUI at ${comfyBaseUrl(target)}`
++    : `custom ComfyUI at ${comfyBaseUrl(target)}`;
++}
 diff --git a/packages/mcp-server/src/foundry-client.ts b/packages/mcp-server/src/foundry-client.ts
 index f3e6d5a..45323a3 100644
 --- a/packages/mcp-server/src/foundry-client.ts
@@ -4916,6 +7161,244 @@ index 6495485..e335970 100644
  
        this.pendingQueries.set(queryId, { resolve, reject, timeout });
  
+diff --git a/packages/mcp-server/src/tools/inspect.test.ts b/packages/mcp-server/src/tools/inspect.test.ts
+new file mode 100644
+index 0000000..5756ff0
+--- /dev/null
++++ b/packages/mcp-server/src/tools/inspect.test.ts
+@@ -0,0 +1,84 @@
++import { describe, expect, it, vi } from 'vitest';
++import { InspectTools } from './inspect.js';
++
++function makeTools(result: any = { success: true }) {
++  const query = vi.fn(async () => result);
++  const logger: any = {
++    info: vi.fn(),
++    debug: vi.fn(),
++    error: vi.fn(),
++    warn: vi.fn(),
++    child: () => logger,
++  };
++  return { tools: new InspectTools({ foundryClient: { query } as any, logger }), query };
++}
++
++describe('inspect-document definition', () => {
++  it('requires only action and lists its options', () => {
++    const def = makeTools().tools.getToolDefinitions()[0];
++    expect(def.name).toBe('inspect-document');
++    expect(def.inputSchema.required).toEqual(['action']);
++    expect(Object.keys(def.inputSchema.properties).sort()).toEqual([
++      'action',
++      'depth',
++      'embedded_identifier',
++      'embedded_type',
++      'identifier',
++      'include_embedded',
++      'limit',
++      'max_chars',
++      'path',
++      'search',
++      'type',
++      'uuid',
++    ]);
++  });
++});
++
++describe('InspectTools.handleInspectDocument', () => {
++  it('forwards list, get and schema requests', async () => {
++    const { tools, query } = makeTools();
++    await tools.handleInspectDocument({ action: 'list', type: 'Scene', search: 'cave' });
++    await tools.handleInspectDocument({
++      action: 'get',
++      type: 'Actor',
++      identifier: 'Klarg',
++      path: 'system.attributes.hp',
++    });
++    await tools.handleInspectDocument({ action: 'get', uuid: 'Actor.abc' });
++    await tools.handleInspectDocument({ action: 'schema', embedded_type: 'Wall', depth: 2 });
++    expect(query).toHaveBeenCalledTimes(4);
++    expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.inspect-document', {
++      action: 'get',
++      type: 'Actor',
++      identifier: 'Klarg',
++      path: 'system.attributes.hp',
++    });
++  });
++
++  it.each([
++    ['list without a type', { action: 'list' }, 'list needs type'],
++    ['get without identifier or uuid', { action: 'get', type: 'Actor' }, 'get needs'],
++    ['schema without a type', { action: 'schema' }, 'schema needs'],
++    ['an unknown action', { action: 'set', type: 'Actor' }, ''],
++    ['an unknown field', { action: 'list', type: 'Actor', write: true }, ''],
++    ['a type with odd characters', { action: 'list', type: '../Actor' }, ''],
++    ['an out-of-range depth', { action: 'get', uuid: 'x', depth: 50 }, ''],
++    ['an out-of-range max_chars', { action: 'get', uuid: 'x', max_chars: 5000000 }, ''],
++  ])('rejects %s before contacting Foundry', async (_label, args, message) => {
++    const { tools, query } = makeTools();
++    await expect(tools.handleInspectDocument(args)).rejects.toThrow(message || undefined);
++    expect(query).not.toHaveBeenCalled();
++  });
++
++  it('wraps a Foundry error once', async () => {
++    const query = vi.fn(async () => {
++      throw new Error('Failed to inspect: boom');
++    });
++    const logger: any = { info: vi.fn(), error: vi.fn(), child: () => logger };
++    const tools = new InspectTools({ foundryClient: { query } as any, logger });
++    await expect(tools.handleInspectDocument({ action: 'list', type: 'Actor' })).rejects.toThrow(
++      'Failed to inspect: Failed to inspect: boom'
++    );
++  });
++});
+diff --git a/packages/mcp-server/src/tools/inspect.ts b/packages/mcp-server/src/tools/inspect.ts
+new file mode 100644
+index 0000000..8048ab0
+--- /dev/null
++++ b/packages/mcp-server/src/tools/inspect.ts
+@@ -0,0 +1,142 @@
++import { z } from 'zod';
++import { FoundryClient } from '../foundry-client.js';
++import { Logger } from '../logger.js';
++
++export interface InspectToolsOptions {
++  foundryClient: FoundryClient;
++  logger: Logger;
++}
++
++const TYPES = [
++  'Actor',
++  'Item',
++  'Scene',
++  'JournalEntry',
++  'RollTable',
++  'Macro',
++  'Playlist',
++  'Cards',
++  'Folder',
++  'Combat',
++  'ChatMessage',
++] as const;
++
++const inspectSchema = z
++  .object({
++    action: z.enum(['list', 'get', 'schema']),
++    type: z
++      .string()
++      .regex(/^[A-Za-z]+$/)
++      .optional(),
++    identifier: z.string().min(1).optional(),
++    uuid: z.string().min(1).optional(),
++    embedded_type: z
++      .string()
++      .regex(/^[A-Za-z]+$/)
++      .optional(),
++    embedded_identifier: z.string().min(1).optional(),
++    path: z.string().min(1).optional(),
++    depth: z.number().int().min(1).max(12).optional(),
++    max_chars: z.number().int().min(500).max(100000).optional(),
++    include_embedded: z.boolean().optional(),
++    search: z.string().min(1).optional(),
++    limit: z.number().int().min(1).max(500).optional(),
++  })
++  .strict();
++
++export class InspectTools {
++  private foundryClient: FoundryClient;
++  private logger: Logger;
++
++  constructor({ foundryClient, logger }: InspectToolsOptions) {
++    this.foundryClient = foundryClient;
++    this.logger = logger.child({ component: 'InspectTools' });
++  }
++
++  getToolDefinitions() {
++    return [
++      {
++        name: 'inspect-document',
++        description:
++          'Read-only look at the raw data in the Foundry world, to check exact field names and values instead of guessing. Never changes anything. ' +
++          `list: documents of a type (${TYPES.join(', ')}), with optional search text. ` +
++          'get: one document\'s data as JSON, by type + identifier (id or exact name) or by uuid (also works for compendium entries). Embedded collections (a scene\'s tokens and walls, an actor\'s items) are summarised as counts unless include_embedded is true; to read them, pass embedded_type (e.g. "Token", "Wall", "Item") to list them and embedded_identifier to read one. ' +
++          'path reads one part (e.g. "system.attributes.hp" or "levels.0"); depth limits nesting (default 5, deeper levels shown as placeholders); max_chars caps the output (default 20000, up to 100000). ' +
++          'schema: the fields a document type has, with kinds (StringField, NumberField, ...), whether required, and allowed choices; type or embedded_type is a name as in Foundry CONFIG, e.g. "Scene", "Wall" or "Region". Use schema before writing data for a type you have not used before.',
++        inputSchema: {
++          type: 'object',
++          properties: {
++            action: { type: 'string', enum: ['list', 'get', 'schema'] },
++            type: {
++              type: 'string',
++              description: `Document type: ${TYPES.join(', ')} (schema also accepts embedded names such as Wall)`,
++            },
++            identifier: { type: 'string', description: 'get: document id or exact name' },
++            uuid: {
++              type: 'string',
++              description: 'get: a Foundry uuid, instead of type and identifier',
++            },
++            embedded_type: {
++              type: 'string',
++              description:
++                'get: list the embedded documents of this type (Token, Wall, Item, JournalEntryPage, ...); schema: describe this embedded type',
++            },
++            embedded_identifier: {
++              type: 'string',
++              description: 'get: id or exact name of one embedded document',
++            },
++            path: { type: 'string', description: 'get: dotted path to read part of the data' },
++            depth: {
++              type: 'number',
++              description:
++                'get: nesting depth to show (default 5); schema: field levels (default 3, max 6)',
++            },
++            max_chars: {
++              type: 'number',
++              description: 'get: cap on output size (500 to 100000, default 20000)',
++            },
++            include_embedded: {
++              type: 'boolean',
++              description: 'get: include embedded documents instead of counts',
++            },
++            search: { type: 'string', description: 'list: only names containing this text' },
++            limit: {
++              type: 'number',
++              description: 'list: at most this many (default 100, max 500)',
++            },
++          },
++          required: ['action'],
++          additionalProperties: false,
++        },
++      },
++    ];
++  }
++
++  async handleInspectDocument(args: any): Promise<any> {
++    const parsed = inspectSchema.parse(args);
++
++    if (parsed.action === 'list' && !parsed.type) {
++      throw new Error('list needs type');
++    }
++    if (parsed.action === 'get' && !parsed.uuid && !(parsed.type && parsed.identifier)) {
++      throw new Error('get needs type and identifier, or uuid');
++    }
++    if (parsed.action === 'schema' && !parsed.type && !parsed.embedded_type) {
++      throw new Error('schema needs type or embedded_type');
++    }
++
++    this.logger.info('Inspecting Foundry data', { action: parsed.action, type: parsed.type });
++    try {
++      const result = await this.foundryClient.query('foundry-mcp-bridge.inspect-document', parsed);
++      if (result?.success === false) {
++        throw new Error(result.error || 'Request was refused');
++      }
++      return result;
++    } catch (error) {
++      this.logger.error('Failed to inspect', error);
++      throw new Error(
++        `Failed to inspect: ${error instanceof Error ? error.message : 'Unknown error'}`
++      );
++    }
++  }
++}
 diff --git a/packages/mcp-server/src/tools/journal.test.ts b/packages/mcp-server/src/tools/journal.test.ts
 new file mode 100644
 index 0000000..1808458
@@ -6409,7 +8892,7 @@ index 0000000..386d634
 +  }
 +}
 diff --git a/scripts/mcp-schema-smoke-test.mjs b/scripts/mcp-schema-smoke-test.mjs
-index c84dcd4..f3b4f80 100644
+index c84dcd4..aece334 100644
 --- a/scripts/mcp-schema-smoke-test.mjs
 +++ b/scripts/mcp-schema-smoke-test.mjs
 @@ -22,7 +22,7 @@ const importDist = async (relativePath) =>
@@ -6417,27 +8900,29 @@ index c84dcd4..f3b4f80 100644
  const [{ config }, { Logger }, { FoundryClient }, { CharacterTools }, { CompendiumTools }, { SceneTools },
    { ActorCreationTools }, { QuestCreationTools }, { DiceRollTools }, { CampaignManagementTools },
 -  { OwnershipTools }, { TokenManipulationTools }, { MapGenerationTools }, { getSystemRegistry },
-+  { OwnershipTools }, { TokenManipulationTools }, { MapGenerationTools }, { UploadTools }, { JournalTools }, { SceneObjectTools }, { getSystemRegistry },
++  { OwnershipTools }, { TokenManipulationTools }, { MapGenerationTools }, { UploadTools }, { JournalTools }, { SceneObjectTools }, { InspectTools }, { getSystemRegistry },
    { DnD5eAdapter }, { PF2eAdapter }, { DSA5Adapter }, { CosmereRpgAdapter }] = await Promise.all([
    importDist('config.js'),
    importDist('logger.js'),
-@@ -37,6 +37,9 @@ const [{ config }, { Logger }, { FoundryClient }, { CharacterTools }, { Compendi
+@@ -37,6 +37,10 @@ const [{ config }, { Logger }, { FoundryClient }, { CharacterTools }, { Compendi
    importDist('tools/ownership.js'),
    importDist('tools/token-manipulation.js'),
    importDist('tools/map-generation.js'),
 +  importDist('tools/upload.js'),
 +  importDist('tools/journal.js'),
 +  importDist('tools/scene-objects.js'),
++  importDist('tools/inspect.js'),
    importDist('systems/index.js'),
    importDist('systems/dnd5e/adapter.js'),
    importDist('systems/pf2e/adapter.js'),
-@@ -64,6 +67,9 @@ const tools = [
+@@ -64,6 +68,10 @@ const tools = [
    ...new OwnershipTools({ foundryClient, logger }).getToolDefinitions(),
    ...new TokenManipulationTools({ foundryClient, logger }).getToolDefinitions(),
    ...new MapGenerationTools({ foundryClient, logger, backendComfyUIHandlers: {} }).getToolDefinitions(),
 +  ...new UploadTools({ foundryClient, logger }).getToolDefinitions(),
 +  ...new JournalTools({ foundryClient, logger }).getToolDefinitions(),
 +  ...new SceneObjectTools({ foundryClient, logger }).getToolDefinitions(),
++  ...new InspectTools({ foundryClient, logger }).getToolDefinitions(),
  ];
  
  if (!tools.length) {

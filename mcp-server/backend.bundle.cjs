@@ -85690,6 +85690,58 @@ var init_constants = __esm({
   }
 });
 
+// dist/comfyui-target.js
+function parseComfyTarget(raw) {
+  if (raw === void 0 || raw === null)
+    return { ...BUILTIN_TARGET };
+  if (typeof raw !== "object")
+    throw new Error("ComfyUI target must be an object");
+  const input = raw;
+  if (input.mode === void 0 || input.mode === "builtin")
+    return { ...BUILTIN_TARGET };
+  if (input.mode !== "custom")
+    throw new Error('ComfyUI mode must be "builtin" or "custom"');
+  const host = typeof input.host === "string" ? input.host.trim() : "";
+  if (!host || !(HOSTNAME.test(host) || IPV6.test(host))) {
+    throw new Error("ComfyUI host must be a host name or IP address (no http://, no port, no path)");
+  }
+  const port = input.port;
+  if (typeof port !== "number" || !Number.isInteger(port) || port < 1 || port > 65535) {
+    throw new Error("ComfyUI port must be a whole number from 1 to 65535");
+  }
+  const secure = input.secure === void 0 ? false : input.secure;
+  if (typeof secure !== "boolean")
+    throw new Error("ComfyUI secure must be true or false");
+  return { mode: "custom", host, port, secure };
+}
+function comfyBaseUrl(target) {
+  return `${target.secure ? "https" : "http"}://${target.host}:${target.port}`;
+}
+function comfyWebSocketUrl(target, clientId) {
+  return `${target.secure ? "wss" : "ws"}://${target.host}:${target.port}/ws?clientId=${encodeURIComponent(clientId)}`;
+}
+function sameComfyTarget(a, b) {
+  return a.mode === b.mode && a.host === b.host && a.port === b.port && a.secure === b.secure;
+}
+function describeComfyTarget(target) {
+  return target.mode === "builtin" ? `built-in ComfyUI at ${comfyBaseUrl(target)}` : `custom ComfyUI at ${comfyBaseUrl(target)}`;
+}
+var BUILTIN_COMFY_PORT, BUILTIN_TARGET, HOSTNAME, IPV6;
+var init_comfyui_target = __esm({
+  "dist/comfyui-target.js"() {
+    "use strict";
+    BUILTIN_COMFY_PORT = 31411;
+    BUILTIN_TARGET = {
+      mode: "builtin",
+      host: "127.0.0.1",
+      port: BUILTIN_COMFY_PORT,
+      secure: false
+    };
+    HOSTNAME = /^[A-Za-z0-9](?:[A-Za-z0-9.-]{0,251}[A-Za-z0-9])?$/;
+    IPV6 = /^\[[0-9A-Fa-f:.]+\]$/;
+  }
+});
+
 // dist/systems/system-registry.js
 function getSystemRegistry(logger) {
   if (!registryInstance) {
@@ -103841,6 +103893,7 @@ var init_comfyui_client = __esm({
     path6 = __toESM(require("path"), 1);
     init_axios2();
     init_wrapper();
+    init_comfyui_target();
     init_platform();
     init_comfyui_paths();
     SIZE_MAPPING = {
@@ -103853,6 +103906,7 @@ var init_comfyui_client = __esm({
       logger;
       process;
       baseUrl;
+      target;
       clientId;
       logStream;
       ws;
@@ -103871,7 +103925,13 @@ var init_comfyui_client = __esm({
           autoStart: true,
           ...options.config
         };
-        this.baseUrl = `http://${this.config.host}:${this.config.port}`;
+        this.target = {
+          mode: "builtin",
+          host: this.config.host,
+          port: this.config.port,
+          secure: false
+        };
+        this.baseUrl = comfyBaseUrl(this.target);
         this.logger.info("ComfyUI client initialized", {
           baseUrl: this.baseUrl,
           installPath: this.config.installPath,
@@ -103880,8 +103940,35 @@ var init_comfyui_client = __esm({
         });
         this.connectWebSocket();
       }
+      /** The ComfyUI this client currently talks to. */
+      getTarget() {
+        return { ...this.target };
+      }
+      getBaseUrl() {
+        return this.baseUrl;
+      }
+      /**
+       * Point the client at a different ComfyUI (the built-in one or a custom one). Requests and
+       * the progress WebSocket use the new address from now on. Does nothing if unchanged.
+       */
+      setTarget(target) {
+        if (sameComfyTarget(this.target, target))
+          return;
+        this.logger.info("ComfyUI target changed", {
+          from: describeComfyTarget(this.target),
+          to: describeComfyTarget(target)
+        });
+        this.target = { ...target };
+        this.config.host = target.host;
+        this.config.port = target.port;
+        this.baseUrl = comfyBaseUrl(target);
+        try {
+          this.ws?.close();
+        } catch {
+        }
+      }
       connectWebSocket() {
-        const wsUrl = `ws://${this.config.host}:${this.config.port}/ws?clientId=${this.clientId}`;
+        const wsUrl = comfyWebSocketUrl(this.target, this.clientId);
         try {
           this.ws = new wrapper_default(wsUrl);
           this.ws.on("open", () => {
@@ -115646,6 +115733,9 @@ var JournalTools = class {
   }
 };
 
+// dist/backend.js
+init_comfyui_target();
+
 // dist/tools/scene-objects.js
 var import_fs2 = require("fs");
 var import_os = __toESM(require("os"), 1);
@@ -115935,6 +116025,118 @@ var SceneObjectTools = class {
   }
 };
 
+// dist/tools/inspect.js
+init_zod();
+var TYPES = [
+  "Actor",
+  "Item",
+  "Scene",
+  "JournalEntry",
+  "RollTable",
+  "Macro",
+  "Playlist",
+  "Cards",
+  "Folder",
+  "Combat",
+  "ChatMessage"
+];
+var inspectSchema = external_exports.object({
+  action: external_exports.enum(["list", "get", "schema"]),
+  type: external_exports.string().regex(/^[A-Za-z]+$/).optional(),
+  identifier: external_exports.string().min(1).optional(),
+  uuid: external_exports.string().min(1).optional(),
+  embedded_type: external_exports.string().regex(/^[A-Za-z]+$/).optional(),
+  embedded_identifier: external_exports.string().min(1).optional(),
+  path: external_exports.string().min(1).optional(),
+  depth: external_exports.number().int().min(1).max(12).optional(),
+  max_chars: external_exports.number().int().min(500).max(1e5).optional(),
+  include_embedded: external_exports.boolean().optional(),
+  search: external_exports.string().min(1).optional(),
+  limit: external_exports.number().int().min(1).max(500).optional()
+}).strict();
+var InspectTools = class {
+  foundryClient;
+  logger;
+  constructor({ foundryClient, logger }) {
+    this.foundryClient = foundryClient;
+    this.logger = logger.child({ component: "InspectTools" });
+  }
+  getToolDefinitions() {
+    return [
+      {
+        name: "inspect-document",
+        description: `Read-only look at the raw data in the Foundry world, to check exact field names and values instead of guessing. Never changes anything. list: documents of a type (${TYPES.join(", ")}), with optional search text. get: one document's data as JSON, by type + identifier (id or exact name) or by uuid (also works for compendium entries). Embedded collections (a scene's tokens and walls, an actor's items) are summarised as counts unless include_embedded is true; to read them, pass embedded_type (e.g. "Token", "Wall", "Item") to list them and embedded_identifier to read one. path reads one part (e.g. "system.attributes.hp" or "levels.0"); depth limits nesting (default 5, deeper levels shown as placeholders); max_chars caps the output (default 20000, up to 100000). schema: the fields a document type has, with kinds (StringField, NumberField, ...), whether required, and allowed choices; type or embedded_type is a name as in Foundry CONFIG, e.g. "Scene", "Wall" or "Region". Use schema before writing data for a type you have not used before.`,
+        inputSchema: {
+          type: "object",
+          properties: {
+            action: { type: "string", enum: ["list", "get", "schema"] },
+            type: {
+              type: "string",
+              description: `Document type: ${TYPES.join(", ")} (schema also accepts embedded names such as Wall)`
+            },
+            identifier: { type: "string", description: "get: document id or exact name" },
+            uuid: {
+              type: "string",
+              description: "get: a Foundry uuid, instead of type and identifier"
+            },
+            embedded_type: {
+              type: "string",
+              description: "get: list the embedded documents of this type (Token, Wall, Item, JournalEntryPage, ...); schema: describe this embedded type"
+            },
+            embedded_identifier: {
+              type: "string",
+              description: "get: id or exact name of one embedded document"
+            },
+            path: { type: "string", description: "get: dotted path to read part of the data" },
+            depth: {
+              type: "number",
+              description: "get: nesting depth to show (default 5); schema: field levels (default 3, max 6)"
+            },
+            max_chars: {
+              type: "number",
+              description: "get: cap on output size (500 to 100000, default 20000)"
+            },
+            include_embedded: {
+              type: "boolean",
+              description: "get: include embedded documents instead of counts"
+            },
+            search: { type: "string", description: "list: only names containing this text" },
+            limit: {
+              type: "number",
+              description: "list: at most this many (default 100, max 500)"
+            }
+          },
+          required: ["action"],
+          additionalProperties: false
+        }
+      }
+    ];
+  }
+  async handleInspectDocument(args) {
+    const parsed = inspectSchema.parse(args);
+    if (parsed.action === "list" && !parsed.type) {
+      throw new Error("list needs type");
+    }
+    if (parsed.action === "get" && !parsed.uuid && !(parsed.type && parsed.identifier)) {
+      throw new Error("get needs type and identifier, or uuid");
+    }
+    if (parsed.action === "schema" && !parsed.type && !parsed.embedded_type) {
+      throw new Error("schema needs type or embedded_type");
+    }
+    this.logger.info("Inspecting Foundry data", { action: parsed.action, type: parsed.type });
+    try {
+      const result = await this.foundryClient.query("foundry-mcp-bridge.inspect-document", parsed);
+      if (result?.success === false) {
+        throw new Error(result.error || "Request was refused");
+      }
+      return result;
+    } catch (error) {
+      this.logger.error("Failed to inspect", error);
+      throw new Error(`Failed to inspect: ${error instanceof Error ? error.message : "Unknown error"}`);
+    }
+  }
+};
+
 // dist/backend.js
 var CONTROL_HOST = "127.0.0.1";
 var CONTROL_PORT = 31414;
@@ -115986,6 +116188,18 @@ function getBundledPythonPath() {
 }
 var comfyuiProcess = null;
 var comfyuiStatus = "stopped";
+var comfyTarget = { ...BUILTIN_TARGET };
+function applyComfyTarget(raw, client, logger) {
+  if (raw === void 0)
+    return;
+  const target = parseComfyTarget(raw);
+  if (target.mode === comfyTarget.mode && comfyBaseUrl(target) === comfyBaseUrl(comfyTarget)) {
+    return;
+  }
+  logger.info("ComfyUI target selected", { target: describeComfyTarget(target) });
+  comfyTarget = target;
+  client?.setTarget?.(target);
+}
 var lockFd = null;
 function acquireLock() {
   try {
@@ -116098,6 +116312,13 @@ async function waitForComfyUIReady(timeoutMs = 6e4) {
   throw new Error("ComfyUI failed to start within timeout");
 }
 async function startComfyUIService(logger) {
+  if (comfyTarget.mode === "custom") {
+    const status = await checkComfyUIStatus();
+    return {
+      ...status,
+      message: status.status === "running" ? `${describeComfyTarget(comfyTarget)} is reachable (you start and stop it yourself)` : `${describeComfyTarget(comfyTarget)} is not reachable. Start ComfyUI there; this server does not manage a custom instance.`
+    };
+  }
   if (comfyuiStatus === "running") {
     return { status: "already_running", message: "ComfyUI service is already running" };
   }
@@ -116170,6 +116391,13 @@ async function startComfyUIService(logger) {
   }
 }
 async function stopComfyUIService(logger) {
+  if (comfyTarget.mode === "custom") {
+    const status = await checkComfyUIStatus();
+    return {
+      ...status,
+      message: `${describeComfyTarget(comfyTarget)} is managed by you; nothing was stopped`
+    };
+  }
   if (comfyuiStatus === "stopped") {
     return { status: "already_stopped", message: "ComfyUI service is already stopped" };
   }
@@ -116193,7 +116421,7 @@ async function stopComfyUIService(logger) {
 }
 async function checkComfyUIStatus() {
   try {
-    const response = await fetch("http://127.0.0.1:31411/system_stats", {
+    const response = await fetch(`${comfyBaseUrl(comfyTarget)}/system_stats`, {
       signal: AbortSignal.timeout(5e3)
     });
     if (response.ok) {
@@ -116206,8 +116434,10 @@ async function checkComfyUIStatus() {
   }
   return {
     status: comfyuiStatus,
-    message: getStatusMessage(comfyuiStatus),
-    pid: comfyuiProcess?.pid || null
+    message: comfyTarget.mode === "custom" ? `${describeComfyTarget(comfyTarget)}: ${getStatusMessage(comfyuiStatus)}` : getStatusMessage(comfyuiStatus),
+    pid: comfyuiProcess?.pid || null,
+    mode: comfyTarget.mode,
+    target: comfyBaseUrl(comfyTarget)
   };
 }
 function getStatusMessage(status) {
@@ -116679,6 +116909,7 @@ async function startBackend() {
   const uploadTools = new UploadTools({ foundryClient, logger });
   const journalTools = new JournalTools({ foundryClient, logger });
   const sceneObjectTools = new SceneObjectTools({ foundryClient, logger });
+  const inspectTools = new InspectTools({ foundryClient, logger });
   const playlistTools = new PlaylistTools({ foundryClient, logger });
   const actorCreationTools = new ActorCreationTools({ foundryClient, logger });
   const actorManagementTools = new ActorManagementTools({ foundryClient, logger, systemRegistry });
@@ -116750,6 +116981,11 @@ async function startBackend() {
         await fs8.appendFile(debugLog2, `[${(/* @__PURE__ */ new Date()).toISOString()}] About to switch on message.type: "${message.type}"
 `);
         let result;
+        try {
+          applyComfyTarget(message.data?.comfyuiTarget, mapGenerationComfyUIClient, logger);
+        } catch (targetError) {
+          throw new Error(`Invalid ComfyUI settings: ${targetError.message}`);
+        }
         switch (message.type) {
           case "start-comfyui-service":
             result = await startComfyUIService(logger);
@@ -116827,6 +117063,7 @@ async function startBackend() {
     ...uploadTools.getToolDefinitions(),
     ...journalTools.getToolDefinitions(),
     ...sceneObjectTools.getToolDefinitions(),
+    ...inspectTools.getToolDefinitions(),
     ...actorCreationTools.getToolDefinitions(),
     ...actorManagementTools.getToolDefinitions(),
     ...effectManagementTools.getToolDefinitions(),
@@ -117041,6 +117278,9 @@ async function startBackend() {
                   break;
                 case "manage-scene-objects":
                   result = await sceneObjectTools.handleManageSceneObjects(args);
+                  break;
+                case "inspect-document":
+                  result = await inspectTools.handleInspectDocument(args);
                   break;
                 case "preview-scene":
                   result = await sceneObjectTools.handlePreviewScene(args);
