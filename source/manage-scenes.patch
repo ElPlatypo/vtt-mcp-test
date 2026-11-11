@@ -2329,10 +2329,10 @@ index 0000000..0a5a35c
 +  });
 +});
 diff --git a/packages/foundry-module/src/data-access.ts b/packages/foundry-module/src/data-access.ts
-index eecda7e..8334a97 100644
+index eecda7e..386b6a3 100644
 --- a/packages/foundry-module/src/data-access.ts
 +++ b/packages/foundry-module/src/data-access.ts
-@@ -1,5 +1,51 @@
+@@ -1,5 +1,52 @@
  import { MODULE_ID, ERROR_MESSAGES, TOKEN_DISPOSITIONS } from './constants.js';
  import { permissionManager } from './permissions.js';
 +import {
@@ -2364,6 +2364,7 @@ index eecda7e..8334a97 100644
 +  type PreviewToken,
 +  type PreviewWall,
 +} from './preview-utils.js';
++import { measureGrid as measureGridInPicture } from './grid-measure-utils.js';
 +import {
 +  OWNERSHIP_LEVELS,
 +  ownershipName,
@@ -2384,7 +2385,7 @@ index eecda7e..8334a97 100644
  import { transactionManager } from './transaction-manager.js';
  
  // The same five characters foundry.utils.escapeHTML replaces in v14, kept local because
-@@ -6714,7 +6760,7 @@ export class FoundryDataAccess {
+@@ -6714,7 +6761,7 @@ export class FoundryDataAccess {
  
          // Send socket request to GM
          if (game.socket) {
@@ -2393,7 +2394,7 @@ index eecda7e..8334a97 100644
              type: 'requestMessageUpdate',
              buttonId,
              userId,
-@@ -8101,6 +8147,1442 @@ export class FoundryDataAccess {
+@@ -8101,6 +8148,1539 @@ export class FoundryDataAccess {
      }
    }
  
@@ -3057,6 +3058,103 @@ index eecda7e..8334a97 100644
 +      throw new Error(
 +        `Failed to ${options?.action ?? 'manage'} scene objects: ${error instanceof Error ? error.message : 'Unknown error'}`
 +      );
++    }
++  }
++
++  /**
++   * Find the grid drawn into a map picture: pixels per square and where the lines start. Works
++   * on a scene's background or on any image in Foundry's files, and can look at one region
++   * only (grids are often faint and drawn just on the floors). Read-only.
++   */
++  async measureGrid(options: {
++    scene?: string;
++    image?: string;
++    region?: { x: number; y: number; width: number; height: number };
++    min_size?: number;
++    max_size?: number;
++  }): Promise<any> {
++    this.validateFoundryState();
++
++    try {
++      let scene: any;
++      let src: string | null = null;
++      if (options.image) {
++        if (typeof options.image !== 'string' || /^[a-z]+:\/\//i.test(options.image)) {
++          throw new Error('image must be a path in the Foundry files, such as worlds/<world>/uploads/map.png');
++        }
++        src = options.image;
++      } else {
++        scene = this.resolveSceneForObjects(options.scene);
++        src =
++          scene._source?.background?.src || scene.levels?.contents?.[0]?.background?.src || null;
++        if (!src) throw new Error('The scene has no background image to measure');
++      }
++
++      const image = await new Promise<HTMLImageElement>((resolve, reject) => {
++        const img = new Image();
++        img.onload = () => resolve(img);
++        img.onerror = () => reject(new Error(`The image could not be loaded: ${src}`));
++        img.src = src!;
++      });
++      const width = image.naturalWidth;
++      const height = image.naturalHeight;
++      if (width * height > 40_000_000) {
++        throw new Error(`The image is too large to measure (${width}x${height})`);
++      }
++
++      const canvas = document.createElement('canvas');
++      canvas.width = width;
++      canvas.height = height;
++      const ctx = canvas.getContext('2d', { willReadFrequently: true });
++      if (!ctx) throw new Error('This browser cannot read the picture');
++      ctx.drawImage(image, 0, 0);
++      let rgba: Uint8ClampedArray;
++      try {
++        rgba = ctx.getImageData(0, 0, width, height).data;
++      } catch {
++        throw new Error('The browser refused to read the picture (it is from another site)');
++      }
++      const gray = new Uint8Array(width * height);
++      for (let i = 0; i < gray.length; i++) {
++        gray[i] = 0.299 * rgba[i * 4]! + 0.587 * rgba[i * 4 + 1]! + 0.114 * rgba[i * 4 + 2]!;
++      }
++
++      const measured = measureGridInPicture(gray, width, height, {
++        ...(options.region ? { region: options.region } : {}),
++        ...(options.min_size !== undefined ? { minSize: options.min_size } : {}),
++        ...(options.max_size !== undefined ? { maxSize: options.max_size } : {}),
++      });
++
++      const notes: string[] = [];
++      if (measured.detected && measured.size) {
++        if (measured.size < 50) {
++          const factor = Math.ceil(50 / measured.size);
++          notes.push(
++            `Foundry's smallest grid is 50 px. To use this grid, make the scene ${factor}x the image size (width ${width * factor}, height ${height * factor}) with grid_size ${measured.size * factor}.`
++          );
++        } else {
++          notes.push(
++            `With the scene as large as the image (${width}x${height}), set grid_size to ${measured.size}.`
++          );
++        }
++      } else {
++        notes.push(
++          'No regular grid was found. If the picture has a faint grid on its floors, pass a region that covers only a floor area. For a map without a grid, pick a grid_size from divisors (whole squares) or from the size of a feature you can measure, such as a door or corridor.'
++        );
++      }
++
++      return {
++        success: true,
++        source: options.image ? 'image' : 'scene background',
++        ...(scene ? { scene: { id: scene.id, name: scene.name, grid_size: scene.grid?.size } } : {}),
++        image: src,
++        width,
++        height,
++        ...measured,
++        notes,
++      };
++    } catch (error) {
++      return { success: false, error: error instanceof Error ? error.message : 'Could not measure the grid' };
 +    }
 +  }
 +
@@ -3836,6 +3934,46 @@ index eecda7e..8334a97 100644
    // ===== PLAYLIST MANAGEMENT (CRUD + PLAYBACK) =====
  
    /**
+@@ -11274,6 +12854,7 @@ export class FoundryDataAccess {
+       name: string;
+       type: string;
+       img?: string;
++      tokenImg?: string;
+       system?: Record<string, any>;
+     }>;
+     folder?: string;
+@@ -11286,6 +12867,8 @@ export class FoundryDataAccess {
+     const docs = params.actors.map(a => {
+       const doc: Record<string, any> = { name: a.name, type: a.type };
+       if (a.img) doc.img = a.img;
++      // The token's own picture; without it new tokens use the portrait.
++      if (a.tokenImg) doc.prototypeToken = { texture: { src: a.tokenImg } };
+ 
+       // Merge system data, adding safe defaults for systems that require certain
+       // fields to exist during data preparation (avoids non-fatal init errors).
+@@ -11471,7 +13054,13 @@ export class FoundryDataAccess {
+    * Merges supplied fields into the actor (top-level keys overwrite).
+    */
+   async updateActors(
+-    updates: Array<{ id: string; name?: string; img?: string; system?: Record<string, any> }>
++    updates: Array<{
++      id: string;
++      name?: string;
++      img?: string;
++      tokenImg?: string;
++      system?: Record<string, any>;
++    }>
+   ): Promise<{ updated: Array<{ id: string; name: string }>; total: number }> {
+     const updatedActors: Array<{ id: string; name: string }> = [];
+ 
+@@ -11482,6 +13071,7 @@ export class FoundryDataAccess {
+       const patch: Record<string, any> = {};
+       if (u.name !== undefined) patch.name = u.name;
+       if (u.img !== undefined) patch.img = u.img;
++      if (u.tokenImg !== undefined) patch['prototypeToken.texture.src'] = u.tokenImg;
+       if (u.system !== undefined) {
+         // Build a single patch.system nested object so Foundry deep-merges everything
+         // in one pass without flat-key vs nested-key conflicts.
 diff --git a/packages/foundry-module/src/data-access.upload-file.test.ts b/packages/foundry-module/src/data-access.upload-file.test.ts
 new file mode 100644
 index 0000000..83a409c
@@ -4088,6 +4226,394 @@ index 0000000..83a409c
 +    });
 +  });
 +});
+diff --git a/packages/foundry-module/src/grid-measure-utils.test.ts b/packages/foundry-module/src/grid-measure-utils.test.ts
+new file mode 100644
+index 0000000..e2f1110
+--- /dev/null
++++ b/packages/foundry-module/src/grid-measure-utils.test.ts
+@@ -0,0 +1,118 @@
++import { describe, expect, it } from 'vitest';
++import {
++  clipRegion,
++  divisorSizes,
++  measureAxis,
++  measureGrid,
++} from './grid-measure-utils.js';
++
++/** A picture with soft noisy texture and, optionally, dark grid lines. */
++function picture(
++  width: number,
++  height: number,
++  grid?: { size: number; offsetX: number; offsetY: number; only?: { x: number; y: number; w: number; h: number } }
++): Uint8Array {
++  const gray = new Uint8Array(width * height);
++  let seed = 12345;
++  const noise = () => {
++    seed = (seed * 1664525 + 1013904223) % 4294967296;
++    return seed / 4294967296;
++  };
++  for (let y = 0; y < height; y++) {
++    for (let x = 0; x < width; x++) {
++      // Stone-like blocks plus noise, so there are plenty of edges that are not the grid.
++      const block = ((Math.floor(x / 37) * 7 + Math.floor(y / 53) * 11) % 5) * 12;
++      let value = 120 + block + noise() * 30;
++      if (grid) {
++        const inside =
++          !grid.only ||
++          (x >= grid.only.x && x < grid.only.x + grid.only.w && y >= grid.only.y && y < grid.only.y + grid.only.h);
++        const gx = (x - grid.offsetX + grid.size * 1000) % grid.size;
++        const gy = (y - grid.offsetY + grid.size * 1000) % grid.size;
++        if (inside && (gx < 2 || gy < 2)) value = 40;
++      }
++      gray[y * width + x] = value;
++    }
++  }
++  return gray;
++}
++
++describe('measureGrid', () => {
++  it('finds the size and offset of a drawn grid', () => {
++    const gray = picture(700, 560, { size: 70, offsetX: 23, offsetY: 41 });
++    const result = measureGrid(gray, 700, 560);
++    expect(result.detected).toBe(true);
++    expect(result.size).toBe(70);
++    expect(Math.abs(result.offsetX - 23)).toBeLessThanOrEqual(2);
++    expect(Math.abs(result.offsetY - 41)).toBeLessThanOrEqual(2);
++    expect(result.confidence).toBeGreaterThan(0.3);
++  });
++
++  it('is not fooled into reporting a multiple of the spacing', () => {
++    const result = measureGrid(picture(900, 900, { size: 60, offsetX: 5, offsetY: 5 }), 900, 900);
++    expect(result.size).toBe(60);
++  });
++
++  it('finds a larger grid', () => {
++    const result = measureGrid(picture(1200, 1000, { size: 133, offsetX: 0, offsetY: 0 }), 1200, 1000);
++    expect(result.size).toBe(133);
++  });
++
++  it('says there is no grid in a picture without one', () => {
++    const result = measureGrid(picture(800, 800), 800, 800);
++    expect(result.detected).toBe(false);
++    expect(result.size).toBeNull();
++  });
++
++  it('finds a grid drawn only on part of the picture when pointed at that part', () => {
++    const area = { x: 200, y: 150, w: 500, h: 400 };
++    const gray = picture(1200, 900, { size: 51, offsetX: 7, offsetY: 3, only: area });
++    const result = measureGrid(gray, 1200, 900, {
++      region: { x: area.x, y: area.y, width: area.w, height: area.h },
++    });
++    expect(result.detected).toBe(true);
++    expect(result.size).toBe(51);
++    // Offsets are given for the whole picture, not the region.
++    expect(Math.abs(result.offsetX - 7)).toBeLessThanOrEqual(2);
++    expect(Math.abs(result.offsetY - 3)).toBeLessThanOrEqual(2);
++  });
++
++  it('lets a narrow strip speak in one direction only when a region was given', () => {
++    const gray = picture(1200, 400, { size: 51, offsetX: 10, offsetY: 0 });
++    const strip = measureGrid(gray, 1200, 400, { region: { x: 100, y: 100, width: 900, height: 30 } });
++    expect(strip.detected).toBe(true);
++    expect(strip.size).toBe(51);
++  });
++
++  it('lists grid sizes that divide the picture into whole squares', () => {
++    const result = measureGrid(picture(480, 480), 480, 480);
++    expect(result.divisors.map(d => d.size)).toContain(48);
++    expect(result.divisors.find(d => d.size === 60)).toEqual({ size: 60, columns: 8, rows: 8 });
++  });
++});
++
++describe('clipRegion', () => {
++  it('uses the whole picture by default and keeps a region inside it', () => {
++    expect(clipRegion(100, 80)).toEqual({ x: 0, y: 0, width: 100, height: 80 });
++    expect(clipRegion(100, 80, { x: 90, y: 70, width: 50, height: 50 })).toEqual({
++      x: 90,
++      y: 70,
++      width: 10,
++      height: 10,
++    });
++    expect(clipRegion(100, 80, { x: -5, y: -5, width: 20, height: 20 })).toMatchObject({ x: 0, y: 0 });
++  });
++});
++
++describe('measureAxis', () => {
++  it('gives no answer for a profile that is too short', () => {
++    expect(measureAxis(new Float64Array(30)).size).toBeNull();
++  });
++});
++
++describe('divisorSizes', () => {
++  it('only offers sizes that fit both sides', () => {
++    expect(divisorSizes(2048, 2048).map(d => d.size)).toEqual([64, 128]);
++    expect(divisorSizes(1000, 600, 40, 120).map(d => d.size)).toEqual([40, 50, 100, 120].filter(s => 1000 % s === 0 && 600 % s === 0));
++  });
++});
+diff --git a/packages/foundry-module/src/grid-measure-utils.ts b/packages/foundry-module/src/grid-measure-utils.ts
+new file mode 100644
+index 0000000..3ad057f
+--- /dev/null
++++ b/packages/foundry-module/src/grid-measure-utils.ts
+@@ -0,0 +1,258 @@
++/**
++ * Finding the grid that is drawn into a map picture: how many pixels one square is, and where
++ * the lines start. Works on the strength of vertical and horizontal edges, which line up every
++ * `size` pixels when the picture has a grid and do not when it has none.
++ */
++
++export interface AxisCandidate {
++  size: number;
++  score: number;
++}
++
++export interface AxisMeasure {
++  /** The strongest repeat distances, best first (for when the best one is wrong). */
++  candidates: AxisCandidate[];
++  /** Pixels per square, or null when no regular spacing was found. */
++  size: number | null;
++  /** Pixels from the picture's edge to the first line, 0 up to size - 1. */
++  offset: number;
++  /** 0 to 1: how well the edges repeat at that spacing. */
++  confidence: number;
++}
++
++
++/**
++ * How line-like each column and each row is: the sum of |2g(x) - g(x-2) - g(x+2)| over the
++ * picture. A thin grid line (dark or light) scores high all along its length, while soft edges
++ * and large shapes score low.
++ */
++export function edgeProfiles(
++  gray: ArrayLike<number>,
++  width: number,
++  height: number
++): { columns: Float64Array; rows: Float64Array } {
++  const columns = new Float64Array(width);
++  const rows = new Float64Array(height);
++  for (let y = 0; y < height; y++) {
++    const row = y * width;
++    for (let x = 2; x < width - 2; x++) {
++      columns[x] += Math.abs(2 * gray[row + x]! - gray[row + x - 2]! - gray[row + x + 2]!);
++    }
++    if (y >= 2 && y < height - 2) {
++      const above = (y - 2) * width;
++      const below = (y + 2) * width;
++      let sum = 0;
++      for (let x = 0; x < width; x++) {
++        sum += Math.abs(2 * gray[row + x]! - gray[above + x]! - gray[below + x]!);
++      }
++      rows[y] = sum;
++    }
++  }
++  return { columns, rows };
++}
++
++/** Normalised correlation of a profile with itself shifted by `lag`. */
++function correlation(p: Float64Array, lag: number): number {
++  let sum = 0;
++  let a = 0;
++  let b = 0;
++  const end = p.length - lag;
++  for (let i = 0; i < end; i++) {
++    const u = p[i]!;
++    const v = p[i + lag]!;
++    sum += u * v;
++    a += u * u;
++    b += v * v;
++  }
++  const denominator = Math.sqrt(a * b);
++  return denominator > 0 ? sum / denominator : 0;
++}
++
++/** Find the repeat distance of a line-strength profile, with the offset of its first line. */
++export function measureAxis(
++  profile: Float64Array,
++  minSize = 20,
++  maxSize = 400
++): AxisMeasure {
++  const length = profile.length;
++  const top = Math.min(maxSize, Math.floor(length / 3));
++  if (top <= minSize) return { size: null, offset: 0, confidence: 0, candidates: [] };
++
++  let mean = 0;
++  for (let i = 0; i < length; i++) mean += profile[i]!;
++  mean /= length;
++  const centred = new Float64Array(length);
++  for (let i = 0; i < length; i++) centred[i] = profile[i]! - mean;
++
++  const scores: number[] = new Array(top + 2).fill(0);
++  let best = 0;
++  for (let lag = minSize; lag <= top; lag++) {
++    scores[lag] = correlation(centred, lag);
++    if (scores[lag]! > best) best = scores[lag]!;
++  }
++  if (best <= 0) return { size: null, offset: 0, confidence: 0, candidates: [] };
++
++  const candidates: AxisCandidate[] = [];
++  for (let lag = minSize + 1; lag < top; lag++) {
++    const s = scores[lag]!;
++    if (s > 0 && s >= scores[lag - 1]! && s >= scores[lag + 1]!) {
++      candidates.push({ size: lag, score: Math.round(s * 1000) / 1000 });
++    }
++  }
++  candidates.sort((a, b) => b.score - a.score);
++  candidates.splice(6);
++
++  // Take the smallest spacing that is a local peak almost as strong as the best one, so a grid
++  // is not reported as two or three squares.
++  let chosen = 0;
++  for (let lag = minSize + 1; lag < top; lag++) {
++    const s = scores[lag]!;
++    if (s >= best * 0.85 && s >= scores[lag - 1]! && s >= scores[lag + 1]!) {
++      chosen = lag;
++      break;
++    }
++  }
++  if (chosen === 0) return { size: null, offset: 0, confidence: best, candidates };
++
++  // The true spacing may fall between two whole pixels; settle on the strongest neighbour.
++  let size = chosen;
++  for (const candidate of [chosen - 1, chosen + 1]) {
++    if (candidate >= minSize && candidate <= top && scores[candidate]! > scores[size]!) {
++      size = candidate;
++    }
++  }
++
++  // Offset: the position within one square where the edges add up the most.
++  const phase = new Float64Array(size);
++  for (let i = 0; i < length; i++) phase[i % size] += profile[i]!;
++  let offset = 0;
++  let strongest = -Infinity;
++  for (let p = 0; p < size; p++) {
++    const smooth = phase[p]! + phase[(p + 1) % size]! + phase[(p + size - 1) % size]!;
++    if (smooth > strongest) {
++      strongest = smooth;
++      offset = p;
++    }
++  }
++
++  return { size, offset, confidence: scores[size]!, candidates };
++}
++
++/** Grid sizes that divide both sides evenly, with a sensible number of squares. */
++export function divisorSizes(
++  width: number,
++  height: number,
++  min = 40,
++  max = 200
++): Array<{ size: number; columns: number; rows: number }> {
++  const result: Array<{ size: number; columns: number; rows: number }> = [];
++  for (let size = min; size <= max; size++) {
++    if (width % size === 0 && height % size === 0) {
++      result.push({ size, columns: width / size, rows: height / size });
++    }
++  }
++  return result;
++}
++
++export interface Region {
++  x: number;
++  y: number;
++  width: number;
++  height: number;
++}
++
++export interface GridMeasure {
++  /** True when the picture (or region) shows a regular grid both directions agree on. */
++  detected: boolean;
++  /** Pixels per square when detected. */
++  size: number | null;
++  /** Pixels from the picture's left / top edge to the first line (whole picture coordinates). */
++  offsetX: number;
++  offsetY: number;
++  /** How well the lines repeat at that spacing, 0 to 1. */
++  confidence: number;
++  /** What each direction found on its own; one can be weak when the region is narrow. */
++  x: AxisMeasure;
++  y: AxisMeasure;
++  region: Region;
++  /** Grid sizes that divide the picture into whole squares, as a fallback for gridless maps. */
++  divisors: Array<{ size: number; columns: number; rows: number }>;
++}
++
++export const MIN_CONFIDENCE = 0.3;
++
++/** Cut a rectangle out of a grey-scale picture. */
++export function crop(
++  gray: ArrayLike<number>,
++  width: number,
++  region: Region
++): Uint8Array {
++  const out = new Uint8Array(region.width * region.height);
++  for (let y = 0; y < region.height; y++) {
++    const from = (region.y + y) * width + region.x;
++    for (let x = 0; x < region.width; x++) out[y * region.width + x] = gray[from + x]!;
++  }
++  return out;
++}
++
++/** The region clipped to the picture, or the whole picture when none is given. */
++export function clipRegion(width: number, height: number, region?: Region): Region {
++  if (!region) return { x: 0, y: 0, width, height };
++  const x = Math.max(0, Math.min(width - 1, Math.round(region.x)));
++  const y = Math.max(0, Math.min(height - 1, Math.round(region.y)));
++  return {
++    x,
++    y,
++    width: Math.max(1, Math.min(width - x, Math.round(region.width))),
++    height: Math.max(1, Math.min(height - y, Math.round(region.height))),
++  };
++}
++
++/**
++ * Measure the grid in a grey-scale picture, or in one region of it. Faint grids drawn only on
++ * the floors are best measured by pointing at a floor area with a region.
++ */
++export function measureGrid(
++  gray: ArrayLike<number>,
++  width: number,
++  height: number,
++  options: { region?: Region; minSize?: number; maxSize?: number } = {}
++): GridMeasure {
++  const region = clipRegion(width, height, options.region);
++  const part =
++    region.width === width && region.height === height
++      ? gray
++      : crop(gray, width, region);
++  const { columns, rows } = edgeProfiles(part, region.width, region.height);
++  const x = measureAxis(columns, options.minSize, options.maxSize);
++  const y = measureAxis(rows, options.minSize, options.maxSize);
++
++  const xGood = x.size !== null && x.confidence >= MIN_CONFIDENCE;
++  const yGood = y.size !== null && y.confidence >= MIN_CONFIDENCE;
++  // Both directions must agree. A narrow region the caller picked has too little to say in
++  // one direction, and then the other may stand alone.
++  const bothAgree = xGood && yGood && Math.abs(x.size! - y.size!) <= 1;
++  const oneStrong =
++    options.region !== undefined && (xGood !== yGood);
++  const detected = bothAgree || oneStrong;
++
++  const size = detected
++    ? bothAgree
++      ? Math.round((x.size! + y.size!) / 2)
++      : (xGood ? x.size! : y.size!)
++    : null;
++
++  // Offsets in whole-picture pixels: the first line at or after the picture's edge.
++  const wrap = (offset: number, origin: number, s: number) => (((offset + origin) % s) + s) % s;
++  return {
++    detected,
++    size,
++    offsetX: detected && size ? wrap(x.offset, region.x, size) : 0,
++    offsetY: detected && size ? wrap(y.offset, region.y, size) : 0,
++    confidence: detected ? Math.max(xGood ? x.confidence : 0, yGood ? y.confidence : 0) : Math.max(x.confidence, y.confidence),
++    x,
++    y,
++    region,
++    divisors: divisorSizes(width, height),
++  };
++}
 diff --git a/packages/foundry-module/src/image-profiles-utils.test.ts b/packages/foundry-module/src/image-profiles-utils.test.ts
 new file mode 100644
 index 0000000..d1e0d72
@@ -5578,7 +6104,7 @@ index 0000000..8854585
 +  return { width, height };
 +}
 diff --git a/packages/foundry-module/src/queries.ts b/packages/foundry-module/src/queries.ts
-index 9fe02ba..9f7b764 100644
+index 9fe02ba..c52a27a 100644
 --- a/packages/foundry-module/src/queries.ts
 +++ b/packages/foundry-module/src/queries.ts
 @@ -1,7 +1,8 @@
@@ -5600,7 +6126,7 @@ index 9fe02ba..9f7b764 100644
  
      // Character/Actor queries
      CONFIG.queries[`${modulePrefix}.getCharacterInfo`] = this.handleGetCharacterInfo.bind(this);
-@@ -46,6 +47,13 @@ export class QueryHandlers {
+@@ -46,6 +47,14 @@ export class QueryHandlers {
      CONFIG.queries[`${modulePrefix}.list-scenes`] = this.handleListScenes.bind(this);
      CONFIG.queries[`${modulePrefix}.switch-scene`] = this.handleSwitchScene.bind(this);
      CONFIG.queries[`${modulePrefix}.update-scene-music`] = this.handleUpdateSceneMusic.bind(this);
@@ -5610,11 +6136,12 @@ index 9fe02ba..9f7b764 100644
 +    CONFIG.queries[`${modulePrefix}.manage-journals`] = this.handleManageJournals.bind(this);
 +    CONFIG.queries[`${modulePrefix}.manage-scene-objects`] = this.handleManageSceneObjects.bind(this);
 +    CONFIG.queries[`${modulePrefix}.preview-scene`] = this.handlePreviewScene.bind(this);
++    CONFIG.queries[`${modulePrefix}.measure-grid`] = this.handleMeasureGrid.bind(this);
 +    CONFIG.queries[`${modulePrefix}.inspect-document`] = this.handleInspectDocument.bind(this);
      CONFIG.queries[`${modulePrefix}.manage-playlists`] = this.handleManagePlaylists.bind(this);
      CONFIG.queries[`${modulePrefix}.control-playlist`] = this.handleControlPlaylist.bind(this);
  
-@@ -184,7 +192,7 @@ export class QueryHandlers {
+@@ -184,7 +193,7 @@ export class QueryHandlers {
     * Unregister all query handlers
     */
    unregisterHandlers(): void {
@@ -5623,7 +6150,7 @@ index 9fe02ba..9f7b764 100644
      const keysToRemove = Object.keys(CONFIG.queries).filter(key => key.startsWith(modulePrefix));
  
      for (const key of keysToRemove) {
-@@ -477,7 +485,7 @@ export class QueryHandlers {
+@@ -477,7 +486,7 @@ export class QueryHandlers {
     * Get list of all registered query methods
     */
    getRegisteredMethods(): string[] {
@@ -5632,7 +6159,7 @@ index 9fe02ba..9f7b764 100644
      return Object.keys(CONFIG.queries)
        .filter(key => key.startsWith(modulePrefix))
        .map(key => key.replace(`${modulePrefix}.`, ''));
-@@ -487,7 +495,7 @@ export class QueryHandlers {
+@@ -487,7 +496,7 @@ export class QueryHandlers {
     * Test if a specific query handler is registered
     */
    isMethodRegistered(method: string): boolean {
@@ -5641,7 +6168,7 @@ index 9fe02ba..9f7b764 100644
      return queryKey in CONFIG.queries && typeof CONFIG.queries[queryKey] === 'function';
    }
  
-@@ -1218,6 +1226,111 @@ export class QueryHandlers {
+@@ -1218,6 +1227,119 @@ export class QueryHandlers {
      }
    }
  
@@ -5673,6 +6200,14 @@ index 9fe02ba..9f7b764 100644
 +      return { error: 'Access denied', success: false };
 +    }
 +    return await this.dataAccess.previewScene(data ?? {});
++  }
++
++  private async handleMeasureGrid(data: any): Promise<any> {
++    const gmCheck = this.validateGMAccess();
++    if (!gmCheck.allowed) {
++      return { error: 'Access denied', success: false };
++    }
++    return await this.dataAccess.measureGrid(data ?? {});
 +  }
 +
 +  private async handleManageJournals(data: any): Promise<any> {
@@ -7620,7 +8155,7 @@ index 0000000..3adf228
 +  </div>
 +</form>
 diff --git a/packages/mcp-server/src/backend.ts b/packages/mcp-server/src/backend.ts
-index 8967e33..f6bcf2c 100644
+index 8967e33..6f80874 100644
 --- a/packages/mcp-server/src/backend.ts
 +++ b/packages/mcp-server/src/backend.ts
 @@ -48,6 +48,21 @@ import { DnD5eAddFeatureTool } from './tools/dnd5e/add-feature.js';
@@ -7856,7 +8391,7 @@ index 8967e33..f6bcf2c 100644
  
                  case 'list-scenes':
                    result = await mapGenerationTools.listScenes(args);
-@@ -1805,6 +1905,40 @@ async function startBackend(): Promise<void> {
+@@ -1805,6 +1905,44 @@ async function startBackend(): Promise<void> {
  
                    break;
  
@@ -7875,6 +8410,10 @@ index 8967e33..f6bcf2c 100644
 +
 +                case 'preview-scene':
 +                  result = await sceneObjectTools.handlePreviewScene(args);
++                  break;
++
++                case 'measure-grid':
++                  result = await sceneObjectTools.handleMeasureGrid(args);
 +                  break;
 +
 +                case 'manage-journals':
@@ -9342,6 +9881,84 @@ index fe400d1..0bdee03 100644
    async markJobFailed(jobId: string, error: string): Promise<void> {
      const job = this.jobs.get(jobId);
      if (!job) {
+diff --git a/packages/mcp-server/src/tools/actor-management.test.ts b/packages/mcp-server/src/tools/actor-management.test.ts
+index aa85a3e..146b7be 100644
+--- a/packages/mcp-server/src/tools/actor-management.test.ts
++++ b/packages/mcp-server/src/tools/actor-management.test.ts
+@@ -113,3 +113,29 @@ describe('manage-actors update-items action', () => {
+     expect(query).not.toHaveBeenCalled();
+   });
+ });
++
++describe('manage-actors token picture', () => {
++  it('advertises tokenImg for create and update', () => {
++    const { tools } = makeTools();
++    const props = tools.getToolDefinitions()[0].inputSchema.properties;
++    expect(props.actors.items.properties.tokenImg).toBeDefined();
++    expect(props.updates.items.properties.tokenImg).toBeDefined();
++  });
++
++  it('forwards tokenImg when creating and updating', async () => {
++    const { tools, query } = makeTools(async () => ({ success: true }));
++    await tools.handleManageActors({
++      action: 'create',
++      actors: [{ name: 'Mira', type: 'npc', img: 'a.png', tokenImg: 'b.png' }],
++    });
++    const createCall = query.mock.calls.find(c => c[0] === 'foundry-mcp-bridge.createActors')!;
++    expect((createCall[1] as any).actors[0]).toMatchObject({ img: 'a.png', tokenImg: 'b.png' });
++
++    await tools.handleManageActors({
++      action: 'update',
++      updates: [{ id: 'x', tokenImg: 'c.png' }],
++    });
++    const updateCall = query.mock.calls.find(c => c[0] === 'foundry-mcp-bridge.updateActors')!;
++    expect((updateCall[1] as any).updates[0]).toMatchObject({ id: 'x', tokenImg: 'c.png' });
++  });
++});
+diff --git a/packages/mcp-server/src/tools/actor-management.ts b/packages/mcp-server/src/tools/actor-management.ts
+index 8709ffc..b657c24 100644
+--- a/packages/mcp-server/src/tools/actor-management.ts
++++ b/packages/mcp-server/src/tools/actor-management.ts
+@@ -98,6 +98,11 @@ export class ActorManagementTools {
+                     type: 'string',
+                     description: 'Optional icon/portrait path.',
+                   },
++                  tokenImg: {
++                    type: 'string',
++                    description:
++                      'Optional picture for the actor\'s token (the prototype token), when it should differ from the portrait. Tokens placed later use it.',
++                  },
+                   system: {
+                     type: 'object',
+                     description:
+@@ -136,6 +141,11 @@ export class ActorManagementTools {
+                     type: 'string',
+                     description: 'New icon/portrait path.',
+                   },
++                  tokenImg: {
++                    type: 'string',
++                    description:
++                      'New picture for the actor\'s token (prototype token). Tokens already on scenes keep their old picture.',
++                  },
+                   system: {
+                     type: 'object',
+                     description:
+@@ -290,6 +300,7 @@ export class ActorManagementTools {
+             name: z.string().min(1),
+             type: z.string().min(1),
+             img: z.string().optional(),
++            tokenImg: z.string().optional(),
+             system: z.record(z.any()).optional(),
+           })
+         )
+@@ -329,6 +340,7 @@ export class ActorManagementTools {
+             id: z.string().min(1),
+             name: z.string().optional(),
+             img: z.string().optional(),
++            tokenImg: z.string().optional(),
+             system: z.record(z.any()).optional(),
+           })
+         )
 diff --git a/packages/mcp-server/src/tools/image-generation.test.ts b/packages/mcp-server/src/tools/image-generation.test.ts
 new file mode 100644
 index 0000000..4b2190f
@@ -9607,7 +10224,7 @@ index 0000000..4b2190f
 +});
 diff --git a/packages/mcp-server/src/tools/image-generation.ts b/packages/mcp-server/src/tools/image-generation.ts
 new file mode 100644
-index 0000000..232359d
+index 0000000..7aee1e5
 --- /dev/null
 +++ b/packages/mcp-server/src/tools/image-generation.ts
 @@ -0,0 +1,353 @@
@@ -9806,7 +10423,7 @@ index 0000000..232359d
 +    this.logger.info('Generating image', {
 +      kind,
 +      workflow: generation.workflow,
-+      model: generation.checkpoint || generation.diffusionModel,
++      model: generation.workflow === 'minimax-h3' ? generation.diffusionModel : generation.checkpoint,
 +      references: references.length,
 +      steps: generation.steps,
 +      size: `${generation.width}x${generation.height}`,
@@ -9827,7 +10444,7 @@ index 0000000..232359d
 +    const summary = {
 +      kind,
 +      workflow: generation.workflow,
-+      model: generation.checkpoint || generation.diffusionModel,
++      model: generation.workflow === 'minimax-h3' ? generation.diffusionModel : generation.checkpoint,
 +      references: references.length,
 +      steps: generation.steps,
 +      size: `${generation.width}x${generation.height}`,
@@ -10453,10 +11070,10 @@ index 0000000..942a444
 +}
 diff --git a/packages/mcp-server/src/tools/scene-objects.test.ts b/packages/mcp-server/src/tools/scene-objects.test.ts
 new file mode 100644
-index 0000000..cccced7
+index 0000000..5ca249d
 --- /dev/null
 +++ b/packages/mcp-server/src/tools/scene-objects.test.ts
-@@ -0,0 +1,200 @@
+@@ -0,0 +1,228 @@
 +import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 +import { promises as fs } from 'fs';
 +import { SceneObjectTools } from './scene-objects.js';
@@ -10476,8 +11093,36 @@ index 0000000..cccced7
 +describe('definitions', () => {
 +  it('exposes manage-scene-objects and preview-scene', () => {
 +    const defs = makeTools().tools.getToolDefinitions();
-+    expect(defs.map(d => d.name)).toEqual(['manage-scene-objects', 'preview-scene']);
++    expect(defs.map(d => d.name)).toEqual(['manage-scene-objects', 'measure-grid', 'preview-scene']);
 +    expect(defs[0].inputSchema.required).toEqual(['action']);
++  });
++});
++
++describe('handleMeasureGrid', () => {
++  it('forwards scene, image and region to the module', async () => {
++    const { tools, query } = makeTools(async () => ({ success: true, detected: true, size: 51 }));
++    const region = { x: 80, y: 226, width: 900, height: 40 };
++    const result = await tools.handleMeasureGrid({ image: 'worlds/w/uploads/map.png', region });
++    expect(result.size).toBe(51);
++    expect(query).toHaveBeenCalledWith(
++      'foundry-mcp-bridge.measure-grid',
++      { image: 'worlds/w/uploads/map.png', region },
++      expect.any(Number)
++    );
++  });
++
++  it('rejects a scene and an image together, and tiny regions', async () => {
++    const { tools, query } = makeTools();
++    await expect(tools.handleMeasureGrid({ scene: 'a', image: 'b' })).rejects.toThrow();
++    await expect(
++      tools.handleMeasureGrid({ region: { x: 0, y: 0, width: 10, height: 10 } })
++    ).rejects.toThrow();
++    expect(query).not.toHaveBeenCalled();
++  });
++
++  it('reports a refusal from the module', async () => {
++    const { tools } = makeTools(async () => ({ success: false, error: 'no background' }));
++    await expect(tools.handleMeasureGrid({})).rejects.toThrow(/no background/);
 +  });
 +});
 +
@@ -10659,10 +11304,10 @@ index 0000000..cccced7
 +});
 diff --git a/packages/mcp-server/src/tools/scene-objects.ts b/packages/mcp-server/src/tools/scene-objects.ts
 new file mode 100644
-index 0000000..798e87d
+index 0000000..df0e661
 --- /dev/null
 +++ b/packages/mcp-server/src/tools/scene-objects.ts
-@@ -0,0 +1,358 @@
+@@ -0,0 +1,430 @@
 +import { promises as fs } from 'fs';
 +import os from 'os';
 +import path from 'path';
@@ -10678,6 +11323,25 @@ index 0000000..798e87d
 +/** Drawing the preview loads the map image in the GM's browser; allow more than 10 s. */
 +const PREVIEW_TIMEOUT_MS = 60000;
 +const KEEP_PREVIEWS = 20;
++
++const measureGridSchema = z
++  .object({
++    scene: z.string().min(1).optional(),
++    image: z.string().min(1).optional(),
++    region: z
++      .object({
++        x: z.number().min(0),
++        y: z.number().min(0),
++        width: z.number().min(40),
++        height: z.number().min(40),
++      })
++      .strict()
++      .optional(),
++    min_size: z.number().int().min(8).max(400).optional(),
++    max_size: z.number().int().min(16).max(800).optional(),
++  })
++  .strict()
++  .refine(v => !(v.scene && v.image), { message: 'Give a scene or an image, not both' });
 +
 +const color = z.string().regex(/^#[0-9a-fA-F]{6}$/, 'color must look like #RRGGBB');
 +
@@ -10901,6 +11565,39 @@ index 0000000..798e87d
 +        },
 +      },
 +      {
++        name: 'measure-grid',
++        description:
++          "Measure the grid that is drawn into a map picture: pixels per square and the offset of the first line, from the scene's background (default: the scene being viewed) or from an image file in Foundry (image). Maps bought with a baked-in grid are often faint and drawn only on the floors, so pass region (pixels of the image: x, y, width, height) over a floor area to measure that part; a whole-picture run reports no grid for gridless AI maps, which is the correct answer. Returns detected, size, offsetX/offsetY, per-direction results, grid sizes that split the picture into whole squares (divisors) and a note on how to set grid_size in manage-scenes (Foundry's minimum grid is 50 px, so a small grid means making the scene larger). Read-only. Needs the Foundry tab open in a browser.",
++        inputSchema: {
++          type: 'object',
++          properties: {
++            scene: {
++              type: 'string',
++              description: 'Scene id or exact name whose background to measure (default: the scene being viewed)',
++            },
++            image: {
++              type: 'string',
++              description: 'Foundry file path of an image to measure instead of a scene',
++            },
++            region: {
++              type: 'object',
++              description: 'Only look at this rectangle of the image, in image pixels',
++              properties: {
++                x: { type: 'number' },
++                y: { type: 'number' },
++                width: { type: 'number' },
++                height: { type: 'number' },
++              },
++              required: ['x', 'y', 'width', 'height'],
++              additionalProperties: false,
++            },
++            min_size: { type: 'number', description: 'Smallest square size to consider, in pixels (default 20)' },
++            max_size: { type: 'number', description: 'Largest square size to consider, in pixels (default 400)' },
++          },
++          additionalProperties: false,
++        },
++      },
++      {
 +        name: 'preview-scene',
 +        description:
 +          "Render a scene as a picture: the map image with a numbered grid (column numbers along the top and bottom, row numbers along the sides, stronger lines every 5 squares) and the scene's tokens (red), lights (circles), walls (cyan; doors orange, secret doors dashed) and map pins (yellow diamonds) on top. The picture is saved to a file on this computer; its path is returned, and you can open it to see where things are in grid squares. Read-only. Needs the Foundry tab open in a browser.",
@@ -10965,6 +11662,26 @@ index 0000000..798e87d
 +      this.logger.error('Failed to manage scene objects', error);
 +      throw new Error(
 +        `Failed to manage scene objects: ${error instanceof Error ? error.message : 'Unknown error'}`
++      );
++    }
++  }
++
++  async handleMeasureGrid(args: any): Promise<any> {
++    const parsed = measureGridSchema.parse(args ?? {});
++    try {
++      const result = await this.foundryClient.query(
++        'foundry-mcp-bridge.measure-grid',
++        parsed,
++        PREVIEW_TIMEOUT_MS
++      );
++      if (result?.success === false) {
++        throw new Error(result.error || 'Request was refused');
++      }
++      return result;
++    } catch (error) {
++      this.logger.error('Failed to measure the grid', error);
++      throw new Error(
++        `Failed to measure the grid: ${error instanceof Error ? error.message : 'Unknown error'}`
 +      );
 +    }
 +  }

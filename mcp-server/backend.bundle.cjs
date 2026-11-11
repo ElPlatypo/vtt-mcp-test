@@ -108959,6 +108959,10 @@ var ActorManagementTools = class {
                     type: "string",
                     description: "Optional icon/portrait path."
                   },
+                  tokenImg: {
+                    type: "string",
+                    description: "Optional picture for the actor's token (the prototype token), when it should differ from the portrait. Tokens placed later use it."
+                  },
                   system: {
                     type: "object",
                     description: 'System-specific data. Free-form object \u2014 use action:"describe" to get valid field names for the active system.',
@@ -108991,6 +108995,10 @@ var ActorManagementTools = class {
                   img: {
                     type: "string",
                     description: "New icon/portrait path."
+                  },
+                  tokenImg: {
+                    type: "string",
+                    description: "New picture for the actor's token (prototype token). Tokens already on scenes keep their old picture."
                   },
                   system: {
                     type: "object",
@@ -109123,6 +109131,7 @@ var ActorManagementTools = class {
         name: external_exports.string().min(1),
         type: external_exports.string().min(1),
         img: external_exports.string().optional(),
+        tokenImg: external_exports.string().optional(),
         system: external_exports.record(external_exports.any()).optional()
       })).min(1),
       folder: external_exports.string().optional()
@@ -109147,6 +109156,7 @@ var ActorManagementTools = class {
         id: external_exports.string().min(1),
         name: external_exports.string().optional(),
         img: external_exports.string().optional(),
+        tokenImg: external_exports.string().optional(),
         system: external_exports.record(external_exports.any()).optional()
       })).min(1)
     });
@@ -116193,7 +116203,7 @@ var ImageGenerationTools = class {
     this.logger.info("Generating image", {
       kind,
       workflow: generation.workflow,
-      model: generation.checkpoint || generation.diffusionModel,
+      model: generation.workflow === "minimax-h3" ? generation.diffusionModel : generation.checkpoint,
       references: references.length,
       steps: generation.steps,
       size: `${generation.width}x${generation.height}`
@@ -116211,7 +116221,7 @@ var ImageGenerationTools = class {
     const summary = {
       kind,
       workflow: generation.workflow,
-      model: generation.checkpoint || generation.diffusionModel,
+      model: generation.workflow === "minimax-h3" ? generation.diffusionModel : generation.checkpoint,
       references: references.length,
       steps: generation.steps,
       size: `${generation.width}x${generation.height}`,
@@ -116447,6 +116457,18 @@ var import_path3 = __toESM(require("path"), 1);
 init_zod();
 var PREVIEW_TIMEOUT_MS = 6e4;
 var KEEP_PREVIEWS = 20;
+var measureGridSchema = external_exports.object({
+  scene: external_exports.string().min(1).optional(),
+  image: external_exports.string().min(1).optional(),
+  region: external_exports.object({
+    x: external_exports.number().min(0),
+    y: external_exports.number().min(0),
+    width: external_exports.number().min(40),
+    height: external_exports.number().min(40)
+  }).strict().optional(),
+  min_size: external_exports.number().int().min(8).max(400).optional(),
+  max_size: external_exports.number().int().min(16).max(800).optional()
+}).strict().refine((v) => !(v.scene && v.image), { message: "Give a scene or an image, not both" });
 var color = external_exports.string().regex(/^#[0-9a-fA-F]{6}$/, "color must look like #RRGGBB");
 var tokenSchema = external_exports.object({
   kind: external_exports.literal("token"),
@@ -116636,6 +116658,38 @@ var SceneObjectTools = class {
         }
       },
       {
+        name: "measure-grid",
+        description: "Measure the grid that is drawn into a map picture: pixels per square and the offset of the first line, from the scene's background (default: the scene being viewed) or from an image file in Foundry (image). Maps bought with a baked-in grid are often faint and drawn only on the floors, so pass region (pixels of the image: x, y, width, height) over a floor area to measure that part; a whole-picture run reports no grid for gridless AI maps, which is the correct answer. Returns detected, size, offsetX/offsetY, per-direction results, grid sizes that split the picture into whole squares (divisors) and a note on how to set grid_size in manage-scenes (Foundry's minimum grid is 50 px, so a small grid means making the scene larger). Read-only. Needs the Foundry tab open in a browser.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            scene: {
+              type: "string",
+              description: "Scene id or exact name whose background to measure (default: the scene being viewed)"
+            },
+            image: {
+              type: "string",
+              description: "Foundry file path of an image to measure instead of a scene"
+            },
+            region: {
+              type: "object",
+              description: "Only look at this rectangle of the image, in image pixels",
+              properties: {
+                x: { type: "number" },
+                y: { type: "number" },
+                width: { type: "number" },
+                height: { type: "number" }
+              },
+              required: ["x", "y", "width", "height"],
+              additionalProperties: false
+            },
+            min_size: { type: "number", description: "Smallest square size to consider, in pixels (default 20)" },
+            max_size: { type: "number", description: "Largest square size to consider, in pixels (default 400)" }
+          },
+          additionalProperties: false
+        }
+      },
+      {
         name: "preview-scene",
         description: "Render a scene as a picture: the map image with a numbered grid (column numbers along the top and bottom, row numbers along the sides, stronger lines every 5 squares) and the scene's tokens (red), lights (circles), walls (cyan; doors orange, secret doors dashed) and map pins (yellow diamonds) on top. The picture is saved to a file on this computer; its path is returned, and you can open it to see where things are in grid squares. Read-only. Needs the Foundry tab open in a browser.",
         inputSchema: {
@@ -116689,6 +116743,19 @@ var SceneObjectTools = class {
     } catch (error) {
       this.logger.error("Failed to manage scene objects", error);
       throw new Error(`Failed to manage scene objects: ${error instanceof Error ? error.message : "Unknown error"}`);
+    }
+  }
+  async handleMeasureGrid(args) {
+    const parsed = measureGridSchema.parse(args ?? {});
+    try {
+      const result = await this.foundryClient.query("foundry-mcp-bridge.measure-grid", parsed, PREVIEW_TIMEOUT_MS);
+      if (result?.success === false) {
+        throw new Error(result.error || "Request was refused");
+      }
+      return result;
+    } catch (error) {
+      this.logger.error("Failed to measure the grid", error);
+      throw new Error(`Failed to measure the grid: ${error instanceof Error ? error.message : "Unknown error"}`);
     }
   }
   async handlePreviewScene(args) {
@@ -118014,6 +118081,9 @@ async function startBackend() {
                   break;
                 case "preview-scene":
                   result = await sceneObjectTools.handlePreviewScene(args);
+                  break;
+                case "measure-grid":
+                  result = await sceneObjectTools.handleMeasureGrid(args);
                   break;
                 case "manage-journals":
                   result = await journalTools.handleManageJournals(args);
