@@ -48075,13 +48075,13 @@ ${rows.join("\n")}
         const yb = view.slice(n + 1, n + 1 + n);
         return { x: xb, y: yb };
       }
-      static encodePoint(point, pointSize) {
+      static encodePoint(point2, pointSize) {
         const size = Math.ceil(pointSize / 8);
-        if (point.x.byteLength !== size || point.y.byteLength !== size) {
+        if (point2.x.byteLength !== size || point2.y.byteLength !== size) {
           throw new Error("X,Y coordinates don't match point size criteria");
         }
-        const x = pvtsutils.BufferSourceConverter.toUint8Array(point.x);
-        const y = pvtsutils.BufferSourceConverter.toUint8Array(point.y);
+        const x = pvtsutils.BufferSourceConverter.toUint8Array(point2.x);
+        const y = pvtsutils.BufferSourceConverter.toUint8Array(point2.y);
         const res = new Uint8Array(size * 2 + 1);
         res[0] = 4;
         res.set(x, 1);
@@ -48139,10 +48139,10 @@ ${rows.join("\n")}
       }
       static fromWebCryptoSignature(value) {
         const pointSize = value.byteLength / 2;
-        const point = EcUtils.decodeSignature(value, pointSize * 8);
+        const point2 = EcUtils.decodeSignature(value, pointSize * 8);
         const ecSignature = new _EcDsaSignature();
-        ecSignature.r = pvtsutils.BufferSourceConverter.toArrayBuffer(point.r);
-        ecSignature.s = pvtsutils.BufferSourceConverter.toArrayBuffer(point.s);
+        ecSignature.r = pvtsutils.BufferSourceConverter.toArrayBuffer(point2.r);
+        ecSignature.s = pvtsutils.BufferSourceConverter.toArrayBuffer(point2.s);
         return ecSignature;
       }
       toWebCryptoSignature(pointSize) {
@@ -67302,7 +67302,7 @@ var require_base3 = __commonJS({
       }
     }
     module2.exports = BaseCurve;
-    BaseCurve.prototype.point = function point() {
+    BaseCurve.prototype.point = function point2() {
       throw new Error("Not implemented");
     };
     BaseCurve.prototype.validate = function validate2() {
@@ -67750,11 +67750,11 @@ var require_short = __commonJS({
         y = y.redNeg();
       return this.point(x, y);
     };
-    ShortCurve.prototype.validate = function validate2(point) {
-      if (point.inf)
+    ShortCurve.prototype.validate = function validate2(point2) {
+      if (point2.inf)
         return true;
-      var x = point.x;
-      var y = point.y;
+      var x = point2.x;
+      var y = point2.y;
       var ax = this.a.redMul(x);
       var rhs = x.redSqr().redMul(x).redIAdd(ax).redIAdd(this.b);
       return y.redSqr().redISub(rhs).cmpn(0) === 0;
@@ -67807,7 +67807,7 @@ var require_short = __commonJS({
       }
     }
     inherits2(Point, Base.BasePoint);
-    ShortCurve.prototype.point = function point(x, y, isRed) {
+    ShortCurve.prototype.point = function point2(x, y, isRed) {
       return new Point(this, x, y, isRed);
     };
     ShortCurve.prototype.pointFromJSON = function pointFromJSON(obj, red) {
@@ -68308,8 +68308,8 @@ var require_mont = __commonJS({
     }
     inherits2(MontCurve, Base);
     module2.exports = MontCurve;
-    MontCurve.prototype.validate = function validate2(point) {
-      var x = point.normalize().x;
+    MontCurve.prototype.validate = function validate2(point2) {
+      var x = point2.normalize().x;
       var x2 = x.redSqr();
       var rhs = x2.redMul(x).redAdd(x2.redMul(this.a)).redAdd(x);
       var y = rhs.redSqrt();
@@ -68333,7 +68333,7 @@ var require_mont = __commonJS({
     MontCurve.prototype.decodePoint = function decodePoint(bytes, enc) {
       return this.point(utils.toArray(bytes, enc), 1);
     };
-    MontCurve.prototype.point = function point(x, z) {
+    MontCurve.prototype.point = function point2(x, z) {
       return new Point(this, x, z);
     };
     MontCurve.prototype.pointFromJSON = function pointFromJSON(obj) {
@@ -68495,12 +68495,12 @@ var require_edwards = __commonJS({
         x = x.redNeg();
       return this.point(x, y);
     };
-    EdwardsCurve.prototype.validate = function validate2(point) {
-      if (point.isInfinity())
+    EdwardsCurve.prototype.validate = function validate2(point2) {
+      if (point2.isInfinity())
         return true;
-      point.normalize();
-      var x2 = point.x.redSqr();
-      var y2 = point.y.redSqr();
+      point2.normalize();
+      var x2 = point2.x.redSqr();
+      var y2 = point2.y.redSqr();
       var lhs = x2.redMul(this.a).redAdd(y2);
       var rhs = this.c2.redMul(this.one.redAdd(this.d.redMul(x2).redMul(y2)));
       return lhs.cmp(rhs) === 0;
@@ -68538,7 +68538,7 @@ var require_edwards = __commonJS({
     EdwardsCurve.prototype.pointFromJSON = function pointFromJSON(obj) {
       return Point.fromJSON(this, obj);
     };
-    EdwardsCurve.prototype.point = function point(x, y, z, t) {
+    EdwardsCurve.prototype.point = function point2(x, y, z, t) {
       return new Point(this, x, y, z, t);
     };
     Point.fromJSON = function fromJSON(curve, obj) {
@@ -72056,9 +72056,9 @@ var require_eddsa = __commonJS({
         return sig;
       return new Signature(this, sig);
     };
-    EDDSA.prototype.encodePoint = function encodePoint(point) {
-      var enc = point.getY().toArray("le", this.encodingLength);
-      enc[this.encodingLength - 1] |= point.getX().isOdd() ? 128 : 0;
+    EDDSA.prototype.encodePoint = function encodePoint(point2) {
+      var enc = point2.getY().toArray("le", this.encodingLength);
+      enc[this.encodingLength - 1] |= point2.getX().isOdd() ? 128 : 0;
       return enc;
     };
     EDDSA.prototype.decodePoint = function decodePoint(bytes) {
@@ -115678,14 +115678,44 @@ var lightSchema = external_exports.object({
   animation: external_exports.string().min(1).optional(),
   label: external_exports.string().optional()
 }).strict();
-var objectSchema = external_exports.discriminatedUnion("kind", [tokenSchema, lightSchema]);
+var point = external_exports.tuple([external_exports.number().finite(), external_exports.number().finite()]);
+var wallSchema = external_exports.object({
+  kind: external_exports.literal("wall"),
+  points: external_exports.array(point).min(2).max(1001).optional(),
+  rect: external_exports.tuple([
+    external_exports.number().finite(),
+    external_exports.number().finite(),
+    external_exports.number().positive(),
+    external_exports.number().positive()
+  ]).optional(),
+  closed: external_exports.boolean().optional(),
+  preset: external_exports.enum(["wall", "door", "secret_door", "invisible", "window"]).optional(),
+  door_state: external_exports.enum(["closed", "open", "locked"]).optional()
+}).strict().refine((w) => w.points === void 0 !== (w.rect === void 0), {
+  message: "a wall needs either points or rect"
+}).refine((w) => w.closed === void 0 || w.points !== void 0, {
+  message: "closed only applies to points"
+});
+var noteSchema = external_exports.object({
+  kind: external_exports.literal("note"),
+  x: external_exports.number().finite(),
+  y: external_exports.number().finite(),
+  journal: external_exports.string().min(1),
+  page: external_exports.string().min(1).optional(),
+  text: external_exports.string().optional(),
+  icon: external_exports.string().min(1).optional(),
+  icon_size: external_exports.number().min(32).max(512).optional(),
+  font_size: external_exports.number().min(8).max(128).optional(),
+  global: external_exports.boolean().optional()
+}).strict();
+var objectSchema = external_exports.union([tokenSchema, lightSchema, wallSchema, noteSchema]);
 var sceneObjectsSchema = external_exports.object({
   action: external_exports.enum(["place", "describe", "remove"]),
   scene: external_exports.string().min(1).optional(),
   objects: external_exports.array(objectSchema).min(1).max(200).optional(),
   ids: external_exports.array(external_exports.string().min(1)).max(500).optional(),
   all_mine: external_exports.boolean().optional(),
-  kind: external_exports.enum(["token", "light"]).optional()
+  kind: external_exports.enum(["token", "light", "wall", "note"]).optional()
 }).strict();
 var previewSchema = external_exports.object({
   scene: external_exports.string().min(1).optional(),
@@ -115703,7 +115733,7 @@ var SceneObjectTools = class {
     return [
       {
         name: "manage-scene-objects",
-        description: `Place tokens and lights on a scene by grid square, describe what is on a scene, or remove objects this tool created (it never removes anything else). Positions are in GRID SQUARES from the top-left corner of the map image: (0, 0) is the top-left corner of the first square, (2.5, 1.5) the centre of the square in column 2, row 1 (counting from 0). Use preview-scene first to see the numbered grid. describe returns the scene grid size so you know the valid range. place takes objects (up to 200): {kind:"token", actor, x, y} puts the actor's token with its top-left corner at that square (use whole numbers; actor is an id or exact name); {kind:"light", x, y, bright, dim} makes a light at that point with radii in squares (optional color, alpha, angle, rotation, animation, hidden). remove needs ids or all_mine:true (optionally with kind) and only removes objects created by this tool. scene is an id or exact name; it defaults to the scene the GM is viewing.`,
+        description: `Place tokens, lights, walls and map pins on a scene by grid square, describe what is on a scene, or remove objects this tool created (it never removes anything else). Positions are in GRID SQUARES from the top-left corner of the map image: (0, 0) is the top-left corner of the first square, (2.5, 1.5) the centre of the square in column 2, row 1 (counting from 0). Use preview-scene first to see the numbered grid. describe returns the scene grid size so you know the valid range. place takes objects (up to 200): {kind:"token", actor, x, y} puts the actor's token with its top-left corner at that square (use whole numbers; actor is an id or exact name); {kind:"light", x, y, bright, dim} makes a light at that point with radii in squares (optional color, alpha, angle, rotation, animation, hidden); {kind:"wall", points:[[x1,y1],[x2,y2],...]} draws walls along a chain of points (add closed:true to join the ends) or {kind:"wall", rect:[x,y,width,height]} draws the four walls of a rectangle, with preset wall (default), door, secret_door, invisible (blocks movement only) or window (blocks movement, lets light and sight through), and for doors door_state closed, open or locked; {kind:"note", x, y, journal, page?, text?} puts a map pin (the label text defaults to the journal name) that opens that journal or page when clicked; pins are only seen by players who may read the journal unless global is true. Use whole or half squares for wall points and make wall ends meet exactly, otherwise light and sight leak through gaps. remove needs ids or all_mine:true (optionally with kind) and only removes objects created by this tool. scene is an id or exact name; it defaults to the scene the GM is viewing.`,
         inputSchema: {
           type: "object",
           properties: {
@@ -115719,7 +115749,7 @@ var SceneObjectTools = class {
               items: {
                 type: "object",
                 properties: {
-                  kind: { type: "string", enum: ["token", "light"] },
+                  kind: { type: "string", enum: ["token", "light", "wall", "note"] },
                   x: { type: "number", description: "Grid squares from the left edge of the map" },
                   y: { type: "number", description: "Grid squares from the top edge of the map" },
                   actor: { type: "string", description: "token: actor id or exact name" },
@@ -115747,9 +115777,48 @@ var SceneObjectTools = class {
                     type: "string",
                     description: "light: animation type such as torch, pulse, ghost, wave, fog"
                   },
-                  label: { type: "string", description: "light: note for yourself (not stored)" }
+                  label: { type: "string", description: "light: note for yourself (not stored)" },
+                  points: {
+                    type: "array",
+                    items: { type: "array", items: { type: "number" }, minItems: 2, maxItems: 2 },
+                    description: "wall: chain of [x, y] points in grid squares; each pair becomes a wall"
+                  },
+                  rect: {
+                    type: "array",
+                    items: { type: "number" },
+                    minItems: 4,
+                    maxItems: 4,
+                    description: "wall: rectangle [x, y, width, height] in grid squares"
+                  },
+                  closed: {
+                    type: "boolean",
+                    description: "wall: join the last point to the first"
+                  },
+                  preset: {
+                    type: "string",
+                    enum: ["wall", "door", "secret_door", "invisible", "window"],
+                    description: "wall: type (default wall)"
+                  },
+                  door_state: {
+                    type: "string",
+                    enum: ["closed", "open", "locked"],
+                    description: "wall: for door and secret_door (default closed)"
+                  },
+                  journal: { type: "string", description: "note: journal id or exact name" },
+                  page: {
+                    type: "string",
+                    description: "note: page id or exact name in that journal"
+                  },
+                  text: { type: "string", description: "note: label shown under the pin" },
+                  icon: { type: "string", description: "note: icon path (default the book icon)" },
+                  icon_size: {
+                    type: "number",
+                    description: "note: icon size in pixels, 32 to 512"
+                  },
+                  font_size: { type: "number", description: "note: label size, 8 to 128" },
+                  global: { type: "boolean", description: "note: visible to all players" }
                 },
-                required: ["kind", "x", "y"],
+                required: ["kind"],
                 additionalProperties: false
               }
             },
@@ -115764,7 +115833,7 @@ var SceneObjectTools = class {
             },
             kind: {
               type: "string",
-              enum: ["token", "light"],
+              enum: ["token", "light", "wall", "note"],
               description: "describe or remove: only this kind"
             }
           },
@@ -115774,7 +115843,7 @@ var SceneObjectTools = class {
       },
       {
         name: "preview-scene",
-        description: "Render a scene as a picture: the map image with a numbered grid (column numbers along the top and bottom, row numbers along the sides, stronger lines every 5 squares) and the scene's tokens (red) and lights (circles) on top. The picture is saved to a file on this computer; its path is returned, and you can open it to see where things are in grid squares. Read-only. Needs the Foundry tab open in a browser.",
+        description: "Render a scene as a picture: the map image with a numbered grid (column numbers along the top and bottom, row numbers along the sides, stronger lines every 5 squares) and the scene's tokens (red), lights (circles), walls (cyan; doors orange, secret doors dashed) and map pins (yellow diamonds) on top. The picture is saved to a file on this computer; its path is returned, and you can open it to see where things are in grid squares. Read-only. Needs the Foundry tab open in a browser.",
         inputSchema: {
           type: "object",
           properties: {

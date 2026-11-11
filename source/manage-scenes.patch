@@ -63,6 +63,21 @@ index 864412c..71104a6 100644
  
  /**
   * Socket event names
+diff --git a/packages/foundry-module/src/data-access.create-actor-from-data.test.ts b/packages/foundry-module/src/data-access.create-actor-from-data.test.ts
+index bcaadda..11b9dcc 100644
+--- a/packages/foundry-module/src/data-access.create-actor-from-data.test.ts
++++ b/packages/foundry-module/src/data-access.create-actor-from-data.test.ts
+@@ -148,7 +148,9 @@ describe('FoundryDataAccess.createActorFromData updateExisting', () => {
+     const secondResult = await dataAccess.createActorFromData({
+       actorData: {
+         ...firstImport,
+-        effects: [{ name: 'Blessed', type: 'bonus', changes: [{ key: 'system.value', value: '2' }] }],
++        effects: [
++          { name: 'Blessed', type: 'bonus', changes: [{ key: 'system.value', value: '2' }] },
++        ],
+       },
+       updateExisting: true,
+       existingActorIdentifier: 'Nayeli',
 diff --git a/packages/foundry-module/src/data-access.manage-journals.test.ts b/packages/foundry-module/src/data-access.manage-journals.test.ts
 new file mode 100644
 index 0000000..bad3cea
@@ -887,10 +902,10 @@ index 0000000..f299714
 +});
 diff --git a/packages/foundry-module/src/data-access.scene-objects.test.ts b/packages/foundry-module/src/data-access.scene-objects.test.ts
 new file mode 100644
-index 0000000..d73af65
+index 0000000..0a5a35c
 --- /dev/null
 +++ b/packages/foundry-module/src/data-access.scene-objects.test.ts
-@@ -0,0 +1,435 @@
+@@ -0,0 +1,599 @@
 +/**
 + * manage-scene-objects and preview-scene tests. Foundry is stubbed: these check the data sent
 + * to createEmbeddedDocuments / deleteEmbeddedDocuments, the grid conversion, validation, the
@@ -916,6 +931,7 @@ index 0000000..d73af65
 +    tokens: { contents: [] as any[] },
 +    lights: { contents: [] as any[] },
 +    createEmbeddedDocuments: vi.fn(async (type: string, data: any[]) => {
++      created[type] ??= [];
 +      const docs = data.map((d, i) => ({ id: `${type}-${created[type].length + i}`, ...d }));
 +      created[type].push(...docs);
 +      return docs;
@@ -1043,7 +1059,7 @@ index 0000000..d73af65
 +    });
 +
 +    it.each([
-+      ['an unknown kind', { kind: 'wall', x: 1, y: 1 }, 'kind must be'],
++      ['an unknown kind', { kind: 'dragon', x: 1, y: 1 }, 'kind must be'],
 +      ['a token without an actor', { kind: 'token', x: 1, y: 1 }, 'actor'],
 +      ['an unknown actor', { kind: 'token', actor: 'Dragon', x: 1, y: 1 }, 'Actor not found'],
 +      [
@@ -1326,17 +1342,182 @@ index 0000000..d73af65
 +    await expect(dataAccess.previewScene({ label_every: 0 })).rejects.toThrow('label_every');
 +  });
 +});
++
++describe('FoundryDataAccess.manageSceneObjects walls and map pins', () => {
++  beforeEach(() => vi.unstubAllGlobals());
++  afterEach(() => vi.unstubAllGlobals());
++
++  function withJournal() {
++    const { scene } = makeScene();
++    scene.walls = { contents: [] as any[] };
++    scene.notes = { contents: [] as any[] };
++    const result = setup({ scene });
++    (globalThis as any).game.journal = {
++      contents: [
++        {
++          id: 'j1',
++          name: 'Cragmaw Hideout',
++          pages: {
++            contents: [
++              { id: 'pg1', name: '4. Armoury' },
++              { id: 'pg2', name: '5. Den' },
++            ],
++          },
++        },
++      ],
++    };
++    return { ...result, scene };
++  }
++
++  it('creates walls in pixels, marked as tool-made, in one call', async () => {
++    const { dataAccess, scene } = withJournal();
++
++    const result = await dataAccess.manageSceneObjects({
++      action: 'place',
++      objects: [
++        { kind: 'wall', rect: [1, 1, 2, 2] },
++        {
++          kind: 'wall',
++          points: [
++            [5, 5],
++            [8, 5],
++          ],
++          preset: 'door',
++          door_state: 'locked',
++        },
++      ],
++    });
++
++    const [type, data] = scene.createEmbeddedDocuments.mock.calls[0];
++    expect(type).toBe('Wall');
++    expect(data).toHaveLength(5);
++    expect(data[0]).toMatchObject({ c: [1100, 900, 1300, 900], flags: MINE });
++    expect(data[4]).toMatchObject({ c: [1500, 1300, 1800, 1300], door: 1, ds: 2, flags: MINE });
++    expect(result.created.filter((c: any) => c.kind === 'wall')).toHaveLength(5);
++  });
++
++  it('refuses more than 1000 wall segments and creates nothing', async () => {
++    const { dataAccess, scene } = withJournal();
++    const points = Array.from({ length: 40 }, (_, i) => [i % 2, 0] as [number, number]);
++    const objects = Array.from({ length: 30 }, () => ({ kind: 'wall', points }));
++    await expect(dataAccess.manageSceneObjects({ action: 'place', objects })).rejects.toThrow(
++      'At most 1000 wall segments'
++    );
++    expect(scene.createEmbeddedDocuments).not.toHaveBeenCalled();
++  });
++
++  it('creates a pin linked to a journal page, labelled, in the book icon by default', async () => {
++    const { dataAccess, scene } = withJournal();
++
++    await dataAccess.manageSceneObjects({
++      action: 'place',
++      objects: [
++        { kind: 'note', x: 4.5, y: 2.5, journal: 'cragmaw hideout', page: '4. armoury', text: '4' },
++      ],
++    });
++
++    const [type, data] = scene.createEmbeddedDocuments.mock.calls[0];
++    expect(type).toBe('Note');
++    expect(data[0]).toMatchObject({
++      x: 1450,
++      y: 1050,
++      entryId: 'j1',
++      pageId: 'pg1',
++      text: '4',
++      texture: { src: 'icons/svg/book.svg' },
++      iconSize: 40,
++      global: false,
++      flags: MINE,
++    });
++  });
++
++  it('labels a pin with the journal name when no text is given', async () => {
++    const { dataAccess, scene } = withJournal();
++    await dataAccess.manageSceneObjects({
++      action: 'place',
++      objects: [{ kind: 'note', x: 1, y: 1, journal: 'j1' }],
++    });
++    const note = scene.createEmbeddedDocuments.mock.calls[0][1][0];
++    expect(note.text).toBe('Cragmaw Hideout');
++    expect(note.pageId).toBeUndefined();
++  });
++
++  it.each([
++    ['no journal', { kind: 'note', x: 1, y: 1 }, 'journal (id or exact name) is required'],
++    ['an unknown journal', { kind: 'note', x: 1, y: 1, journal: 'Nope' }, 'Journal not found'],
++    [
++      'an unknown page',
++      { kind: 'note', x: 1, y: 1, journal: 'j1', page: 'zzz' },
++      'not found in journal',
++    ],
++    ['a tiny icon', { kind: 'note', x: 1, y: 1, journal: 'j1', icon_size: 5 }, 'icon_size'],
++    ['a pin outside the scene', { kind: 'note', x: 99, y: 1, journal: 'j1' }, 'outside the scene'],
++  ])('rejects a pin with %s', async (_label, object, message) => {
++    const { dataAccess, scene } = withJournal();
++    await expect(
++      dataAccess.manageSceneObjects({ action: 'place', objects: [object as any] })
++    ).rejects.toThrow(message);
++    expect(scene.createEmbeddedDocuments).not.toHaveBeenCalled();
++  });
++
++  it('describes walls and pins and removes only the tool-made ones', async () => {
++    const { dataAccess, scene } = withJournal();
++    scene.walls.contents = [
++      { id: 'w1', c: [1100, 900, 1300, 900], door: 0, flags: MINE },
++      { id: 'w2', c: [1000, 800, 1000, 900], door: 1, flags: {} },
++    ];
++    scene.notes.contents = [
++      { id: 'n1', x: 1450, y: 1050, text: '4', entryId: 'j1', pageId: 'pg1', flags: MINE },
++    ];
++
++    const described = await dataAccess.manageSceneObjects({ action: 'describe' });
++    expect(described.wallCount).toBe(2);
++    expect(described.walls[0]).toEqual({
++      id: 'w1',
++      from: [1, 1],
++      to: [3, 1],
++      door: null,
++      createdByTool: true,
++    });
++    expect(described.walls[1]).toMatchObject({ door: 'door', createdByTool: false });
++    expect(described.notes[0]).toMatchObject({ x: 4.5, y: 2.5, text: '4', journalId: 'j1' });
++
++    const removed = await dataAccess.manageSceneObjects({ action: 'remove', all_mine: true });
++    expect(scene.deleteEmbeddedDocuments).toHaveBeenCalledWith('Wall', ['w1']);
++    expect(scene.deleteEmbeddedDocuments).toHaveBeenCalledWith('Note', ['n1']);
++    expect(removed.removed).toHaveLength(2);
++  });
++
++  it('counts walls and pins in the preview', async () => {
++    const { dataAccess, scene } = withJournal();
++    scene.walls.contents = [{ id: 'w1', c: [1100, 900, 1300, 900], door: 0, flags: MINE }];
++    scene.notes.contents = [{ id: 'n1', x: 1450, y: 1050, text: '4', flags: MINE }];
++    const ctx: any = new Proxy({}, { get: () => () => undefined, set: () => true });
++    vi.stubGlobal('document', {
++      createElement: () => ({
++        getContext: () => ctx,
++        toDataURL: () => 'data:image/png;base64,QQ==',
++      }),
++    });
++    vi.stubGlobal('Image', class {});
++
++    const result = await dataAccess.previewScene({});
++    expect(result).toMatchObject({ walls: 1, notes: 1 });
++  });
++});
 diff --git a/packages/foundry-module/src/data-access.ts b/packages/foundry-module/src/data-access.ts
-index eecda7e..ba19915 100644
+index eecda7e..9c28acf 100644
 --- a/packages/foundry-module/src/data-access.ts
 +++ b/packages/foundry-module/src/data-access.ts
-@@ -1,5 +1,38 @@
+@@ -1,5 +1,42 @@
  import { MODULE_ID, ERROR_MESSAGES, TOKEN_DISPOSITIONS } from './constants.js';
  import { permissionManager } from './permissions.js';
 +import {
 +  CREATED_BY_FLAG,
 +  assertInsideScene,
++  MAX_WALL_SEGMENTS,
 +  buildLightData,
++  buildWallData,
 +  getGridGeometry,
 +  pixelsToSquares,
 +  squaresToPixels,
@@ -1347,7 +1528,9 @@ index eecda7e..ba19915 100644
 +  drawPreview,
 +  previewScale,
 +  type PreviewLight,
++  type PreviewNote,
 +  type PreviewToken,
++  type PreviewWall,
 +} from './preview-utils.js';
 +import {
 +  OWNERSHIP_LEVELS,
@@ -1369,7 +1552,7 @@ index eecda7e..ba19915 100644
  import { transactionManager } from './transaction-manager.js';
  
  // The same five characters foundry.utils.escapeHTML replaces in v14, kept local because
-@@ -6714,7 +6747,7 @@ export class FoundryDataAccess {
+@@ -6714,7 +6751,7 @@ export class FoundryDataAccess {
  
          // Send socket request to GM
          if (game.socket) {
@@ -1378,7 +1561,7 @@ index eecda7e..ba19915 100644
              type: 'requestMessageUpdate',
              buttonId,
              userId,
-@@ -8101,6 +8134,1123 @@ export class FoundryDataAccess {
+@@ -8101,6 +8138,1230 @@ export class FoundryDataAccess {
      }
    }
  
@@ -1780,11 +1963,37 @@ index eecda7e..ba19915 100644
 +        createdByTool: this.isToolObject(l),
 +      })));
 +    }
++    if (kinds.includes('wall')) {
++      const walls = ((scene.walls?.contents || []) as any[]).map(w => {
++        const a = pixelsToSquares(geom, w.c?.[0], w.c?.[1]);
++        const b = pixelsToSquares(geom, w.c?.[2], w.c?.[3]);
++        return {
++          id: w.id,
++          from: [a.x, a.y],
++          to: [b.x, b.y],
++          door: w.door === 1 ? 'door' : w.door === 2 ? 'secret_door' : null,
++          createdByTool: this.isToolObject(w),
++        };
++      });
++      out.wallCount = walls.length;
++      out.walls = walls.slice(0, 400);
++      if (walls.length > 400) out.wallsTruncated = true;
++    }
++    if (kinds.includes('note')) {
++      out.notes = ((scene.notes?.contents || []) as any[]).map(n => ({
++        id: n.id,
++        ...pixelsToSquares(geom, n.x, n.y),
++        text: n.text ?? '',
++        journalId: n.entryId ?? null,
++        pageId: n.pageId ?? null,
++        createdByTool: this.isToolObject(n),
++      }));
++    }
 +    return out;
 +  }
 +
 +  /**
-+   * Place tokens and lights by grid square, describe what is on a scene, or remove objects
++   * Place tokens, lights, walls and map pins by grid square, describe what is on a scene, or remove objects
 +   * this tool created (never anything else).
 +   */
 +  async manageSceneObjects(options: {
@@ -1793,7 +2002,7 @@ index eecda7e..ba19915 100644
 +    objects?: Array<Record<string, any>>;
 +    ids?: string[];
 +    all_mine?: boolean;
-+    kind?: 'token' | 'light';
++    kind?: 'token' | 'light' | 'wall' | 'note';
 +  }): Promise<any> {
 +    this.validateFoundryState();
 +
@@ -1806,7 +2015,7 @@ index eecda7e..ba19915 100644
 +      const geom = getGridGeometry(scene);
 +
 +      if (action === 'describe') {
-+        const kinds = options.kind ? [options.kind] : ['token', 'light'];
++        const kinds = options.kind ? [options.kind] : ['token', 'light', 'wall', 'note'];
 +        return { success: true, ...this.describeSceneObjects(scene, geom, kinds) };
 +      }
 +
@@ -1826,6 +2035,8 @@ index eecda7e..ba19915 100644
 +
 +        const tokenData: any[] = [];
 +        const lightData: any[] = [];
++        const wallData: any[] = [];
++        const noteData: any[] = [];
 +        const warnings: string[] = [];
 +
 +        specs.forEach((spec, index) => {
@@ -1861,8 +2072,57 @@ index eecda7e..ba19915 100644
 +              ...(spec.elevation !== undefined ? { elevation: Number(spec.elevation) } : {}),
 +              flags: { ...(proto.flags ?? {}), ...flagData },
 +            });
++          } else if (spec.kind === 'wall') {
++            for (const data of buildWallData(spec as any, geom, label)) {
++              wallData.push({ ...data, flags: flagData });
++            }
++            if (wallData.length > MAX_WALL_SEGMENTS) {
++              throw new Error(`At most ${MAX_WALL_SEGMENTS} wall segments per call`);
++            }
++          } else if (spec.kind === 'note') {
++            assertInsideScene(geom, spec.x, spec.y, label);
++            if (!spec.journal || typeof spec.journal !== 'string') {
++              throw new Error(`${label}: journal (id or exact name) is required for a map pin`);
++            }
++            const journal = this.findJournalByIdentifier(spec.journal);
++            let pageId: string | undefined;
++            if (spec.page !== undefined) {
++              const pages = (journal.pages?.contents || []) as any[];
++              const wantedPage = String(spec.page).trim().toLowerCase();
++              const matches = pages.filter(
++                p => p.id === spec.page || String(p.name ?? '').toLowerCase() === wantedPage
++              );
++              if (matches.length === 0) {
++                throw new Error(`${label}: page "${spec.page}" not found in journal "${journal.name}"`);
++              }
++              if (matches.length > 1) {
++                throw new Error(`${label}: several pages match "${spec.page}"; use the page id`);
++              }
++              pageId = matches[0].id;
++            }
++            const position = squaresToPixels(geom, spec.x, spec.y);
++            const size = spec.icon_size === undefined ? 40 : Number(spec.icon_size);
++            const fontSize = spec.font_size === undefined ? 32 : Number(spec.font_size);
++            if (!Number.isFinite(size) || size < 32 || size > 512) {
++              throw new Error(`${label}: icon_size must be a number from 32 to 512`);
++            }
++            if (!Number.isFinite(fontSize) || fontSize < 8 || fontSize > 128) {
++              throw new Error(`${label}: font_size must be a number from 8 to 128`);
++            }
++            noteData.push({
++              x: position.x,
++              y: position.y,
++              entryId: journal.id,
++              ...(pageId ? { pageId } : {}),
++              text: spec.text === undefined ? journal.name : String(spec.text),
++              texture: { src: spec.icon ? String(spec.icon) : 'icons/svg/book.svg' },
++              iconSize: size,
++              fontSize,
++              global: !!spec.global,
++              flags: flagData,
++            });
 +          } else {
-+            throw new Error(`${label}: kind must be "token" or "light"`);
++            throw new Error(`${label}: kind must be "token", "light", "wall" or "note"`);
 +          }
 +        });
 +
@@ -1877,6 +2137,20 @@ index eecda7e..ba19915 100644
 +          const docs = (await scene.createEmbeddedDocuments('AmbientLight', lightData)) as any[];
 +          for (const doc of docs ?? []) {
 +            created.push({ kind: 'light', id: doc.id, ...pixelsToSquares(geom, doc.x, doc.y) });
++          }
++        }
++
++        if (wallData.length > 0) {
++          const docs = (await scene.createEmbeddedDocuments('Wall', wallData)) as any[];
++          for (const doc of docs ?? []) {
++            const a = pixelsToSquares(geom, doc.c?.[0], doc.c?.[1]);
++            created.push({ kind: 'wall', id: doc.id, ...a });
++          }
++        }
++        if (noteData.length > 0) {
++          const docs = (await scene.createEmbeddedDocuments('Note', noteData)) as any[];
++          for (const doc of docs ?? []) {
++            created.push({ kind: 'note', id: doc.id, ...pixelsToSquares(geom, doc.x, doc.y) });
 +          }
 +        }
 +
@@ -1895,12 +2169,16 @@ index eecda7e..ba19915 100644
 +      if (!options.all_mine && ids.length === 0) {
 +        throw new Error('Pass ids, or all_mine: true, to say what to remove');
 +      }
-+      const kinds: Array<'token' | 'light'> = options.kind ? [options.kind] : ['token', 'light'];
++      const kinds: Array<'token' | 'light' | 'wall' | 'note'> = options.kind
++        ? [options.kind]
++        : ['token', 'light', 'wall', 'note'];
 +      const removed: Array<{ kind: string; id: string }> = [];
 +      const skipped: Array<{ id: string; reason: string }> = [];
 +      const collections: Record<string, { collection: any; documentName: string }> = {
 +        token: { collection: scene.tokens, documentName: 'Token' },
 +        light: { collection: scene.lights, documentName: 'AmbientLight' },
++        wall: { collection: scene.walls, documentName: 'Wall' },
++        note: { collection: scene.notes, documentName: 'Note' },
 +      };
 +
 +      const wanted = new Set(ids);
@@ -2017,12 +2295,22 @@ index eecda7e..ba19915 100644
 +        };
 +      }));
 +
++      const walls: PreviewWall[] = ((scene.walls?.contents || []) as any[]).map(w => {
++        const a = pixelsToSquares(geom, w.c?.[0], w.c?.[1]);
++        const b = pixelsToSquares(geom, w.c?.[2], w.c?.[3]);
++        return { x1: a.x, y1: a.y, x2: b.x, y2: b.y, door: Number(w.door ?? 0) };
++      });
++      const notes: PreviewNote[] = ((scene.notes?.contents || []) as any[]).map(n => ({
++        ...pixelsToSquares(geom, n.x, n.y),
++        text: String(n.text ?? ''),
++      }));
++
 +      const canvas = document.createElement('canvas');
 +      canvas.width = Math.round(geom.sceneWidth * scale);
 +      canvas.height = Math.round(geom.sceneHeight * scale);
 +      const ctx = canvas.getContext('2d');
 +      if (!ctx) throw new Error('This browser cannot draw the preview');
-+      const size = drawPreview(ctx, { geom, scale, labelEvery, tokens, lights, image });
++      const size = drawPreview(ctx, { geom, scale, labelEvery, tokens, lights, walls, notes, image });
 +
 +      let dataUrl: string;
 +      try {
@@ -2044,6 +2332,8 @@ index eecda7e..ba19915 100644
 +        grid: { columns: geom.columns, rows: geom.rows },
 +        tokens: tokens.length,
 +        lights: lights.length,
++        walls: walls.length,
++        notes: notes.length,
 +        ...(warnings.length > 0 ? { warnings } : {}),
 +      };
 +    } catch (error) {
@@ -2964,10 +3254,10 @@ index 9024ead..b6ea882 100644
          if (data.type === 'requestMessageUpdate' && data.buttonId && data.messageId) {
 diff --git a/packages/foundry-module/src/preview-utils.test.ts b/packages/foundry-module/src/preview-utils.test.ts
 new file mode 100644
-index 0000000..bdcefbe
+index 0000000..6c07727
 --- /dev/null
 +++ b/packages/foundry-module/src/preview-utils.test.ts
-@@ -0,0 +1,105 @@
+@@ -0,0 +1,168 @@
 +import { describe, expect, it, vi } from 'vitest';
 +import { defaultLabelEvery, drawPreview, previewScale } from './preview-utils.js';
 +import type { GridGeometry } from './scene-objects-utils.js';
@@ -2995,6 +3285,7 @@ index 0000000..bdcefbe
 +    fillRect: vi.fn(),
 +    drawImage: vi.fn(),
 +    beginPath: vi.fn(),
++    closePath: vi.fn(),
 +    moveTo: vi.fn((x: number, y: number) => {
 +      from = [x, y];
 +    }),
@@ -3073,12 +3364,74 @@ index 0000000..bdcefbe
 +    expect(ctx.drawImage).not.toHaveBeenCalled();
 +  });
 +});
++
++describe('drawPreview walls and pins', () => {
++  it('draws walls as lines, doors in orange and pins with their label', () => {
++    const ctx = fakeContext();
++    const strokes: string[] = [];
++    Object.defineProperty(ctx, 'strokeStyle', {
++      set: (v: string) => strokes.push(v),
++      get: () => '',
++    });
++    drawPreview(ctx, {
++      geom,
++      scale: 1,
++      labelEvery: 5,
++      tokens: [],
++      lights: [],
++      walls: [
++        { x1: 0, y1: 0, x2: 3, y2: 0, door: 0 },
++        { x1: 3, y1: 0, x2: 3, y2: 2, door: 1 },
++        { x1: 3, y1: 2, x2: 0, y2: 2, door: 2 },
++      ],
++      notes: [{ x: 5, y: 2, text: '4. Armoury' }],
++    });
++
++    expect(ctx.lines).toContainEqual([0, 0, 300, 0]);
++    expect(ctx.lines).toContainEqual([300, 0, 300, 200]);
++    expect(strokes).toContain('#00e5ff');
++    expect(strokes).toContain('#ff9500');
++    expect(ctx.setLineDash).toHaveBeenCalledWith([5, 4]);
++    expect(ctx.texts.some((t: any) => t.text === '4. Armoury' && t.x === 500)).toBe(true);
++  });
++});
++
++describe('drawPreview walls and pins', () => {
++  it('draws walls as lines, doors in orange and pins with their label', () => {
++    const ctx = fakeContext();
++    const strokes: string[] = [];
++    Object.defineProperty(ctx, 'strokeStyle', {
++      set: (v: string) => strokes.push(v),
++      get: () => '',
++    });
++    drawPreview(ctx, {
++      geom,
++      scale: 1,
++      labelEvery: 5,
++      tokens: [],
++      lights: [],
++      walls: [
++        { x1: 0, y1: 0, x2: 3, y2: 0, door: 0 },
++        { x1: 3, y1: 0, x2: 3, y2: 2, door: 1 },
++        { x1: 3, y1: 2, x2: 0, y2: 2, door: 2 },
++      ],
++      notes: [{ x: 5, y: 2, text: '4. Armoury' }],
++    });
++
++    expect(ctx.lines).toContainEqual([0, 0, 300, 0]);
++    expect(ctx.lines).toContainEqual([300, 0, 300, 200]);
++    expect(strokes).toContain('#00e5ff');
++    expect(strokes).toContain('#ff9500');
++    expect(ctx.setLineDash).toHaveBeenCalledWith([5, 4]);
++    expect(ctx.texts.some((t: any) => t.text === '4. Armoury' && t.x === 500)).toBe(true);
++  });
++});
 diff --git a/packages/foundry-module/src/preview-utils.ts b/packages/foundry-module/src/preview-utils.ts
 new file mode 100644
-index 0000000..bd53102
+index 0000000..8854585
 --- /dev/null
 +++ b/packages/foundry-module/src/preview-utils.ts
-@@ -0,0 +1,158 @@
+@@ -0,0 +1,208 @@
 +/**
 + * Drawing for preview-scene: the scene image with a numbered grid and the scene's tokens
 + * and lights on top, so positions can be read in grid squares. Works on any 2D context, so
@@ -3107,6 +3460,22 @@ index 0000000..bd53102
 +  color?: string | undefined;
 +}
 +
++export interface PreviewWall {
++  /** End points in grid squares. */
++  x1: number;
++  y1: number;
++  x2: number;
++  y2: number;
++  /** 0 none, 1 door, 2 secret door. */
++  door: number;
++}
++
++export interface PreviewNote {
++  x: number;
++  y: number;
++  text: string;
++}
++
 +export interface PreviewOptions {
 +  geom: GridGeometry;
 +  /** Output pixels per scene pixel. */
@@ -3115,6 +3484,8 @@ index 0000000..bd53102
 +  labelEvery: number;
 +  tokens: PreviewToken[];
 +  lights: PreviewLight[];
++  walls?: PreviewWall[];
++  notes?: PreviewNote[];
 +  /** Image to draw behind the grid; omit for a plain grey background. */
 +  image?: unknown;
 +}
@@ -3190,6 +3561,35 @@ index 0000000..bd53102
 +    ctx.stroke();
 +  }
 +
++  // Walls: cyan; doors orange; secret doors dashed orange.
++  for (const wall of options.walls ?? []) {
++    ctx.lineWidth = 3;
++    ctx.strokeStyle = wall.door ? '#ff9500' : '#00e5ff';
++    ctx.setLineDash(wall.door === 2 ? [5, 4] : []);
++    ctx.beginPath();
++    ctx.moveTo(wall.x1 * square, wall.y1 * square);
++    ctx.lineTo(wall.x2 * square, wall.y2 * square);
++    ctx.stroke();
++  }
++  ctx.setLineDash([]);
++
++  // Map pins: yellow diamonds.
++  for (const note of options.notes ?? []) {
++    const cx = note.x * square;
++    const cy = note.y * square;
++    ctx.fillStyle = '#ffd60a';
++    ctx.strokeStyle = '#000000';
++    ctx.lineWidth = 1.5;
++    ctx.beginPath();
++    ctx.moveTo(cx, cy - 8);
++    ctx.lineTo(cx + 8, cy);
++    ctx.lineTo(cx, cy + 8);
++    ctx.lineTo(cx - 8, cy);
++    ctx.closePath();
++    ctx.fill();
++    ctx.stroke();
++  }
++
 +  // Tokens.
 +  for (const token of tokens) {
 +    const left = token.x * square;
@@ -3226,6 +3626,9 @@ index 0000000..bd53102
 +    const y = (row + 0.5) * square;
 +    label(String(row), fontSize, y);
 +    label(String(row), width - fontSize, y);
++  }
++  for (const note of options.notes ?? []) {
++    if (note.text) label(note.text, note.x * square, note.y * square - 16);
 +  }
 +  for (const token of tokens) {
 +    label(
@@ -3372,13 +3775,14 @@ index 9fe02ba..cc74f85 100644
        const gmCheck = this.validateGMAccess();
 diff --git a/packages/foundry-module/src/scene-objects-utils.test.ts b/packages/foundry-module/src/scene-objects-utils.test.ts
 new file mode 100644
-index 0000000..6180ba3
+index 0000000..6605914
 --- /dev/null
 +++ b/packages/foundry-module/src/scene-objects-utils.test.ts
-@@ -0,0 +1,132 @@
+@@ -0,0 +1,421 @@
 +import { describe, expect, it } from 'vitest';
 +import {
 +  assertInsideScene,
++  buildWallData,
 +  buildLightData,
 +  getGridGeometry,
 +  pixelsToSquares,
@@ -3508,12 +3912,300 @@ index 0000000..6180ba3
 +    expect(() => buildLightData(spec as any, geom, 'l')).toThrow(message);
 +  });
 +});
++
++describe('walls', () => {
++  const geom = getGridGeometry(scene());
++
++  it('turns a chain of points into pixel segments that meet end to end', () => {
++    const data = buildWallData(
++      {
++        points: [
++          [0, 0],
++          [2, 0],
++          [2, 3],
++        ],
++      },
++      geom,
++      'w'
++    );
++    expect(data).toEqual([
++      {
++        c: [1000, 800, 1200, 800],
++        move: 20,
++        light: 20,
++        sight: 20,
++        sound: 20,
++        dir: 0,
++        door: 0,
++        ds: 0,
++      },
++      {
++        c: [1200, 800, 1200, 1100],
++        move: 20,
++        light: 20,
++        sight: 20,
++        sound: 20,
++        dir: 0,
++        door: 0,
++        ds: 0,
++      },
++    ]);
++  });
++
++  it('closes a loop and builds a rectangle as four walls', () => {
++    expect(
++      buildWallData(
++        {
++          points: [
++            [0, 0],
++            [1, 0],
++            [1, 1],
++          ],
++          closed: true,
++        },
++        geom,
++        'w'
++      )
++    ).toHaveLength(3);
++    const rect = buildWallData({ rect: [1, 1, 2, 3] }, geom, 'w');
++    expect(rect.map(w => w.c)).toEqual([
++      [1100, 900, 1300, 900],
++      [1300, 900, 1300, 1200],
++      [1300, 1200, 1100, 1200],
++      [1100, 1200, 1100, 900],
++    ]);
++  });
++
++  it('applies presets: doors, secret doors, invisible walls and windows', () => {
++    const one = (spec: any) =>
++      buildWallData(
++        {
++          points: [
++            [0, 0],
++            [1, 0],
++          ],
++          ...spec,
++        },
++        geom,
++        'w'
++      )[0];
++    expect(one({ preset: 'door' })).toMatchObject({ door: 1, ds: 0, move: 20, sight: 20 });
++    expect(one({ preset: 'door', door_state: 'locked' })).toMatchObject({ door: 1, ds: 2 });
++    expect(one({ preset: 'secret_door', door_state: 'open' })).toMatchObject({ door: 2, ds: 1 });
++    expect(one({ preset: 'invisible' })).toMatchObject({
++      move: 20,
++      light: 0,
++      sight: 0,
++      sound: 0,
++      door: 0,
++    });
++    expect(one({ preset: 'window' })).toMatchObject({ move: 20, light: 0, sight: 0, sound: 20 });
++  });
++
++  it.each([
++    ['neither points nor rect', {}, 'either points or rect'],
++    [
++      'both points and rect',
++      {
++        points: [
++          [0, 0],
++          [1, 1],
++        ],
++        rect: [0, 0, 1, 1],
++      },
++      'either points or rect',
++    ],
++    ['one point', { points: [[0, 0]] }, 'at least two'],
++    ['a malformed point', { points: [[0, 0], [1]] }, 'must be [x, y]'],
++    [
++      'a point outside the scene',
++      {
++        points: [
++          [0, 0],
++          [99, 1],
++        ],
++      },
++      'outside the scene',
++    ],
++    [
++      'a zero-length segment',
++      {
++        points: [
++          [1, 1],
++          [1, 1],
++        ],
++      },
++      'the same',
++    ],
++    ['an empty rectangle', { rect: [0, 0, 0, 2] }, 'positive'],
++    ['a rectangle outside the scene', { rect: [0, 0, 99, 2] }, 'outside the scene'],
++    [
++      'an unknown preset',
++      {
++        points: [
++          [0, 0],
++          [1, 0],
++        ],
++        preset: 'lava',
++      },
++      'preset must be',
++    ],
++    [
++      'door_state on a plain wall',
++      {
++        points: [
++          [0, 0],
++          [1, 0],
++        ],
++        door_state: 'open',
++      },
++      'only applies',
++    ],
++    [
++      'a bad door_state',
++      {
++        points: [
++          [0, 0],
++          [1, 0],
++        ],
++        preset: 'door',
++        door_state: 'ajar',
++      },
++      'door_state must be',
++    ],
++  ])('rejects %s', (_label, spec, message) => {
++    expect(() => buildWallData(spec as any, geom, 'w')).toThrow(message);
++  });
++});
++
++describe('walls', () => {
++  const geom = getGridGeometry(scene());
++
++  it('turns a chain of points into pixel segments that meet end to end', () => {
++    const data = buildWallData(
++      {
++        points: [
++          [0, 0],
++          [2, 0],
++          [2, 3],
++        ],
++      },
++      geom,
++      'w'
++    );
++    expect(data).toEqual([
++      {
++        c: [1000, 800, 1200, 800],
++        move: 20,
++        light: 20,
++        sight: 20,
++        sound: 20,
++        dir: 0,
++        door: 0,
++        ds: 0,
++      },
++      {
++        c: [1200, 800, 1200, 1100],
++        move: 20,
++        light: 20,
++        sight: 20,
++        sound: 20,
++        dir: 0,
++        door: 0,
++        ds: 0,
++      },
++    ]);
++  });
++
++  it('closes a loop and builds a rectangle as four walls', () => {
++    const triangle = {
++      points: [
++        [0, 0],
++        [1, 0],
++        [1, 1],
++      ] as Array<[number, number]>,
++      closed: true,
++    };
++    expect(buildWallData(triangle, geom, 'w')).toHaveLength(3);
++    const rect = buildWallData({ rect: [1, 1, 2, 3] }, geom, 'w');
++    expect(rect.map(w => w.c)).toEqual([
++      [1100, 900, 1300, 900],
++      [1300, 900, 1300, 1200],
++      [1300, 1200, 1100, 1200],
++      [1100, 1200, 1100, 900],
++    ]);
++  });
++
++  it('applies presets: doors, secret doors, invisible walls and windows', () => {
++    const one = (spec: any) =>
++      buildWallData(
++        {
++          points: [
++            [0, 0],
++            [1, 0],
++          ],
++          ...spec,
++        },
++        geom,
++        'w'
++      )[0];
++    expect(one({ preset: 'door' })).toMatchObject({ door: 1, ds: 0, move: 20, sight: 20 });
++    expect(one({ preset: 'door', door_state: 'locked' })).toMatchObject({ door: 1, ds: 2 });
++    expect(one({ preset: 'secret_door', door_state: 'open' })).toMatchObject({ door: 2, ds: 1 });
++    expect(one({ preset: 'invisible' })).toMatchObject({
++      move: 20,
++      light: 0,
++      sight: 0,
++      sound: 0,
++      door: 0,
++    });
++    expect(one({ preset: 'window' })).toMatchObject({ move: 20, light: 0, sight: 0, sound: 20 });
++  });
++
++  const two = [
++    [0, 0],
++    [1, 0],
++  ];
++  it.each([
++    ['neither points nor rect', {}, 'either points or rect'],
++    ['both points and rect', { points: two, rect: [0, 0, 1, 1] }, 'either points or rect'],
++    ['one point', { points: [[0, 0]] }, 'at least two'],
++    ['a malformed point', { points: [[0, 0], [1]] }, 'must be [x, y]'],
++    [
++      'a point outside the scene',
++      {
++        points: [
++          [0, 0],
++          [99, 1],
++        ],
++      },
++      'outside the scene',
++    ],
++    [
++      'a zero-length segment',
++      {
++        points: [
++          [1, 1],
++          [1, 1],
++        ],
++      },
++      'the same',
++    ],
++    ['an empty rectangle', { rect: [0, 0, 0, 2] }, 'positive'],
++    ['a rectangle outside the scene', { rect: [0, 0, 99, 2] }, 'outside the scene'],
++    ['an unknown preset', { points: two, preset: 'lava' }, 'preset must be'],
++    ['door_state on a plain wall', { points: two, door_state: 'open' }, 'only applies'],
++    ['a bad door_state', { points: two, preset: 'door', door_state: 'ajar' }, 'door_state must be'],
++  ])('rejects %s', (_label, spec, message) => {
++    expect(() => buildWallData(spec as any, geom, 'w')).toThrow(message);
++  });
++});
 diff --git a/packages/foundry-module/src/scene-objects-utils.ts b/packages/foundry-module/src/scene-objects-utils.ts
 new file mode 100644
-index 0000000..19e3176
+index 0000000..760d837
 --- /dev/null
 +++ b/packages/foundry-module/src/scene-objects-utils.ts
-@@ -0,0 +1,224 @@
+@@ -0,0 +1,349 @@
 +/**
 + * Pure helpers for manage-scene-objects and preview-scene: grid geometry, converting grid
 + * squares to scene pixels, and building light data. No Foundry globals, so they can be tested.
@@ -3738,6 +4430,131 @@ index 0000000..19e3176
 +}
 +
 +export { LIGHT_ANIMATIONS };
++
++// ===== WALLS =====
++
++/** What a wall blocks, by preset. Values are Foundry's wall restriction types (0 none, 20 normal). */
++export const WALL_PRESETS = ['wall', 'door', 'secret_door', 'invisible', 'window'] as const;
++export type WallPreset = (typeof WALL_PRESETS)[number];
++export const DOOR_STATES = ['closed', 'open', 'locked'] as const;
++
++/** At most this many wall segments in one call. */
++export const MAX_WALL_SEGMENTS = 1000;
++
++export interface WallSpec {
++  /** A chain of points in grid squares: [[x1, y1], [x2, y2], ...]; each pair becomes a wall. */
++  points?: Array<[number, number]>;
++  /** A rectangle in grid squares: [x, y, width, height]; becomes four walls. */
++  rect?: [number, number, number, number];
++  /** Join the last point back to the first (points only). */
++  closed?: boolean;
++  preset?: WallPreset;
++  /** For doors: closed (default), open or locked. */
++  door_state?: (typeof DOOR_STATES)[number];
++}
++
++export interface WallSegment {
++  x1: number;
++  y1: number;
++  x2: number;
++  y2: number;
++}
++
++/** Turn a spec into line segments in grid squares, validating every point. */
++export function wallSegments(spec: WallSpec, geom: GridGeometry, label: string): WallSegment[] {
++  if ((spec.points === undefined) === (spec.rect === undefined)) {
++    throw new Error(`${label}: give either points or rect`);
++  }
++  let chain: Array<[number, number]>;
++  if (spec.rect !== undefined) {
++    if (!Array.isArray(spec.rect) || spec.rect.length !== 4) {
++      throw new Error(`${label}: rect must be [x, y, width, height]`);
++    }
++    const [x, y, w, h] = spec.rect;
++    if (typeof w !== 'number' || typeof h !== 'number' || !(w > 0) || !(h > 0)) {
++      throw new Error(`${label}: rect width and height must be positive numbers`);
++    }
++    chain = [
++      [x, y],
++      [x + w, y],
++      [x + w, y + h],
++      [x, y + h],
++    ];
++    assertInsideScene(geom, x, y, label);
++    assertInsideScene(geom, x + w, y + h, label);
++    return chain.map((point, i) => {
++      const next = chain[(i + 1) % chain.length];
++      return { x1: point[0], y1: point[1], x2: next[0], y2: next[1] };
++    });
++  }
++
++  chain = spec.points as Array<[number, number]>;
++  if (!Array.isArray(chain) || chain.length < 2) {
++    throw new Error(`${label}: points needs at least two [x, y] points`);
++  }
++  chain.forEach((point, i) => {
++    if (!Array.isArray(point) || point.length !== 2) {
++      throw new Error(`${label}: points[${i}] must be [x, y]`);
++    }
++    assertInsideScene(geom, point[0], point[1], `${label} points[${i}]`);
++  });
++  const segments: WallSegment[] = [];
++  const count = spec.closed ? chain.length : chain.length - 1;
++  for (let i = 0; i < count; i++) {
++    const a = chain[i];
++    const b = chain[(i + 1) % chain.length];
++    if (a[0] === b[0] && a[1] === b[1]) {
++      throw new Error(`${label}: points[${i}] and the next point are the same`);
++    }
++    segments.push({ x1: a[0], y1: a[1], x2: b[0], y2: b[1] });
++  }
++  return segments;
++}
++
++/** Foundry wall data for each segment: pixels, restrictions and door settings. */
++export function buildWallData(
++  spec: WallSpec,
++  geom: GridGeometry,
++  label: string
++): Array<Record<string, any>> {
++  const preset = spec.preset ?? 'wall';
++  if (!(WALL_PRESETS as readonly string[]).includes(preset)) {
++    throw new Error(`${label}: preset must be one of ${WALL_PRESETS.join(', ')}`);
++  }
++  if (spec.door_state !== undefined) {
++    if (!(DOOR_STATES as readonly string[]).includes(spec.door_state)) {
++      throw new Error(`${label}: door_state must be closed, open or locked`);
++    }
++    if (preset !== 'door' && preset !== 'secret_door') {
++      throw new Error(`${label}: door_state only applies to door and secret_door`);
++    }
++  }
++
++  const restrictions: Record<
++    WallPreset,
++    { move: number; light: number; sight: number; sound: number }
++  > = {
++    wall: { move: 20, light: 20, sight: 20, sound: 20 },
++    door: { move: 20, light: 20, sight: 20, sound: 20 },
++    secret_door: { move: 20, light: 20, sight: 20, sound: 20 },
++    invisible: { move: 20, light: 0, sight: 0, sound: 0 },
++    window: { move: 20, light: 0, sight: 0, sound: 20 },
++  };
++  const door = preset === 'door' ? 1 : preset === 'secret_door' ? 2 : 0;
++  const stateCode = { closed: 0, open: 1, locked: 2 }[spec.door_state ?? 'closed'];
++
++  return wallSegments(spec, geom, label).map(segment => {
++    const a = squaresToPixels(geom, segment.x1, segment.y1);
++    const b = squaresToPixels(geom, segment.x2, segment.y2);
++    return {
++      c: [a.x, a.y, b.x, b.y],
++      ...restrictions[preset],
++      dir: 0,
++      door,
++      ds: door ? stateCode : 0,
++    };
++  });
++}
 diff --git a/packages/foundry-module/src/upload-utils.test.ts b/packages/foundry-module/src/upload-utils.test.ts
 new file mode 100644
 index 0000000..909b7f5
@@ -4350,10 +5167,10 @@ index 0000000..942a444
 +}
 diff --git a/packages/mcp-server/src/tools/scene-objects.test.ts b/packages/mcp-server/src/tools/scene-objects.test.ts
 new file mode 100644
-index 0000000..0030e31
+index 0000000..cccced7
 --- /dev/null
 +++ b/packages/mcp-server/src/tools/scene-objects.test.ts
-@@ -0,0 +1,135 @@
+@@ -0,0 +1,200 @@
 +import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 +import { promises as fs } from 'fs';
 +import { SceneObjectTools } from './scene-objects.js';
@@ -4489,12 +5306,77 @@ index 0000000..0030e31
 +    expect(query).not.toHaveBeenCalled();
 +  });
 +});
++
++describe('walls and pins in manage-scene-objects', () => {
++  it('forwards walls and pins untouched', async () => {
++    const { tools, query } = makeTools();
++    const objects = [
++      { kind: 'wall', rect: [1, 1, 4, 3] },
++      {
++        kind: 'wall',
++        points: [
++          [0, 0],
++          [5, 0],
++        ],
++        preset: 'door',
++        door_state: 'locked',
++      },
++      { kind: 'note', x: 2.5, y: 2.5, journal: 'Hideout', page: '4', text: '4' },
++    ];
++    await tools.handleManageSceneObjects({ action: 'place', objects });
++    expect(query.mock.calls[0][1].objects).toEqual(objects);
++  });
++
++  it.each([
++    ['a wall with neither points nor rect', { kind: 'wall' }],
++    [
++      'a wall with both',
++      {
++        kind: 'wall',
++        points: [
++          [0, 0],
++          [1, 1],
++        ],
++        rect: [0, 0, 1, 1],
++      },
++    ],
++    ['a wall with one point', { kind: 'wall', points: [[0, 0]] }],
++    ['closed on a rectangle', { kind: 'wall', rect: [0, 0, 1, 1], closed: true }],
++    ['an empty rectangle', { kind: 'wall', rect: [0, 0, 0, 1] }],
++    [
++      'an unknown preset',
++      {
++        kind: 'wall',
++        points: [
++          [0, 0],
++          [1, 1],
++        ],
++        preset: 'lava',
++      },
++    ],
++    ['a pin without a journal', { kind: 'note', x: 1, y: 1 }],
++    ['a pin with a tiny icon', { kind: 'note', x: 1, y: 1, journal: 'j', icon_size: 4 }],
++  ])('rejects %s before contacting Foundry', async (_label, object) => {
++    const { tools, query } = makeTools();
++    await expect(
++      tools.handleManageSceneObjects({ action: 'place', objects: [object] })
++    ).rejects.toThrow();
++    expect(query).not.toHaveBeenCalled();
++  });
++
++  it('lets describe and remove target walls and pins', async () => {
++    const { tools, query } = makeTools();
++    await tools.handleManageSceneObjects({ action: 'describe', kind: 'wall' });
++    await tools.handleManageSceneObjects({ action: 'remove', all_mine: true, kind: 'note' });
++    expect(query).toHaveBeenCalledTimes(2);
++  });
++});
 diff --git a/packages/mcp-server/src/tools/scene-objects.ts b/packages/mcp-server/src/tools/scene-objects.ts
 new file mode 100644
-index 0000000..f596ebf
+index 0000000..798e87d
 --- /dev/null
 +++ b/packages/mcp-server/src/tools/scene-objects.ts
-@@ -0,0 +1,277 @@
+@@ -0,0 +1,358 @@
 +import { promises as fs } from 'fs';
 +import os from 'os';
 +import path from 'path';
@@ -4543,7 +5425,48 @@ index 0000000..f596ebf
 +  })
 +  .strict();
 +
-+const objectSchema = z.discriminatedUnion('kind', [tokenSchema, lightSchema]);
++const point = z.tuple([z.number().finite(), z.number().finite()]);
++
++const wallSchema = z
++  .object({
++    kind: z.literal('wall'),
++    points: z.array(point).min(2).max(1001).optional(),
++    rect: z
++      .tuple([
++        z.number().finite(),
++        z.number().finite(),
++        z.number().positive(),
++        z.number().positive(),
++      ])
++      .optional(),
++    closed: z.boolean().optional(),
++    preset: z.enum(['wall', 'door', 'secret_door', 'invisible', 'window']).optional(),
++    door_state: z.enum(['closed', 'open', 'locked']).optional(),
++  })
++  .strict()
++  .refine(w => (w.points === undefined) !== (w.rect === undefined), {
++    message: 'a wall needs either points or rect',
++  })
++  .refine(w => w.closed === undefined || w.points !== undefined, {
++    message: 'closed only applies to points',
++  });
++
++const noteSchema = z
++  .object({
++    kind: z.literal('note'),
++    x: z.number().finite(),
++    y: z.number().finite(),
++    journal: z.string().min(1),
++    page: z.string().min(1).optional(),
++    text: z.string().optional(),
++    icon: z.string().min(1).optional(),
++    icon_size: z.number().min(32).max(512).optional(),
++    font_size: z.number().min(8).max(128).optional(),
++    global: z.boolean().optional(),
++  })
++  .strict();
++
++const objectSchema = z.union([tokenSchema, lightSchema, wallSchema, noteSchema]);
 +
 +const sceneObjectsSchema = z
 +  .object({
@@ -4552,7 +5475,7 @@ index 0000000..f596ebf
 +    objects: z.array(objectSchema).min(1).max(200).optional(),
 +    ids: z.array(z.string().min(1)).max(500).optional(),
 +    all_mine: z.boolean().optional(),
-+    kind: z.enum(['token', 'light']).optional(),
++    kind: z.enum(['token', 'light', 'wall', 'note']).optional(),
 +  })
 +  .strict();
 +
@@ -4578,10 +5501,10 @@ index 0000000..f596ebf
 +      {
 +        name: 'manage-scene-objects',
 +        description:
-+          'Place tokens and lights on a scene by grid square, describe what is on a scene, or remove objects this tool created (it never removes anything else). ' +
++          'Place tokens, lights, walls and map pins on a scene by grid square, describe what is on a scene, or remove objects this tool created (it never removes anything else). ' +
 +          'Positions are in GRID SQUARES from the top-left corner of the map image: (0, 0) is the top-left corner of the first square, (2.5, 1.5) the centre of the square in column 2, row 1 (counting from 0). ' +
 +          'Use preview-scene first to see the numbered grid. describe returns the scene grid size so you know the valid range. ' +
-+          'place takes objects (up to 200): {kind:"token", actor, x, y} puts the actor\'s token with its top-left corner at that square (use whole numbers; actor is an id or exact name); {kind:"light", x, y, bright, dim} makes a light at that point with radii in squares (optional color, alpha, angle, rotation, animation, hidden). ' +
++          'place takes objects (up to 200): {kind:"token", actor, x, y} puts the actor\'s token with its top-left corner at that square (use whole numbers; actor is an id or exact name); {kind:"light", x, y, bright, dim} makes a light at that point with radii in squares (optional color, alpha, angle, rotation, animation, hidden); {kind:"wall", points:[[x1,y1],[x2,y2],...]} draws walls along a chain of points (add closed:true to join the ends) or {kind:"wall", rect:[x,y,width,height]} draws the four walls of a rectangle, with preset wall (default), door, secret_door, invisible (blocks movement only) or window (blocks movement, lets light and sight through), and for doors door_state closed, open or locked; {kind:"note", x, y, journal, page?, text?} puts a map pin (the label text defaults to the journal name) that opens that journal or page when clicked; pins are only seen by players who may read the journal unless global is true. Use whole or half squares for wall points and make wall ends meet exactly, otherwise light and sight leak through gaps. ' +
 +          'remove needs ids or all_mine:true (optionally with kind) and only removes objects created by this tool. scene is an id or exact name; it defaults to the scene the GM is viewing.',
 +        inputSchema: {
 +          type: 'object',
@@ -4598,7 +5521,7 @@ index 0000000..f596ebf
 +              items: {
 +                type: 'object',
 +                properties: {
-+                  kind: { type: 'string', enum: ['token', 'light'] },
++                  kind: { type: 'string', enum: ['token', 'light', 'wall', 'note'] },
 +                  x: { type: 'number', description: 'Grid squares from the left edge of the map' },
 +                  y: { type: 'number', description: 'Grid squares from the top edge of the map' },
 +                  actor: { type: 'string', description: 'token: actor id or exact name' },
@@ -4627,8 +5550,48 @@ index 0000000..f596ebf
 +                    description: 'light: animation type such as torch, pulse, ghost, wave, fog',
 +                  },
 +                  label: { type: 'string', description: 'light: note for yourself (not stored)' },
++                  points: {
++                    type: 'array',
++                    items: { type: 'array', items: { type: 'number' }, minItems: 2, maxItems: 2 },
++                    description:
++                      'wall: chain of [x, y] points in grid squares; each pair becomes a wall',
++                  },
++                  rect: {
++                    type: 'array',
++                    items: { type: 'number' },
++                    minItems: 4,
++                    maxItems: 4,
++                    description: 'wall: rectangle [x, y, width, height] in grid squares',
++                  },
++                  closed: {
++                    type: 'boolean',
++                    description: 'wall: join the last point to the first',
++                  },
++                  preset: {
++                    type: 'string',
++                    enum: ['wall', 'door', 'secret_door', 'invisible', 'window'],
++                    description: 'wall: type (default wall)',
++                  },
++                  door_state: {
++                    type: 'string',
++                    enum: ['closed', 'open', 'locked'],
++                    description: 'wall: for door and secret_door (default closed)',
++                  },
++                  journal: { type: 'string', description: 'note: journal id or exact name' },
++                  page: {
++                    type: 'string',
++                    description: 'note: page id or exact name in that journal',
++                  },
++                  text: { type: 'string', description: 'note: label shown under the pin' },
++                  icon: { type: 'string', description: 'note: icon path (default the book icon)' },
++                  icon_size: {
++                    type: 'number',
++                    description: 'note: icon size in pixels, 32 to 512',
++                  },
++                  font_size: { type: 'number', description: 'note: label size, 8 to 128' },
++                  global: { type: 'boolean', description: 'note: visible to all players' },
 +                },
-+                required: ['kind', 'x', 'y'],
++                required: ['kind'],
 +                additionalProperties: false,
 +              },
 +            },
@@ -4643,7 +5606,7 @@ index 0000000..f596ebf
 +            },
 +            kind: {
 +              type: 'string',
-+              enum: ['token', 'light'],
++              enum: ['token', 'light', 'wall', 'note'],
 +              description: 'describe or remove: only this kind',
 +            },
 +          },
@@ -4654,7 +5617,7 @@ index 0000000..f596ebf
 +      {
 +        name: 'preview-scene',
 +        description:
-+          "Render a scene as a picture: the map image with a numbered grid (column numbers along the top and bottom, row numbers along the sides, stronger lines every 5 squares) and the scene's tokens (red) and lights (circles) on top. The picture is saved to a file on this computer; its path is returned, and you can open it to see where things are in grid squares. Read-only. Needs the Foundry tab open in a browser.",
++          "Render a scene as a picture: the map image with a numbered grid (column numbers along the top and bottom, row numbers along the sides, stronger lines every 5 squares) and the scene's tokens (red), lights (circles), walls (cyan; doors orange, secret doors dashed) and map pins (yellow diamonds) on top. The picture is saved to a file on this computer; its path is returned, and you can open it to see where things are in grid squares. Read-only. Needs the Foundry tab open in a browser.",
 +        inputSchema: {
 +          type: 'object',
 +          properties: {
