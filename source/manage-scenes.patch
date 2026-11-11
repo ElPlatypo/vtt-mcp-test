@@ -483,6 +483,71 @@ index 0000000..f7b92e5
 +    ? result.value
 +    : { mode: 'builtin', host: DEFAULT_CUSTOM_HOST, port: DEFAULT_CUSTOM_PORT, secure: false };
 +}
+diff --git a/packages/foundry-module/src/comfyui-template.test.ts b/packages/foundry-module/src/comfyui-template.test.ts
+new file mode 100644
+index 0000000..41fbe9d
+--- /dev/null
++++ b/packages/foundry-module/src/comfyui-template.test.ts
+@@ -0,0 +1,59 @@
++/**
++ * The map generation dialog's code finds its elements by id. This guards against a template
++ * edit (or rename) that leaves the code looking for an id that no longer exists, which once
++ * made the custom address fields impossible to show.
++ */
++
++import { describe, expect, it } from 'vitest';
++import { readFileSync } from 'fs';
++import { dirname, join } from 'path';
++import { fileURLToPath } from 'url';
++
++const here = dirname(fileURLToPath(import.meta.url));
++const template = readFileSync(join(here, '..', 'templates', 'comfyui-settings.html'), 'utf8');
++const settings = readFileSync(join(here, 'settings.ts'), 'utf8');
++
++// The dialog class is the one that loads this template.
++const dialogCode = settings.slice(settings.indexOf('comfyui-settings.html'));
++
++describe('map generation dialog template', () => {
++  it('has every element id the dialog code looks up', () => {
++    const wanted = new Set<string>();
++    for (const match of dialogCode.matchAll(/find\(\s*'([^']+)'\s*\)/g)) {
++      for (const part of match[1].split(',')) {
++        const id = part.trim().match(/^#([\w-]+)$/)?.[1];
++        if (id) wanted.add(id);
++      }
++    }
++    expect(wanted.size).toBeGreaterThan(4);
++
++    const missing = [...wanted].filter(id => !template.includes(`id="${id}"`));
++    expect(missing).toEqual([]);
++  });
++
++  it('has a form field for every setting the dialog reads', () => {
++    for (const name of [
++      'mapGenMode',
++      'mapGenCustomHost',
++      'mapGenCustomPort',
++      'mapGenCustomSecure',
++      'autoStartService',
++      'mapGenQuality',
++    ]) {
++      expect(template).toContain(`name="${name}"`);
++    }
++  });
++
++  it('only uses styles that the map generation stylesheet defines', () => {
++    const css = readFileSync(join(here, '..', 'styles', 'map-generation.css'), 'utf8');
++    const used = new Set<string>();
++    for (const match of template.matchAll(/class="([^"]+)"/g)) {
++      match[1]
++        .split(/\s+/)
++        .filter(c => c.startsWith('mgs-'))
++        .forEach(c => used.add(c));
++    }
++    const undefinedClasses = [...used].filter(c => !css.includes(`.${c}`));
++    expect(undefinedClasses).toEqual([]);
++  });
++});
 diff --git a/packages/foundry-module/src/constants.ts b/packages/foundry-module/src/constants.ts
 index 864412c..71104a6 100644
 --- a/packages/foundry-module/src/constants.ts
@@ -5819,7 +5884,7 @@ index 0000000..760d837
 +  });
 +}
 diff --git a/packages/foundry-module/src/settings.ts b/packages/foundry-module/src/settings.ts
-index d689724..e95c387 100644
+index d689724..c7d6cae 100644
 --- a/packages/foundry-module/src/settings.ts
 +++ b/packages/foundry-module/src/settings.ts
 @@ -1,5 +1,11 @@
@@ -5890,7 +5955,7 @@ index d689724..e95c387 100644
 +          // Show the custom fields, and disable Start/Stop, only when custom is chosen.
 +          html.find('#mapGenMode').on('change', (event: any) => {
 +            const custom = event.currentTarget.value === 'custom';
-+            html.find('#eci-custom-fields').prop('hidden', !custom);
++            html.find('#mgs-custom-fields').prop('hidden', !custom);
 +            html.find('#manage-hint').prop('hidden', !custom);
 +            html.find('#start-service-btn, #stop-service-btn').prop('disabled', custom);
 +          });
@@ -6542,7 +6607,7 @@ index 0000000..e9646a9
 +  margin: 0 0 0.9rem;
 +}
 diff --git a/packages/foundry-module/templates/comfyui-settings.html b/packages/foundry-module/templates/comfyui-settings.html
-index 15d4166..2b9cc29 100644
+index 15d4166..de7aa2e 100644
 --- a/packages/foundry-module/templates/comfyui-settings.html
 +++ b/packages/foundry-module/templates/comfyui-settings.html
 @@ -1,61 +1,99 @@
@@ -6600,7 +6665,7 @@ index 15d4166..2b9cc29 100644
 +
 +    <div class="mgs-form-group">
 +      <label class="mgs-label" for="mapGenMode">ComfyUI instance</label>
-+      <select name="mapGenMode" id="mapGenMode" class="mgs-select">
++      <select name="mapGenMode" id="mapGenMode">
 +        <option value="builtin" {{#if modeBuiltin}}selected{{/if}}>Built-in (installed with the bridge)</option>
 +        <option value="custom" {{#if modeCustom}}selected{{/if}}>Custom (a ComfyUI I already run)</option>
 +      </select>
@@ -6612,12 +6677,12 @@ index 15d4166..2b9cc29 100644
 +      <div class="mgs-row">
 +        <div class="mgs-form-group">
 +          <label class="mgs-label" for="mapGenCustomHost">Host or address</label>
-+          <input type="text" name="mapGenCustomHost" id="mapGenCustomHost" class="mgs-input"
++          <input type="text" name="mapGenCustomHost" id="mapGenCustomHost"
 +                 value="{{customHost}}" placeholder="127.0.0.1  or  http://nexus:8188" />
 +        </div>
 +        <div class="mgs-form-group">
 +          <label class="mgs-label" for="mapGenCustomPort">Port</label>
-+          <input type="number" name="mapGenCustomPort" id="mapGenCustomPort" class="mgs-input"
++          <input type="number" name="mapGenCustomPort" id="mapGenCustomPort"
 +                 value="{{customPort}}" min="1" max="65535" step="1" />
 +        </div>
 +      </div>
@@ -6654,13 +6719,12 @@ index 15d4166..2b9cc29 100644
 -      <label for="mapGenQuality">
 -        <strong>Generation Quality</strong>
 -      </label>
--      <select name="mapGenQuality" id="mapGenQuality">
++    <div class="mgs-form-group">
++      <label class="mgs-label" for="mapGenQuality">Generation quality</label>
+       <select name="mapGenQuality" id="mapGenQuality">
 -        <option value="low" {{#if (eq mapGenQuality "low")}}selected{{/if}}>Low</option>
 -        <option value="medium" {{#if (eq mapGenQuality "medium")}}selected{{/if}}>Medium</option>
 -        <option value="high" {{#if (eq mapGenQuality "high")}}selected{{/if}}>High</option>
-+    <div class="mgs-form-group">
-+      <label class="mgs-label" for="mapGenQuality">Generation quality</label>
-+      <select name="mapGenQuality" id="mapGenQuality" class="mgs-select">
 +        <option value="low" {{#if qualityLow}}selected{{/if}}>Low (8 steps, fastest)</option>
 +        <option value="medium" {{#if qualityMedium}}selected{{/if}}>Medium (20 steps)</option>
 +        <option value="high" {{#if qualityHigh}}selected{{/if}}>High (35 steps, slowest)</option>
