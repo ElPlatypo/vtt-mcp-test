@@ -48,6 +48,184 @@ index 59aaa6c..dd5c8c6 100644
    "languages": [
      {
        "lang": "en",
+diff --git a/packages/foundry-module/src/actor-overrides-utils.test.ts b/packages/foundry-module/src/actor-overrides-utils.test.ts
+new file mode 100644
+index 0000000..95958dd
+--- /dev/null
++++ b/packages/foundry-module/src/actor-overrides-utils.test.ts
+@@ -0,0 +1,46 @@
++import { describe, expect, it } from 'vitest';
++import { buildHpPatch, buildPrototypeTokenPatch, prototypeTokenUpdate } from './actor-overrides-utils.js';
++
++describe('buildPrototypeTokenPatch', () => {
++  it('turns token options into prototype token paths', () => {
++    const patch = buildPrototypeTokenPatch(
++      { width: 2, height: 2, disposition: -1, scale: 1.2, actor_link: false, display_name: 'hover', vision: true },
++      't'
++    );
++    expect(patch).toEqual({
++      width: 2,
++      height: 2,
++      disposition: -1,
++      'texture.scaleX': 1.2,
++      'texture.scaleY': 1.2,
++      actorLink: false,
++      'sight.enabled': true,
++      displayName: 30,
++    });
++    expect(prototypeTokenUpdate({ width: 2 })).toEqual({ 'prototypeToken.width': 2 });
++  });
++
++  it('rejects bad options', () => {
++    expect(() => buildPrototypeTokenPatch({ width: 40 }, 't')).toThrow('width');
++    expect(() => buildPrototypeTokenPatch({ disposition: 2 }, 't')).toThrow('disposition');
++    expect(() => buildPrototypeTokenPatch({ display_name: 'x' }, 't')).toThrow('display_name');
++    expect(() => buildPrototypeTokenPatch({ size: 2 }, 't')).toThrow('unknown token option');
++    expect(() => buildPrototypeTokenPatch('big', 't')).toThrow('object');
++  });
++});
++
++describe('buildHpPatch', () => {
++  it('sets value and max from a number or an object', () => {
++    expect(buildHpPatch('dnd5e', 27, 'h')).toEqual({ attributes: { hp: { value: 27, max: 27 } } });
++    expect(buildHpPatch('dnd5e', { max: 10 }, 'h')).toEqual({ attributes: { hp: { value: 10, max: 10 } } });
++    expect(buildHpPatch('dnd5e', { value: 3, max: 10 }, 'h')).toEqual({ attributes: { hp: { value: 3, max: 10 } } });
++  });
++
++  it('rejects other systems and bad numbers', () => {
++    expect(() => buildHpPatch('pf2e', 5, 'h')).toThrow('dnd5e');
++    expect(() => buildHpPatch('dnd5e', -1, 'h')).toThrow();
++    expect(() => buildHpPatch('dnd5e', 1.5, 'h')).toThrow();
++    expect(() => buildHpPatch('dnd5e', { value: 9, max: 5 }, 'h')).toThrow('above max');
++    expect(() => buildHpPatch('dnd5e', {}, 'h')).toThrow();
++  });
++});
+diff --git a/packages/foundry-module/src/actor-overrides-utils.ts b/packages/foundry-module/src/actor-overrides-utils.ts
+new file mode 100644
+index 0000000..a549fe6
+--- /dev/null
++++ b/packages/foundry-module/src/actor-overrides-utils.ts
+@@ -0,0 +1,120 @@
++/**
++ * Pure helpers for the actor options of manage-actors and create-actor-from-compendium:
++ * token size and behaviour, and a hit point shorthand. No Foundry globals, so they can be tested.
++ */
++
++export interface TokenOptions {
++  /** Token size in grid squares (0.5 to 20), e.g. 2 for a Large creature. */
++  width?: number;
++  height?: number;
++  /** -1 hostile, 0 neutral, 1 friendly. */
++  disposition?: number;
++  /** Picture scale inside the token (0.2 to 3). */
++  scale?: number;
++  /** Token is linked to the actor (shared hit points), default false for NPCs. */
++  actor_link?: boolean;
++  /** When the name is shown: none, control, owner_hover, hover, owner, always. */
++  display_name?: string;
++  /** Vision on/off for the token. */
++  vision?: boolean;
++}
++
++export const NAME_DISPLAY_MODES: Record<string, number> = {
++  none: 0,
++  control: 10,
++  owner_hover: 20,
++  hover: 30,
++  owner: 40,
++  always: 50,
++};
++
++const TOKEN_KEYS = ['width', 'height', 'disposition', 'scale', 'actor_link', 'display_name', 'vision'];
++
++/**
++ * Validate token options and return a flat patch using dotted prototypeToken paths
++ * (usable in actor.update, or expanded into the data of a new actor).
++ */
++export function buildPrototypeTokenPatch(token: unknown, label: string): Record<string, any> {
++  if (!token || typeof token !== 'object' || Array.isArray(token)) {
++    throw new Error(`${label}: token must be an object`);
++  }
++  const t = token as Record<string, any>;
++  for (const key of Object.keys(t)) {
++    if (!TOKEN_KEYS.includes(key)) {
++      throw new Error(`${label}: unknown token option "${key}" (${TOKEN_KEYS.join(', ')})`);
++    }
++  }
++  const patch: Record<string, any> = {};
++  for (const dim of ['width', 'height'] as const) {
++    if (t[dim] !== undefined) {
++      if (typeof t[dim] !== 'number' || !(t[dim] >= 0.5 && t[dim] <= 20)) {
++        throw new Error(`${label}: token ${dim} must be a number of squares from 0.5 to 20`);
++      }
++      patch[dim] = t[dim];
++    }
++  }
++  if (t.disposition !== undefined) {
++    if (![-1, 0, 1].includes(t.disposition)) {
++      throw new Error(`${label}: token disposition must be -1 (hostile), 0 (neutral) or 1 (friendly)`);
++    }
++    patch.disposition = t.disposition;
++  }
++  if (t.scale !== undefined) {
++    if (typeof t.scale !== 'number' || !(t.scale >= 0.2 && t.scale <= 3)) {
++      throw new Error(`${label}: token scale must be a number from 0.2 to 3`);
++    }
++    patch['texture.scaleX'] = t.scale;
++    patch['texture.scaleY'] = t.scale;
++  }
++  if (t.actor_link !== undefined) patch.actorLink = !!t.actor_link;
++  if (t.vision !== undefined) patch['sight.enabled'] = !!t.vision;
++  if (t.display_name !== undefined) {
++    const mode = NAME_DISPLAY_MODES[String(t.display_name)];
++    if (mode === undefined) {
++      throw new Error(`${label}: display_name must be one of ${Object.keys(NAME_DISPLAY_MODES).join(', ')}`);
++    }
++    patch.displayName = mode;
++  }
++  return patch;
++}
++
++/** The same patch with the "prototypeToken." prefix on every key. */
++export function prototypeTokenUpdate(patch: Record<string, any>): Record<string, any> {
++  return Object.fromEntries(Object.entries(patch).map(([k, v]) => [`prototypeToken.${k}`, v]));
++}
++
++/**
++ * Hit point shorthand: a number sets current and maximum, {value, max} sets them separately.
++ * Only dnd5e is known to keep hit points at system.attributes.hp.
++ */
++export function buildHpPatch(
++  systemId: string,
++  hp: unknown,
++  label: string
++): Record<string, any> {
++  if (systemId !== 'dnd5e') {
++    throw new Error(`${label}: the hp shorthand is only available for dnd5e; use system for ${systemId || 'this system'}`);
++  }
++  let value: number;
++  let max: number;
++  if (typeof hp === 'number') {
++    value = hp;
++    max = hp;
++  } else if (hp && typeof hp === 'object' && !Array.isArray(hp)) {
++    const h = hp as Record<string, any>;
++    const keys = Object.keys(h).filter(k => k !== 'value' && k !== 'max');
++    if (keys.length > 0) throw new Error(`${label}: hp only takes value and max`);
++    if (h.value === undefined && h.max === undefined) throw new Error(`${label}: hp needs value or max`);
++    max = h.max ?? h.value;
++    value = h.value ?? h.max;
++  } else {
++    throw new Error(`${label}: hp must be a number or {value, max}`);
++  }
++  for (const n of [value, max]) {
++    if (typeof n !== 'number' || !Number.isInteger(n) || n < 0 || n > 100000) {
++      throw new Error(`${label}: hp must be whole numbers from 0 to 100000`);
++    }
++  }
++  if (value > max) throw new Error(`${label}: hp value cannot be above max`);
++  return { attributes: { hp: { value, max } } };
++}
 diff --git a/packages/foundry-module/src/comfyui-manager.test.ts b/packages/foundry-module/src/comfyui-manager.test.ts
 new file mode 100644
 index 0000000..6034370
@@ -2662,10 +2840,10 @@ index 0000000..94cee28
 +  });
 +});
 diff --git a/packages/foundry-module/src/data-access.ts b/packages/foundry-module/src/data-access.ts
-index eecda7e..c7638d1 100644
+index eecda7e..3b0cc15 100644
 --- a/packages/foundry-module/src/data-access.ts
 +++ b/packages/foundry-module/src/data-access.ts
-@@ -1,5 +1,63 @@
+@@ -1,5 +1,68 @@
  import { MODULE_ID, ERROR_MESSAGES, TOKEN_DISPOSITIONS } from './constants.js';
  import { permissionManager } from './permissions.js';
 +import {
@@ -2702,6 +2880,11 @@ index eecda7e..c7638d1 100644
 +  type PreviewWall,
 +} from './preview-utils.js';
 +import {
++  buildHpPatch,
++  buildPrototypeTokenPatch,
++  prototypeTokenUpdate,
++} from './actor-overrides-utils.js';
++import {
 +  buildRegionData,
 +  describeSchemaFields,
 +  describeShape,
@@ -2729,7 +2912,71 @@ index eecda7e..c7638d1 100644
  import { transactionManager } from './transaction-manager.js';
  
  // The same five characters foundry.utils.escapeHTML replaces in v14, kept local because
-@@ -6714,7 +6772,7 @@ export class FoundryDataAccess {
+@@ -4681,12 +4744,28 @@ export class FoundryDataAccess {
+       type: 'random' | 'grid' | 'center' | 'coordinates';
+       coordinates?: { x: number; y: number }[];
+     };
++    folder?: string;
++    hp?: number | { value?: number; max?: number };
++    token?: Record<string, any>;
++    img?: string;
++    tokenImg?: string;
+   }): Promise<ActorCreationResult> {
+     this.validateFoundryState();
+ 
+     try {
+       const { packId, itemId, customNames, quantity = 1, addToScene = false, placement } = request;
+ 
++      // Check the overrides before creating anything.
++      const tokenPatch =
++        request.token !== undefined ? buildPrototypeTokenPatch(request.token, 'token') : undefined;
++      const hpPatch =
++        request.hp !== undefined
++          ? buildHpPatch((game as any).system?.id ?? '', request.hp, 'hp')
++          : undefined;
++      if (request.folder !== undefined && (typeof request.folder !== 'string' || !request.folder.trim())) {
++        throw new Error('folder must be a folder name');
++      }
++
+       // Validate inputs
+       if (!packId || !itemId) {
+         throw new Error('Both packId and itemId are required');
+@@ -4753,10 +4832,33 @@ export class FoundryDataAccess {
+           }
+ 
+           // Organize created actors in a folder - use "Foundry MCP Creatures" for generic monsters
+-          const folderId = await this.getOrCreateFolder('Foundry MCP Creatures', 'Actor');
++          const folderId = await this.getOrCreateFolder(
++            request.folder?.trim() || 'Foundry MCP Creatures',
++            'Actor'
++          );
+           if (folderId) {
+             (actorData as any).folder = folderId;
+           }
++          if (request.img) actorData.img = request.img;
++          if (tokenPatch) {
++            const proto: Record<string, any> = actorData.prototypeToken ?? {};
++            for (const [key, value] of Object.entries(tokenPatch)) {
++              const parts = key.split('.');
++              let cur = proto;
++              for (let k = 0; k < parts.length - 1; k++) cur = cur[parts[k]] ??= {};
++              cur[parts[parts.length - 1]] = value;
++            }
++            actorData.prototypeToken = proto;
++          }
++          if (request.tokenImg) {
++            actorData.prototypeToken = actorData.prototypeToken ?? {};
++            actorData.prototypeToken.texture = { ...(actorData.prototypeToken.texture ?? {}), src: request.tokenImg };
++          }
++          if (hpPatch) {
++            const sys: any = actorData.system;
++            sys.attributes = sys.attributes ?? {};
++            sys.attributes.hp = { ...(sys.attributes.hp ?? {}), ...hpPatch.attributes.hp };
++          }
+ 
+           // Create the actor
+           const newActor = await Actor.create(actorData);
+@@ -6714,7 +6816,7 @@ export class FoundryDataAccess {
  
          // Send socket request to GM
          if (game.socket) {
@@ -2738,10 +2985,175 @@ index eecda7e..c7638d1 100644
              type: 'requestMessageUpdate',
              buttonId,
              userId,
-@@ -8101,6 +8159,1827 @@ export class FoundryDataAccess {
-     }
-   }
+@@ -7941,162 +8043,2171 @@ export class FoundryDataAccess {
  
+       return {
+         success: true,
+-        sceneId: targetScene.id,
+-        sceneName: targetScene.name,
+-        dimensions: {
+-          width: (targetScene.dimensions as any)?.width || (targetScene as any).width || 0,
+-          height: (targetScene.dimensions as any)?.height || (targetScene as any).height || 0,
++        sceneId: targetScene.id,
++        sceneName: targetScene.name,
++        dimensions: {
++          width: (targetScene.dimensions as any)?.width || (targetScene as any).width || 0,
++          height: (targetScene.dimensions as any)?.height || (targetScene as any).height || 0,
++        },
++      };
++    } catch (error) {
++      throw new Error(
++        `Failed to switch scene: ${error instanceof Error ? error.message : 'Unknown error'}`
++      );
++    }
++  }
++
++  // ===== SCENE MUSIC BINDINGS =====
++
++  /**
++   * Find a scene by id or exact name (case-insensitive). Shared by the
++   * scene music methods; mirrors the switchScene lookup.
++   */
++  private findSceneByIdentifier(identifier: string): any {
++    const scenes = game.scenes?.contents || [];
++    const target = scenes.find(
++      (scene: any) =>
++        scene.id === identifier || scene.name.toLowerCase() === identifier.toLowerCase()
++    );
++    if (!target) {
++      throw new Error(`Scene not found: "${identifier}"`);
++    }
++    return target;
++  }
++
++  /**
++   * Resolve a playlist/sound identifier to its document. Accepts an exact id,
++   * an exact name, or (unless opts.exact) a unique case-insensitive name
++   * substring. Returns the document, or null for a null/empty identifier
++   * (intentional clear).
++   */
++  private findMusicDoc(
++    collection: any,
++    identifier: string | null | undefined,
++    kind: 'playlist' | 'playlistSound',
++    opts?: { exact?: boolean }
++  ): any | null {
++    if (identifier === null || identifier === undefined || identifier === '') {
++      return null;
++    }
++    if (typeof identifier !== 'string') {
++      throw new Error(`${kind} identifier must be a string or null`);
++    }
++    const docs = collection?.contents || collection || [];
++    const idMatch = docs.find((d: any) => d.id === identifier);
++    if (idMatch) return idMatch;
++    const lowered = identifier.toLowerCase();
++    const exact = docs.find((d: any) => (d.name || '').toLowerCase() === lowered);
++    if (exact) return exact;
++    if (opts?.exact) {
++      throw new Error(`${kind} not found: "${identifier}" (delete needs an exact id or name)`);
++    }
++    const partial = docs.filter((d: any) => (d.name || '').toLowerCase().includes(lowered));
++    if (partial.length === 1) return partial[0];
++    throw new Error(
++      partial.length > 1
++        ? `${kind} identifier is ambiguous: "${identifier}" matches ${partial.length} documents`
++        : `${kind} not found: "${identifier}"`
++    );
++  }
++
++  /**
++   * Read the music binding of a scene document (playlist + playlistSound,
++   * with names). Shared by the active-scene and scenes-list builders.
++   */
++  private resolveSceneMusicBinding(scene: any): {
++    playlist: { id: string; name: string } | null;
++    playlistSound: { id: string; name: string } | null;
++  } {
++    // On a live client, scene.playlist / playlistSound are resolved
++    // documents after an update; normalize back to ids.
++    const plRaw = (scene as any).playlist;
++    const sndRaw = (scene as any).playlistSound;
++    const playlistId = typeof plRaw === 'string' ? plRaw : plRaw?.id || null;
++    const soundId = typeof sndRaw === 'string' ? sndRaw : sndRaw?.id || null;
++    const playlistDoc = playlistId ? (game as any).playlists?.get(playlistId) || null : null;
++    const soundDoc = playlistDoc && soundId ? playlistDoc.sounds?.get(soundId) || null : null;
++    return {
++      playlist: playlistId ? { id: playlistId, name: playlistDoc?.name || '(unknown)' } : null,
++      playlistSound: soundId ? { id: soundId, name: soundDoc?.name || '(unknown)' } : null,
++    };
++  }
++
++  /**
++   * Set or clear the music binding of a scene. Writes through scene.update()
++   * with the core ForeignDocumentFields playlist/playlistSound (id-only),
++   * so the change syncs to connected clients without a reload. Both
++   * identifiers are validated to exist before writing; explicit null clears.
++   */
++  async updateSceneMusic(options: {
++    scene_identifier: string;
++    playlist?: string | null;
++    playlist_sound?: string | null;
++  }): Promise<any> {
++    this.validateFoundryState();
++
++    try {
++      const scene = this.findSceneByIdentifier(options.scene_identifier);
++
++      const update: Record<string, any> = {};
++      const result: Record<string, any> = {
++        success: true,
++        sceneId: scene.id,
++        sceneName: scene.name,
++      };
++
++      if ('playlist' in options) {
++        const pl = this.findMusicDoc((game as any).playlists, options.playlist, 'playlist');
++        update.playlist = pl ? pl.id : null;
++        result.playlist = pl ? { id: pl.id, name: pl.name } : null;
++      }
++      if ('playlist_sound' in options) {
++        // A sound id is only valid together with its parent playlist: the
++        // scene config UI enforces the same invariant.
++        if (options.playlist_sound && !('playlist' in options) && !(scene as any).playlist) {
++          throw new Error(
++            'playlist_sound requires the scene to have a playlist (pass playlist too)'
++          );
++        }
++        const parent = options.playlist
++          ? this.findMusicDoc((game as any).playlists, options.playlist, 'playlist')
++          : null;
++        const snd = this.findMusicDoc(
++          parent ? parent.sounds : null,
++          options.playlist_sound,
++          'playlistSound'
++        );
++        update.playlistSound = snd ? snd.id : null;
++        result.playlistSound = snd ? { id: snd.id, name: snd.name } : null;
++      }
++
++      if (Object.keys(update).length === 0) {
++        throw new Error('Nothing to update: pass playlist and/or playlist_sound (null to clear)');
++      }
++      if (
++        'playlist' in update &&
++        'playlistSound' in update &&
++        update.playlistSound &&
++        !update.playlist
++      ) {
++        throw new Error('playlist_sound cannot be set while clearing playlist');
++      }
++
++      await scene.update(update);
++
++      return result;
++    } catch (error) {
++      throw new Error(
++        `Failed to update scene music: ${error instanceof Error ? error.message : 'Unknown error'}`
++      );
++    }
++  }
++
 +  // ===== SCENE MANAGEMENT (CREATE / UPDATE / DESCRIBE) =====
 +
 +  /**
@@ -3133,6 +3545,194 @@ index eecda7e..c7638d1 100644
 +      );
 +      throw new Error(
 +        `Failed to ${options?.action ?? 'manage'} scene: ${error instanceof Error ? error.message : 'Unknown error'}`
++      );
++    }
++  }
++
++  // ===== WORLD HOUSEKEEPING (FOLDERS, MOVE, RENAME, DELETE) =====
++
++  private worldCollection(type: string): any {
++    const g = game as any;
++    const map: Record<string, any> = {
++      Actor: g.actors,
++      Scene: g.scenes,
++      JournalEntry: g.journal,
++      Item: g.items,
++      RollTable: g.tables,
++      Playlist: g.playlists,
++      Macro: g.macros,
++      Folder: g.folders,
++    };
++    const collection = map[type];
++    if (!collection) {
++      throw new Error(`type must be one of ${Object.keys(map).join(', ')}`);
++    }
++    return collection;
++  }
++
++  /** Find one document by id or exact name (a name must be unique). */
++  private findWorldDocument(type: string, identifier: string, folderType?: string): any {
++    const docs = ((this.worldCollection(type)?.contents || []) as any[]).filter(
++      d => type !== 'Folder' || !folderType || d.type === folderType
++    );
++    const byId = docs.find(d => d.id === identifier);
++    if (byId) return byId;
++    const wanted = String(identifier).trim().toLowerCase();
++    const matches = docs.filter(d => String(d.name ?? '').toLowerCase() === wanted);
++    if (matches.length === 1) return matches[0];
++    if (matches.length > 1) {
++      throw new Error(
++        `Several ${type} documents are named "${identifier}" (ids: ${matches.map(m => m.id).join(', ')}); use the id`
++      );
++    }
++    throw new Error(`${type} not found: "${identifier}"`);
++  }
++
++  private findFolderForWorld(name: string, folderType: string): any {
++    return this.findWorldDocument('Folder', name, folderType);
++  }
++
++  /**
++   * Housekeeping for the world: list/create folders, move documents between folders, rename,
++   * and delete. Deleting needs confirm: true and is limited to 100 documents per call.
++   */
++  async manageWorld(options: {
++    action: 'list_folders' | 'create_folder' | 'rename' | 'move' | 'delete';
++    type?: string;
++    name?: string;
++    parent?: string | null;
++    identifier?: string;
++    identifiers?: string[];
++    folder?: string | null;
++    create_folder?: boolean;
++    folder_type?: string;
++    delete_contents?: boolean;
++    confirm?: boolean;
++  }): Promise<any> {
++    this.validateFoundryState();
++
++    try {
++      const action = options.action;
++      const known = ['list_folders', 'create_folder', 'rename', 'move', 'delete'];
++      if (!known.includes(action)) {
++        throw new Error(`Unknown action: ${String(action)} (${known.join(' | ')})`);
++      }
++
++      if (action === 'list_folders') {
++        const folders = (((game as any).folders?.contents || []) as any[])
++          .filter(f => !options.type || f.type === options.type)
++          .map(f => ({
++            id: f.id,
++            name: f.name,
++            type: f.type,
++            parent: f.folder?.name ?? null,
++            documents: f.contents?.length ?? 0,
++          }));
++        return { success: true, folders };
++      }
++
++      const gate = permissionManager.checkWritePermission(action === 'delete' ? 'deleteData' : 'modifyWorld');
++      if (!gate.allowed) throw new Error(`${ERROR_MESSAGES.ACCESS_DENIED}: ${gate.reason}`);
++
++      const type = options.type;
++      if (!type) throw new Error('type is required (Actor, Scene, JournalEntry, Item, RollTable, Playlist, Macro or Folder)');
++
++      if (action === 'create_folder') {
++        if (type === 'Folder') throw new Error('type is the kind of document the folder holds, such as Actor');
++        this.worldCollection(type);
++        if (typeof options.name !== 'string' || !options.name.trim()) throw new Error('name is required');
++        const parent = options.parent ? this.findFolderForWorld(options.parent, type) : null;
++        const existing = (((game as any).folders?.contents || []) as any[]).find(
++          f => f.type === type && f.name === options.name!.trim() && (f.folder?.id ?? null) === (parent?.id ?? null)
++        );
++        if (existing) return { success: true, action, folder: { id: existing.id, name: existing.name }, existed: true };
++        const folder = await (globalThis as any).Folder.create({
++          name: options.name.trim(),
++          type,
++          ...(parent ? { folder: parent.id } : {}),
++        });
++        this.auditLog('manageWorld:create_folder', { type, name: options.name }, 'success');
++        return { success: true, action, folder: { id: folder.id, name: folder.name } };
++      }
++
++      if (action === 'rename') {
++        if (!options.identifier) throw new Error('identifier (id or exact name) is required');
++        if (typeof options.name !== 'string' || !options.name.trim()) throw new Error('name is required');
++        const doc = this.findWorldDocument(type, options.identifier, options.folder_type);
++        const before = doc.name;
++        await doc.update({ name: options.name.trim() });
++        this.auditLog('manageWorld:rename', { type, id: doc.id }, 'success');
++        return { success: true, action, id: doc.id, from: before, to: options.name.trim() };
++      }
++
++      const identifiers = options.identifiers ?? (options.identifier ? [options.identifier] : []);
++      if (!Array.isArray(identifiers) || identifiers.length === 0) {
++        throw new Error('identifiers (ids or exact names) is required');
++      }
++      if (identifiers.length > 100) throw new Error('At most 100 documents per call');
++      const docs = identifiers.map(i => this.findWorldDocument(type, i, options.folder_type));
++
++      if (action === 'move') {
++        const folderType = type === 'Folder' ? options.folder_type : type;
++        if (!folderType) throw new Error('folder_type is required when moving folders');
++        let target: any = null;
++        if (options.folder) {
++          try {
++            target = this.findFolderForWorld(options.folder, folderType);
++          } catch (error) {
++            if (!options.create_folder) throw error;
++            target = await (globalThis as any).Folder.create({ name: options.folder, type: folderType });
++          }
++        }
++        for (const doc of docs) {
++          if (type === 'Folder' && target && doc.id === target.id) {
++            throw new Error('A folder cannot be moved into itself');
++          }
++        }
++        for (const doc of docs) await doc.update({ folder: target ? target.id : null });
++        this.auditLog('manageWorld:move', { type, count: docs.length }, 'success');
++        return {
++          success: true,
++          action,
++          folder: target ? { id: target.id, name: target.name } : null,
++          moved: docs.map(d => ({ id: d.id, name: d.name })),
++        };
++      }
++
++      // delete
++      if (options.confirm !== true) {
++        throw new Error(
++          `Deleting is permanent. Pass confirm: true to delete: ${docs.map(d => `${d.name} (${d.id})`).join(', ')}`
++        );
++      }
++      if (type === 'Scene') {
++        const active = docs.find(d => d.active);
++        if (active) throw new Error(`"${active.name}" is the active scene; activate another scene first`);
++      }
++      const deleted: Array<{ id: string; name: string }> = [];
++      for (const doc of docs) {
++        const entry = { id: doc.id, name: doc.name };
++        if (type === 'Folder') {
++          await doc.delete({
++            deleteSubfolders: !!options.delete_contents,
++            deleteContents: !!options.delete_contents,
++          });
++        } else {
++          await doc.delete();
++        }
++        deleted.push(entry);
++      }
++      this.auditLog('manageWorld:delete', { type, count: deleted.length }, 'success');
++      return { success: true, action, deleted };
++    } catch (error) {
++      this.auditLog(
++        `manageWorld:${options?.action}`,
++        { type: options?.type },
++        'failure',
++        error instanceof Error ? error.message : 'Unknown error'
++      );
++      throw new Error(
++        `Failed to ${options?.action ?? 'manage'} world: ${error instanceof Error ? error.message : 'Unknown error'}`
 +      );
 +    }
 +  }
@@ -4098,7 +4698,7 @@ index eecda7e..c7638d1 100644
 +          name: doc.name ?? null,
 +          uuid: doc.uuid ?? null,
 +          embeddedTypes: Object.keys(this.embeddedTypesOf(doc.constructor)),
-+        },
+         },
 +        ...(options.path ? { path: options.path } : {}),
 +        depth,
 +        truncated,
@@ -4109,16 +4709,30 @@ index eecda7e..c7638d1 100644
 +              note: `Output was cut at ${maxChars} characters. Use path to read one part, a smaller depth, or a larger max_chars.`,
 +            }
 +          : {}),
-+      };
-+    } catch (error) {
-+      throw new Error(
+       };
+     } catch (error) {
+       throw new Error(
+-        `Failed to switch scene: ${error instanceof Error ? error.message : 'Unknown error'}`
 +        `Failed to inspect: ${error instanceof Error ? error.message : 'Unknown error'}`
-+      );
-+    }
-+  }
-+
+       );
+     }
+   }
+ 
+-  // ===== SCENE MUSIC BINDINGS =====
 +  // ===== JOURNAL MANAGEMENT (CREATE / UPDATE / DESCRIBE) =====
-+
+ 
+-  /**
+-   * Find a scene by id or exact name (case-insensitive). Shared by the
+-   * scene music methods; mirrors the switchScene lookup.
+-   */
+-  private findSceneByIdentifier(identifier: string): any {
+-    const scenes = game.scenes?.contents || [];
+-    const target = scenes.find(
+-      (scene: any) =>
+-        scene.id === identifier || scene.name.toLowerCase() === identifier.toLowerCase()
+-    );
+-    if (!target) {
+-      throw new Error(`Scene not found: "${identifier}"`);
 +  /** Find journals by id or exact (case-insensitive) name; throws if none or several. */
 +  private findJournalByIdentifier(identifier: string): any {
 +    const journals = ((game as any).journal?.contents || []) as any[];
@@ -4131,10 +4745,37 @@ index eecda7e..c7638d1 100644
 +      throw new Error(
 +        `Several journals are named "${identifier}" (ids: ${matches.map(j => j.id).join(', ')}); use the id`
 +      );
-+    }
+     }
+-    return target;
 +    throw new Error(`Journal not found: "${identifier}"`);
-+  }
-+
+   }
+ 
+-  /**
+-   * Resolve a playlist/sound identifier to its document. Accepts an exact id,
+-   * an exact name, or (unless opts.exact) a unique case-insensitive name
+-   * substring. Returns the document, or null for a null/empty identifier
+-   * (intentional clear).
+-   */
+-  private findMusicDoc(
+-    collection: any,
+-    identifier: string | null | undefined,
+-    kind: 'playlist' | 'playlistSound',
+-    opts?: { exact?: boolean }
+-  ): any | null {
+-    if (identifier === null || identifier === undefined || identifier === '') {
+-      return null;
+-    }
+-    if (typeof identifier !== 'string') {
+-      throw new Error(`${kind} identifier must be a string or null`);
+-    }
+-    const docs = collection?.contents || collection || [];
+-    const idMatch = docs.find((d: any) => d.id === identifier);
+-    if (idMatch) return idMatch;
+-    const lowered = identifier.toLowerCase();
+-    const exact = docs.find((d: any) => (d.name || '').toLowerCase() === lowered);
+-    if (exact) return exact;
+-    if (opts?.exact) {
+-      throw new Error(`${kind} not found: "${identifier}" (delete needs an exact id or name)`);
 +  /** Look a document up by kind and name for {{kind: Name}} links. */
 +  private lookupLinkTarget(kind: LinkKind, name: string): { id: string; name: string } | 'ambiguous' | null {
 +    const collections: Record<LinkKind, any> = {
@@ -4187,11 +4828,20 @@ index eecda7e..c7638d1 100644
 +        showTitle: page.title?.show,
 +        titleLevel: page.title?.level,
 +      }));
-+    }
+     }
+-    const partial = docs.filter((d: any) => (d.name || '').toLowerCase().includes(lowered));
+-    if (partial.length === 1) return partial[0];
+-    throw new Error(
+-      partial.length > 1
+-        ? `${kind} identifier is ambiguous: "${identifier}" matches ${partial.length} documents`
+-        : `${kind} not found: "${identifier}"`
+-    );
 +    return summary;
-+  }
-+
-+  /**
+   }
+ 
+   /**
+-   * Read the music binding of a scene document (playlist + playlistSound,
+-   * with names). Shared by the active-scene and scenes-list builders.
 +   * Create, update or describe journals.
 +   * create: a journal with exactly the pages given (text pages as HTML, or image pages).
 +   * update: rename, move to a folder, change who can see it, and upsert pages (matched by id
@@ -4199,7 +4849,23 @@ index eecda7e..c7638d1 100644
 +   * describe: lists all journals, or one journal with its full pages.
 +   * Text may contain {{actor: Name}}, {{scene: Name}}, {{journal: Name}}, {{item: Name}} or
 +   * {{rolltable: Name}} (optionally {{actor: Name | label}}), which become Foundry links.
-+   */
+    */
+-  private resolveSceneMusicBinding(scene: any): {
+-    playlist: { id: string; name: string } | null;
+-    playlistSound: { id: string; name: string } | null;
+-  } {
+-    // On a live client, scene.playlist / playlistSound are resolved
+-    // documents after an update; normalize back to ids.
+-    const plRaw = (scene as any).playlist;
+-    const sndRaw = (scene as any).playlistSound;
+-    const playlistId = typeof plRaw === 'string' ? plRaw : plRaw?.id || null;
+-    const soundId = typeof sndRaw === 'string' ? sndRaw : sndRaw?.id || null;
+-    const playlistDoc = playlistId ? (game as any).playlists?.get(playlistId) || null : null;
+-    const soundDoc = playlistDoc && soundId ? playlistDoc.sounds?.get(soundId) || null : null;
+-    return {
+-      playlist: playlistId ? { id: playlistId, name: playlistDoc?.name || '(unknown)' } : null,
+-      playlistSound: soundId ? { id: soundId, name: soundDoc?.name || '(unknown)' } : null,
+-    };
 +  async manageJournals(options: {
 +    action: 'create' | 'update' | 'describe';
 +    journal?: string;
@@ -4437,38 +5103,61 @@ index eecda7e..c7638d1 100644
 +        `Failed to ${options?.action ?? 'manage'} journal: ${error instanceof Error ? error.message : 'Unknown error'}`
 +      );
 +    }
-+  }
-+
+   }
+ 
 +  // ===== FILE UPLOAD =====
 +
-+  /**
+   /**
+-   * Set or clear the music binding of a scene. Writes through scene.update()
+-   * with the core ForeignDocumentFields playlist/playlistSound (id-only),
+-   * so the change syncs to connected clients without a reload. Both
+-   * identifiers are validated to exist before writing; explicit null clears.
 +   * Upload an image into the world's own upload folder (worlds/<world>/uploads/...),
 +   * so it survives module updates and can be used as a scene background, token or
 +   * portrait image. Only png, jpg, webp and gif are accepted, the bytes must match the
 +   * extension, size is capped, and the folder is restricted to the world's upload tree.
 +   * Existing files are not replaced unless overwrite is true.
-+   */
+    */
+-  async updateSceneMusic(options: {
+-    scene_identifier: string;
+-    playlist?: string | null;
+-    playlist_sound?: string | null;
 +  async uploadFile(options: {
 +    filename: string;
 +    imageData: string;
 +    folder?: string;
 +    overwrite?: boolean;
-+  }): Promise<any> {
-+    this.validateFoundryState();
-+
-+    try {
+   }): Promise<any> {
+     this.validateFoundryState();
+ 
+     try {
+-      const scene = this.findSceneByIdentifier(options.scene_identifier);
 +      const permissionCheck = permissionManager.checkWritePermission('modifyScene', {});
 +      if (!permissionCheck.allowed) {
 +        throw new Error(`${ERROR_MESSAGES.ACCESS_DENIED}: ${permissionCheck.reason}`);
 +      }
-+
+ 
+-      const update: Record<string, any> = {};
+-      const result: Record<string, any> = {
+-        success: true,
+-        sceneId: scene.id,
+-        sceneName: scene.name,
+-      };
 +      const filename = sanitizeUploadFilename(options.filename);
 +      const folder = sanitizeUploadFolder(options.folder);
 +      const bytes = decodeBase64(options.imageData);
-+
+ 
+-      if ('playlist' in options) {
+-        const pl = this.findMusicDoc((game as any).playlists, options.playlist, 'playlist');
+-        update.playlist = pl ? pl.id : null;
+-        result.playlist = pl ? { id: pl.id, name: pl.name } : null;
 +      if (bytes.length === 0) {
 +        throw new Error('The file is empty');
-+      }
+       }
+-      if ('playlist_sound' in options) {
+-        // A sound id is only valid together with its parent playlist: the
+-        // scene config UI enforces the same invariant.
+-        if (options.playlist_sound && !('playlist' in options) && !(scene as any).playlist) {
 +      if (bytes.length > UPLOAD_MAX_BYTES) {
 +        throw new Error(
 +          `The file is ${(bytes.length / 1024 / 1024).toFixed(1)} MB; the limit is ${UPLOAD_MAX_BYTES / 1024 / 1024} MB`
@@ -4527,21 +5216,44 @@ index eecda7e..c7638d1 100644
 +          // Cannot list the folder: carry on rather than block the upload.
 +        }
 +        if (existing.some(f => f === `${directory}/${filename}` || f.endsWith(`/${filename}`))) {
-+          throw new Error(
+           throw new Error(
+-            'playlist_sound requires the scene to have a playlist (pass playlist too)'
 +            `File already exists: ${directory}/${filename}. Use a different filename or pass overwrite: true`
-+          );
-+        }
-+      }
-+
+           );
+         }
+-        const parent = options.playlist
+-          ? this.findMusicDoc((game as any).playlists, options.playlist, 'playlist')
+-          : null;
+-        const snd = this.findMusicDoc(
+-          parent ? parent.sounds : null,
+-          options.playlist_sound,
+-          'playlistSound'
+-        );
+-        update.playlistSound = snd ? snd.id : null;
+-        result.playlistSound = snd ? { id: snd.id, name: snd.name } : null;
+       }
+ 
+-      if (Object.keys(update).length === 0) {
+-        throw new Error('Nothing to update: pass playlist and/or playlist_sound (null to clear)');
+-      }
+-      if (
+-        'playlist' in update &&
+-        'playlistSound' in update &&
+-        update.playlistSound &&
+-        !update.playlist
+-      ) {
+-        throw new Error('playlist_sound cannot be set while clearing playlist');
 +      const mime = UPLOAD_IMAGE_TYPES[filename.slice(filename.lastIndexOf('.') + 1)];
 +      const file = new File([bytes as BlobPart], filename, { type: mime });
 +      const response = await FilePickerAPI.upload('data', directory, file, {}, { notify: false });
 +      if (!response || !response.path) {
 +        throw new Error('Foundry did not confirm the upload (it may have been rejected)');
-+      }
-+
+       }
+ 
+-      await scene.update(update);
 +      this.auditLog('uploadFile', { filename, folder, bytes: bytes.length }, 'success');
-+
+ 
+-      return result;
 +      return {
 +        success: true,
 +        path: response.path,
@@ -4550,40 +5262,51 @@ index eecda7e..c7638d1 100644
 +        bytes: bytes.length,
 +        contentType: mime,
 +      };
-+    } catch (error) {
+     } catch (error) {
 +      this.auditLog(
 +        'uploadFile',
 +        { filename: options?.filename, folder: options?.folder },
 +        'failure',
 +        error instanceof Error ? error.message : 'Unknown error'
 +      );
-+      throw new Error(
+       throw new Error(
+-        `Failed to update scene music: ${error instanceof Error ? error.message : 'Unknown error'}`
 +        `Failed to upload file: ${error instanceof Error ? error.message : 'Unknown error'}`
-+      );
-+    }
-+  }
-+
-   // ===== PLAYLIST MANAGEMENT (CRUD + PLAYBACK) =====
- 
-   /**
-@@ -11274,6 +13153,7 @@ export class FoundryDataAccess {
+       );
+     }
+   }
+@@ -11274,7 +13385,10 @@ export class FoundryDataAccess {
        name: string;
        type: string;
        img?: string;
 +      tokenImg?: string;
        system?: Record<string, any>;
++      hp?: number | { value?: number; max?: number };
++      token?: Record<string, any>;
      }>;
      folder?: string;
-@@ -11286,6 +13166,8 @@ export class FoundryDataAccess {
+   }): Promise<{ created: Array<{ id: string; name: string; type: string }>; total: number }> {
+@@ -11286,6 +13400,19 @@ export class FoundryDataAccess {
      const docs = params.actors.map(a => {
        const doc: Record<string, any> = { name: a.name, type: a.type };
        if (a.img) doc.img = a.img;
 +      // The token's own picture; without it new tokens use the portrait.
 +      if (a.tokenImg) doc.prototypeToken = { texture: { src: a.tokenImg } };
++      if (a.token !== undefined) {
++        const tokenPatch = buildPrototypeTokenPatch(a.token, `actors[${a.name}]`);
++        const proto: Record<string, any> = doc.prototypeToken ?? {};
++        for (const [key, value] of Object.entries(tokenPatch)) {
++          const parts = key.split('.');
++          let cur = proto;
++          for (let i = 0; i < parts.length - 1; i++) cur = cur[parts[i]] ??= {};
++          cur[parts[parts.length - 1]] = value;
++        }
++        doc.prototypeToken = proto;
++      }
  
        // Merge system data, adding safe defaults for systems that require certain
        // fields to exist during data preparation (avoids non-fatal init errors).
-@@ -11471,7 +13353,13 @@ export class FoundryDataAccess {
+@@ -11471,7 +13598,16 @@ export class FoundryDataAccess {
     * Merges supplied fields into the actor (top-level keys overwrite).
     */
    async updateActors(
@@ -4594,11 +5317,14 @@ index eecda7e..c7638d1 100644
 +      img?: string;
 +      tokenImg?: string;
 +      system?: Record<string, any>;
++      hp?: number | { value?: number; max?: number };
++      token?: Record<string, any>;
++      folder?: string;
 +    }>
    ): Promise<{ updated: Array<{ id: string; name: string }>; total: number }> {
      const updatedActors: Array<{ id: string; name: string }> = [];
  
-@@ -11482,6 +13370,7 @@ export class FoundryDataAccess {
+@@ -11482,6 +13618,7 @@ export class FoundryDataAccess {
        const patch: Record<string, any> = {};
        if (u.name !== undefined) patch.name = u.name;
        if (u.img !== undefined) patch.img = u.img;
@@ -4606,6 +5332,26 @@ index eecda7e..c7638d1 100644
        if (u.system !== undefined) {
          // Build a single patch.system nested object so Foundry deep-merges everything
          // in one pass without flat-key vs nested-key conflicts.
+@@ -11504,6 +13641,19 @@ export class FoundryDataAccess {
+         }
+         patch.system = systemPatch;
+       }
++      if (u.hp !== undefined) {
++        const hpPatch = buildHpPatch((game as any).system?.id ?? '', u.hp, `updates[${u.id}]`);
++        const system: Record<string, any> = patch.system ?? {};
++        system.attributes = { ...(system.attributes ?? {}), hp: { ...(system.attributes?.hp ?? {}), ...hpPatch.attributes.hp } };
++        patch.system = system;
++      }
++      if (u.token !== undefined) {
++        Object.assign(patch, prototypeTokenUpdate(buildPrototypeTokenPatch(u.token, `updates[${u.id}]`)));
++      }
++      if (u.folder !== undefined) {
++        if (typeof u.folder !== 'string' || !u.folder.trim()) throw new Error('folder must be a folder name');
++        patch.folder = await this.getOrCreateFolder(u.folder.trim(), 'Actor');
++      }
+ 
+       await actor.update(patch);
+       updatedActors.push({ id: actor.id, name: u.name ?? actor.name });
 diff --git a/packages/foundry-module/src/data-access.upload-file.test.ts b/packages/foundry-module/src/data-access.upload-file.test.ts
 new file mode 100644
 index 0000000..83a409c
@@ -4856,6 +5602,112 @@ index 0000000..83a409c
 +        dataAccess.uploadFile({ filename: 'a.png', imageData: pngBase64() })
 +      ).rejects.toThrow('did not confirm the upload');
 +    });
++  });
++});
+diff --git a/packages/foundry-module/src/data-access.world.test.ts b/packages/foundry-module/src/data-access.world.test.ts
+new file mode 100644
+index 0000000..55aec33
+--- /dev/null
++++ b/packages/foundry-module/src/data-access.world.test.ts
+@@ -0,0 +1,100 @@
++/** manage-world tests: Foundry stubbed; checks folders, move, rename, the delete confirmation and gates. */
++import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
++import { FoundryDataAccess } from './data-access.js';
++
++function doc(id: string, name: string, extra: Record<string, any> = {}) {
++  return { id, name, update: vi.fn(async () => undefined), delete: vi.fn(async () => undefined), ...extra };
++}
++
++function setup(allow = true) {
++  const goblin = doc('a1', 'Goblin');
++  const wolf = doc('a2', 'Wolf');
++  const dupe1 = doc('a3', 'Twin');
++  const dupe2 = doc('a4', 'Twin');
++  const folder = doc('f1', 'Monsters', { type: 'Actor', contents: [goblin], folder: null });
++  const scene = doc('s1', 'Cave', { active: false });
++  const live = doc('s2', 'Live', { active: true });
++  const create = vi.fn(async (d: any) => ({ id: 'newf', name: d.name }));
++  vi.stubGlobal('Hooks', { on: vi.fn(), callAll: vi.fn() });
++  vi.stubGlobal('Folder', { create });
++  vi.stubGlobal('game', {
++    ready: true,
++    world: { id: 'w', getFlag: vi.fn(() => []), setFlag: vi.fn() },
++    user: { id: 'gm', name: 'GM' },
++    actors: { contents: [goblin, wolf, dupe1, dupe2] },
++    scenes: { contents: [scene, live] },
++    folders: { contents: [folder] },
++    settings: { get: (_m: string, k: string) => (k === 'allowWriteOperations' ? allow : undefined) },
++  });
++  return { da: new FoundryDataAccess(), goblin, wolf, scene, live, folder, create, dupe1 };
++}
++
++describe('manageWorld', () => {
++  beforeEach(() => vi.unstubAllGlobals());
++  afterEach(() => vi.unstubAllGlobals());
++
++  it('lists folders', async () => {
++    const { da } = setup();
++    const r = await da.manageWorld({ action: 'list_folders' });
++    expect(r.folders).toEqual([{ id: 'f1', name: 'Monsters', type: 'Actor', parent: null, documents: 1 }]);
++  });
++
++  it('creates a folder, or reports the one that exists', async () => {
++    const { da, create } = setup();
++    const r = await da.manageWorld({ action: 'create_folder', type: 'Actor', name: 'Villains' });
++    expect(create).toHaveBeenCalledWith({ name: 'Villains', type: 'Actor' });
++    expect(r.folder.id).toBe('newf');
++    const again = await da.manageWorld({ action: 'create_folder', type: 'Actor', name: 'Monsters' });
++    expect(again.existed).toBe(true);
++    expect(create).toHaveBeenCalledTimes(1);
++  });
++
++  it('moves documents into a folder, creating it on request, and to the top level', async () => {
++    const { da, goblin, wolf } = setup();
++    await da.manageWorld({ action: 'move', type: 'Actor', identifiers: ['Goblin'], folder: 'Monsters' });
++    expect(goblin.update).toHaveBeenCalledWith({ folder: 'f1' });
++    await da.manageWorld({ action: 'move', type: 'Actor', identifiers: ['a2'], folder: 'New', create_folder: true });
++    expect(wolf.update).toHaveBeenCalledWith({ folder: 'newf' });
++    await da.manageWorld({ action: 'move', type: 'Actor', identifiers: ['a2'], folder: null });
++    expect(wolf.update).toHaveBeenLastCalledWith({ folder: null });
++    await expect(
++      da.manageWorld({ action: 'move', type: 'Actor', identifiers: ['a2'], folder: 'Nope' })
++    ).rejects.toThrow('not found');
++  });
++
++  it('renames and refuses ambiguous names', async () => {
++    const { da, goblin } = setup();
++    const r = await da.manageWorld({ action: 'rename', type: 'Actor', identifier: 'goblin', name: 'Cragmaw Goblin' });
++    expect(goblin.update).toHaveBeenCalledWith({ name: 'Cragmaw Goblin' });
++    expect(r.from).toBe('Goblin');
++    await expect(
++      da.manageWorld({ action: 'rename', type: 'Actor', identifier: 'Twin', name: 'x' })
++    ).rejects.toThrow('Several');
++  });
++
++  it('deletes only with confirm and never the active scene', async () => {
++    const { da, scene, live } = setup();
++    await expect(da.manageWorld({ action: 'delete', type: 'Scene', identifiers: ['Cave'] })).rejects.toThrow('confirm');
++    expect(scene.delete).not.toHaveBeenCalled();
++    await expect(
++      da.manageWorld({ action: 'delete', type: 'Scene', identifiers: ['Live'], confirm: true })
++    ).rejects.toThrow('active scene');
++    expect(live.delete).not.toHaveBeenCalled();
++    const r = await da.manageWorld({ action: 'delete', type: 'Scene', identifiers: ['Cave'], confirm: true });
++    expect(scene.delete).toHaveBeenCalled();
++    expect(r.deleted).toEqual([{ id: 's1', name: 'Cave' }]);
++  });
++
++  it('deletes a folder but keeps its contents unless asked', async () => {
++    const { da, folder } = setup();
++    await da.manageWorld({ action: 'delete', type: 'Folder', identifiers: ['Monsters'], confirm: true });
++    expect(folder.delete).toHaveBeenCalledWith({ deleteSubfolders: false, deleteContents: false });
++  });
++
++  it('is blocked when write operations are off, but listing works', async () => {
++    const { da, goblin } = setup(false);
++    await expect(da.manageWorld({ action: 'rename', type: 'Actor', identifier: 'Goblin', name: 'x' })).rejects.toThrow();
++    expect(goblin.update).not.toHaveBeenCalled();
++    await expect(da.manageWorld({ action: 'list_folders' })).resolves.toMatchObject({ success: true });
 +  });
 +});
 diff --git a/packages/foundry-module/src/grid-measure-utils.test.ts b/packages/foundry-module/src/grid-measure-utils.test.ts
@@ -6893,7 +7745,7 @@ index 0000000..ca891e2
 +  return view ? outSize : { width, height };
 +}
 diff --git a/packages/foundry-module/src/queries.ts b/packages/foundry-module/src/queries.ts
-index 9fe02ba..63153bc 100644
+index 9fe02ba..6e1c891 100644
 --- a/packages/foundry-module/src/queries.ts
 +++ b/packages/foundry-module/src/queries.ts
 @@ -1,7 +1,8 @@
@@ -6915,7 +7767,7 @@ index 9fe02ba..63153bc 100644
  
      // Character/Actor queries
      CONFIG.queries[`${modulePrefix}.getCharacterInfo`] = this.handleGetCharacterInfo.bind(this);
-@@ -46,6 +47,15 @@ export class QueryHandlers {
+@@ -46,6 +47,16 @@ export class QueryHandlers {
      CONFIG.queries[`${modulePrefix}.list-scenes`] = this.handleListScenes.bind(this);
      CONFIG.queries[`${modulePrefix}.switch-scene`] = this.handleSwitchScene.bind(this);
      CONFIG.queries[`${modulePrefix}.update-scene-music`] = this.handleUpdateSceneMusic.bind(this);
@@ -6927,11 +7779,12 @@ index 9fe02ba..63153bc 100644
 +    CONFIG.queries[`${modulePrefix}.preview-scene`] = this.handlePreviewScene.bind(this);
 +    CONFIG.queries[`${modulePrefix}.measure-grid`] = this.handleMeasureGrid.bind(this);
 +    CONFIG.queries[`${modulePrefix}.manage-regions`] = this.handleManageRegions.bind(this);
++    CONFIG.queries[`${modulePrefix}.manage-world`] = this.handleManageWorld.bind(this);
 +    CONFIG.queries[`${modulePrefix}.inspect-document`] = this.handleInspectDocument.bind(this);
      CONFIG.queries[`${modulePrefix}.manage-playlists`] = this.handleManagePlaylists.bind(this);
      CONFIG.queries[`${modulePrefix}.control-playlist`] = this.handleControlPlaylist.bind(this);
  
-@@ -184,7 +194,7 @@ export class QueryHandlers {
+@@ -184,7 +195,7 @@ export class QueryHandlers {
     * Unregister all query handlers
     */
    unregisterHandlers(): void {
@@ -6940,7 +7793,7 @@ index 9fe02ba..63153bc 100644
      const keysToRemove = Object.keys(CONFIG.queries).filter(key => key.startsWith(modulePrefix));
  
      for (const key of keysToRemove) {
-@@ -477,7 +487,7 @@ export class QueryHandlers {
+@@ -477,7 +488,7 @@ export class QueryHandlers {
     * Get list of all registered query methods
     */
    getRegisteredMethods(): string[] {
@@ -6949,7 +7802,7 @@ index 9fe02ba..63153bc 100644
      return Object.keys(CONFIG.queries)
        .filter(key => key.startsWith(modulePrefix))
        .map(key => key.replace(`${modulePrefix}.`, ''));
-@@ -487,7 +497,7 @@ export class QueryHandlers {
+@@ -487,7 +498,7 @@ export class QueryHandlers {
     * Test if a specific query handler is registered
     */
    isMethodRegistered(method: string): boolean {
@@ -6958,7 +7811,17 @@ index 9fe02ba..63153bc 100644
      return queryKey in CONFIG.queries && typeof CONFIG.queries[queryKey] === 'function';
    }
  
-@@ -1218,6 +1228,127 @@ export class QueryHandlers {
+@@ -530,6 +541,9 @@ export class QueryHandlers {
+       if (data.placement) {
+         requestData.placement = data.placement;
+       }
++      for (const key of ['folder', 'hp', 'token', 'img', 'tokenImg']) {
++        if ((data as any)[key] !== undefined) requestData[key] = (data as any)[key];
++      }
+ 
+       return await this.dataAccess.createActorFromCompendiumEntry(requestData);
+     } catch (error) {
+@@ -1218,6 +1232,135 @@ export class QueryHandlers {
      }
    }
  
@@ -6998,6 +7861,14 @@ index 9fe02ba..63153bc 100644
 +      return { error: 'Access denied', success: false };
 +    }
 +    return await this.dataAccess.manageRegions(data ?? {});
++  }
++
++  private async handleManageWorld(data: any): Promise<any> {
++    const gmCheck = this.validateGMAccess();
++    if (!gmCheck.allowed) {
++      return { error: 'Access denied', success: false };
++    }
++    return await this.dataAccess.manageWorld(data ?? {});
 +  }
 +
 +  private async handleMeasureGrid(data: any): Promise<any> {
@@ -7556,10 +8427,10 @@ index 0000000..4f4d681
 +}
 diff --git a/packages/foundry-module/src/scene-objects-utils.test.ts b/packages/foundry-module/src/scene-objects-utils.test.ts
 new file mode 100644
-index 0000000..bd383bc
+index 0000000..29a6040
 --- /dev/null
 +++ b/packages/foundry-module/src/scene-objects-utils.test.ts
-@@ -0,0 +1,465 @@
+@@ -0,0 +1,466 @@
 +import { describe, expect, it } from 'vitest';
 +import {
 +  assertInsideScene,
@@ -8015,6 +8886,7 @@ index 0000000..bd383bc
 +      radius: 30,
 +      path: 'a.ogg',
 +      volume: 0.3,
++      repeat: true,
 +      walls: false,
 +    });
 +  });
@@ -8027,7 +8899,7 @@ index 0000000..bd383bc
 +});
 diff --git a/packages/foundry-module/src/scene-objects-utils.ts b/packages/foundry-module/src/scene-objects-utils.ts
 new file mode 100644
-index 0000000..f15ca97
+index 0000000..cd16bb0
 --- /dev/null
 +++ b/packages/foundry-module/src/scene-objects-utils.ts
 @@ -0,0 +1,468 @@
@@ -8493,7 +9365,7 @@ index 0000000..f15ca97
 +    }
 +    data.volume = spec.volume;
 +  }
-+  if (spec.repeat !== undefined) data.repeat = !!spec.repeat;
++  data.repeat = spec.repeat === undefined ? true : !!spec.repeat;
 +  if (spec.walls !== undefined) data.walls = !!spec.walls;
 +  if (spec.easing !== undefined) data.easing = !!spec.easing;
 +  if (spec.hidden !== undefined) data.hidden = !!spec.hidden;
@@ -9584,7 +10456,7 @@ index 0000000..3adf228
 +  </div>
 +</form>
 diff --git a/packages/mcp-server/src/backend.ts b/packages/mcp-server/src/backend.ts
-index 8967e33..78be0d6 100644
+index 8967e33..5d400e0 100644
 --- a/packages/mcp-server/src/backend.ts
 +++ b/packages/mcp-server/src/backend.ts
 @@ -48,6 +48,21 @@ import { DnD5eAddFeatureTool } from './tools/dnd5e/add-feature.js';
@@ -9820,7 +10692,7 @@ index 8967e33..78be0d6 100644
  
                  case 'list-scenes':
                    result = await mapGenerationTools.listScenes(args);
-@@ -1805,6 +1905,48 @@ async function startBackend(): Promise<void> {
+@@ -1805,6 +1905,52 @@ async function startBackend(): Promise<void> {
  
                    break;
  
@@ -9847,6 +10719,10 @@ index 8967e33..78be0d6 100644
 +
 +                case 'manage-regions':
 +                  result = await sceneObjectTools.handleManageRegions(args);
++                  break;
++
++                case 'manage-world':
++                  result = await sceneObjectTools.handleManageWorld(args);
 +                  break;
 +
 +                case 'manage-journals':
@@ -11314,6 +12190,69 @@ index fe400d1..0bdee03 100644
    async markJobFailed(jobId: string, error: string): Promise<void> {
      const job = this.jobs.get(jobId);
      if (!job) {
+diff --git a/packages/mcp-server/src/tools/actor-creation.ts b/packages/mcp-server/src/tools/actor-creation.ts
+index 252f3c3..9b39c7d 100644
+--- a/packages/mcp-server/src/tools/actor-creation.ts
++++ b/packages/mcp-server/src/tools/actor-creation.ts
+@@ -54,6 +54,22 @@ export class ActorCreationTools {
+               minimum: 1,
+               maximum: 10,
+             },
++            folder: {
++              type: 'string',
++              description: 'Actor folder to put them in (created if absent; default "Foundry MCP Creatures")',
++            },
++            hp: {
++              type: ['number', 'object'],
++              description: 'dnd5e only: override hit points with a number (current and maximum) or {value, max}',
++            },
++            token: {
++              type: 'object',
++              description:
++                'Token options: width and height in squares (2 for Large), disposition (-1, 0, 1), scale (0.2 to 3), actor_link, display_name (none, control, owner_hover, hover, owner, always), vision',
++              additionalProperties: true,
++            },
++            img: { type: 'string', description: 'Portrait path to use instead of the compendium one' },
++            tokenImg: { type: 'string', description: 'Token picture path' },
+             addToScene: {
+               type: 'boolean',
+               description: 'Whether to add created actors to the current scene as tokens',
+@@ -121,6 +137,13 @@ export class ActorCreationTools {
+       names: z.array(z.string().min(1)).min(1, 'At least one name is required'),
+       quantity: z.number().min(1).max(10).optional(),
+       addToScene: z.boolean().default(false),
++      folder: z.string().min(1).optional(),
++      hp: z
++        .union([z.number(), z.object({ value: z.number().optional(), max: z.number().optional() }).strict()])
++        .optional(),
++      token: z.record(z.any()).optional(),
++      img: z.string().min(1).optional(),
++      tokenImg: z.string().min(1).optional(),
+       placement: z
+         .object({
+           type: z.enum(['random', 'grid', 'center', 'coordinates']).default('grid'),
+@@ -136,7 +159,8 @@ export class ActorCreationTools {
+         .optional(),
+     });
+ 
+-    const { packId, itemId, names, quantity, addToScene, placement } = schema.parse(args);
++    const { packId, itemId, names, quantity, addToScene, placement, folder, hp, token, img, tokenImg } =
++      schema.parse(args);
+     const finalQuantity = quantity || names.length;
+ 
+     this.logger.info('Creating actors from specific compendium entry', {
+@@ -164,6 +188,11 @@ export class ActorCreationTools {
+           customNames: customNames.slice(0, finalQuantity),
+           quantity: finalQuantity,
+           addToScene,
++          ...(folder !== undefined ? { folder } : {}),
++          ...(hp !== undefined ? { hp } : {}),
++          ...(token !== undefined ? { token } : {}),
++          ...(img !== undefined ? { img } : {}),
++          ...(tokenImg !== undefined ? { tokenImg } : {}),
+           placement: placement
+             ? {
+                 type: placement.type,
 diff --git a/packages/mcp-server/src/tools/actor-management.test.ts b/packages/mcp-server/src/tools/actor-management.test.ts
 index aa85a3e..146b7be 100644
 --- a/packages/mcp-server/src/tools/actor-management.test.ts
@@ -11349,10 +12288,22 @@ index aa85a3e..146b7be 100644
 +  });
 +});
 diff --git a/packages/mcp-server/src/tools/actor-management.ts b/packages/mcp-server/src/tools/actor-management.ts
-index 8709ffc..b657c24 100644
+index 8709ffc..3c38dce 100644
 --- a/packages/mcp-server/src/tools/actor-management.ts
 +++ b/packages/mcp-server/src/tools/actor-management.ts
-@@ -98,6 +98,11 @@ export class ActorManagementTools {
+@@ -18,6 +18,11 @@ import { detectGameSystem } from '../utils/system-detection.js';
+ 
+ // ─────────────────────────────────────────────────────────────────────────────
+ 
++const hpSchema = z.union([
++  z.number(),
++  z.object({ value: z.number().optional(), max: z.number().optional() }).strict(),
++]);
++
+ export interface ActorManagementToolsOptions {
+   foundryClient: FoundryClient;
+   logger: Logger;
+@@ -98,6 +103,21 @@ export class ActorManagementTools {
                      type: 'string',
                      description: 'Optional icon/portrait path.',
                    },
@@ -11361,10 +12312,20 @@ index 8709ffc..b657c24 100644
 +                    description:
 +                      'Optional picture for the actor\'s token (the prototype token), when it should differ from the portrait. Tokens placed later use it.',
 +                  },
++                  hp: {
++                    type: ['number', 'object'],
++                    description: 'dnd5e only: hit points as a number (current and maximum) or {value, max}.',
++                  },
++                  token: {
++                    type: 'object',
++                    description:
++                      'Token options: width and height in squares (2 for a Large creature), disposition (-1 hostile, 0 neutral, 1 friendly), scale (0.2 to 3), actor_link, display_name (none, control, owner_hover, hover, owner, always), vision.',
++                    additionalProperties: true,
++                  },
                    system: {
                      type: 'object',
                      description:
-@@ -136,6 +141,11 @@ export class ActorManagementTools {
+@@ -136,6 +156,25 @@ export class ActorManagementTools {
                      type: 'string',
                      description: 'New icon/portrait path.',
                    },
@@ -11373,25 +12334,46 @@ index 8709ffc..b657c24 100644
 +                    description:
 +                      'New picture for the actor\'s token (prototype token). Tokens already on scenes keep their old picture.',
 +                  },
++                  hp: {
++                    type: ['number', 'object'],
++                    description: 'dnd5e only: hit points as a number (current and maximum) or {value, max}.',
++                  },
++                  token: {
++                    type: 'object',
++                    description:
++                      'Token options: width and height in squares (2 for a Large creature), disposition (-1 hostile, 0 neutral, 1 friendly), scale (0.2 to 3), actor_link, display_name (none, control, owner_hover, hover, owner, always), vision.',
++                    additionalProperties: true,
++                  },
++                  folder: {
++                    type: 'string',
++                    description: 'Move the actor into this folder (created if absent).',
++                  },
                    system: {
                      type: 'object',
                      description:
-@@ -290,6 +300,7 @@ export class ActorManagementTools {
+@@ -290,7 +329,10 @@ export class ActorManagementTools {
              name: z.string().min(1),
              type: z.string().min(1),
              img: z.string().optional(),
 +            tokenImg: z.string().optional(),
              system: z.record(z.any()).optional(),
++            hp: hpSchema.optional(),
++            token: z.record(z.any()).optional(),
            })
          )
-@@ -329,6 +340,7 @@ export class ActorManagementTools {
+         .min(1),
+@@ -329,7 +371,11 @@ export class ActorManagementTools {
              id: z.string().min(1),
              name: z.string().optional(),
              img: z.string().optional(),
 +            tokenImg: z.string().optional(),
              system: z.record(z.any()).optional(),
++            hp: hpSchema.optional(),
++            token: z.record(z.any()).optional(),
++            folder: z.string().min(1).optional(),
            })
          )
+         .min(1),
 diff --git a/packages/mcp-server/src/tools/image-generation.test.ts b/packages/mcp-server/src/tools/image-generation.test.ts
 new file mode 100644
 index 0000000..4b2190f
@@ -12503,10 +13485,10 @@ index 0000000..942a444
 +}
 diff --git a/packages/mcp-server/src/tools/scene-objects.test.ts b/packages/mcp-server/src/tools/scene-objects.test.ts
 new file mode 100644
-index 0000000..0d7429c
+index 0000000..11f4072
 --- /dev/null
 +++ b/packages/mcp-server/src/tools/scene-objects.test.ts
-@@ -0,0 +1,296 @@
+@@ -0,0 +1,321 @@
 +import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 +import { promises as fs } from 'fs';
 +import { SceneObjectTools } from './scene-objects.js';
@@ -12529,6 +13511,7 @@ index 0000000..0d7429c
 +    expect(defs.map(d => d.name)).toEqual([
 +      'manage-scene-objects',
 +      'measure-grid',
++      'manage-world',
 +      'manage-regions',
 +      'preview-scene',
 +    ]);
@@ -12803,12 +13786,36 @@ index 0000000..0d7429c
 +    expect(query).not.toHaveBeenCalled();
 +  });
 +});
++
++describe('handleManageWorld', () => {
++  it('forwards valid requests', async () => {
++    const { tools, query } = makeTools(async () => ({ success: true }));
++    const args = { action: 'delete', type: 'Scene', identifiers: ['Old'], confirm: true };
++    await tools.handleManageWorld(args);
++    expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.manage-world', args);
++    await tools.handleManageWorld({ action: 'list_folders' });
++    await tools.handleManageWorld({ action: 'move', type: 'Actor', identifiers: ['a'], folder: null });
++  });
++
++  it.each([
++    ['no type', { action: 'rename', identifier: 'a', name: 'b' }],
++    ['rename without a name', { action: 'rename', type: 'Actor', identifier: 'a' }],
++    ['delete without identifiers', { action: 'delete', type: 'Actor' }],
++    ['move without folder', { action: 'move', type: 'Actor', identifiers: ['a'] }],
++    ['an unknown type', { action: 'delete', type: 'User', identifiers: ['a'] }],
++    ['create_folder without a name', { action: 'create_folder', type: 'Actor' }],
++  ])('rejects %s before contacting Foundry', async (_l, args) => {
++    const { tools, query } = makeTools();
++    await expect(tools.handleManageWorld(args)).rejects.toThrow();
++    expect(query).not.toHaveBeenCalled();
++  });
++});
 diff --git a/packages/mcp-server/src/tools/scene-objects.ts b/packages/mcp-server/src/tools/scene-objects.ts
 new file mode 100644
-index 0000000..047f2b5
+index 0000000..653d8d4
 --- /dev/null
 +++ b/packages/mcp-server/src/tools/scene-objects.ts
-@@ -0,0 +1,616 @@
+@@ -0,0 +1,694 @@
 +import { promises as fs } from 'fs';
 +import os from 'os';
 +import path from 'path';
@@ -12990,6 +13997,24 @@ index 0000000..047f2b5
 +    hidden: z.boolean().optional(),
 +    display_measurements: z.boolean().optional(),
 +    behaviors: z.array(behaviorSchema).max(10).optional(),
++  })
++  .strict();
++
++const worldTypes = ['Actor', 'Scene', 'JournalEntry', 'Item', 'RollTable', 'Playlist', 'Macro', 'Folder'] as const;
++
++const manageWorldSchema = z
++  .object({
++    action: z.enum(['list_folders', 'create_folder', 'rename', 'move', 'delete']),
++    type: z.enum(worldTypes).optional(),
++    name: z.string().min(1).optional(),
++    parent: z.string().min(1).nullable().optional(),
++    identifier: z.string().min(1).optional(),
++    identifiers: z.array(z.string().min(1)).min(1).max(100).optional(),
++    folder: z.string().min(1).nullable().optional(),
++    create_folder: z.boolean().optional(),
++    folder_type: z.enum(worldTypes.filter(t => t !== 'Folder') as [string, ...string[]]).optional(),
++    delete_contents: z.boolean().optional(),
++    confirm: z.boolean().optional(),
 +  })
 +  .strict();
 +
@@ -13196,6 +14221,37 @@ index 0000000..047f2b5
 +        },
 +      },
 +      {
++        name: 'manage-world',
++        description:
++          'World housekeeping: folders, moving, renaming and deleting documents. ' +
++          'type is Actor, Scene, JournalEntry, Item, RollTable, Playlist, Macro or Folder; documents are named by id or exact name. ' +
++          'list_folders (optional type) shows folders with their parent and size. create_folder {type, name, parent?} makes a folder (nothing happens if it exists). ' +
++          'rename {type, identifier, name}. move {type, identifiers, folder, create_folder?} puts documents in a folder (folder null = top level; with type Folder also give folder_type, to nest folders). ' +
++          'delete {type, identifiers, confirm: true} permanently deletes documents (max 100 per call, refuses the active scene; deleting a Folder keeps its contents unless delete_contents is true). Without confirm: true it only reports what would go. Needs the Foundry tab open in a browser.',
++        inputSchema: {
++          type: 'object',
++          properties: {
++            action: { type: 'string', enum: ['list_folders', 'create_folder', 'rename', 'move', 'delete'] },
++            type: { type: 'string', enum: [...worldTypes] },
++            name: { type: 'string', description: 'create_folder / rename: the new name' },
++            parent: { type: ['string', 'null'], description: 'create_folder: parent folder name' },
++            identifier: { type: 'string', description: 'rename (and a single move/delete): id or exact name' },
++            identifiers: { type: 'array', items: { type: 'string' }, description: 'move / delete: ids or exact names' },
++            folder: { type: ['string', 'null'], description: 'move: target folder name, null for the top level' },
++            create_folder: { type: 'boolean', description: 'move: create the target folder if it does not exist' },
++            folder_type: {
++              type: 'string',
++              enum: worldTypes.filter(t => t !== 'Folder'),
++              description: 'With type Folder: the kind of document the folders hold',
++            },
++            delete_contents: { type: 'boolean', description: 'delete a Folder: also delete what is inside' },
++            confirm: { type: 'boolean', description: 'delete: must be true to really delete' },
++          },
++          required: ['action'],
++          additionalProperties: false,
++        },
++      },
++      {
 +        name: 'manage-regions',
 +        description:
 +          'Regions are areas of a scene that act when tokens enter, leave or move in them: difficult terrain, traps, pop-up text, teleports. ' +
@@ -13327,6 +14383,35 @@ index 0000000..047f2b5
 +      this.logger.error('Failed to manage scene objects', error);
 +      throw new Error(
 +        `Failed to manage scene objects: ${error instanceof Error ? error.message : 'Unknown error'}`
++      );
++    }
++  }
++
++  async handleManageWorld(args: any): Promise<any> {
++    const parsed = manageWorldSchema.parse(args ?? {});
++    if (parsed.action !== 'list_folders' && !parsed.type) {
++      throw new Error('type is required');
++    }
++    if (parsed.action === 'create_folder' && !parsed.name) throw new Error('name is required for create_folder');
++    if (parsed.action === 'rename' && (!parsed.identifier || !parsed.name)) {
++      throw new Error('rename needs identifier and name');
++    }
++    if ((parsed.action === 'move' || parsed.action === 'delete') && !parsed.identifier && !parsed.identifiers) {
++      throw new Error(`${parsed.action} needs identifiers`);
++    }
++    if (parsed.action === 'move' && parsed.folder === undefined) {
++      throw new Error('move needs folder (a folder name, or null for the top level)');
++    }
++    try {
++      const result = await this.foundryClient.query('foundry-mcp-bridge.manage-world', parsed);
++      if (result?.success === false) {
++        throw new Error(result.error || 'Request was refused');
++      }
++      return result;
++    } catch (error) {
++      this.logger.error('Failed to manage world', error);
++      throw new Error(
++        `Failed to manage world: ${error instanceof Error ? error.message : 'Unknown error'}`
 +      );
 +    }
 +  }

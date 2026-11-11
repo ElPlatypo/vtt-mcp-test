@@ -108755,6 +108755,21 @@ var ActorCreationTools = class {
               minimum: 1,
               maximum: 10
             },
+            folder: {
+              type: "string",
+              description: 'Actor folder to put them in (created if absent; default "Foundry MCP Creatures")'
+            },
+            hp: {
+              type: ["number", "object"],
+              description: "dnd5e only: override hit points with a number (current and maximum) or {value, max}"
+            },
+            token: {
+              type: "object",
+              description: "Token options: width and height in squares (2 for Large), disposition (-1, 0, 1), scale (0.2 to 3), actor_link, display_name (none, control, owner_hover, hover, owner, always), vision",
+              additionalProperties: true
+            },
+            img: { type: "string", description: "Portrait path to use instead of the compendium one" },
+            tokenImg: { type: "string", description: "Token picture path" },
             addToScene: {
               type: "boolean",
               description: "Whether to add created actors to the current scene as tokens",
@@ -108819,6 +108834,11 @@ var ActorCreationTools = class {
       names: external_exports.array(external_exports.string().min(1)).min(1, "At least one name is required"),
       quantity: external_exports.number().min(1).max(10).optional(),
       addToScene: external_exports.boolean().default(false),
+      folder: external_exports.string().min(1).optional(),
+      hp: external_exports.union([external_exports.number(), external_exports.object({ value: external_exports.number().optional(), max: external_exports.number().optional() }).strict()]).optional(),
+      token: external_exports.record(external_exports.any()).optional(),
+      img: external_exports.string().min(1).optional(),
+      tokenImg: external_exports.string().min(1).optional(),
       placement: external_exports.object({
         type: external_exports.enum(["random", "grid", "center", "coordinates"]).default("grid"),
         coordinates: external_exports.array(external_exports.object({
@@ -108827,7 +108847,7 @@ var ActorCreationTools = class {
         })).optional()
       }).optional()
     });
-    const { packId, itemId, names, quantity, addToScene, placement } = schema.parse(args);
+    const { packId, itemId, names, quantity, addToScene, placement, folder, hp, token, img, tokenImg } = schema.parse(args);
     const finalQuantity = quantity || names.length;
     this.logger.info("Creating actors from specific compendium entry", {
       packId,
@@ -108848,6 +108868,11 @@ var ActorCreationTools = class {
         customNames: customNames.slice(0, finalQuantity),
         quantity: finalQuantity,
         addToScene,
+        ...folder !== void 0 ? { folder } : {},
+        ...hp !== void 0 ? { hp } : {},
+        ...token !== void 0 ? { token } : {},
+        ...img !== void 0 ? { img } : {},
+        ...tokenImg !== void 0 ? { tokenImg } : {},
         placement: placement ? {
           type: placement.type,
           coordinates: placement.coordinates
@@ -108939,6 +108964,10 @@ var ActorCreationTools = class {
 
 // dist/tools/actor-management.js
 init_zod();
+var hpSchema = external_exports.union([
+  external_exports.number(),
+  external_exports.object({ value: external_exports.number().optional(), max: external_exports.number().optional() }).strict()
+]);
 var ActorManagementTools = class {
   foundryClient;
   logger;
@@ -108999,6 +109028,15 @@ var ActorManagementTools = class {
                     type: "string",
                     description: "Optional picture for the actor's token (the prototype token), when it should differ from the portrait. Tokens placed later use it."
                   },
+                  hp: {
+                    type: ["number", "object"],
+                    description: "dnd5e only: hit points as a number (current and maximum) or {value, max}."
+                  },
+                  token: {
+                    type: "object",
+                    description: "Token options: width and height in squares (2 for a Large creature), disposition (-1 hostile, 0 neutral, 1 friendly), scale (0.2 to 3), actor_link, display_name (none, control, owner_hover, hover, owner, always), vision.",
+                    additionalProperties: true
+                  },
                   system: {
                     type: "object",
                     description: 'System-specific data. Free-form object \u2014 use action:"describe" to get valid field names for the active system.',
@@ -109035,6 +109073,19 @@ var ActorManagementTools = class {
                   tokenImg: {
                     type: "string",
                     description: "New picture for the actor's token (prototype token). Tokens already on scenes keep their old picture."
+                  },
+                  hp: {
+                    type: ["number", "object"],
+                    description: "dnd5e only: hit points as a number (current and maximum) or {value, max}."
+                  },
+                  token: {
+                    type: "object",
+                    description: "Token options: width and height in squares (2 for a Large creature), disposition (-1 hostile, 0 neutral, 1 friendly), scale (0.2 to 3), actor_link, display_name (none, control, owner_hover, hover, owner, always), vision.",
+                    additionalProperties: true
+                  },
+                  folder: {
+                    type: "string",
+                    description: "Move the actor into this folder (created if absent)."
                   },
                   system: {
                     type: "object",
@@ -109168,7 +109219,9 @@ var ActorManagementTools = class {
         type: external_exports.string().min(1),
         img: external_exports.string().optional(),
         tokenImg: external_exports.string().optional(),
-        system: external_exports.record(external_exports.any()).optional()
+        system: external_exports.record(external_exports.any()).optional(),
+        hp: hpSchema.optional(),
+        token: external_exports.record(external_exports.any()).optional()
       })).min(1),
       folder: external_exports.string().optional()
     });
@@ -109193,7 +109246,10 @@ var ActorManagementTools = class {
         name: external_exports.string().optional(),
         img: external_exports.string().optional(),
         tokenImg: external_exports.string().optional(),
-        system: external_exports.record(external_exports.any()).optional()
+        system: external_exports.record(external_exports.any()).optional(),
+        hp: hpSchema.optional(),
+        token: external_exports.record(external_exports.any()).optional(),
+        folder: external_exports.string().min(1).optional()
       })).min(1)
     });
     const { updates } = schema.parse(args);
@@ -116620,6 +116676,20 @@ var regionSchema = external_exports.object({
   display_measurements: external_exports.boolean().optional(),
   behaviors: external_exports.array(behaviorSchema).max(10).optional()
 }).strict();
+var worldTypes = ["Actor", "Scene", "JournalEntry", "Item", "RollTable", "Playlist", "Macro", "Folder"];
+var manageWorldSchema = external_exports.object({
+  action: external_exports.enum(["list_folders", "create_folder", "rename", "move", "delete"]),
+  type: external_exports.enum(worldTypes).optional(),
+  name: external_exports.string().min(1).optional(),
+  parent: external_exports.string().min(1).nullable().optional(),
+  identifier: external_exports.string().min(1).optional(),
+  identifiers: external_exports.array(external_exports.string().min(1)).min(1).max(100).optional(),
+  folder: external_exports.string().min(1).nullable().optional(),
+  create_folder: external_exports.boolean().optional(),
+  folder_type: external_exports.enum(worldTypes.filter((t) => t !== "Folder")).optional(),
+  delete_contents: external_exports.boolean().optional(),
+  confirm: external_exports.boolean().optional()
+}).strict();
 var manageRegionsSchema = external_exports.object({
   action: external_exports.enum(["create", "describe", "remove", "behavior_types"]),
   scene: external_exports.string().min(1).optional(),
@@ -116805,6 +116875,32 @@ var SceneObjectTools = class {
         }
       },
       {
+        name: "manage-world",
+        description: "World housekeeping: folders, moving, renaming and deleting documents. type is Actor, Scene, JournalEntry, Item, RollTable, Playlist, Macro or Folder; documents are named by id or exact name. list_folders (optional type) shows folders with their parent and size. create_folder {type, name, parent?} makes a folder (nothing happens if it exists). rename {type, identifier, name}. move {type, identifiers, folder, create_folder?} puts documents in a folder (folder null = top level; with type Folder also give folder_type, to nest folders). delete {type, identifiers, confirm: true} permanently deletes documents (max 100 per call, refuses the active scene; deleting a Folder keeps its contents unless delete_contents is true). Without confirm: true it only reports what would go. Needs the Foundry tab open in a browser.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            action: { type: "string", enum: ["list_folders", "create_folder", "rename", "move", "delete"] },
+            type: { type: "string", enum: [...worldTypes] },
+            name: { type: "string", description: "create_folder / rename: the new name" },
+            parent: { type: ["string", "null"], description: "create_folder: parent folder name" },
+            identifier: { type: "string", description: "rename (and a single move/delete): id or exact name" },
+            identifiers: { type: "array", items: { type: "string" }, description: "move / delete: ids or exact names" },
+            folder: { type: ["string", "null"], description: "move: target folder name, null for the top level" },
+            create_folder: { type: "boolean", description: "move: create the target folder if it does not exist" },
+            folder_type: {
+              type: "string",
+              enum: worldTypes.filter((t) => t !== "Folder"),
+              description: "With type Folder: the kind of document the folders hold"
+            },
+            delete_contents: { type: "boolean", description: "delete a Folder: also delete what is inside" },
+            confirm: { type: "boolean", description: "delete: must be true to really delete" }
+          },
+          required: ["action"],
+          additionalProperties: false
+        }
+      },
+      {
         name: "manage-regions",
         description: 'Regions are areas of a scene that act when tokens enter, leave or move in them: difficult terrain, traps, pop-up text, teleports. Shapes are in GRID SQUARES from the top-left corner of the map, like manage-scene-objects. create takes regions (up to 100): {name, one of rect:[x,y,width,height] | ellipse:[centreX,centreY,radiusX,radiusY] | polygon:[[x,y],...], color?, hidden?, display_measurements?, behaviors?}. A behavior is either {preset:"difficult_terrain", cost?} (movement costs cost times as much, default 2) or a raw Foundry behavior {type, name?, system?, disabled?} such as executeMacro (run a world macro on tokenEnter, e.g. a pit trap that rolls a save and damage), displayScrollingText, pauseGame or teleportToken. Run behavior_types first to see exactly which fields each behavior type of this Foundry accepts. describe lists the regions of a scene; remove needs ids or all_mine:true and only removes regions this tool created. scene is an id or exact name (default: the scene being viewed). Needs the Foundry tab open in a browser.',
         inputSchema: {
@@ -116918,6 +117014,33 @@ var SceneObjectTools = class {
     } catch (error) {
       this.logger.error("Failed to manage scene objects", error);
       throw new Error(`Failed to manage scene objects: ${error instanceof Error ? error.message : "Unknown error"}`);
+    }
+  }
+  async handleManageWorld(args) {
+    const parsed = manageWorldSchema.parse(args ?? {});
+    if (parsed.action !== "list_folders" && !parsed.type) {
+      throw new Error("type is required");
+    }
+    if (parsed.action === "create_folder" && !parsed.name)
+      throw new Error("name is required for create_folder");
+    if (parsed.action === "rename" && (!parsed.identifier || !parsed.name)) {
+      throw new Error("rename needs identifier and name");
+    }
+    if ((parsed.action === "move" || parsed.action === "delete") && !parsed.identifier && !parsed.identifiers) {
+      throw new Error(`${parsed.action} needs identifiers`);
+    }
+    if (parsed.action === "move" && parsed.folder === void 0) {
+      throw new Error("move needs folder (a folder name, or null for the top level)");
+    }
+    try {
+      const result = await this.foundryClient.query("foundry-mcp-bridge.manage-world", parsed);
+      if (result?.success === false) {
+        throw new Error(result.error || "Request was refused");
+      }
+      return result;
+    } catch (error) {
+      this.logger.error("Failed to manage world", error);
+      throw new Error(`Failed to manage world: ${error instanceof Error ? error.message : "Unknown error"}`);
     }
   }
   async handleManageRegions(args) {
@@ -118281,6 +118404,9 @@ async function startBackend() {
                   break;
                 case "manage-regions":
                   result = await sceneObjectTools.handleManageRegions(args);
+                  break;
+                case "manage-world":
+                  result = await sceneObjectTools.handleManageWorld(args);
                   break;
                 case "manage-journals":
                   result = await journalTools.handleManageJournals(args);

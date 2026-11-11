@@ -11,6 +11,7 @@ An unofficial variant of [Foundry MCP Bridge](https://github.com/adambdooley/fou
 - **`measure-grid`**: measures the grid drawn into a map picture (pixels per square and offset), from a scene background or an image, optionally over a floor `region`; says "no grid" for gridless maps. `manage-actors` also takes `tokenImg` to set the token picture separately from the portrait.
 - **`manage-regions`**: creates regions (difficult terrain, traps that run a macro, pop-up text, teleports) from shapes in grid squares, lists them, removes the ones it made, and `behavior_types` shows what each behavior accepts. `preview-scene` takes a `region` to zoom in on one area for precise wall placement.
 - **Map extras (0.8.6.16)**: `manage-scene-objects` also places tiles and ambient sounds and sets token width/height; `manage-scenes` sets opening view, weather, fog mode, grid shift and grid style; the difficult-terrain preset uses the dnd5e behavior when present. Unit-tested with a faked Foundry only.
+- **World housekeeping (0.8.6.17)**: new `manage-world` tool (list/create folders, move, rename, delete with `confirm`); `manage-actors` and `create-actor-from-compendium` take `token` (size, disposition...), dnd5e `hp` and `folder`. Unit-tested with a faked Foundry only.
 
 It installs under its own id, `foundry-mcp-bridge-scenes`, so it can sit next to the original module. **Enable only one of the two per world:** both connect to the same MCP server port and the modules are marked as conflicting.
 
