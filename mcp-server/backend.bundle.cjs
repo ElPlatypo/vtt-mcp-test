@@ -445,8 +445,8 @@ var init_parseUtil = __esm({
     init_errors();
     init_en();
     makeIssue = (params) => {
-      const { data, path: path8, errorMaps, issueData } = params;
-      const fullPath = [...path8, ...issueData.path || []];
+      const { data, path: path9, errorMaps, issueData } = params;
+      const fullPath = [...path9, ...issueData.path || []];
       const fullIssue = {
         ...issueData,
         path: fullPath
@@ -754,11 +754,11 @@ var init_types = __esm({
     init_parseUtil();
     init_util();
     ParseInputLazyPath = class {
-      constructor(parent, value, path8, key) {
+      constructor(parent, value, path9, key) {
         this._cachedPath = [];
         this.parent = parent;
         this.data = value;
-        this._path = path8;
+        this._path = path9;
         this._key = key;
       }
       get path() {
@@ -4210,9 +4210,9 @@ var require_package = __commonJS({
 // ../../node_modules/dotenv/lib/main.js
 var require_main = __commonJS({
   "../../node_modules/dotenv/lib/main.js"(exports2, module2) {
-    var fs7 = require("fs");
-    var path8 = require("path");
-    var os3 = require("os");
+    var fs8 = require("fs");
+    var path9 = require("path");
+    var os4 = require("os");
     var crypto7 = require("crypto");
     var packageJson = require_package();
     var version2 = packageJson.version;
@@ -4319,7 +4319,7 @@ var require_main = __commonJS({
       if (options && options.path && options.path.length > 0) {
         if (Array.isArray(options.path)) {
           for (const filepath of options.path) {
-            if (fs7.existsSync(filepath)) {
+            if (fs8.existsSync(filepath)) {
               possibleVaultPath = filepath.endsWith(".vault") ? filepath : `${filepath}.vault`;
             }
           }
@@ -4327,15 +4327,15 @@ var require_main = __commonJS({
           possibleVaultPath = options.path.endsWith(".vault") ? options.path : `${options.path}.vault`;
         }
       } else {
-        possibleVaultPath = path8.resolve(process.cwd(), ".env.vault");
+        possibleVaultPath = path9.resolve(process.cwd(), ".env.vault");
       }
-      if (fs7.existsSync(possibleVaultPath)) {
+      if (fs8.existsSync(possibleVaultPath)) {
         return possibleVaultPath;
       }
       return null;
     }
     function _resolveHome(envPath) {
-      return envPath[0] === "~" ? path8.join(os3.homedir(), envPath.slice(1)) : envPath;
+      return envPath[0] === "~" ? path9.join(os4.homedir(), envPath.slice(1)) : envPath;
     }
     function _configVault(options) {
       const debug = Boolean(options && options.debug);
@@ -4352,7 +4352,7 @@ var require_main = __commonJS({
       return { parsed };
     }
     function configDotenv(options) {
-      const dotenvPath = path8.resolve(process.cwd(), ".env");
+      const dotenvPath = path9.resolve(process.cwd(), ".env");
       let encoding = "utf8";
       const debug = Boolean(options && options.debug);
       const quiet = options && "quiet" in options ? options.quiet : true;
@@ -4376,13 +4376,13 @@ var require_main = __commonJS({
       }
       let lastError;
       const parsedAll = {};
-      for (const path9 of optionPaths) {
+      for (const path10 of optionPaths) {
         try {
-          const parsed = DotenvModule.parse(fs7.readFileSync(path9, { encoding }));
+          const parsed = DotenvModule.parse(fs8.readFileSync(path10, { encoding }));
           DotenvModule.populate(parsedAll, parsed, options);
         } catch (e) {
           if (debug) {
-            _debug(`Failed to load ${path9} ${e.message}`);
+            _debug(`Failed to load ${path10} ${e.message}`);
           }
           lastError = e;
         }
@@ -4397,7 +4397,7 @@ var require_main = __commonJS({
         const shortPaths = [];
         for (const filePath of optionPaths) {
           try {
-            const relative = path8.relative(process.cwd(), filePath);
+            const relative = path9.relative(process.cwd(), filePath);
             shortPaths.push(relative);
           } catch (e) {
             if (debug) {
@@ -4659,7 +4659,7 @@ var require_has_flag = __commonJS({
 var require_supports_colors = __commonJS({
   "../../node_modules/@colors/colors/lib/system/supports-colors.js"(exports2, module2) {
     "use strict";
-    var os3 = require("os");
+    var os4 = require("os");
     var hasFlag = require_has_flag();
     var env = process.env;
     var forceColor = void 0;
@@ -4697,7 +4697,7 @@ var require_supports_colors = __commonJS({
       }
       var min = forceColor ? 1 : 0;
       if (process.platform === "win32") {
-        var osRelease = os3.release().split(".");
+        var osRelease = os4.release().split(".");
         if (Number(process.versions.node.split(".")[0]) >= 8 && Number(osRelease[0]) >= 10 && Number(osRelease[2]) >= 10586) {
           return Number(osRelease[2]) >= 14931 ? 3 : 2;
         }
@@ -4754,10 +4754,10 @@ var require_supports_colors = __commonJS({
 // ../../node_modules/@colors/colors/lib/custom/trap.js
 var require_trap = __commonJS({
   "../../node_modules/@colors/colors/lib/custom/trap.js"(exports2, module2) {
-    module2["exports"] = function runTheTrap(text, options) {
+    module2["exports"] = function runTheTrap(text2, options) {
       var result = "";
-      text = text || "Run the trap, drop the bass";
-      text = text.split("");
+      text2 = text2 || "Run the trap, drop the bass";
+      text2 = text2.split("");
       var trap = {
         a: ["@", "\u0104", "\u023A", "\u0245", "\u0394", "\u039B", "\u0414"],
         b: ["\xDF", "\u0181", "\u0243", "\u026E", "\u03B2", "\u0E3F"],
@@ -4805,7 +4805,7 @@ var require_trap = __commonJS({
         y: ["\xA5", "\u04B0", "\u04CB"],
         z: ["\u01B5", "\u0240"]
       };
-      text.forEach(function(c) {
+      text2.forEach(function(c) {
         c = c.toLowerCase();
         var chars = trap[c] || [" "];
         var rand = Math.floor(Math.random() * chars.length);
@@ -4823,8 +4823,8 @@ var require_trap = __commonJS({
 // ../../node_modules/@colors/colors/lib/custom/zalgo.js
 var require_zalgo = __commonJS({
   "../../node_modules/@colors/colors/lib/custom/zalgo.js"(exports2, module2) {
-    module2["exports"] = function zalgo(text, options) {
-      text = text || "   he is here   ";
+    module2["exports"] = function zalgo(text2, options) {
+      text2 = text2 || "   he is here   ";
       var soul = {
         "up": [
           "\u030D",
@@ -4957,7 +4957,7 @@ var require_zalgo = __commonJS({
         });
         return bool;
       }
-      function heComes(text2, options2) {
+      function heComes(text3, options2) {
         var result = "";
         var counts;
         var l;
@@ -4966,12 +4966,12 @@ var require_zalgo = __commonJS({
         options2["mid"] = typeof options2["mid"] !== "undefined" ? options2["mid"] : true;
         options2["down"] = typeof options2["down"] !== "undefined" ? options2["down"] : true;
         options2["size"] = typeof options2["size"] !== "undefined" ? options2["size"] : "maxi";
-        text2 = text2.split("");
-        for (l in text2) {
+        text3 = text3.split("");
+        for (l in text3) {
           if (isChar(l)) {
             continue;
           }
-          result = result + text2[l];
+          result = result + text3[l];
           counts = { "up": 0, "down": 0, "mid": 0 };
           switch (options2.size) {
             case "mini":
@@ -5002,7 +5002,7 @@ var require_zalgo = __commonJS({
         }
         return result;
       }
-      return heComes(text, options);
+      return heComes(text2, options);
     };
   }
 });
@@ -10115,7 +10115,7 @@ var require_winston_transport = __commonJS({
 var require_console = __commonJS({
   "../../node_modules/winston/lib/winston/transports/console.js"(exports2, module2) {
     "use strict";
-    var os3 = require("os");
+    var os4 = require("os");
     var { LEVEL, MESSAGE } = require_triple_beam();
     var TransportStream = require_winston_transport();
     module2.exports = class Console extends TransportStream {
@@ -10129,7 +10129,7 @@ var require_console = __commonJS({
         this.name = options.name || "console";
         this.stderrLevels = this._stringArrayToSet(options.stderrLevels);
         this.consoleWarnLevels = this._stringArrayToSet(options.consoleWarnLevels);
-        this.eol = typeof options.eol === "string" ? options.eol : os3.EOL;
+        this.eol = typeof options.eol === "string" ? options.eol : os4.EOL;
         this.forceConsole = options.forceConsole || false;
         this._consoleLog = console.log.bind(console);
         this._consoleWarn = console.warn.bind(console);
@@ -11432,9 +11432,9 @@ var require_color_string = __commonJS({
         return null;
       }
       for (i = 0; i < 3; i++) {
-        rgb[i] = clamp(rgb[i], 0, 255);
+        rgb[i] = clamp2(rgb[i], 0, 255);
       }
-      rgb[3] = clamp(rgb[3], 0, 1);
+      rgb[3] = clamp2(rgb[3], 0, 1);
       return rgb;
     };
     cs.get.hsl = function(string) {
@@ -11446,9 +11446,9 @@ var require_color_string = __commonJS({
       if (match) {
         var alpha = parseFloat(match[4]);
         var h = (parseFloat(match[1]) % 360 + 360) % 360;
-        var s = clamp(parseFloat(match[2]), 0, 100);
-        var l = clamp(parseFloat(match[3]), 0, 100);
-        var a = clamp(isNaN(alpha) ? 1 : alpha, 0, 1);
+        var s = clamp2(parseFloat(match[2]), 0, 100);
+        var l = clamp2(parseFloat(match[3]), 0, 100);
+        var a = clamp2(isNaN(alpha) ? 1 : alpha, 0, 1);
         return [h, s, l, a];
       }
       return null;
@@ -11462,9 +11462,9 @@ var require_color_string = __commonJS({
       if (match) {
         var alpha = parseFloat(match[4]);
         var h = (parseFloat(match[1]) % 360 + 360) % 360;
-        var w = clamp(parseFloat(match[2]), 0, 100);
-        var b = clamp(parseFloat(match[3]), 0, 100);
-        var a = clamp(isNaN(alpha) ? 1 : alpha, 0, 1);
+        var w = clamp2(parseFloat(match[2]), 0, 100);
+        var b = clamp2(parseFloat(match[3]), 0, 100);
+        var a = clamp2(isNaN(alpha) ? 1 : alpha, 0, 1);
         return [h, w, b, a];
       }
       return null;
@@ -11499,11 +11499,11 @@ var require_color_string = __commonJS({
     cs.to.keyword = function(rgb) {
       return reverseNames[rgb.slice(0, 3)];
     };
-    function clamp(num, min, max) {
-      return Math.min(Math.max(min, num), max);
+    function clamp2(num2, min, max) {
+      return Math.min(Math.max(min, num2), max);
     }
-    function hexDouble(num) {
-      var str = Math.round(num).toString(16).toUpperCase();
+    function hexDouble(num2) {
+      var str = Math.round(num2).toString(16).toUpperCase();
       return str.length < 2 ? "0" + str : str;
     }
   }
@@ -12421,15 +12421,15 @@ var require_route = __commonJS({
       };
     }
     function wrapConversion(toModel, graph) {
-      var path8 = [graph[toModel].parent, toModel];
+      var path9 = [graph[toModel].parent, toModel];
       var fn = conversions[graph[toModel].parent][toModel];
       var cur = graph[toModel].parent;
       while (graph[cur].parent) {
-        path8.unshift(graph[cur].parent);
+        path9.unshift(graph[cur].parent);
         fn = link(conversions[graph[cur].parent][cur], fn);
         cur = graph[cur].parent;
       }
-      fn.conversion = path8;
+      fn.conversion = path9;
       return fn;
     }
     module2.exports = function(fromModel) {
@@ -12839,12 +12839,12 @@ var require_color = __commonJS({
         return new Color(color2, model);
       };
     });
-    function roundTo(num, places) {
-      return Number(num.toFixed(places));
+    function roundTo(num2, places) {
+      return Number(num2.toFixed(places));
     }
     function roundToPlace(places) {
-      return function(num) {
-        return roundTo(num, places);
+      return function(num2) {
+        return roundTo(num2, places);
       };
     }
     function getset(model, channel, modifier) {
@@ -12930,12 +12930,12 @@ var require_colorspace = __commonJS({
 var require_kuler = __commonJS({
   "../../node_modules/kuler/index.js"(exports2, module2) {
     "use strict";
-    function Kuler(text, color2) {
+    function Kuler(text2, color2) {
       if (color2)
-        return new Kuler(text).style(color2);
+        return new Kuler(text2).style(color2);
       if (!(this instanceof Kuler))
-        return new Kuler(text);
-      this.text = text;
+        return new Kuler(text2);
+      this.text = text2;
     }
     Kuler.prototype.prefix = "\x1B[";
     Kuler.prototype.suffix = "m";
@@ -13086,7 +13086,7 @@ var require_node2 = __commonJS({
 var require_tail_file = __commonJS({
   "../../node_modules/winston/lib/winston/tail-file.js"(exports2, module2) {
     "use strict";
-    var fs7 = require("fs");
+    var fs8 = require("fs");
     var { StringDecoder } = require("string_decoder");
     var { Stream } = require_readable();
     function noop2() {
@@ -13107,7 +13107,7 @@ var require_tail_file = __commonJS({
         stream4.emit("end");
         stream4.emit("close");
       };
-      fs7.open(options.file, "a+", "0644", (err, fd) => {
+      fs8.open(options.file, "a+", "0644", (err, fd) => {
         if (err) {
           if (!iter) {
             stream4.emit("error", err);
@@ -13119,10 +13119,10 @@ var require_tail_file = __commonJS({
         }
         (function read() {
           if (stream4.destroyed) {
-            fs7.close(fd, noop2);
+            fs8.close(fd, noop2);
             return;
           }
-          return fs7.read(fd, buffer, 0, buffer.length, pos, (error, bytes) => {
+          return fs8.read(fd, buffer, 0, buffer.length, pos, (error, bytes) => {
             if (error) {
               if (!iter) {
                 stream4.emit("error", error);
@@ -13181,15 +13181,15 @@ var require_tail_file = __commonJS({
 var require_file = __commonJS({
   "../../node_modules/winston/lib/winston/transports/file.js"(exports2, module2) {
     "use strict";
-    var fs7 = require("fs");
-    var path8 = require("path");
+    var fs8 = require("fs");
+    var path9 = require("path");
     var asyncSeries = require_series();
     var zlib2 = require("zlib");
     var { MESSAGE } = require_triple_beam();
     var { Stream, PassThrough } = require_readable();
     var TransportStream = require_winston_transport();
     var debug = require_node2()("winston:file");
-    var os3 = require("os");
+    var os4 = require("os");
     var tailFile = require_tail_file();
     module2.exports = class File extends TransportStream {
       /**
@@ -13212,14 +13212,14 @@ var require_file = __commonJS({
         this._onError = this._onError.bind(this);
         if (options.filename || options.dirname) {
           throwIf("filename or dirname", "stream");
-          this._basename = this.filename = options.filename ? path8.basename(options.filename) : "winston.log";
-          this.dirname = options.dirname || path8.dirname(options.filename);
+          this._basename = this.filename = options.filename ? path9.basename(options.filename) : "winston.log";
+          this.dirname = options.dirname || path9.dirname(options.filename);
           this.options = options.options || { flags: "a" };
         } else if (options.stream) {
           console.warn("options.stream will be removed in winston@4. Use winston.transports.Stream");
           throwIf("stream", "filename", "maxsize");
           this._dest = this._stream.pipe(this._setupStream(options.stream));
-          this.dirname = path8.dirname(this._dest.path);
+          this.dirname = path9.dirname(this._dest.path);
         } else {
           throw new Error("Cannot log to file without filename or stream.");
         }
@@ -13227,7 +13227,7 @@ var require_file = __commonJS({
         this.rotationFormat = options.rotationFormat || false;
         this.zippedArchive = options.zippedArchive || false;
         this.maxFiles = options.maxFiles || null;
-        this.eol = typeof options.eol === "string" ? options.eol : os3.EOL;
+        this.eol = typeof options.eol === "string" ? options.eol : os4.EOL;
         this.tailable = options.tailable || false;
         this.lazy = options.lazy || false;
         this._size = 0;
@@ -13362,11 +13362,11 @@ var require_file = __commonJS({
           options = {};
         }
         options = normalizeQuery(options);
-        const file = path8.join(this.dirname, this.filename);
+        const file = path9.join(this.dirname, this.filename);
         let buff = "";
         let results = [];
         let row = 0;
-        const stream4 = fs7.createReadStream(file, {
+        const stream4 = fs8.createReadStream(file, {
           encoding: "utf8"
         });
         stream4.on("error", (err) => {
@@ -13468,7 +13468,7 @@ var require_file = __commonJS({
        * TODO: Refactor me.
        */
       stream(options = {}) {
-        const file = path8.join(this.dirname, this.filename);
+        const file = path9.join(this.dirname, this.filename);
         const stream4 = new Stream();
         const tail = {
           file,
@@ -13520,8 +13520,8 @@ var require_file = __commonJS({
        */
       stat(callback) {
         const target = this._getFile();
-        const fullpath = path8.join(this.dirname, target);
-        fs7.stat(fullpath, (err, stat) => {
+        const fullpath = path9.join(this.dirname, target);
+        fs8.stat(fullpath, (err, stat) => {
           if (err && err.code === "ENOENT") {
             debug("ENOENT\xA0ok", fullpath);
             this.filename = target;
@@ -13624,9 +13624,9 @@ var require_file = __commonJS({
        * @returns {WritableStream} Stream that writes to disk for the active file.
        */
       _createStream(source) {
-        const fullpath = path8.join(this.dirname, this.filename);
+        const fullpath = path9.join(this.dirname, this.filename);
         debug("create stream start", fullpath, this.options);
-        const dest = fs7.createWriteStream(fullpath, this.options).on("error", (err) => debug(err)).on("close", () => debug("close", dest.path, dest.bytesWritten)).on("open", () => {
+        const dest = fs8.createWriteStream(fullpath, this.options).on("error", (err) => debug(err)).on("close", () => debug("close", dest.path, dest.bytesWritten)).on("open", () => {
           debug("file open ok", fullpath);
           this.emit("open", fullpath);
           source.pipe(dest);
@@ -13649,16 +13649,16 @@ var require_file = __commonJS({
        */
       _incFile(callback) {
         debug("_incFile", this.filename);
-        const ext = path8.extname(this._basename);
-        const basename2 = path8.basename(this._basename, ext);
+        const ext = path9.extname(this._basename);
+        const basename2 = path9.basename(this._basename, ext);
         const tasks = [];
         if (this.zippedArchive) {
           tasks.push(
             function(cb) {
-              const num = this._created > 0 && !this.tailable ? this._created : "";
+              const num2 = this._created > 0 && !this.tailable ? this._created : "";
               this._compressFile(
-                path8.join(this.dirname, `${basename2}${num}${ext}`),
-                path8.join(this.dirname, `${basename2}${num}${ext}.gz`),
+                path9.join(this.dirname, `${basename2}${num2}${ext}`),
+                path9.join(this.dirname, `${basename2}${num2}${ext}.gz`),
                 cb
               );
             }.bind(this)
@@ -13683,8 +13683,8 @@ var require_file = __commonJS({
        * @private
        */
       _getFile() {
-        const ext = path8.extname(this._basename);
-        const basename2 = path8.basename(this._basename, ext);
+        const ext = path9.extname(this._basename);
+        const basename2 = path9.basename(this._basename, ext);
         const isRotation = this.rotationFormat ? this.rotationFormat() : this._created;
         return !this.tailable && this._created ? `${basename2}${isRotation}${ext}` : `${basename2}${ext}`;
       }
@@ -13704,8 +13704,8 @@ var require_file = __commonJS({
         const isOldest = oldest !== 0 ? oldest : "";
         const isZipped = this.zippedArchive ? ".gz" : "";
         const filePath = `${basename2}${isOldest}${ext}${isZipped}`;
-        const target = path8.join(this.dirname, filePath);
-        fs7.unlink(target, callback);
+        const target = path9.join(this.dirname, filePath);
+        fs8.unlink(target, callback);
       }
       /**
        * Roll files forward based on integer, up to maxFiles. e.g. if base if
@@ -13727,20 +13727,20 @@ var require_file = __commonJS({
         for (let x = this.maxFiles - 1; x > 1; x--) {
           tasks.push(function(i, cb) {
             let fileName = `${basename2}${i - 1}${ext}${isZipped}`;
-            const tmppath = path8.join(this.dirname, fileName);
-            fs7.exists(tmppath, (exists) => {
+            const tmppath = path9.join(this.dirname, fileName);
+            fs8.exists(tmppath, (exists) => {
               if (!exists) {
                 return cb(null);
               }
               fileName = `${basename2}${i}${ext}${isZipped}`;
-              fs7.rename(tmppath, path8.join(this.dirname, fileName), cb);
+              fs8.rename(tmppath, path9.join(this.dirname, fileName), cb);
             });
           }.bind(this, x));
         }
         asyncSeries(tasks, () => {
-          fs7.rename(
-            path8.join(this.dirname, `${basename2}${ext}${isZipped}`),
-            path8.join(this.dirname, `${basename2}1${ext}${isZipped}`),
+          fs8.rename(
+            path9.join(this.dirname, `${basename2}${ext}${isZipped}`),
+            path9.join(this.dirname, `${basename2}1${ext}${isZipped}`),
             callback
           );
         });
@@ -13754,22 +13754,22 @@ var require_file = __commonJS({
        * @private
        */
       _compressFile(src, dest, callback) {
-        fs7.access(src, fs7.F_OK, (err) => {
+        fs8.access(src, fs8.F_OK, (err) => {
           if (err) {
             return callback();
           }
           var gzip = zlib2.createGzip();
-          var inp = fs7.createReadStream(src);
-          var out = fs7.createWriteStream(dest);
+          var inp = fs8.createReadStream(src);
+          var out = fs8.createWriteStream(dest);
           out.on("finish", () => {
-            fs7.unlink(src, callback);
+            fs8.unlink(src, callback);
           });
           inp.pipe(gzip).pipe(out);
         });
       }
       _createLogDirIfNotExist(dirPath) {
-        if (!fs7.existsSync(dirPath)) {
-          fs7.mkdirSync(dirPath, { recursive: true });
+        if (!fs8.existsSync(dirPath)) {
+          fs8.mkdirSync(dirPath, { recursive: true });
         }
       }
     };
@@ -13853,9 +13853,9 @@ var require_http = __commonJS({
         };
         const auth = options.params.auth || null;
         delete options.params.auth;
-        const path8 = options.params.path || null;
+        const path9 = options.params.path || null;
         delete options.params.path;
-        this._request(options, auth, path8, (err, res, body) => {
+        this._request(options, auth, path9, (err, res, body) => {
           if (res && res.statusCode !== 200) {
             err = new Error(`Invalid HTTP Status Code: ${res.statusCode}`);
           }
@@ -13883,12 +13883,12 @@ var require_http = __commonJS({
           method: "stream",
           params: options
         };
-        const path8 = options.params.path || null;
+        const path9 = options.params.path || null;
         delete options.params.path;
         const auth = options.params.auth || null;
         delete options.params.auth;
         let buff = "";
-        const req = this._request(options, auth, path8);
+        const req = this._request(options, auth, path9);
         stream4.destroy = () => req.destroy();
         req.on("data", (data) => {
           data = (buff + data).split(/\n+/);
@@ -13914,14 +13914,14 @@ var require_http = __commonJS({
        * @param {string} path - request path
        * @param {function} callback - Continuation to respond to when complete.
        */
-      _request(options, auth, path8, callback) {
+      _request(options, auth, path9, callback) {
         options = options || {};
         auth = auth || this.auth;
-        path8 = path8 || this.path || "";
+        path9 = path9 || this.path || "";
         if (this.batch) {
-          this._doBatch(options, callback, auth, path8);
+          this._doBatch(options, callback, auth, path9);
         } else {
-          this._doRequest(options, callback, auth, path8);
+          this._doRequest(options, callback, auth, path9);
         }
       }
       /**
@@ -13931,18 +13931,18 @@ var require_http = __commonJS({
        * @param {Object?} auth - authentication options
        * @param {string} path - request path
        */
-      _doBatch(options, callback, auth, path8) {
+      _doBatch(options, callback, auth, path9) {
         this.batchOptions.push(options);
         if (this.batchOptions.length === 1) {
           const me = this;
           this.batchCallback = callback;
           this.batchTimeoutID = setTimeout(function() {
             me.batchTimeoutID = -1;
-            me._doBatchRequest(me.batchCallback, auth, path8);
+            me._doBatchRequest(me.batchCallback, auth, path9);
           }, this.batchInterval);
         }
         if (this.batchOptions.length === this.batchCount) {
-          this._doBatchRequest(this.batchCallback, auth, path8);
+          this._doBatchRequest(this.batchCallback, auth, path9);
         }
       }
       /**
@@ -13951,14 +13951,14 @@ var require_http = __commonJS({
        * @param {Object?} auth - authentication options
        * @param {string} path - request path
        */
-      _doBatchRequest(callback, auth, path8) {
+      _doBatchRequest(callback, auth, path9) {
         if (this.batchTimeoutID > 0) {
           clearTimeout(this.batchTimeoutID);
           this.batchTimeoutID = -1;
         }
         const batchOptionsCopy = this.batchOptions.slice();
         this.batchOptions = [];
-        this._doRequest(batchOptionsCopy, callback, auth, path8);
+        this._doRequest(batchOptionsCopy, callback, auth, path9);
       }
       /**
        * Make a request to a winstond server or any http server which can
@@ -13968,7 +13968,7 @@ var require_http = __commonJS({
        * @param {Object?} auth - authentication options
        * @param {string} path - request path
        */
-      _doRequest(options, callback, auth, path8) {
+      _doRequest(options, callback, auth, path9) {
         const headers = Object.assign({}, this.headers);
         if (auth && auth.bearer) {
           headers.Authorization = `Bearer ${auth.bearer}`;
@@ -13978,7 +13978,7 @@ var require_http = __commonJS({
           method: "POST",
           host: this.host,
           port: this.port,
-          path: `/${path8.replace(/^\//, "")}`,
+          path: `/${path9.replace(/^\//, "")}`,
           headers,
           auth: auth && auth.username && auth.password ? `${auth.username}:${auth.password}` : "",
           agent: this.agent
@@ -14013,7 +14013,7 @@ var require_stream2 = __commonJS({
     "use strict";
     var isStream2 = require_is_stream();
     var { MESSAGE } = require_triple_beam();
-    var os3 = require("os");
+    var os4 = require("os");
     var TransportStream = require_winston_transport();
     module2.exports = class Stream extends TransportStream {
       /**
@@ -14029,7 +14029,7 @@ var require_stream2 = __commonJS({
         this._stream = options.stream;
         this._stream.setMaxListeners(Infinity);
         this.isObjectMode = options.stream._writableState.objectMode;
-        this.eol = typeof options.eol === "string" ? options.eol : os3.EOL;
+        this.eol = typeof options.eol === "string" ? options.eol : os4.EOL;
       }
       /**
        * Core logging method exposed to Winston.
@@ -14415,7 +14415,7 @@ var require_exception_stream = __commonJS({
 var require_exception_handler = __commonJS({
   "../../node_modules/winston/lib/winston/exception-handler.js"(exports2, module2) {
     "use strict";
-    var os3 = require("os");
+    var os4 = require("os");
     var asyncForEach = require_forEach();
     var debug = require_node2()("winston:exception");
     var once = require_one_time();
@@ -14510,8 +14510,8 @@ var require_exception_handler = __commonJS({
        */
       getOsInfo() {
         return {
-          loadavg: os3.loadavg(),
-          uptime: os3.uptime()
+          loadavg: os4.loadavg(),
+          uptime: os4.uptime()
         };
       }
       /**
@@ -14653,7 +14653,7 @@ var require_rejection_stream = __commonJS({
 var require_rejection_handler = __commonJS({
   "../../node_modules/winston/lib/winston/rejection-handler.js"(exports2, module2) {
     "use strict";
-    var os3 = require("os");
+    var os4 = require("os");
     var asyncForEach = require_forEach();
     var debug = require_node2()("winston:rejection");
     var once = require_one_time();
@@ -14750,8 +14750,8 @@ var require_rejection_handler = __commonJS({
        */
       getOsInfo() {
         return {
-          loadavg: os3.loadavg(),
-          uptime: os3.uptime()
+          loadavg: os4.loadavg(),
+          uptime: os4.uptime()
         };
       }
       /**
@@ -16008,26 +16008,26 @@ var require_permessage_deflate = __commonJS({
             value = value[0];
             if (key === "client_max_window_bits") {
               if (value !== true) {
-                const num = +value;
-                if (!Number.isInteger(num) || num < 8 || num > 15) {
+                const num2 = +value;
+                if (!Number.isInteger(num2) || num2 < 8 || num2 > 15) {
                   throw new TypeError(
                     `Invalid value for parameter "${key}": ${value}`
                   );
                 }
-                value = num;
+                value = num2;
               } else if (!this._isServer) {
                 throw new TypeError(
                   `Invalid value for parameter "${key}": ${value}`
                 );
               }
             } else if (key === "server_max_window_bits") {
-              const num = +value;
-              if (!Number.isInteger(num) || num < 8 || num > 15) {
+              const num2 = +value;
+              if (!Number.isInteger(num2) || num2 < 8 || num2 > 15) {
                 throw new TypeError(
                   `Invalid value for parameter "${key}": ${value}`
                 );
               }
-              value = num;
+              value = num2;
             } else if (key === "client_no_context_takeover" || key === "server_no_context_takeover") {
               if (value !== true) {
                 throw new TypeError(
@@ -16730,8 +16730,8 @@ var require_receiver = __commonJS({
           return;
         }
         const buf = this.consume(8);
-        const num = buf.readUInt32BE(0);
-        if (num > Math.pow(2, 53 - 32) - 1) {
+        const num2 = buf.readUInt32BE(0);
+        if (num2 > Math.pow(2, 53 - 32) - 1) {
           const error = this.createError(
             RangeError,
             "Unsupported WebSocket frame: payload length > 2^53 - 1",
@@ -16742,7 +16742,7 @@ var require_receiver = __commonJS({
           cb(error);
           return;
         }
-        this._payloadLength = num * Math.pow(2, 32) + buf.readUInt32BE(4);
+        this._payloadLength = num2 * Math.pow(2, 32) + buf.readUInt32BE(4);
         this.haveLength(cb);
       }
       /**
@@ -20036,8 +20036,8 @@ var require_network = __commonJS({
       return port;
     }
     exports2.randomPort = randomPort;
-    async function randomPorts(num, protocol = "udp4", interfaceAddresses) {
-      return Promise.all([...Array(num)].map(() => randomPort(protocol, interfaceAddresses)));
+    async function randomPorts(num2, protocol = "udp4", interfaceAddresses) {
+      return Promise.all([...Array(num2)].map(() => randomPort(protocol, interfaceAddresses)));
     }
     exports2.randomPorts = randomPorts;
     async function findPort(min, max, protocol = "udp4", interfaceAddresses) {
@@ -22439,7 +22439,7 @@ var require_has_flag2 = __commonJS({
 var require_supports_color = __commonJS({
   "../../node_modules/supports-color/index.js"(exports2, module2) {
     "use strict";
-    var os3 = require("os");
+    var os4 = require("os");
     var tty = require("tty");
     var hasFlag = require_has_flag2();
     var { env } = process;
@@ -22487,7 +22487,7 @@ var require_supports_color = __commonJS({
         return min;
       }
       if (process.platform === "win32") {
-        const osRelease = os3.release().split(".");
+        const osRelease = os4.release().split(".");
         if (Number(osRelease[0]) >= 10 && Number(osRelease[2]) >= 10586) {
           return Number(osRelease[2]) >= 14931 ? 3 : 2;
         }
@@ -22975,7 +22975,7 @@ var require_ip = __commonJS({
   "../../node_modules/ip/lib/ip.js"(exports2) {
     var ip = exports2;
     var { Buffer: Buffer2 } = require("buffer");
-    var os3 = require("os");
+    var os4 = require("os");
     ip.toBuffer = function(ip2, buff, offset) {
       offset = ~~offset;
       var result;
@@ -23248,7 +23248,7 @@ var require_ip = __commonJS({
       return family === "ipv4" ? "127.0.0.1" : "fe80::1";
     };
     ip.address = function(name, family) {
-      var interfaces = os3.networkInterfaces();
+      var interfaces = os4.networkInterfaces();
       family = _normalizeFamily(family);
       if (name && name !== "private" && name !== "public") {
         var res = interfaces[name].filter((details) => {
@@ -24867,9 +24867,9 @@ var require_buffer_crc32 = __commonJS({
         throw new Error("input must be buffer, number, or string, received " + typeof input);
       }
     }
-    function bufferizeInt(num) {
+    function bufferizeInt(num2) {
       var tmp = ensureBuffer(4);
-      tmp.writeInt32BE(num, 0);
+      tmp.writeInt32BE(num2, 0);
       return tmp;
     }
     function _crc32(buf, previous) {
@@ -24983,9 +24983,9 @@ var require_attributes = __commonJS({
       ];
       let xData = data.slice(0, 2);
       for (const i of (0, range_1.default)(2, data.length)) {
-        const num = data[i] ^ xPad[i - 2];
+        const num2 = data[i] ^ xPad[i - 2];
         const buf = Buffer.alloc(1);
-        buf.writeUIntBE(num, 0, 1);
+        buf.writeUIntBE(num2, 0, 1);
         xData = Buffer.concat([xData, buf]);
       }
       return xData;
@@ -28182,8 +28182,8 @@ var require_depacketizer = __commonJS({
     var __1 = require_src4();
     var codec_1 = require_codec();
     var helper_1 = require_helper2();
-    var path8 = `werift-rtp : packages/rtp/src/processor/depacketizer.ts`;
-    var log = (0, debug_1.default)(path8);
+    var path9 = `werift-rtp : packages/rtp/src/processor/depacketizer.ts`;
+    var log = (0, debug_1.default)(path9);
     var DepacketizeBase = class {
       constructor(codec, options = {}) {
         Object.defineProperty(this, "codec", {
@@ -29748,44 +29748,44 @@ var require_typedArrayUtils = __commonJS({
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.dumpBytes = exports2.float32bit = exports2.int16Bit = exports2.getNumberByteLength = exports2.stringToByteArray = exports2.numberToByteArray = void 0;
     var memoize_1 = __importDefault3(require_memoize());
-    var numberToByteArray = (num, byteLength = getNumberByteLength(num)) => {
+    var numberToByteArray = (num2, byteLength = getNumberByteLength(num2)) => {
       let byteArray;
       if (byteLength === 1) {
         byteArray = new DataView(new ArrayBuffer(1));
-        byteArray.setUint8(0, num);
+        byteArray.setUint8(0, num2);
       } else if (byteLength === 2) {
         byteArray = new DataView(new ArrayBuffer(2));
-        byteArray.setUint16(0, num);
+        byteArray.setUint16(0, num2);
       } else if (byteLength === 3) {
         byteArray = new DataView(new ArrayBuffer(3));
-        byteArray.setUint8(0, num >> 16);
-        byteArray.setUint16(1, num & 65535);
+        byteArray.setUint8(0, num2 >> 16);
+        byteArray.setUint16(1, num2 & 65535);
       } else if (byteLength === 4) {
         byteArray = new DataView(new ArrayBuffer(4));
-        byteArray.setUint32(0, num);
+        byteArray.setUint32(0, num2);
       } else if (
         /* byteLength === 5 && */
-        num < 4294967295
+        num2 < 4294967295
       ) {
         byteArray = new DataView(new ArrayBuffer(5));
-        byteArray.setUint32(1, num);
+        byteArray.setUint32(1, num2);
       } else if (byteLength === 5) {
         byteArray = new DataView(new ArrayBuffer(5));
-        byteArray.setUint8(0, num / 4294967296 | 0);
-        byteArray.setUint32(1, num % 4294967296);
+        byteArray.setUint8(0, num2 / 4294967296 | 0);
+        byteArray.setUint32(1, num2 % 4294967296);
       } else if (byteLength === 6) {
         byteArray = new DataView(new ArrayBuffer(6));
-        byteArray.setUint16(0, num / 4294967296 | 0);
-        byteArray.setUint32(2, num % 4294967296);
+        byteArray.setUint16(0, num2 / 4294967296 | 0);
+        byteArray.setUint32(2, num2 % 4294967296);
       } else if (byteLength === 7) {
         byteArray = new DataView(new ArrayBuffer(7));
-        byteArray.setUint8(0, num / 281474976710656 | 0);
-        byteArray.setUint16(1, num / 4294967296 & 65535);
-        byteArray.setUint32(3, num % 4294967296);
+        byteArray.setUint8(0, num2 / 281474976710656 | 0);
+        byteArray.setUint16(1, num2 / 4294967296 & 65535);
+        byteArray.setUint32(3, num2 % 4294967296);
       } else if (byteLength === 8) {
         byteArray = new DataView(new ArrayBuffer(8));
-        byteArray.setUint32(0, num / 4294967296 | 0);
-        byteArray.setUint32(4, num % 4294967296);
+        byteArray.setUint32(0, num2 / 4294967296 | 0);
+        byteArray.setUint32(4, num2 % 4294967296);
       } else {
         throw new Error("EBML.typedArrayUtils.numberToByteArray: byte length must be less than or equal to 8");
       }
@@ -29795,36 +29795,36 @@ var require_typedArrayUtils = __commonJS({
     exports2.stringToByteArray = (0, memoize_1.default)((str) => {
       return Uint8Array.from(Array.from(str).map((_) => _.codePointAt(0)));
     });
-    function getNumberByteLength(num) {
-      if (num < 0) {
+    function getNumberByteLength(num2) {
+      if (num2 < 0) {
         throw new Error("EBML.typedArrayUtils.getNumberByteLength: negative number not implemented");
-      } else if (num < 256) {
+      } else if (num2 < 256) {
         return 1;
-      } else if (num < 65536) {
+      } else if (num2 < 65536) {
         return 2;
-      } else if (num < 16777216) {
+      } else if (num2 < 16777216) {
         return 3;
-      } else if (num < 4294967296) {
+      } else if (num2 < 4294967296) {
         return 4;
-      } else if (num < 1099511627776) {
+      } else if (num2 < 1099511627776) {
         return 5;
-      } else if (num < 281474976710656) {
+      } else if (num2 < 281474976710656) {
         return 6;
-      } else if (num < 0x20000000000000n) {
+      } else if (num2 < 0x20000000000000n) {
         return 7;
       } else {
         throw new Error("EBML.typedArrayUtils.getNumberByteLength: number exceeds Number.MAX_SAFE_INTEGER");
       }
     }
     exports2.getNumberByteLength = getNumberByteLength;
-    exports2.int16Bit = (0, memoize_1.default)((num) => {
+    exports2.int16Bit = (0, memoize_1.default)((num2) => {
       const ab = new ArrayBuffer(2);
-      new DataView(ab).setInt16(0, num);
+      new DataView(ab).setInt16(0, num2);
       return new Uint8Array(ab);
     });
-    exports2.float32bit = (0, memoize_1.default)((num) => {
+    exports2.float32bit = (0, memoize_1.default)((num2) => {
       const ab = new ArrayBuffer(4);
-      new DataView(ab).setFloat32(0, num);
+      new DataView(ab).setFloat32(0, num2);
       return new Uint8Array(ab);
     });
     var dumpBytes = (b) => {
@@ -29906,12 +29906,12 @@ var require_ebml = __commonJS({
     exports2.bytes = (0, memoize_1.default)((data) => {
       return new Value(data);
     });
-    exports2.number = (0, memoize_1.default)((num) => {
-      return (0, exports2.bytes)((0, typedArrayUtils_1.numberToByteArray)(num));
+    exports2.number = (0, memoize_1.default)((num2) => {
+      return (0, exports2.bytes)((0, typedArrayUtils_1.numberToByteArray)(num2));
     });
-    exports2.float = (0, memoize_1.default)((num) => (0, exports2.bytes)((0, typedArrayUtils_1.float32bit)(num)));
-    exports2.vintEncodedNumber = (0, memoize_1.default)((num) => {
-      return (0, exports2.bytes)((0, exports2.vintEncode)((0, typedArrayUtils_1.numberToByteArray)(num, (0, exports2.getEBMLByteLength)(num))));
+    exports2.float = (0, memoize_1.default)((num2) => (0, exports2.bytes)((0, typedArrayUtils_1.float32bit)(num2)));
+    exports2.vintEncodedNumber = (0, memoize_1.default)((num2) => {
+      return (0, exports2.bytes)((0, exports2.vintEncode)((0, typedArrayUtils_1.numberToByteArray)(num2, (0, exports2.getEBMLByteLength)(num2))));
     });
     exports2.string = (0, memoize_1.default)((str) => {
       return (0, exports2.bytes)((0, typedArrayUtils_1.stringToByteArray)(str));
@@ -29930,24 +29930,24 @@ var require_ebml = __commonJS({
       return b;
     };
     exports2.build = build;
-    var getEBMLByteLength = (num) => {
-      if (num < 127) {
+    var getEBMLByteLength = (num2) => {
+      if (num2 < 127) {
         return 1;
-      } else if (num < 16383) {
+      } else if (num2 < 16383) {
         return 2;
-      } else if (num < 2097151) {
+      } else if (num2 < 2097151) {
         return 3;
-      } else if (num < 268435455) {
+      } else if (num2 < 268435455) {
         return 4;
-      } else if (num < 34359738367) {
+      } else if (num2 < 34359738367) {
         return 5;
-      } else if (num < 4398046511103) {
+      } else if (num2 < 4398046511103) {
         return 6;
-      } else if (num < 562949953421311) {
+      } else if (num2 < 562949953421311) {
         return 7;
-      } else if (num < 0x20000000000000n) {
+      } else if (num2 < 0x20000000000000n) {
         return 8;
-      } else if (num < 0xffffffffffffffn) {
+      } else if (num2 < 0xffffffffffffffn) {
         throw new Error("EBMLgetEBMLByteLength: number exceeds Number.MAX_SAFE_INTEGER");
       } else {
         throw new Error("EBMLgetEBMLByteLength: data size must be less than or equal to " + (Math.pow(2, 56) - 2));
@@ -30812,14 +30812,14 @@ var require_webmCallback = __commonJS({
       }
     };
     exports2.WebmCallback = WebmCallback;
-    var saveToFileSystem = (path8) => async (value) => {
+    var saveToFileSystem = (path9) => async (value) => {
       if (value.saveToFile) {
-        await (0, promises_1.appendFile)(path8, value.saveToFile);
+        await (0, promises_1.appendFile)(path9, value.saveToFile);
       } else if (value.eol) {
         const { durationElement } = value.eol;
-        const handler = await (0, promises_1.open)(path8, "r+");
+        const handler = await (0, promises_1.open)(path9, "r+");
         await handler.write(durationElement, 0, durationElement.length, webm_1.DurationPosition);
-        const meta = await (0, promises_1.stat)(path8);
+        const meta = await (0, promises_1.stat)(path9);
         const resize = (0, webm_1.replaceSegmentSize)(meta.size);
         await handler.write(resize, 0, resize.length, webm_1.SegmentSizePosition);
         await handler.close();
@@ -31862,17 +31862,17 @@ var require_sdes = __commonJS({
         return 1 + 1 + Buffer.from(this.text).length;
       }
       serialize() {
-        const text = Buffer.from(this.text);
+        const text2 = Buffer.from(this.text);
         return Buffer.concat([
-          (0, src_1.bufferWriter)([1, 1], [this.type, text.length]),
-          text
+          (0, src_1.bufferWriter)([1, 1], [this.type, text2.length]),
+          text2
         ]);
       }
       static deSerialize(data) {
         const type = data[0];
         const octetCount = data[1];
-        const text = data.slice(2, 2 + octetCount).toString();
-        return new _SourceDescriptionItem({ type, text });
+        const text2 = data.slice(2, 2 + octetCount).toString();
+        return new _SourceDescriptionItem({ type, text: text2 });
       }
     };
     exports2.SourceDescriptionItem = SourceDescriptionItem;
@@ -32670,13 +32670,13 @@ var require_aes_js = __commonJS({
         targetArray.set(sourceArray, targetStart);
       }
       var convertUtf8 = /* @__PURE__ */ function() {
-        function toBytes(text) {
+        function toBytes(text2) {
           var result = [], i = 0;
-          text = encodeURI(text);
-          while (i < text.length) {
-            var c = text.charCodeAt(i++);
+          text2 = encodeURI(text2);
+          while (i < text2.length) {
+            var c = text2.charCodeAt(i++);
             if (c === 37) {
-              result.push(parseInt(text.substr(i, 2), 16));
+              result.push(parseInt(text2.substr(i, 2), 16));
               i += 2;
             } else {
               result.push(c);
@@ -32707,10 +32707,10 @@ var require_aes_js = __commonJS({
         };
       }();
       var convertHex = /* @__PURE__ */ function() {
-        function toBytes(text) {
+        function toBytes(text2) {
           var result = [];
-          for (var i = 0; i < text.length; i += 2) {
-            result.push(parseInt(text.substr(i, 2), 16));
+          for (var i = 0; i < text2.length; i += 2) {
+            result.push(parseInt(text2.substr(i, 2), 16));
           }
           return result;
         }
@@ -35384,12 +35384,12 @@ var require_writer = __commonJS({
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.MediaWriter = void 0;
     var MediaWriter = class {
-      constructor(path8, options) {
+      constructor(path9, options) {
         Object.defineProperty(this, "path", {
           enumerable: true,
           configurable: true,
           writable: true,
-          value: path8
+          value: path9
         });
         Object.defineProperty(this, "options", {
           enumerable: true,
@@ -35529,7 +35529,7 @@ var require_recorder = __commonJS({
     exports2.MediaRecorder = void 0;
     var webm_1 = require_webm3();
     var MediaRecorder = class {
-      constructor(tracks, path8, options = {}) {
+      constructor(tracks, path9, options = {}) {
         Object.defineProperty(this, "tracks", {
           enumerable: true,
           configurable: true,
@@ -35540,7 +35540,7 @@ var require_recorder = __commonJS({
           enumerable: true,
           configurable: true,
           writable: true,
-          value: path8
+          value: path9
         });
         Object.defineProperty(this, "options", {
           enumerable: true,
@@ -35560,11 +35560,11 @@ var require_recorder = __commonJS({
           writable: true,
           value: void 0
         });
-        this.ext = path8.split(".").slice(-1)[0];
+        this.ext = path9.split(".").slice(-1)[0];
         this.writer = (() => {
           switch (this.ext) {
             case "webm":
-              return new webm_1.WebmFactory(path8, options);
+              return new webm_1.WebmFactory(path9, options);
             default:
               throw new Error();
           }
@@ -35597,18 +35597,18 @@ var require_userMedia = __commonJS({
     var src_1 = require_src();
     var src_2 = require_src4();
     var track_1 = require_track();
-    var getUserMedia = async (path8, loop) => {
+    var getUserMedia = async (path9, loop) => {
       const audioPort = await (0, src_1.randomPort)();
       const videoPort = await (0, src_1.randomPort)();
-      if (path8.endsWith(".mp4")) {
-        return new MediaPlayerMp4(audioPort, videoPort, path8, loop);
+      if (path9.endsWith(".mp4")) {
+        return new MediaPlayerMp4(audioPort, videoPort, path9, loop);
       } else {
-        return new MediaPlayerWebm(audioPort, videoPort, path8, loop);
+        return new MediaPlayerWebm(audioPort, videoPort, path9, loop);
       }
     };
     exports2.getUserMedia = getUserMedia;
     var MediaPlayerMp4 = class {
-      constructor(videoPort, audioPort, path8, loop) {
+      constructor(videoPort, audioPort, path9, loop) {
         Object.defineProperty(this, "videoPort", {
           enumerable: true,
           configurable: true,
@@ -35625,7 +35625,7 @@ var require_userMedia = __commonJS({
           enumerable: true,
           configurable: true,
           writable: true,
-          value: path8
+          value: path9
         });
         Object.defineProperty(this, "loop", {
           enumerable: true,
@@ -35711,7 +35711,7 @@ var require_userMedia = __commonJS({
     };
     exports2.MediaPlayerMp4 = MediaPlayerMp4;
     var MediaPlayerWebm = class {
-      constructor(videoPort, audioPort, path8, loop) {
+      constructor(videoPort, audioPort, path9, loop) {
         Object.defineProperty(this, "videoPort", {
           enumerable: true,
           configurable: true,
@@ -35728,7 +35728,7 @@ var require_userMedia = __commonJS({
           enumerable: true,
           configurable: true,
           writable: true,
-          value: path8
+          value: path9
         });
         Object.defineProperty(this, "loop", {
           enumerable: true,
@@ -38386,30 +38386,30 @@ var require_nacl_fast = __commonJS({
         return smlen;
       }
       function unpackneg(r, p) {
-        var t = gf(), chk = gf(), num = gf(), den = gf(), den2 = gf(), den4 = gf(), den6 = gf();
+        var t = gf(), chk = gf(), num2 = gf(), den = gf(), den2 = gf(), den4 = gf(), den6 = gf();
         set25519(r[2], gf1);
         unpack25519(r[1], p);
-        S(num, r[1]);
-        M(den, num, D);
-        Z(num, num, r[2]);
+        S(num2, r[1]);
+        M(den, num2, D);
+        Z(num2, num2, r[2]);
         A(den, r[2], den);
         S(den2, den);
         S(den4, den2);
         M(den6, den4, den2);
-        M(t, den6, num);
+        M(t, den6, num2);
         M(t, t, den);
         pow2523(t, t);
-        M(t, t, num);
+        M(t, t, num2);
         M(t, t, den);
         M(t, t, den);
         M(r[0], t, den);
         S(chk, r[0]);
         M(chk, chk, den);
-        if (neq25519(chk, num))
+        if (neq25519(chk, num2))
           M(r[0], r[0], I);
         S(chk, r[0]);
         M(chk, chk, den);
-        if (neq25519(chk, num))
+        if (neq25519(chk, num2))
           return -1;
         if (par25519(r[0]) === p[31] >> 7)
           Z(r[0], gf0, r[0]);
@@ -41332,8 +41332,8 @@ var require_build3 = __commonJS({
     var BASE64_REGEX = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
     var BASE64URL_REGEX = /^[a-zA-Z0-9-_]+$/;
     var Utf8Converter = class {
-      static fromString(text) {
-        const s = unescape(encodeURIComponent(text));
+      static fromString(text2) {
+        const s = unescape(encodeURIComponent(text2));
         const uintArray = new Uint8Array(s.length);
         for (let i = 0; i < s.length; i++) {
           uintArray[i] = s.charCodeAt(i);
@@ -41361,11 +41361,11 @@ var require_build3 = __commonJS({
         }
         return res;
       }
-      static fromString(text, littleEndian = false) {
-        const res = new ArrayBuffer(text.length * 2);
+      static fromString(text2, littleEndian = false) {
+        const res = new ArrayBuffer(text2.length * 2);
         const dataView = new DataView(res);
-        for (let i = 0; i < text.length; i++) {
-          dataView.setUint16(i * 2, text.charCodeAt(i), littleEndian);
+        for (let i = 0; i < text2.length; i++) {
+          dataView.setUint16(i * 2, text2.charCodeAt(i), littleEndian);
         }
         return res;
       }
@@ -41462,18 +41462,18 @@ var require_build3 = __commonJS({
       static ToBase64Url(data) {
         return this.ToBase64(data).replace(/\+/g, "-").replace(/\//g, "_").replace(/\=/g, "");
       }
-      static FromUtf8String(text, encoding = _Convert.DEFAULT_UTF8_ENCODING) {
+      static FromUtf8String(text2, encoding = _Convert.DEFAULT_UTF8_ENCODING) {
         switch (encoding) {
           case "ascii":
-            return this.FromBinary(text);
+            return this.FromBinary(text2);
           case "utf8":
-            return Utf8Converter.fromString(text);
+            return Utf8Converter.fromString(text2);
           case "utf16":
           case "utf16be":
-            return Utf16Converter.fromString(text);
+            return Utf16Converter.fromString(text2);
           case "utf16le":
           case "usc2":
-            return Utf16Converter.fromString(text, true);
+            return Utf16Converter.fromString(text2, true);
           default:
             throw new Error(`Unknown type of encoding '${encoding}'`);
         }
@@ -41494,11 +41494,11 @@ var require_build3 = __commonJS({
             throw new Error(`Unknown type of encoding '${encoding}'`);
         }
       }
-      static FromBinary(text) {
-        const stringLength = text.length;
+      static FromBinary(text2) {
+        const stringLength = text2.length;
         const resultView = new Uint8Array(stringLength);
         for (let i = 0; i < stringLength; i++) {
-          resultView[i] = text.charCodeAt(i);
+          resultView[i] = text2.charCodeAt(i);
         }
         return resultView.buffer;
       }
@@ -41544,8 +41544,8 @@ var require_build3 = __commonJS({
       static ToUtf16String(buffer, littleEndian = false) {
         return Utf16Converter.toString(buffer, littleEndian);
       }
-      static FromUtf16String(text, littleEndian = false) {
-        return Utf16Converter.fromString(text, littleEndian);
+      static FromUtf16String(text2, littleEndian = false) {
+        return Utf16Converter.fromString(text2, littleEndian);
       }
       static Base64Padding(base64) {
         const padCount = 4 - base64.length % 4;
@@ -42097,13 +42097,13 @@ function __disposeResources(env) {
   }
   return next();
 }
-function __rewriteRelativeImportExtension(path8, preserveJsx) {
-  if (typeof path8 === "string" && /^\.\.?\//.test(path8)) {
-    return path8.replace(/\.(tsx)$|((?:\.d)?)((?:\.[^./]+?)?)\.([cm]?)ts$/i, function(m, tsx, d, ext, cm) {
+function __rewriteRelativeImportExtension(path9, preserveJsx) {
+  if (typeof path9 === "string" && /^\.\.?\//.test(path9)) {
+    return path9.replace(/\.(tsx)$|((?:\.d)?)((?:\.[^./]+?)?)\.([cm]?)ts$/i, function(m, tsx, d, ext, cm) {
       return tsx ? preserveJsx ? ".jsx" : ".js" : d && (!ext || !cm) ? m : d + ext + "." + cm.toLowerCase() + "js";
     });
   }
-  return path8;
+  return path9;
 }
 var extendStatics, __assign, __createBinding, __setModuleDefault, ownKeys, _SuppressedError, tslib_es6_default;
 var init_tslib_es6 = __esm({
@@ -52408,11 +52408,11 @@ var require_ip_converter = __commonJS({
           throw new Error("Invalid IPv4 address");
         }
         return parts.map((part) => {
-          const num = parseInt(part, 10);
-          if (isNaN(num) || num < 0 || num > 255) {
+          const num2 = parseInt(part, 10);
+          if (isNaN(num2) || num2 < 0 || num2 > 255) {
             throw new Error("Invalid IPv4 address part");
           }
-          return num;
+          return num2;
         });
       }
       static parseIPv6(ip) {
@@ -52422,12 +52422,12 @@ var require_ip_converter = __commonJS({
           throw new Error("Invalid IPv6 address");
         }
         return parts.reduce((bytes, part) => {
-          const num = parseInt(part, 16);
-          if (isNaN(num) || num < 0 || num > 65535) {
+          const num2 = parseInt(part, 16);
+          if (isNaN(num2) || num2 < 0 || num2 > 65535) {
             throw new Error("Invalid IPv6 address part");
           }
-          bytes.push(num >> 8 & 255);
-          bytes.push(num & 255);
+          bytes.push(num2 >> 8 & 255);
+          bytes.push(num2 & 255);
           return bytes;
         }, []);
       }
@@ -52486,8 +52486,8 @@ var require_ip_converter = __commonJS({
         }
         return ip;
       }
-      static parseCIDR(text) {
-        const [addr, prefixStr] = text.split("/");
+      static parseCIDR(text2) {
+        const [addr, prefixStr] = text2.split("/");
         const prefix = parseInt(prefixStr, 10);
         if (this.isIPv4(addr)) {
           if (prefix < 0 || prefix > 32) {
@@ -52540,9 +52540,9 @@ var require_ip_converter = __commonJS({
         }
         return this.decodeIP(pvtsutils_1.Convert.ToHex(buf));
       }
-      static fromString(text) {
-        if (text.includes("/")) {
-          const [addr, prefix] = this.parseCIDR(text);
+      static fromString(text2) {
+        if (text2.includes("/")) {
+          const [addr, prefix] = this.parseCIDR(text2);
           const maskBytes = new Uint8Array(addr.length);
           let bitsLeft = prefix;
           for (let i = 0; i < maskBytes.length; i++) {
@@ -52559,7 +52559,7 @@ var require_ip_converter = __commonJS({
           out.set(maskBytes, addr.length);
           return out.buffer;
         }
-        const bytes = this.isIPv4(text) ? this.parseIPv4(text) : this.parseIPv6(text);
+        const bytes = this.isIPv4(text2) ? this.parseIPv4(text2) : this.parseIPv6(text2);
         return new Uint8Array(bytes).buffer;
       }
     };
@@ -57288,14 +57288,14 @@ var require_dependency_container = __commonJS({
           provider = providerOrConstructor;
         }
         if (providers_1.isTokenProvider(provider)) {
-          const path8 = [token];
+          const path9 = [token];
           let tokenProvider = provider;
           while (tokenProvider != null) {
             const currentToken = tokenProvider.useToken;
-            if (path8.includes(currentToken)) {
-              throw new Error(`Token registration cycle detected! ${[...path8, currentToken].join(" -> ")}`);
+            if (path9.includes(currentToken)) {
+              throw new Error(`Token registration cycle detected! ${[...path9, currentToken].join(" -> ")}`);
             }
-            path8.push(currentToken);
+            path9.push(currentToken);
             const registration = this._registry.get(currentToken);
             if (registration && providers_1.isTokenProvider(registration.provider)) {
               tokenProvider = registration.provider;
@@ -59342,24 +59342,24 @@ var require_x509_cjs = __commonJS({
     names.register("I", "2.5.4.43");
     names.register("SN", "2.5.4.4");
     names.register("T", "2.5.4.12");
-    function replaceUnknownCharacter(text, char) {
+    function replaceUnknownCharacter(text2, char) {
       return `\\${pvtsutils.Convert.ToHex(pvtsutils.Convert.FromUtf8String(char)).toUpperCase()}`;
     }
     function escape2(data) {
       return data.replace(/([,+"\\<>;])/g, "\\$1").replace(/^([ #])/, "\\$1").replace(/([ ]$)/, "\\$1").replace(/([\r\n\t])/, replaceUnknownCharacter);
     }
     var Name = class _Name {
-      static isASCII(text) {
-        for (let i = 0; i < text.length; i++) {
-          const code = text.charCodeAt(i);
+      static isASCII(text2) {
+        for (let i = 0; i < text2.length; i++) {
+          const code = text2.charCodeAt(i);
           if (code > 255) {
             return false;
           }
         }
         return true;
       }
-      static isPrintableString(text) {
-        return /^[A-Za-z0-9 '()+,-./:=?]*$/g.test(text);
+      static isPrintableString(text2) {
+        return /^[A-Za-z0-9 '()+,-./:=?]*$/g.test(text2);
       }
       constructor(data, extraNames = {}) {
         this.extraNames = new NameIdentifier();
@@ -64228,11 +64228,11 @@ var require_bn = __commonJS({
         }
       } catch (e) {
       }
-      BN.isBN = function isBN(num) {
-        if (num instanceof BN) {
+      BN.isBN = function isBN(num2) {
+        if (num2 instanceof BN) {
           return true;
         }
-        return num !== null && typeof num === "object" && num.constructor.wordSize === BN.wordSize && Array.isArray(num.words);
+        return num2 !== null && typeof num2 === "object" && num2.constructor.wordSize === BN.wordSize && Array.isArray(num2.words);
       };
       BN.max = function max(left, right) {
         if (left.cmp(right) > 0)
@@ -64757,12 +64757,12 @@ var require_bn = __commonJS({
         var hi = this._countBits(w);
         return (this.length - 1) * 26 + hi;
       };
-      function toBitArray(num) {
-        var w = new Array(num.bitLength());
+      function toBitArray(num2) {
+        var w = new Array(num2.bitLength());
         for (var bit = 0; bit < w.length; bit++) {
           var off = bit / 26 | 0;
           var wbit = bit % 26;
-          w[bit] = (num.words[off] & 1 << wbit) >>> wbit;
+          w[bit] = (num2.words[off] & 1 << wbit) >>> wbit;
         }
         return w;
       }
@@ -64805,64 +64805,64 @@ var require_bn = __commonJS({
         }
         return this;
       };
-      BN.prototype.iuor = function iuor(num) {
-        while (this.length < num.length) {
+      BN.prototype.iuor = function iuor(num2) {
+        while (this.length < num2.length) {
           this.words[this.length++] = 0;
         }
-        for (var i = 0; i < num.length; i++) {
-          this.words[i] = this.words[i] | num.words[i];
+        for (var i = 0; i < num2.length; i++) {
+          this.words[i] = this.words[i] | num2.words[i];
         }
         return this.strip();
       };
-      BN.prototype.ior = function ior(num) {
-        assert((this.negative | num.negative) === 0);
-        return this.iuor(num);
+      BN.prototype.ior = function ior(num2) {
+        assert((this.negative | num2.negative) === 0);
+        return this.iuor(num2);
       };
-      BN.prototype.or = function or(num) {
-        if (this.length > num.length)
-          return this.clone().ior(num);
-        return num.clone().ior(this);
+      BN.prototype.or = function or(num2) {
+        if (this.length > num2.length)
+          return this.clone().ior(num2);
+        return num2.clone().ior(this);
       };
-      BN.prototype.uor = function uor(num) {
-        if (this.length > num.length)
-          return this.clone().iuor(num);
-        return num.clone().iuor(this);
+      BN.prototype.uor = function uor(num2) {
+        if (this.length > num2.length)
+          return this.clone().iuor(num2);
+        return num2.clone().iuor(this);
       };
-      BN.prototype.iuand = function iuand(num) {
+      BN.prototype.iuand = function iuand(num2) {
         var b;
-        if (this.length > num.length) {
-          b = num;
+        if (this.length > num2.length) {
+          b = num2;
         } else {
           b = this;
         }
         for (var i = 0; i < b.length; i++) {
-          this.words[i] = this.words[i] & num.words[i];
+          this.words[i] = this.words[i] & num2.words[i];
         }
         this.length = b.length;
         return this.strip();
       };
-      BN.prototype.iand = function iand(num) {
-        assert((this.negative | num.negative) === 0);
-        return this.iuand(num);
+      BN.prototype.iand = function iand(num2) {
+        assert((this.negative | num2.negative) === 0);
+        return this.iuand(num2);
       };
-      BN.prototype.and = function and(num) {
-        if (this.length > num.length)
-          return this.clone().iand(num);
-        return num.clone().iand(this);
+      BN.prototype.and = function and(num2) {
+        if (this.length > num2.length)
+          return this.clone().iand(num2);
+        return num2.clone().iand(this);
       };
-      BN.prototype.uand = function uand(num) {
-        if (this.length > num.length)
-          return this.clone().iuand(num);
-        return num.clone().iuand(this);
+      BN.prototype.uand = function uand(num2) {
+        if (this.length > num2.length)
+          return this.clone().iuand(num2);
+        return num2.clone().iuand(this);
       };
-      BN.prototype.iuxor = function iuxor(num) {
+      BN.prototype.iuxor = function iuxor(num2) {
         var a;
         var b;
-        if (this.length > num.length) {
+        if (this.length > num2.length) {
           a = this;
-          b = num;
+          b = num2;
         } else {
-          a = num;
+          a = num2;
           b = this;
         }
         for (var i = 0; i < b.length; i++) {
@@ -64876,19 +64876,19 @@ var require_bn = __commonJS({
         this.length = a.length;
         return this.strip();
       };
-      BN.prototype.ixor = function ixor(num) {
-        assert((this.negative | num.negative) === 0);
-        return this.iuxor(num);
+      BN.prototype.ixor = function ixor(num2) {
+        assert((this.negative | num2.negative) === 0);
+        return this.iuxor(num2);
       };
-      BN.prototype.xor = function xor(num) {
-        if (this.length > num.length)
-          return this.clone().ixor(num);
-        return num.clone().ixor(this);
+      BN.prototype.xor = function xor(num2) {
+        if (this.length > num2.length)
+          return this.clone().ixor(num2);
+        return num2.clone().ixor(this);
       };
-      BN.prototype.uxor = function uxor(num) {
-        if (this.length > num.length)
-          return this.clone().iuxor(num);
-        return num.clone().iuxor(this);
+      BN.prototype.uxor = function uxor(num2) {
+        if (this.length > num2.length)
+          return this.clone().iuxor(num2);
+        return num2.clone().iuxor(this);
       };
       BN.prototype.inotn = function inotn(width) {
         assert(typeof width === "number" && width >= 0);
@@ -64921,25 +64921,25 @@ var require_bn = __commonJS({
         }
         return this.strip();
       };
-      BN.prototype.iadd = function iadd(num) {
+      BN.prototype.iadd = function iadd(num2) {
         var r;
-        if (this.negative !== 0 && num.negative === 0) {
+        if (this.negative !== 0 && num2.negative === 0) {
           this.negative = 0;
-          r = this.isub(num);
+          r = this.isub(num2);
           this.negative ^= 1;
           return this._normSign();
-        } else if (this.negative === 0 && num.negative !== 0) {
-          num.negative = 0;
-          r = this.isub(num);
-          num.negative = 1;
+        } else if (this.negative === 0 && num2.negative !== 0) {
+          num2.negative = 0;
+          r = this.isub(num2);
+          num2.negative = 1;
           return r._normSign();
         }
         var a, b;
-        if (this.length > num.length) {
+        if (this.length > num2.length) {
           a = this;
-          b = num;
+          b = num2;
         } else {
-          a = num;
+          a = num2;
           b = this;
         }
         var carry = 0;
@@ -64964,36 +64964,36 @@ var require_bn = __commonJS({
         }
         return this;
       };
-      BN.prototype.add = function add(num) {
+      BN.prototype.add = function add(num2) {
         var res;
-        if (num.negative !== 0 && this.negative === 0) {
-          num.negative = 0;
-          res = this.sub(num);
-          num.negative ^= 1;
+        if (num2.negative !== 0 && this.negative === 0) {
+          num2.negative = 0;
+          res = this.sub(num2);
+          num2.negative ^= 1;
           return res;
-        } else if (num.negative === 0 && this.negative !== 0) {
+        } else if (num2.negative === 0 && this.negative !== 0) {
           this.negative = 0;
-          res = num.sub(this);
+          res = num2.sub(this);
           this.negative = 1;
           return res;
         }
-        if (this.length > num.length)
-          return this.clone().iadd(num);
-        return num.clone().iadd(this);
+        if (this.length > num2.length)
+          return this.clone().iadd(num2);
+        return num2.clone().iadd(this);
       };
-      BN.prototype.isub = function isub(num) {
-        if (num.negative !== 0) {
-          num.negative = 0;
-          var r = this.iadd(num);
-          num.negative = 1;
+      BN.prototype.isub = function isub(num2) {
+        if (num2.negative !== 0) {
+          num2.negative = 0;
+          var r = this.iadd(num2);
+          num2.negative = 1;
           return r._normSign();
         } else if (this.negative !== 0) {
           this.negative = 0;
-          this.iadd(num);
+          this.iadd(num2);
           this.negative = 1;
           return this._normSign();
         }
-        var cmp = this.cmp(num);
+        var cmp = this.cmp(num2);
         if (cmp === 0) {
           this.negative = 0;
           this.length = 1;
@@ -65003,9 +65003,9 @@ var require_bn = __commonJS({
         var a, b;
         if (cmp > 0) {
           a = this;
-          b = num;
+          b = num2;
         } else {
-          a = num;
+          a = num2;
           b = this;
         }
         var carry = 0;
@@ -65030,16 +65030,16 @@ var require_bn = __commonJS({
         }
         return this.strip();
       };
-      BN.prototype.sub = function sub(num) {
-        return this.clone().isub(num);
+      BN.prototype.sub = function sub(num2) {
+        return this.clone().isub(num2);
       };
-      function smallMulTo(self2, num, out) {
-        out.negative = num.negative ^ self2.negative;
-        var len = self2.length + num.length | 0;
+      function smallMulTo(self2, num2, out) {
+        out.negative = num2.negative ^ self2.negative;
+        var len = self2.length + num2.length | 0;
         out.length = len;
         len = len - 1 | 0;
         var a = self2.words[0] | 0;
-        var b = num.words[0] | 0;
+        var b = num2.words[0] | 0;
         var r = a * b;
         var lo = r & 67108863;
         var carry = r / 67108864 | 0;
@@ -65047,11 +65047,11 @@ var require_bn = __commonJS({
         for (var k = 1; k < len; k++) {
           var ncarry = carry >>> 26;
           var rword = carry & 67108863;
-          var maxJ = Math.min(k, num.length - 1);
+          var maxJ = Math.min(k, num2.length - 1);
           for (var j = Math.max(0, k - self2.length + 1); j <= maxJ; j++) {
             var i = k - j | 0;
             a = self2.words[i] | 0;
-            b = num.words[j] | 0;
+            b = num2.words[j] | 0;
             r = a * b + rword;
             ncarry += r / 67108864 | 0;
             rword = r & 67108863;
@@ -65066,9 +65066,9 @@ var require_bn = __commonJS({
         }
         return out.strip();
       }
-      var comb10MulTo = function comb10MulTo2(self2, num, out) {
+      var comb10MulTo = function comb10MulTo2(self2, num2, out) {
         var a = self2.words;
-        var b = num.words;
+        var b = num2.words;
         var o = out.words;
         var c = 0;
         var lo;
@@ -65134,7 +65134,7 @@ var require_bn = __commonJS({
         var b9 = b[9] | 0;
         var bl9 = b9 & 8191;
         var bh9 = b9 >>> 13;
-        out.negative = self2.negative ^ num.negative;
+        out.negative = self2.negative ^ num2.negative;
         out.length = 19;
         lo = Math.imul(al0, bl0);
         mid = Math.imul(al0, bh0);
@@ -65621,20 +65621,20 @@ var require_bn = __commonJS({
       if (!Math.imul) {
         comb10MulTo = smallMulTo;
       }
-      function bigMulTo(self2, num, out) {
-        out.negative = num.negative ^ self2.negative;
-        out.length = self2.length + num.length;
+      function bigMulTo(self2, num2, out) {
+        out.negative = num2.negative ^ self2.negative;
+        out.length = self2.length + num2.length;
         var carry = 0;
         var hncarry = 0;
         for (var k = 0; k < out.length - 1; k++) {
           var ncarry = hncarry;
           hncarry = 0;
           var rword = carry & 67108863;
-          var maxJ = Math.min(k, num.length - 1);
+          var maxJ = Math.min(k, num2.length - 1);
           for (var j = Math.max(0, k - self2.length + 1); j <= maxJ; j++) {
             var i = k - j;
             var a = self2.words[i] | 0;
-            var b = num.words[j] | 0;
+            var b = num2.words[j] | 0;
             var r = a * b;
             var lo = r & 67108863;
             ncarry = ncarry + (r / 67108864 | 0) | 0;
@@ -65655,21 +65655,21 @@ var require_bn = __commonJS({
         }
         return out.strip();
       }
-      function jumboMulTo(self2, num, out) {
+      function jumboMulTo(self2, num2, out) {
         var fftm = new FFTM();
-        return fftm.mulp(self2, num, out);
+        return fftm.mulp(self2, num2, out);
       }
-      BN.prototype.mulTo = function mulTo(num, out) {
+      BN.prototype.mulTo = function mulTo(num2, out) {
         var res;
-        var len = this.length + num.length;
-        if (this.length === 10 && num.length === 10) {
-          res = comb10MulTo(this, num, out);
+        var len = this.length + num2.length;
+        if (this.length === 10 && num2.length === 10) {
+          res = comb10MulTo(this, num2, out);
         } else if (len < 63) {
-          res = smallMulTo(this, num, out);
+          res = smallMulTo(this, num2, out);
         } else if (len < 1024) {
-          res = bigMulTo(this, num, out);
+          res = bigMulTo(this, num2, out);
         } else {
-          res = jumboMulTo(this, num, out);
+          res = jumboMulTo(this, num2, out);
         }
         return res;
       };
@@ -65816,25 +65816,25 @@ var require_bn = __commonJS({
         out.length = x.length + y.length;
         return out.strip();
       };
-      BN.prototype.mul = function mul(num) {
+      BN.prototype.mul = function mul(num2) {
         var out = new BN(null);
-        out.words = new Array(this.length + num.length);
-        return this.mulTo(num, out);
+        out.words = new Array(this.length + num2.length);
+        return this.mulTo(num2, out);
       };
-      BN.prototype.mulf = function mulf(num) {
+      BN.prototype.mulf = function mulf(num2) {
         var out = new BN(null);
-        out.words = new Array(this.length + num.length);
-        return jumboMulTo(this, num, out);
+        out.words = new Array(this.length + num2.length);
+        return jumboMulTo(this, num2, out);
       };
-      BN.prototype.imul = function imul(num) {
-        return this.clone().mulTo(num, this);
+      BN.prototype.imul = function imul(num2) {
+        return this.clone().mulTo(num2, this);
       };
-      BN.prototype.imuln = function imuln(num) {
-        assert(typeof num === "number");
-        assert(num < 67108864);
+      BN.prototype.imuln = function imuln(num2) {
+        assert(typeof num2 === "number");
+        assert(num2 < 67108864);
         var carry = 0;
         for (var i = 0; i < this.length; i++) {
-          var w = (this.words[i] | 0) * num;
+          var w = (this.words[i] | 0) * num2;
           var lo = (w & 67108863) + (carry & 67108863);
           carry >>= 26;
           carry += w / 67108864 | 0;
@@ -65845,11 +65845,11 @@ var require_bn = __commonJS({
           this.words[i] = carry;
           this.length++;
         }
-        this.length = num === 0 ? 1 : this.length;
+        this.length = num2 === 0 ? 1 : this.length;
         return this;
       };
-      BN.prototype.muln = function muln(num) {
-        return this.clone().imuln(num);
+      BN.prototype.muln = function muln(num2) {
+        return this.clone().imuln(num2);
       };
       BN.prototype.sqr = function sqr() {
         return this.mul(this);
@@ -65857,8 +65857,8 @@ var require_bn = __commonJS({
       BN.prototype.isqr = function isqr() {
         return this.imul(this.clone());
       };
-      BN.prototype.pow = function pow(num) {
-        var w = toBitArray(num);
+      BN.prototype.pow = function pow(num2) {
+        var w = toBitArray(num2);
         if (w.length === 0)
           return new BN(1);
         var res = this;
@@ -66001,26 +66001,26 @@ var require_bn = __commonJS({
       BN.prototype.maskn = function maskn(bits) {
         return this.clone().imaskn(bits);
       };
-      BN.prototype.iaddn = function iaddn(num) {
-        assert(typeof num === "number");
-        assert(num < 67108864);
-        if (num < 0)
-          return this.isubn(-num);
+      BN.prototype.iaddn = function iaddn(num2) {
+        assert(typeof num2 === "number");
+        assert(num2 < 67108864);
+        if (num2 < 0)
+          return this.isubn(-num2);
         if (this.negative !== 0) {
-          if (this.length === 1 && (this.words[0] | 0) < num) {
-            this.words[0] = num - (this.words[0] | 0);
+          if (this.length === 1 && (this.words[0] | 0) < num2) {
+            this.words[0] = num2 - (this.words[0] | 0);
             this.negative = 0;
             return this;
           }
           this.negative = 0;
-          this.isubn(num);
+          this.isubn(num2);
           this.negative = 1;
           return this;
         }
-        return this._iaddn(num);
+        return this._iaddn(num2);
       };
-      BN.prototype._iaddn = function _iaddn(num) {
-        this.words[0] += num;
+      BN.prototype._iaddn = function _iaddn(num2) {
+        this.words[0] += num2;
         for (var i = 0; i < this.length && this.words[i] >= 67108864; i++) {
           this.words[i] -= 67108864;
           if (i === this.length - 1) {
@@ -66032,18 +66032,18 @@ var require_bn = __commonJS({
         this.length = Math.max(this.length, i + 1);
         return this;
       };
-      BN.prototype.isubn = function isubn(num) {
-        assert(typeof num === "number");
-        assert(num < 67108864);
-        if (num < 0)
-          return this.iaddn(-num);
+      BN.prototype.isubn = function isubn(num2) {
+        assert(typeof num2 === "number");
+        assert(num2 < 67108864);
+        if (num2 < 0)
+          return this.iaddn(-num2);
         if (this.negative !== 0) {
           this.negative = 0;
-          this.iaddn(num);
+          this.iaddn(num2);
           this.negative = 1;
           return this;
         }
-        this.words[0] -= num;
+        this.words[0] -= num2;
         if (this.length === 1 && this.words[0] < 0) {
           this.words[0] = -this.words[0];
           this.negative = 1;
@@ -66055,11 +66055,11 @@ var require_bn = __commonJS({
         }
         return this.strip();
       };
-      BN.prototype.addn = function addn(num) {
-        return this.clone().iaddn(num);
+      BN.prototype.addn = function addn(num2) {
+        return this.clone().iaddn(num2);
       };
-      BN.prototype.subn = function subn(num) {
-        return this.clone().isubn(num);
+      BN.prototype.subn = function subn(num2) {
+        return this.clone().isubn(num2);
       };
       BN.prototype.iabs = function iabs() {
         this.negative = 0;
@@ -66068,15 +66068,15 @@ var require_bn = __commonJS({
       BN.prototype.abs = function abs() {
         return this.clone().iabs();
       };
-      BN.prototype._ishlnsubmul = function _ishlnsubmul(num, mul, shift) {
-        var len = num.length + shift;
+      BN.prototype._ishlnsubmul = function _ishlnsubmul(num2, mul, shift) {
+        var len = num2.length + shift;
         var i;
         this._expand(len);
         var w;
         var carry = 0;
-        for (i = 0; i < num.length; i++) {
+        for (i = 0; i < num2.length; i++) {
           w = (this.words[i + shift] | 0) + carry;
-          var right = (num.words[i] | 0) * mul;
+          var right = (num2.words[i] | 0) * mul;
           w -= right & 67108863;
           carry = (w >> 26) - (right / 67108864 | 0);
           this.words[i + shift] = w & 67108863;
@@ -66098,10 +66098,10 @@ var require_bn = __commonJS({
         this.negative = 1;
         return this.strip();
       };
-      BN.prototype._wordDiv = function _wordDiv(num, mode) {
-        var shift = this.length - num.length;
+      BN.prototype._wordDiv = function _wordDiv(num2, mode) {
+        var shift = this.length - num2.length;
         var a = this.clone();
-        var b = num;
+        var b = num2;
         var bhi = b.words[b.length - 1] | 0;
         var bhiBits = this._countBits(bhi);
         shift = 26 - bhiBits;
@@ -66155,8 +66155,8 @@ var require_bn = __commonJS({
           mod: a
         };
       };
-      BN.prototype.divmod = function divmod(num, mode, positive) {
-        assert(!num.isZero());
+      BN.prototype.divmod = function divmod(num2, mode, positive) {
+        assert(!num2.isZero());
         if (this.isZero()) {
           return {
             div: new BN(0),
@@ -66164,15 +66164,15 @@ var require_bn = __commonJS({
           };
         }
         var div, mod, res;
-        if (this.negative !== 0 && num.negative === 0) {
-          res = this.neg().divmod(num, mode);
+        if (this.negative !== 0 && num2.negative === 0) {
+          res = this.neg().divmod(num2, mode);
           if (mode !== "mod") {
             div = res.div.neg();
           }
           if (mode !== "div") {
             mod = res.mod.neg();
             if (positive && mod.negative !== 0) {
-              mod.iadd(num);
+              mod.iadd(num2);
             }
           }
           return {
@@ -66180,8 +66180,8 @@ var require_bn = __commonJS({
             mod
           };
         }
-        if (this.negative === 0 && num.negative !== 0) {
-          res = this.divmod(num.neg(), mode);
+        if (this.negative === 0 && num2.negative !== 0) {
+          res = this.divmod(num2.neg(), mode);
           if (mode !== "mod") {
             div = res.div.neg();
           }
@@ -66190,12 +66190,12 @@ var require_bn = __commonJS({
             mod: res.mod
           };
         }
-        if ((this.negative & num.negative) !== 0) {
-          res = this.neg().divmod(num.neg(), mode);
+        if ((this.negative & num2.negative) !== 0) {
+          res = this.neg().divmod(num2.neg(), mode);
           if (mode !== "div") {
             mod = res.mod.neg();
             if (positive && mod.negative !== 0) {
-              mod.isub(num);
+              mod.isub(num2);
             }
           }
           return {
@@ -66203,74 +66203,74 @@ var require_bn = __commonJS({
             mod
           };
         }
-        if (num.length > this.length || this.cmp(num) < 0) {
+        if (num2.length > this.length || this.cmp(num2) < 0) {
           return {
             div: new BN(0),
             mod: this
           };
         }
-        if (num.length === 1) {
+        if (num2.length === 1) {
           if (mode === "div") {
             return {
-              div: this.divn(num.words[0]),
+              div: this.divn(num2.words[0]),
               mod: null
             };
           }
           if (mode === "mod") {
             return {
               div: null,
-              mod: new BN(this.modn(num.words[0]))
+              mod: new BN(this.modn(num2.words[0]))
             };
           }
           return {
-            div: this.divn(num.words[0]),
-            mod: new BN(this.modn(num.words[0]))
+            div: this.divn(num2.words[0]),
+            mod: new BN(this.modn(num2.words[0]))
           };
         }
-        return this._wordDiv(num, mode);
+        return this._wordDiv(num2, mode);
       };
-      BN.prototype.div = function div(num) {
-        return this.divmod(num, "div", false).div;
+      BN.prototype.div = function div(num2) {
+        return this.divmod(num2, "div", false).div;
       };
-      BN.prototype.mod = function mod(num) {
-        return this.divmod(num, "mod", false).mod;
+      BN.prototype.mod = function mod(num2) {
+        return this.divmod(num2, "mod", false).mod;
       };
-      BN.prototype.umod = function umod(num) {
-        return this.divmod(num, "mod", true).mod;
+      BN.prototype.umod = function umod(num2) {
+        return this.divmod(num2, "mod", true).mod;
       };
-      BN.prototype.divRound = function divRound(num) {
-        var dm = this.divmod(num);
+      BN.prototype.divRound = function divRound(num2) {
+        var dm = this.divmod(num2);
         if (dm.mod.isZero())
           return dm.div;
-        var mod = dm.div.negative !== 0 ? dm.mod.isub(num) : dm.mod;
-        var half = num.ushrn(1);
-        var r2 = num.andln(1);
+        var mod = dm.div.negative !== 0 ? dm.mod.isub(num2) : dm.mod;
+        var half = num2.ushrn(1);
+        var r2 = num2.andln(1);
         var cmp = mod.cmp(half);
         if (cmp < 0 || r2 === 1 && cmp === 0)
           return dm.div;
         return dm.div.negative !== 0 ? dm.div.isubn(1) : dm.div.iaddn(1);
       };
-      BN.prototype.modn = function modn(num) {
-        assert(num <= 67108863);
-        var p = (1 << 26) % num;
+      BN.prototype.modn = function modn(num2) {
+        assert(num2 <= 67108863);
+        var p = (1 << 26) % num2;
         var acc = 0;
         for (var i = this.length - 1; i >= 0; i--) {
-          acc = (p * acc + (this.words[i] | 0)) % num;
+          acc = (p * acc + (this.words[i] | 0)) % num2;
         }
         return acc;
       };
-      BN.prototype.idivn = function idivn(num) {
-        assert(num <= 67108863);
+      BN.prototype.idivn = function idivn(num2) {
+        assert(num2 <= 67108863);
         var carry = 0;
         for (var i = this.length - 1; i >= 0; i--) {
           var w = (this.words[i] | 0) + carry * 67108864;
-          this.words[i] = w / num | 0;
-          carry = w % num;
+          this.words[i] = w / num2 | 0;
+          carry = w % num2;
         }
         return this.strip();
       };
-      BN.prototype.divn = function divn(num) {
-        return this.clone().idivn(num);
+      BN.prototype.divn = function divn(num2) {
+        return this.clone().idivn(num2);
       };
       BN.prototype.egcd = function egcd(p) {
         assert(p.negative === 0);
@@ -66392,13 +66392,13 @@ var require_bn = __commonJS({
         }
         return res;
       };
-      BN.prototype.gcd = function gcd(num) {
+      BN.prototype.gcd = function gcd(num2) {
         if (this.isZero())
-          return num.abs();
-        if (num.isZero())
+          return num2.abs();
+        if (num2.isZero())
           return this.abs();
         var a = this.clone();
-        var b = num.clone();
+        var b = num2.clone();
         a.negative = 0;
         b.negative = 0;
         for (var shift = 0; a.isEven() && b.isEven(); shift++) {
@@ -66424,8 +66424,8 @@ var require_bn = __commonJS({
         } while (true);
         return b.iushln(shift);
       };
-      BN.prototype.invm = function invm(num) {
-        return this.egcd(num).a.umod(num);
+      BN.prototype.invm = function invm(num2) {
+        return this.egcd(num2).a.umod(num2);
       };
       BN.prototype.isEven = function isEven() {
         return (this.words[0] & 1) === 0;
@@ -66433,8 +66433,8 @@ var require_bn = __commonJS({
       BN.prototype.isOdd = function isOdd() {
         return (this.words[0] & 1) === 1;
       };
-      BN.prototype.andln = function andln(num) {
-        return this.words[0] & num;
+      BN.prototype.andln = function andln(num2) {
+        return this.words[0] & num2;
       };
       BN.prototype.bincn = function bincn(bit) {
         assert(typeof bit === "number");
@@ -66463,8 +66463,8 @@ var require_bn = __commonJS({
       BN.prototype.isZero = function isZero() {
         return this.length === 1 && this.words[0] === 0;
       };
-      BN.prototype.cmpn = function cmpn(num) {
-        var negative = num < 0;
+      BN.prototype.cmpn = function cmpn(num2) {
+        var negative = num2 < 0;
         if (this.negative !== 0 && !negative)
           return -1;
         if (this.negative === 0 && negative)
@@ -66475,35 +66475,35 @@ var require_bn = __commonJS({
           res = 1;
         } else {
           if (negative) {
-            num = -num;
+            num2 = -num2;
           }
-          assert(num <= 67108863, "Number is too big");
+          assert(num2 <= 67108863, "Number is too big");
           var w = this.words[0] | 0;
-          res = w === num ? 0 : w < num ? -1 : 1;
+          res = w === num2 ? 0 : w < num2 ? -1 : 1;
         }
         if (this.negative !== 0)
           return -res | 0;
         return res;
       };
-      BN.prototype.cmp = function cmp(num) {
-        if (this.negative !== 0 && num.negative === 0)
+      BN.prototype.cmp = function cmp(num2) {
+        if (this.negative !== 0 && num2.negative === 0)
           return -1;
-        if (this.negative === 0 && num.negative !== 0)
+        if (this.negative === 0 && num2.negative !== 0)
           return 1;
-        var res = this.ucmp(num);
+        var res = this.ucmp(num2);
         if (this.negative !== 0)
           return -res | 0;
         return res;
       };
-      BN.prototype.ucmp = function ucmp(num) {
-        if (this.length > num.length)
+      BN.prototype.ucmp = function ucmp(num2) {
+        if (this.length > num2.length)
           return 1;
-        if (this.length < num.length)
+        if (this.length < num2.length)
           return -1;
         var res = 0;
         for (var i = this.length - 1; i >= 0; i--) {
           var a = this.words[i] | 0;
-          var b = num.words[i] | 0;
+          var b = num2.words[i] | 0;
           if (a === b)
             continue;
           if (a < b) {
@@ -66515,38 +66515,38 @@ var require_bn = __commonJS({
         }
         return res;
       };
-      BN.prototype.gtn = function gtn(num) {
-        return this.cmpn(num) === 1;
+      BN.prototype.gtn = function gtn(num2) {
+        return this.cmpn(num2) === 1;
       };
-      BN.prototype.gt = function gt(num) {
-        return this.cmp(num) === 1;
+      BN.prototype.gt = function gt(num2) {
+        return this.cmp(num2) === 1;
       };
-      BN.prototype.gten = function gten(num) {
-        return this.cmpn(num) >= 0;
+      BN.prototype.gten = function gten(num2) {
+        return this.cmpn(num2) >= 0;
       };
-      BN.prototype.gte = function gte(num) {
-        return this.cmp(num) >= 0;
+      BN.prototype.gte = function gte(num2) {
+        return this.cmp(num2) >= 0;
       };
-      BN.prototype.ltn = function ltn(num) {
-        return this.cmpn(num) === -1;
+      BN.prototype.ltn = function ltn(num2) {
+        return this.cmpn(num2) === -1;
       };
-      BN.prototype.lt = function lt(num) {
-        return this.cmp(num) === -1;
+      BN.prototype.lt = function lt(num2) {
+        return this.cmp(num2) === -1;
       };
-      BN.prototype.lten = function lten(num) {
-        return this.cmpn(num) <= 0;
+      BN.prototype.lten = function lten(num2) {
+        return this.cmpn(num2) <= 0;
       };
-      BN.prototype.lte = function lte(num) {
-        return this.cmp(num) <= 0;
+      BN.prototype.lte = function lte(num2) {
+        return this.cmp(num2) <= 0;
       };
-      BN.prototype.eqn = function eqn(num) {
-        return this.cmpn(num) === 0;
+      BN.prototype.eqn = function eqn(num2) {
+        return this.cmpn(num2) === 0;
       };
-      BN.prototype.eq = function eq(num) {
-        return this.cmp(num) === 0;
+      BN.prototype.eq = function eq(num2) {
+        return this.cmp(num2) === 0;
       };
-      BN.red = function red(num) {
-        return new Red(num);
+      BN.red = function red(num2) {
+        return new Red(num2);
       };
       BN.prototype.toRed = function toRed(ctx) {
         assert(!this.red, "Already a number in reduction context");
@@ -66565,35 +66565,35 @@ var require_bn = __commonJS({
         assert(!this.red, "Already a number in reduction context");
         return this._forceRed(ctx);
       };
-      BN.prototype.redAdd = function redAdd(num) {
+      BN.prototype.redAdd = function redAdd(num2) {
         assert(this.red, "redAdd works only with red numbers");
-        return this.red.add(this, num);
+        return this.red.add(this, num2);
       };
-      BN.prototype.redIAdd = function redIAdd(num) {
+      BN.prototype.redIAdd = function redIAdd(num2) {
         assert(this.red, "redIAdd works only with red numbers");
-        return this.red.iadd(this, num);
+        return this.red.iadd(this, num2);
       };
-      BN.prototype.redSub = function redSub(num) {
+      BN.prototype.redSub = function redSub(num2) {
         assert(this.red, "redSub works only with red numbers");
-        return this.red.sub(this, num);
+        return this.red.sub(this, num2);
       };
-      BN.prototype.redISub = function redISub(num) {
+      BN.prototype.redISub = function redISub(num2) {
         assert(this.red, "redISub works only with red numbers");
-        return this.red.isub(this, num);
+        return this.red.isub(this, num2);
       };
-      BN.prototype.redShl = function redShl(num) {
+      BN.prototype.redShl = function redShl(num2) {
         assert(this.red, "redShl works only with red numbers");
-        return this.red.shl(this, num);
+        return this.red.shl(this, num2);
       };
-      BN.prototype.redMul = function redMul(num) {
+      BN.prototype.redMul = function redMul(num2) {
         assert(this.red, "redMul works only with red numbers");
-        this.red._verify2(this, num);
-        return this.red.mul(this, num);
+        this.red._verify2(this, num2);
+        return this.red.mul(this, num2);
       };
-      BN.prototype.redIMul = function redIMul(num) {
+      BN.prototype.redIMul = function redIMul(num2) {
         assert(this.red, "redMul works only with red numbers");
-        this.red._verify2(this, num);
-        return this.red.imul(this, num);
+        this.red._verify2(this, num2);
+        return this.red.imul(this, num2);
       };
       BN.prototype.redSqr = function redSqr() {
         assert(this.red, "redSqr works only with red numbers");
@@ -66620,10 +66620,10 @@ var require_bn = __commonJS({
         this.red._verify1(this);
         return this.red.neg(this);
       };
-      BN.prototype.redPow = function redPow(num) {
-        assert(this.red && !num.red, "redPow(normalNum)");
+      BN.prototype.redPow = function redPow(num2) {
+        assert(this.red && !num2.red, "redPow(normalNum)");
         this.red._verify1(this);
-        return this.red.pow(this, num);
+        return this.red.pow(this, num2);
       };
       var primes = {
         k256: null,
@@ -66643,8 +66643,8 @@ var require_bn = __commonJS({
         tmp.words = new Array(Math.ceil(this.n / 13));
         return tmp;
       };
-      MPrime.prototype.ireduce = function ireduce(num) {
-        var r = num;
+      MPrime.prototype.ireduce = function ireduce(num2) {
+        var r = num2;
         var rlen;
         do {
           this.split(r, this.tmp);
@@ -66670,8 +66670,8 @@ var require_bn = __commonJS({
       MPrime.prototype.split = function split(input, out) {
         input.iushrn(this.n, 0, out);
       };
-      MPrime.prototype.imulK = function imulK(num) {
-        return num.imul(this.k);
+      MPrime.prototype.imulK = function imulK(num2) {
+        return num2.imul(this.k);
       };
       function K256() {
         MPrime.call(
@@ -66708,24 +66708,24 @@ var require_bn = __commonJS({
           input.length -= 9;
         }
       };
-      K256.prototype.imulK = function imulK(num) {
-        num.words[num.length] = 0;
-        num.words[num.length + 1] = 0;
-        num.length += 2;
+      K256.prototype.imulK = function imulK(num2) {
+        num2.words[num2.length] = 0;
+        num2.words[num2.length + 1] = 0;
+        num2.length += 2;
         var lo = 0;
-        for (var i = 0; i < num.length; i++) {
-          var w = num.words[i] | 0;
+        for (var i = 0; i < num2.length; i++) {
+          var w = num2.words[i] | 0;
           lo += w * 977;
-          num.words[i] = lo & 67108863;
+          num2.words[i] = lo & 67108863;
           lo = w * 64 + (lo / 67108864 | 0);
         }
-        if (num.words[num.length - 1] === 0) {
-          num.length--;
-          if (num.words[num.length - 1] === 0) {
-            num.length--;
+        if (num2.words[num2.length - 1] === 0) {
+          num2.length--;
+          if (num2.words[num2.length - 1] === 0) {
+            num2.length--;
           }
         }
-        return num;
+        return num2;
       };
       function P224() {
         MPrime.call(
@@ -66751,19 +66751,19 @@ var require_bn = __commonJS({
         );
       }
       inherits2(P25519, MPrime);
-      P25519.prototype.imulK = function imulK(num) {
+      P25519.prototype.imulK = function imulK(num2) {
         var carry = 0;
-        for (var i = 0; i < num.length; i++) {
-          var hi = (num.words[i] | 0) * 19 + carry;
+        for (var i = 0; i < num2.length; i++) {
+          var hi = (num2.words[i] | 0) * 19 + carry;
           var lo = hi & 67108863;
           hi >>>= 26;
-          num.words[i] = lo;
+          num2.words[i] = lo;
           carry = hi;
         }
         if (carry !== 0) {
-          num.words[num.length++] = carry;
+          num2.words[num2.length++] = carry;
         }
-        return num;
+        return num2;
       };
       BN._prime = function prime(name) {
         if (primes[name])
@@ -66848,9 +66848,9 @@ var require_bn = __commonJS({
         }
         return res;
       };
-      Red.prototype.shl = function shl(a, num) {
+      Red.prototype.shl = function shl(a, num2) {
         this._verify1(a);
-        return this.imod(a.ushln(num));
+        return this.imod(a.ushln(num2));
       };
       Red.prototype.imul = function imul(a, b) {
         this._verify2(a, b);
@@ -66917,10 +66917,10 @@ var require_bn = __commonJS({
           return this.imod(inv);
         }
       };
-      Red.prototype.pow = function pow(a, num) {
-        if (num.isZero())
+      Red.prototype.pow = function pow(a, num2) {
+        if (num2.isZero())
           return new BN(1).toRed(this);
-        if (num.cmpn(1) === 0)
+        if (num2.cmpn(1) === 0)
           return a.clone();
         var windowSize = 4;
         var wnd = new Array(1 << windowSize);
@@ -66932,12 +66932,12 @@ var require_bn = __commonJS({
         var res = wnd[0];
         var current = 0;
         var currentLen = 0;
-        var start = num.bitLength() % 26;
+        var start = num2.bitLength() % 26;
         if (start === 0) {
           start = 26;
         }
-        for (i = num.length - 1; i >= 0; i--) {
-          var word = num.words[i];
+        for (i = num2.length - 1; i >= 0; i--) {
+          var word = num2.words[i];
           for (var j = start - 1; j >= 0; j--) {
             var bit = word >> j & 1;
             if (res !== wnd[0]) {
@@ -66960,17 +66960,17 @@ var require_bn = __commonJS({
         }
         return res;
       };
-      Red.prototype.convertTo = function convertTo(num) {
-        var r = num.umod(this.m);
-        return r === num ? r.clone() : r;
+      Red.prototype.convertTo = function convertTo(num2) {
+        var r = num2.umod(this.m);
+        return r === num2 ? r.clone() : r;
       };
-      Red.prototype.convertFrom = function convertFrom(num) {
-        var res = num.clone();
+      Red.prototype.convertFrom = function convertFrom(num2) {
+        var res = num2.clone();
         res.red = null;
         return res;
       };
-      BN.mont = function mont(num) {
-        return new Mont(num);
+      BN.mont = function mont(num2) {
+        return new Mont(num2);
       };
       function Mont(m) {
         Red.call(this, m);
@@ -66986,11 +66986,11 @@ var require_bn = __commonJS({
         this.minv = this.r.sub(this.minv);
       }
       inherits2(Mont, Red);
-      Mont.prototype.convertTo = function convertTo(num) {
-        return this.imod(num.ushln(this.shift));
+      Mont.prototype.convertTo = function convertTo(num2) {
+        return this.imod(num2.ushln(this.shift));
       };
-      Mont.prototype.convertFrom = function convertFrom(num) {
-        var r = this.imod(num.mul(this.rinv));
+      Mont.prototype.convertFrom = function convertFrom(num2) {
+        var r = this.imod(num2.mul(this.rinv));
         r.red = null;
         return r;
       };
@@ -67120,14 +67120,14 @@ var require_utils4 = __commonJS({
     utils.zero2 = minUtils.zero2;
     utils.toHex = minUtils.toHex;
     utils.encode = minUtils.encode;
-    function getNAF(num, w, bits) {
-      var naf = new Array(Math.max(num.bitLength(), bits) + 1);
+    function getNAF(num2, w, bits) {
+      var naf = new Array(Math.max(num2.bitLength(), bits) + 1);
       var i;
       for (i = 0; i < naf.length; i += 1) {
         naf[i] = 0;
       }
       var ws = 1 << w + 1;
-      var k = num.clone();
+      var k = num2.clone();
       for (i = 0; i < naf.length; i++) {
         var z;
         var mod = k.andln(ws - 1);
@@ -67654,8 +67654,8 @@ var require_short = __commonJS({
         basis
       };
     };
-    ShortCurve.prototype._getEndoRoots = function _getEndoRoots(num) {
-      var red = num === this.p ? this.red : BN.mont(num);
+    ShortCurve.prototype._getEndoRoots = function _getEndoRoots(num2) {
+      var red = num2 === this.p ? this.red : BN.mont(num2);
       var tinv = new BN(2).toRed(red).redInvm();
       var ntinv = tinv.redNeg();
       var s = new BN(3).toRed(red).redNeg().redSqrt().redMul(tinv);
@@ -68443,17 +68443,17 @@ var require_edwards = __commonJS({
     }
     inherits2(EdwardsCurve, Base);
     module2.exports = EdwardsCurve;
-    EdwardsCurve.prototype._mulA = function _mulA(num) {
+    EdwardsCurve.prototype._mulA = function _mulA(num2) {
       if (this.mOneA)
-        return num.redNeg();
+        return num2.redNeg();
       else
-        return this.a.redMul(num);
+        return this.a.redMul(num2);
     };
-    EdwardsCurve.prototype._mulC = function _mulC(num) {
+    EdwardsCurve.prototype._mulC = function _mulC(num2) {
       if (this.oneC)
-        return num;
+        return num2;
       else
-        return this.c.redMul(num);
+        return this.c.redMul(num2);
     };
     EdwardsCurve.prototype.jpoint = function jpoint(x, y, z, t) {
       return this.point(x, y, z, t);
@@ -68954,22 +68954,22 @@ var require_utils5 = __commonJS({
       return lo >>> 0;
     }
     exports2.sum64_5_lo = sum64_5_lo;
-    function rotr64_hi(ah, al, num) {
-      var r = al << 32 - num | ah >>> num;
+    function rotr64_hi(ah, al, num2) {
+      var r = al << 32 - num2 | ah >>> num2;
       return r >>> 0;
     }
     exports2.rotr64_hi = rotr64_hi;
-    function rotr64_lo(ah, al, num) {
-      var r = ah << 32 - num | al >>> num;
+    function rotr64_lo(ah, al, num2) {
+      var r = ah << 32 - num2 | al >>> num2;
       return r >>> 0;
     }
     exports2.rotr64_lo = rotr64_lo;
-    function shr64_hi(ah, al, num) {
-      return ah >>> num;
+    function shr64_hi(ah, al, num2) {
+      return ah >>> num2;
     }
     exports2.shr64_hi = shr64_hi;
-    function shr64_lo(ah, al, num) {
-      var r = ah << 32 - num | al >>> num;
+    function shr64_lo(ah, al, num2) {
+      var r = ah << 32 - num2 | al >>> num2;
       return r >>> 0;
     }
     exports2.shr64_lo = shr64_lo;
@@ -72069,8 +72069,8 @@ var require_eddsa = __commonJS({
       var y = utils.intFromLE(normed);
       return this.curve.pointFromY(y, xIsOdd);
     };
-    EDDSA.prototype.encodeInt = function encodeInt(num) {
-      return num.toArray("le", this.encodingLength);
+    EDDSA.prototype.encodeInt = function encodeInt(num2) {
+      return num2.toArray("le", this.encodingLength);
     };
     EDDSA.prototype.decodeInt = function decodeInt(bytes) {
       return utils.intFromLE(bytes);
@@ -73700,14 +73700,14 @@ var require_BigInteger = __commonJS({
         }
         return low.add(Integer.fromArray(result, BASE, false));
       }
-      var parseBase = function(text, base, alphabet, caseSensitive) {
+      var parseBase = function(text2, base, alphabet, caseSensitive) {
         alphabet = alphabet || DEFAULT_ALPHABET;
-        text = String(text);
+        text2 = String(text2);
         if (!caseSensitive) {
-          text = text.toLowerCase();
+          text2 = text2.toLowerCase();
           alphabet = alphabet.toLowerCase();
         }
-        var length = text.length;
+        var length = text2.length;
         var i2;
         var absBase = Math.abs(base);
         var alphabetValues = {};
@@ -73715,7 +73715,7 @@ var require_BigInteger = __commonJS({
           alphabetValues[alphabet[i2]] = i2;
         }
         for (i2 = 0; i2 < length; i2++) {
-          var c = text[i2];
+          var c = text2[i2];
           if (c === "-")
             continue;
           if (c in alphabetValues) {
@@ -73728,17 +73728,17 @@ var require_BigInteger = __commonJS({
         }
         base = parseValue(base);
         var digits = [];
-        var isNegative = text[0] === "-";
-        for (i2 = isNegative ? 1 : 0; i2 < text.length; i2++) {
-          var c = text[i2];
+        var isNegative = text2[0] === "-";
+        for (i2 = isNegative ? 1 : 0; i2 < text2.length; i2++) {
+          var c = text2[i2];
           if (c in alphabetValues)
             digits.push(parseValue(alphabetValues[c]));
           else if (c === "<") {
             var start = i2;
             do {
               i2++;
-            } while (text[i2] !== ">" && i2 < text.length);
-            digits.push(parseValue(text.slice(start + 1, i2)));
+            } while (text2[i2] !== ">" && i2 < text2.length);
+            digits.push(parseValue(text2.slice(start + 1, i2)));
           } else
             throw new Error(c + " is not a valid character");
         }
@@ -73882,16 +73882,16 @@ var require_BigInteger = __commonJS({
           exp = +exp;
           if (exp !== truncate(exp) || !isPrecise(exp))
             throw new Error("Invalid integer: " + exp + " is not a valid exponent.");
-          var text = split[0];
-          var decimalPlace = text.indexOf(".");
+          var text2 = split[0];
+          var decimalPlace = text2.indexOf(".");
           if (decimalPlace >= 0) {
-            exp -= text.length - decimalPlace - 1;
-            text = text.slice(0, decimalPlace) + text.slice(decimalPlace + 1);
+            exp -= text2.length - decimalPlace - 1;
+            text2 = text2.slice(0, decimalPlace) + text2.slice(decimalPlace + 1);
           }
           if (exp < 0)
             throw new Error("Cannot include negative exponent part for integers");
-          text += new Array(exp + 1).join("0");
-          v = text;
+          text2 += new Array(exp + 1).join("0");
+          v = text2;
         }
         var isValid2 = /^([0-9][0-9]*)$/.test(v);
         if (!isValid2)
@@ -81079,7 +81079,7 @@ var require_chunk = __commonJS({
       }
       get descriptions() {
         return this.params.map(([code, body]) => {
-          const name = (Object.entries(_ErrorChunk.CODE).find(([, num]) => num === code) || [])[0];
+          const name = (Object.entries(_ErrorChunk.CODE).find(([, num2]) => num2 === code) || [])[0];
           return { name, body };
         });
       }
@@ -88935,6 +88935,21 @@ var init_job_queue = __esm({
             this.logger.error("Failed to send job completion notification", { jobId, error });
           }
         }
+      }
+      /**
+       * Fail a job for good, with no retry. Map generation has no retry step, so a job put back
+       * to "queued" by markJobFailed would just sit there and be reported as queued forever.
+       */
+      async markJobFailedFinal(jobId, error) {
+        const job = this.jobs.get(jobId);
+        if (!job) {
+          throw new Error(`Job ${jobId} not found`);
+        }
+        job.attempts = Math.max(job.attempts + 1, job.max_attempts);
+        job.error = error;
+        job.status = "failed";
+        job.current_stage = JOB_STAGES.FAILED;
+        this.logger.error("Job failed", { jobId, error });
       }
       async markJobFailed(jobId, error) {
         const job = this.jobs.get(jobId);
@@ -98395,11 +98410,11 @@ var require_mime_types = __commonJS({
       }
       return exts[0];
     }
-    function lookup(path8) {
-      if (!path8 || typeof path8 !== "string") {
+    function lookup(path9) {
+      if (!path9 || typeof path9 !== "string") {
         return false;
       }
-      var extension2 = extname("x." + path8).toLowerCase().substr(1);
+      var extension2 = extname("x." + path9).toLowerCase().substr(1);
       if (!extension2) {
         return false;
       }
@@ -99504,11 +99519,11 @@ var require_form_data = __commonJS({
     "use strict";
     var CombinedStream = require_combined_stream();
     var util4 = require("util");
-    var path8 = require("path");
+    var path9 = require("path");
     var http2 = require("http");
     var https2 = require("https");
     var parseUrl = require("url").parse;
-    var fs7 = require("fs");
+    var fs8 = require("fs");
     var Stream = require("stream").Stream;
     var crypto7 = require("crypto");
     var mime = require_mime_types();
@@ -99575,7 +99590,7 @@ var require_form_data = __commonJS({
         if (value.end != void 0 && value.end != Infinity && value.start != void 0) {
           callback(null, value.end + 1 - (value.start ? value.start : 0));
         } else {
-          fs7.stat(value.path, function(err, stat) {
+          fs8.stat(value.path, function(err, stat) {
             if (err) {
               callback(err);
               return;
@@ -99632,11 +99647,11 @@ var require_form_data = __commonJS({
     FormData3.prototype._getContentDisposition = function(value, options) {
       var filename;
       if (typeof options.filepath === "string") {
-        filename = path8.normalize(options.filepath).replace(/\\/g, "/");
+        filename = path9.normalize(options.filepath).replace(/\\/g, "/");
       } else if (options.filename || value && (value.name || value.path)) {
-        filename = path8.basename(options.filename || value && (value.name || value.path));
+        filename = path9.basename(options.filename || value && (value.name || value.path));
       } else if (value && value.readable && hasOwn(value, "httpVersion")) {
-        filename = path8.basename(value.client._httpMessage.path || "");
+        filename = path9.basename(value.client._httpMessage.path || "");
       }
       if (filename) {
         return 'filename="' + filename + '"';
@@ -99833,10 +99848,10 @@ function isVisitable(thing) {
 function removeBrackets(key) {
   return utils_default.endsWith(key, "[]") ? key.slice(0, -2) : key;
 }
-function renderKey(path8, key, dots) {
-  if (!path8)
+function renderKey(path9, key, dots) {
+  if (!path9)
     return key;
-  return path8.concat(key).map(function each(token, i) {
+  return path9.concat(key).map(function each(token, i) {
     token = removeBrackets(token);
     return !dots && i ? "[" + token + "]" : token;
   }).join(dots ? "." : "");
@@ -99882,9 +99897,9 @@ function toFormData(obj, formData, options) {
     }
     return value;
   }
-  function defaultVisitor(value, key, path8) {
+  function defaultVisitor(value, key, path9) {
     let arr = value;
-    if (value && !path8 && typeof value === "object") {
+    if (value && !path9 && typeof value === "object") {
       if (utils_default.endsWith(key, "{}")) {
         key = metaTokens ? key : key.slice(0, -2);
         value = JSON.stringify(value);
@@ -99903,7 +99918,7 @@ function toFormData(obj, formData, options) {
     if (isVisitable(value)) {
       return true;
     }
-    formData.append(renderKey(path8, key, dots), convertValue(value));
+    formData.append(renderKey(path9, key, dots), convertValue(value));
     return false;
   }
   const stack = [];
@@ -99912,11 +99927,11 @@ function toFormData(obj, formData, options) {
     convertValue,
     isVisitable
   });
-  function build(value, path8) {
+  function build(value, path9) {
     if (utils_default.isUndefined(value))
       return;
     if (stack.indexOf(value) !== -1) {
-      throw Error("Circular reference detected in " + path8.join("."));
+      throw Error("Circular reference detected in " + path9.join("."));
     }
     stack.push(value);
     utils_default.forEach(value, function each(el, key) {
@@ -99924,11 +99939,11 @@ function toFormData(obj, formData, options) {
         formData,
         el,
         utils_default.isString(key) ? key.trim() : key,
-        path8,
+        path9,
         exposedHelpers
       );
       if (result === true) {
-        build(el, path8 ? path8.concat(key) : [key]);
+        build(el, path9 ? path9.concat(key) : [key]);
       }
     });
     stack.pop();
@@ -100202,7 +100217,7 @@ var init_platform2 = __esm({
 // ../../node_modules/axios/lib/helpers/toURLEncodedForm.js
 function toURLEncodedForm(data, options) {
   return toFormData_default(data, new platform_default.classes.URLSearchParams(), {
-    visitor: function(value, key, path8, helpers) {
+    visitor: function(value, key, path9, helpers) {
       if (platform_default.isNode && utils_default.isBuffer(value)) {
         this.append(key, value.toString("base64"));
         return false;
@@ -100240,12 +100255,12 @@ function arrayToObject(arr) {
   return obj;
 }
 function formDataToJSON(formData) {
-  function buildPath(path8, value, target, index) {
-    let name = path8[index++];
+  function buildPath(path9, value, target, index) {
+    let name = path9[index++];
     if (name === "__proto__")
       return true;
     const isNumericKey = Number.isFinite(+name);
-    const isLast = index >= path8.length;
+    const isLast = index >= path9.length;
     name = !name && utils_default.isArray(target) ? target.length : name;
     if (isLast) {
       if (utils_default.hasOwnProp(target, name)) {
@@ -100258,7 +100273,7 @@ function formDataToJSON(formData) {
     if (!target[name] || !utils_default.isObject(target[name])) {
       target[name] = [];
     }
-    const result = buildPath(path8, value, target[name], index);
+    const result = buildPath(path9, value, target[name], index);
     if (result && utils_default.isArray(target[name])) {
       target[name] = arrayToObject(target[name]);
     }
@@ -102213,9 +102228,9 @@ var init_http = __esm({
           auth = urlUsername + ":" + urlPassword;
         }
         auth && headers.delete("authorization");
-        let path8;
+        let path9;
         try {
-          path8 = buildURL(
+          path9 = buildURL(
             parsed.pathname + parsed.search,
             config2.params,
             config2.paramsSerializer
@@ -102233,7 +102248,7 @@ var init_http = __esm({
           false
         );
         const options = {
-          path: path8,
+          path: path9,
           method,
           headers: headers.toJSON(),
           agents: { http: config2.httpAgent, https: config2.httpsAgent },
@@ -102478,10 +102493,10 @@ var init_cookies = __esm({
     cookies_default = platform_default.hasStandardBrowserEnv ? (
       // Standard browser envs support document.cookie
       {
-        write(name, value, expires, path8, domain, secure) {
+        write(name, value, expires, path9, domain, secure) {
           const cookie = [name + "=" + encodeURIComponent(value)];
           utils_default.isNumber(expires) && cookie.push("expires=" + new Date(expires).toGMTString());
-          utils_default.isString(path8) && cookie.push("path=" + path8);
+          utils_default.isString(path9) && cookie.push("path=" + path9);
           utils_default.isString(domain) && cookie.push("domain=" + domain);
           secure === true && cookie.push("secure");
           document.cookie = cookie.join("; ");
@@ -103808,11 +103823,93 @@ var init_axios2 = __esm({
   }
 });
 
+// dist/comfyui-errors.js
+function describeExecutionError(entry) {
+  const messages = entry?.status?.messages;
+  if (Array.isArray(messages)) {
+    for (const message of messages) {
+      if (Array.isArray(message) && message[0] === "execution_error") {
+        const info = message[1] ?? {};
+        const where = info.node_type ? `${info.node_type}: ` : "";
+        const text2 = String(info.exception_message ?? "unknown error").trim();
+        return `${where}${text2}`.slice(0, MAX_LENGTH);
+      }
+    }
+  }
+  return "unknown error (see the ComfyUI console)";
+}
+function describeComfySubmitError(status, data, fallback) {
+  const body = data && typeof data === "object" ? data : {};
+  const parts = [];
+  const topMessage = typeof body.error === "string" ? body.error : body.error?.message ?? void 0;
+  const topDetails = typeof body.error === "object" ? body.error?.details : void 0;
+  if (topMessage)
+    parts.push(topDetails ? `${topMessage} (${topDetails})` : topMessage);
+  const problems = [];
+  let missingModel = false;
+  for (const [nodeId, node] of Object.entries(body.node_errors ?? {})) {
+    for (const problem of node.errors ?? []) {
+      const where = node.class_type ? `${node.class_type} (node ${nodeId})` : `node ${nodeId}`;
+      const text2 = [problem.message, problem.details].filter(Boolean).join(": ");
+      problems.push(`${where}: ${text2}`);
+      if (problem.type === "value_not_in_list" && /(ckpt_name|vae_name|lora_name|unet_name)/.test(problem.details ?? "")) {
+        missingModel = true;
+      }
+    }
+  }
+  if (problems.length)
+    parts.push(problems.slice(0, 4).join("; "));
+  let message = parts.length ? `ComfyUI rejected the job${status ? ` (HTTP ${status})` : ""}: ${parts.join(" - ")}` : fallback;
+  if (missingModel) {
+    message += " | A model file is not where this ComfyUI looks. The checkpoint must be in ComfyUI/models/checkpoints and the VAE in models/vae (not diffusion_models), then refresh or restart ComfyUI.";
+  }
+  return message.length > MAX_LENGTH ? `${message.slice(0, MAX_LENGTH - 1)}\u2026` : message;
+}
+var MAX_LENGTH;
+var init_comfyui_errors = __esm({
+  "dist/comfyui-errors.js"() {
+    "use strict";
+    MAX_LENGTH = 700;
+  }
+});
+
+// dist/comfyui-models.js
+function comboOptions(spec) {
+  if (!Array.isArray(spec))
+    return [];
+  const first = spec[0];
+  let options;
+  if (Array.isArray(first)) {
+    options = first;
+  } else if (first === "COMBO") {
+    options = spec[1]?.options;
+  }
+  return Array.isArray(options) ? options.filter((o) => typeof o === "string") : [];
+}
+function inputOptions(info, node, input) {
+  const required = info?.[node]?.input?.required;
+  const optional = info?.[node]?.input?.optional;
+  return comboOptions(required?.[input] ?? optional?.[input]);
+}
+function parseComfyModels(parts) {
+  return {
+    checkpoints: inputOptions(parts.checkpointLoader, "CheckpointLoaderSimple", "ckpt_name"),
+    vaes: inputOptions(parts.vaeLoader, "VAELoader", "vae_name"),
+    samplers: inputOptions(parts.ksampler, "KSampler", "sampler_name"),
+    schedulers: inputOptions(parts.ksampler, "KSampler", "scheduler")
+  };
+}
+var init_comfyui_models = __esm({
+  "dist/comfyui-models.js"() {
+    "use strict";
+  }
+});
+
 // dist/utils/comfyui-paths.js
 function isValidComfyUIPath(dirPath) {
   try {
-    const mainPyPath = path5.join(dirPath, "main.py");
-    return fs5.existsSync(mainPyPath) && fs5.statSync(mainPyPath).isFile();
+    const mainPyPath = path6.join(dirPath, "main.py");
+    return fs6.existsSync(mainPyPath) && fs6.statSync(mainPyPath).isFile();
   } catch (error) {
     return false;
   }
@@ -103855,13 +103952,13 @@ function getDefaultPythonCommand(installPath) {
     return "python/python.exe";
   } else if (isMac()) {
     if (installPath) {
-      const venvPython = path5.join(installPath, "venv", "bin", "python");
-      if (fs5.existsSync(venvPython)) {
+      const venvPython = path6.join(installPath, "venv", "bin", "python");
+      if (fs6.existsSync(venvPython)) {
         return venvPython;
       }
     }
     const systemPython311 = "/Library/Frameworks/Python.framework/Versions/3.11/bin/python3";
-    if (fs5.existsSync(systemPython311)) {
+    if (fs6.existsSync(systemPython311)) {
       return systemPython311;
     }
     return "python3";
@@ -103869,12 +103966,12 @@ function getDefaultPythonCommand(installPath) {
     return "python3";
   }
 }
-var fs5, path5;
+var fs6, path6;
 var init_comfyui_paths = __esm({
   "dist/utils/comfyui-paths.js"() {
     "use strict";
-    fs5 = __toESM(require("fs"), 1);
-    path5 = __toESM(require("path"), 1);
+    fs6 = __toESM(require("fs"), 1);
+    path6 = __toESM(require("path"), 1);
     init_platform();
   }
 });
@@ -103884,15 +103981,17 @@ var comfyui_client_exports = {};
 __export(comfyui_client_exports, {
   ComfyUIClient: () => ComfyUIClient
 });
-var import_child_process2, fss, path6, SIZE_MAPPING, ComfyUIClient;
+var import_child_process2, fss, path7, SIZE_MAPPING, ComfyUIClient;
 var init_comfyui_client = __esm({
   "dist/comfyui-client.js"() {
     "use strict";
     import_child_process2 = require("child_process");
     fss = __toESM(require("fs"), 1);
-    path6 = __toESM(require("path"), 1);
+    path7 = __toESM(require("path"), 1);
     init_axios2();
     init_wrapper();
+    init_comfyui_errors();
+    init_comfyui_models();
     init_comfyui_target();
     init_platform();
     init_comfyui_paths();
@@ -104015,7 +104114,7 @@ var init_comfyui_client = __esm({
         this.progressCallbacks.delete(promptId);
       }
       getDefaultInstallPath() {
-        return path6.join(getAppDataDir(), "foundry-mcp-server", "ComfyUI-headless");
+        return path7.join(getAppDataDir(), "foundry-mcp-server", "ComfyUI-headless");
       }
       async checkInstallation() {
         if (!this.config.installPath) {
@@ -104088,8 +104187,8 @@ var init_comfyui_client = __esm({
           pythonCommand: this.config.pythonCommand,
           port: this.config.port
         });
-        const mainPyPath = path6.join(this.config.installPath, "main.py");
-        const logPath = path6.join(getAppDataDir(), "comfyui.log");
+        const mainPyPath = path7.join(this.config.installPath, "main.py");
+        const logPath = path7.join(getAppDataDir(), "comfyui.log");
         this.logStream = fss.createWriteStream(logPath, { flags: "a" });
         const spawnOptions = getHiddenProcessSpawnOptions();
         this.process = (0, import_child_process2.spawn)(this.config.pythonCommand, [
@@ -104183,8 +104282,65 @@ var init_comfyui_client = __esm({
         }
         throw new Error("ComfyUI service failed to become ready within timeout");
       }
+      /** What this ComfyUI offers: checkpoints, VAEs, samplers and schedulers. */
+      async getModels() {
+        const get = async (node) => {
+          try {
+            return (await axios_default.get(`${this.baseUrl}/object_info/${node}`, { timeout: 1e4 })).data;
+          } catch (error) {
+            throw new Error(`Could not read ${node} from ${this.baseUrl}: ${error instanceof Error ? error.message : "Unknown error"}`);
+          }
+        };
+        const [checkpointLoader, vaeLoader, ksampler] = await Promise.all([
+          get("CheckpointLoaderSimple"),
+          get("VAELoader"),
+          get("KSampler")
+        ]);
+        return parseComfyModels({ checkpointLoader, vaeLoader, ksampler });
+      }
+      /**
+       * Run a workflow to the end and return its first image. Throws with ComfyUI's own words if the
+       * job is rejected or fails while running.
+       */
+      async runWorkflow(workflow, options = {}) {
+        const timeoutMs = options.timeoutMs ?? 5 * 60 * 1e3;
+        const { prompt_id: promptId } = await this.submitWorkflow(workflow);
+        const deadline = Date.now() + timeoutMs;
+        while (Date.now() < deadline) {
+          await new Promise((resolve) => setTimeout(resolve, 1e3));
+          let entry;
+          try {
+            const history = (await axios_default.get(`${this.baseUrl}/history/${promptId}`, { timeout: 1e4 })).data;
+            entry = history?.[promptId];
+          } catch {
+            continue;
+          }
+          if (!entry)
+            continue;
+          if (entry.status?.status_str === "error") {
+            throw new Error(`ComfyUI failed while generating: ${describeExecutionError(entry)}`);
+          }
+          const image = Object.values(entry.outputs ?? {}).flatMap((output) => Array.isArray(output?.images) ? output.images : []).find((img) => img?.filename);
+          if (!image) {
+            throw new Error("ComfyUI finished but produced no image");
+          }
+          const response = await axios_default.get(`${this.baseUrl}/view`, {
+            params: { filename: image.filename, subfolder: image.subfolder ?? "", type: image.type ?? "output" },
+            responseType: "arraybuffer",
+            timeout: 6e4
+          });
+          return { image: Buffer.from(response.data), filename: image.filename, promptId };
+        }
+        try {
+          await axios_default.post(`${this.baseUrl}/interrupt`, {}, { timeout: 5e3 });
+        } catch {
+        }
+        throw new Error(`Image generation did not finish within ${Math.round(timeoutMs / 1e3)} seconds`);
+      }
       async submitJob(input) {
-        const workflow = this.buildWorkflow(input);
+        return this.submitWorkflow(this.buildWorkflow(input));
+      }
+      async submitWorkflow(workflow) {
         try {
           const response = await axios_default.post(`${this.baseUrl}/prompt`, {
             prompt: workflow,
@@ -104205,7 +104361,7 @@ var init_comfyui_client = __esm({
             status: responseStatus,
             response: responseData
           });
-          throw error;
+          throw new Error(describeComfySubmitError(responseStatus, responseData, error instanceof Error ? error.message : "Failed to submit job to ComfyUI"));
         }
       }
       async getJobStatus(promptId) {
@@ -104434,9 +104590,9 @@ var init_comfyui_client = __esm({
 });
 
 // dist/backend.js
-var fs6 = __toESM(require("fs"), 1);
-var os2 = __toESM(require("os"), 1);
-var path7 = __toESM(require("path"), 1);
+var fs7 = __toESM(require("fs"), 1);
+var os3 = __toESM(require("os"), 1);
+var path8 = __toESM(require("path"), 1);
 var net = __toESM(require("net"), 1);
 var import_child_process3 = require("child_process");
 
@@ -105513,11 +105669,11 @@ var SystemPaths = {
     legendaryActions: null
   }
 };
-function extractSystemValue(data, path8) {
-  if (!path8 || !data) {
+function extractSystemValue(data, path9) {
+  if (!path9 || !data) {
     return void 0;
   }
-  const parts = path8.split(".");
+  const parts = path9.split(".");
   let value = data;
   for (const part of parts) {
     if (value === void 0 || value === null) {
@@ -106452,11 +106608,11 @@ var CharacterTools = class {
       hasIcon: !!effect.icon
     }));
   }
-  truncateText(text, maxLength) {
-    if (!text || text.length <= maxLength) {
-      return text;
+  truncateText(text2, maxLength) {
+    if (!text2 || text2.length <= maxLength) {
+      return text2;
     }
-    return `${text.substring(0, maxLength - 3)}...`;
+    return `${text2.substring(0, maxLength - 3)}...`;
   }
 };
 
@@ -107170,8 +107326,8 @@ var CompendiumTools = class {
       limit: external_exports.union([
         external_exports.number().min(1).max(1e3),
         external_exports.string().refine((val) => {
-          const num = parseInt(val, 10);
-          return !isNaN(num) && num >= 1 && num <= 1e3;
+          const num2 = parseInt(val, 10);
+          return !isNaN(num2) && num2 >= 1 && num2 <= 1e3;
         }).transform((val) => parseInt(val, 10))
       ]).optional().default(100)
     });
@@ -107742,39 +107898,39 @@ var CompendiumTools = class {
     delete sanitized.ownership;
     return sanitized;
   }
-  stripHtml(text) {
-    if (!text)
+  stripHtml(text2) {
+    if (!text2)
       return "";
-    if (typeof text === "object" && text !== null) {
-      if (text.value) {
-        text = text.value;
-      } else if (text.content) {
-        text = text.content;
+    if (typeof text2 === "object" && text2 !== null) {
+      if (text2.value) {
+        text2 = text2.value;
+      } else if (text2.content) {
+        text2 = text2.content;
       } else {
         try {
-          text = JSON.stringify(text);
+          text2 = JSON.stringify(text2);
         } catch {
           return "";
         }
       }
     }
-    if (Array.isArray(text)) {
-      return text.map((item) => this.stripHtml(item)).join(" ");
+    if (Array.isArray(text2)) {
+      return text2.map((item) => this.stripHtml(item)).join(" ");
     }
-    if (typeof text !== "string") {
-      const stringified = String(text || "");
+    if (typeof text2 !== "string") {
+      const stringified = String(text2 || "");
       if (!stringified || stringified === "[object Object]") {
         return "";
       }
-      text = stringified;
+      text2 = stringified;
     }
-    return text.replace(/<[^>]*>/g, "").trim();
+    return text2.replace(/<[^>]*>/g, "").trim();
   }
-  truncateText(text, maxLength) {
-    if (!text || text.length <= maxLength) {
-      return text;
+  truncateText(text2, maxLength) {
+    if (!text2 || text2.length <= maxLength) {
+      return text2;
     }
-    return text.substring(0, maxLength - 3) + "...";
+    return text2.substring(0, maxLength - 3) + "...";
   }
 };
 
@@ -108114,11 +108270,11 @@ var SceneTools = class {
         return "unknown";
     }
   }
-  truncateText(text, maxLength) {
-    if (!text || text.length <= maxLength) {
-      return text;
+  truncateText(text2, maxLength) {
+    if (!text2 || text2.length <= maxLength) {
+      return text2;
     }
-    return text.substring(0, maxLength - 3) + "...";
+    return text2.substring(0, maxLength - 3) + "...";
   }
 };
 
@@ -110036,8 +110192,8 @@ var QuestCreationTools = class {
   /**
    * Format text content for Foundry VTT (convert to proper HTML)
    */
-  formatTextForFoundry(text) {
-    let escaped = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  formatTextForFoundry(text2) {
+    let escaped = text2.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
     const paragraphs = escaped.split("\n\n").filter((p) => p.trim().length > 0);
     if (paragraphs.length === 0) {
       return "<p></p>";
@@ -112762,8 +112918,8 @@ var getByKeys = (source, keys) => {
   }
   return void 0;
 };
-var getNested = (source, path8) => {
-  const parts = path8.split(".");
+var getNested = (source, path9) => {
+  const parts = path9.split(".");
   let current = source;
   for (const part of parts) {
     if (!isRecord(current) || !(part in current))
@@ -114803,8 +114959,8 @@ function normalizeCR(input) {
   if (typeof input === "number")
     return input;
   if (input.includes("/")) {
-    const [num, den] = input.split("/").map(Number);
-    return num / den;
+    const [num2, den] = input.split("/").map(Number);
+    return num2 / den;
   }
   return parseInt(input, 10);
 }
@@ -115623,6 +115779,407 @@ var UploadTools = class {
   }
 };
 
+// dist/tools/image-generation.js
+var import_fs2 = require("fs");
+var import_os = __toESM(require("os"), 1);
+var import_path2 = __toESM(require("path"), 1);
+init_zod();
+
+// dist/image-profiles.js
+var IMAGE_KINDS = ["map", "portrait", "token", "handout"];
+var LIMITS = {
+  minSteps: 1,
+  maxSteps: 100,
+  minCfg: 0,
+  maxCfg: 30,
+  minSide: 256,
+  maxSide: 2048,
+  maxPixels: 2048 * 2048,
+  maxText: 1e3
+};
+var DEFAULT_PROFILES = {
+  map: {
+    checkpoint: "dDBattlemapsSDXL10_upscaleV10.safetensors",
+    vae: "sdxl_vae.safetensors",
+    steps: 30,
+    cfg: 2.5,
+    sampler: "dpmpp_2m_sde",
+    scheduler: "karras",
+    width: 1024,
+    height: 1024,
+    promptPrefix: "2d DnD battlemap of ",
+    promptSuffix: ", top-down view, overhead perspective, aerial",
+    negativePrompt: "grid, low angle, isometric, oblique, horizon, text, watermark, logo, caption, people, creatures, monsters, blurry, artifacts"
+  },
+  portrait: {
+    checkpoint: "",
+    vae: "",
+    steps: 25,
+    cfg: 6,
+    sampler: "dpmpp_2m",
+    scheduler: "karras",
+    width: 832,
+    height: 1216,
+    promptPrefix: "fantasy character portrait, ",
+    promptSuffix: ", detailed face, painterly, dramatic lighting",
+    negativePrompt: "text, watermark, signature, blurry, deformed, extra fingers, lowres"
+  },
+  token: {
+    checkpoint: "",
+    vae: "",
+    steps: 25,
+    cfg: 6,
+    sampler: "dpmpp_2m",
+    scheduler: "karras",
+    width: 1024,
+    height: 1024,
+    promptPrefix: "round game token, centered bust of ",
+    promptSuffix: ", plain dark background, fantasy illustration, thick border",
+    negativePrompt: "text, watermark, signature, blurry, full body, cropped, lowres"
+  },
+  handout: {
+    checkpoint: "",
+    vae: "",
+    steps: 25,
+    cfg: 6,
+    sampler: "dpmpp_2m",
+    scheduler: "karras",
+    width: 1216,
+    height: 832,
+    promptPrefix: "fantasy illustration, ",
+    promptSuffix: ", aged parchment, detailed, no text",
+    negativePrompt: "text, letters, watermark, signature, blurry, lowres"
+  }
+};
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+function num(value, fallback) {
+  const n = typeof value === "number" ? value : typeof value === "string" ? Number(value) : NaN;
+  return Number.isFinite(n) ? n : fallback;
+}
+function text(value, fallback, max = LIMITS.maxText) {
+  return typeof value === "string" ? value.slice(0, max) : fallback;
+}
+function snapSide(value) {
+  return clamp(Math.round(value / 8) * 8, LIMITS.minSide, LIMITS.maxSide);
+}
+function fitPixels(width, height) {
+  let w = snapSide(width);
+  let h = snapSide(height);
+  if (w * h > LIMITS.maxPixels) {
+    const scale = Math.sqrt(LIMITS.maxPixels / (w * h));
+    w = Math.max(LIMITS.minSide, Math.floor(w * scale / 8) * 8);
+    h = Math.max(LIMITS.minSide, Math.floor(h * scale / 8) * 8);
+  }
+  return { width: w, height: h };
+}
+function nameOrDefault(value, fallback) {
+  return typeof value === "string" ? value.trim().slice(0, 260) : fallback;
+}
+function tokenOrDefault(value, fallback) {
+  return typeof value === "string" && /^[A-Za-z0-9_+.\-]{1,60}$/.test(value.trim()) ? value.trim() : fallback;
+}
+function normalizeProfile(raw, fallback) {
+  const r = raw && typeof raw === "object" ? raw : {};
+  const size = fitPixels(num(r.width, fallback.width), num(r.height, fallback.height));
+  return {
+    checkpoint: nameOrDefault(r.checkpoint, fallback.checkpoint),
+    vae: nameOrDefault(r.vae, fallback.vae),
+    steps: Math.round(clamp(num(r.steps, fallback.steps), LIMITS.minSteps, LIMITS.maxSteps)),
+    cfg: clamp(num(r.cfg, fallback.cfg), LIMITS.minCfg, LIMITS.maxCfg),
+    sampler: tokenOrDefault(r.sampler, fallback.sampler),
+    scheduler: tokenOrDefault(r.scheduler, fallback.scheduler),
+    width: size.width,
+    height: size.height,
+    promptPrefix: text(r.promptPrefix, fallback.promptPrefix),
+    promptSuffix: text(r.promptSuffix, fallback.promptSuffix),
+    negativePrompt: text(r.negativePrompt, fallback.negativePrompt)
+  };
+}
+function normalizeProfiles(raw) {
+  let value = raw;
+  if (typeof value === "string") {
+    try {
+      value = JSON.parse(value);
+    } catch {
+      value = void 0;
+    }
+  }
+  const saved = value && typeof value === "object" ? value : {};
+  const result = {};
+  for (const kind of IMAGE_KINDS) {
+    result[kind] = normalizeProfile(saved[kind], DEFAULT_PROFILES[kind]);
+  }
+  return result;
+}
+function resolveGeneration(kind, profile, request) {
+  const prompt = request.prompt.trim();
+  if (!prompt)
+    throw new Error("prompt is required");
+  if (!profile.checkpoint) {
+    throw new Error(`No checkpoint is chosen for "${kind}" images. In Foundry open the module settings, click "Configure Image Generation" and pick one.`);
+  }
+  const size = fitPixels(request.width ?? profile.width, request.height ?? profile.height);
+  const steps = Math.round(clamp(request.steps ?? profile.steps, LIMITS.minSteps, LIMITS.maxSteps));
+  const seed = request.seed !== void 0 && Number.isFinite(request.seed) ? Math.abs(Math.trunc(request.seed)) : Math.floor(Math.random() * 2 ** 32);
+  const negativeExtra = request.negativePrompt?.trim();
+  return {
+    checkpoint: profile.checkpoint,
+    vae: profile.vae,
+    steps,
+    cfg: profile.cfg,
+    sampler: profile.sampler,
+    scheduler: profile.scheduler,
+    width: size.width,
+    height: size.height,
+    seed,
+    positive: `${profile.promptPrefix}${prompt}${profile.promptSuffix}`,
+    negative: negativeExtra ? [profile.negativePrompt, negativeExtra].filter(Boolean).join(", ") : profile.negativePrompt
+  };
+}
+function buildTxt2ImgWorkflow(gen, filenamePrefix) {
+  const workflow = {
+    "1": { inputs: { ckpt_name: gen.checkpoint }, class_type: "CheckpointLoaderSimple" },
+    "2": { inputs: { text: gen.positive, clip: ["1", 1] }, class_type: "CLIPTextEncode" },
+    "3": { inputs: { text: gen.negative, clip: ["1", 1] }, class_type: "CLIPTextEncode" },
+    "4": {
+      inputs: { width: gen.width, height: gen.height, batch_size: 1 },
+      class_type: "EmptyLatentImage"
+    },
+    "5": {
+      inputs: {
+        seed: gen.seed,
+        steps: gen.steps,
+        cfg: gen.cfg,
+        denoise: 1,
+        sampler_name: gen.sampler,
+        scheduler: gen.scheduler,
+        model: ["1", 0],
+        positive: ["2", 0],
+        negative: ["3", 0],
+        latent_image: ["4", 0]
+      },
+      class_type: "KSampler"
+    }
+  };
+  if (gen.vae) {
+    workflow["9"] = { inputs: { vae_name: gen.vae }, class_type: "VAELoader" };
+  }
+  workflow["6"] = {
+    inputs: { samples: ["5", 0], vae: gen.vae ? ["9", 0] : ["1", 2] },
+    class_type: "VAEDecode"
+  };
+  workflow["7"] = {
+    inputs: { filename_prefix: filenamePrefix, images: ["6", 0] },
+    class_type: "SaveImage"
+  };
+  return workflow;
+}
+
+// dist/tools/image-generation.js
+var UPLOAD_TIMEOUT_MS2 = 12e4;
+var KEEP_LOCAL_COPIES = 40;
+var generateSchema = external_exports.object({
+  kind: external_exports.enum(IMAGE_KINDS),
+  prompt: external_exports.string().min(1).max(2e3),
+  name: external_exports.string().max(80).optional(),
+  negative_prompt: external_exports.string().max(1e3).optional(),
+  width: external_exports.number().int().min(64).max(4096).optional(),
+  height: external_exports.number().int().min(64).max(4096).optional(),
+  steps: external_exports.number().int().min(1).max(150).optional(),
+  seed: external_exports.number().int().min(0).optional(),
+  upload: external_exports.boolean().optional(),
+  folder: external_exports.string().max(80).optional()
+}).strict();
+function slugify(text2, maxLength = 40) {
+  const slug = text2.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, maxLength).replace(/-+$/g, "");
+  return slug || "image";
+}
+var ImageGenerationTools = class {
+  foundryClient;
+  logger;
+  getClient;
+  applyTarget;
+  outputDir;
+  constructor(options) {
+    this.foundryClient = options.foundryClient;
+    this.logger = options.logger.child({ component: "ImageGenerationTools" });
+    this.getClient = options.getClient;
+    this.applyTarget = options.applyTarget;
+    this.outputDir = options.outputDir ?? import_path2.default.join(import_os.default.tmpdir(), "foundry-mcp-images");
+  }
+  getToolDefinitions() {
+    return [
+      {
+        name: "generate-image",
+        description: `Generate a picture with the GM's ComfyUI and (by default) upload it to the Foundry world. "kind" picks the profile the GM configured in the module settings (checkpoint, steps, size and prompt wording): map = top-down battlemap, portrait = character portrait, token = round token art, handout = illustration for players. The profile wraps your prompt, so describe only the subject. Returns the Foundry path (use it in manage-scenes, actors or journals) and a local file path you can open to look at the result. Takes about 10-90 seconds. A kind with no checkpoint chosen fails with a message saying so; describe-image-generation shows what is set up.`,
+        inputSchema: {
+          type: "object",
+          properties: {
+            kind: {
+              type: "string",
+              enum: [...IMAGE_KINDS],
+              description: "Which profile to use"
+            },
+            prompt: {
+              type: "string",
+              description: "What to draw. The profile adds its own style wording around it."
+            },
+            name: {
+              type: "string",
+              description: "Short name used for the file (default: taken from the prompt)"
+            },
+            negative_prompt: {
+              type: "string",
+              description: "Extra things to avoid, added to the profile's negative prompt"
+            },
+            width: { type: "number", description: "Override the profile width (pixels, 256-2048)" },
+            height: { type: "number", description: "Override the profile height (pixels, 256-2048)" },
+            steps: { type: "number", description: "Override the profile step count" },
+            seed: {
+              type: "number",
+              description: "Use a fixed seed to repeat or tweak a result (default: random)"
+            },
+            upload: {
+              type: "boolean",
+              description: "Upload to the Foundry world (default true). False keeps it local only, to look at first."
+            },
+            folder: {
+              type: "string",
+              description: 'Sub-folder in the world upload folder (default "generated/<kind>"); letters, digits, dash, underscore, up to 3 levels'
+            }
+          },
+          required: ["kind", "prompt"]
+        }
+      },
+      {
+        name: "describe-image-generation",
+        description: "Show how image generation is set up: which ComfyUI is used, the profile for each kind (map, portrait, token, handout), the checkpoints/VAEs that ComfyUI offers, and any profile whose checkpoint is missing. Read-only.",
+        inputSchema: { type: "object", properties: {} }
+      }
+    ];
+  }
+  async readSettings() {
+    const result = await this.foundryClient.query("foundry-mcp-bridge.get-image-settings", {});
+    if (result?.success === false || result?.error) {
+      throw new Error(result.error || "Could not read the image generation settings");
+    }
+    return { target: result?.target, profiles: normalizeProfiles(result?.profiles) };
+  }
+  async handleGenerateImage(args) {
+    const parsed = generateSchema.parse(args);
+    const kind = parsed.kind;
+    const settings = await this.readSettings();
+    this.applyTarget(settings.target);
+    const generation = resolveGeneration(kind, settings.profiles[kind], {
+      prompt: parsed.prompt,
+      negativePrompt: parsed.negative_prompt,
+      width: parsed.width,
+      height: parsed.height,
+      steps: parsed.steps,
+      seed: parsed.seed
+    });
+    const baseName = `${slugify(parsed.name ?? parsed.prompt)}-${Date.now().toString(36)}`;
+    const workflow = buildTxt2ImgWorkflow(generation, `claude-${kind}`);
+    this.logger.info("Generating image", {
+      kind,
+      checkpoint: generation.checkpoint,
+      steps: generation.steps,
+      size: `${generation.width}x${generation.height}`
+    });
+    const started = Date.now();
+    let result;
+    try {
+      result = await this.getClient().runWorkflow(workflow);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(`Image generation failed: ${message}`);
+    }
+    const seconds = Math.round((Date.now() - started) / 1e3);
+    const localPath = await this.saveLocalCopy(`${baseName}.png`, result.image);
+    const summary = {
+      kind,
+      checkpoint: generation.checkpoint,
+      steps: generation.steps,
+      size: `${generation.width}x${generation.height}`,
+      seed: generation.seed,
+      seconds,
+      local_path: localPath
+    };
+    if (parsed.upload === false) {
+      return { success: true, ...summary, uploaded: false };
+    }
+    const folder = parsed.folder?.trim() || `generated/${kind}`;
+    try {
+      const uploaded = await this.foundryClient.query("foundry-mcp-bridge.upload-file", {
+        filename: `${baseName}.png`,
+        imageData: result.image.toString("base64"),
+        folder
+      }, UPLOAD_TIMEOUT_MS2);
+      if (uploaded?.success === false) {
+        throw new Error(uploaded.error || "Upload was refused");
+      }
+      return { success: true, ...summary, uploaded: true, path: uploaded?.path };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(`The image was generated (kept at ${localPath}, seed ${generation.seed}) but uploading to Foundry failed: ${message}`);
+    }
+  }
+  async handleDescribe() {
+    const settings = await this.readSettings();
+    this.applyTarget(settings.target);
+    let models;
+    let comfyError;
+    try {
+      models = await this.getClient().getModels();
+    } catch (error) {
+      comfyError = error instanceof Error ? error.message : String(error);
+    }
+    const problems = [];
+    for (const kind of IMAGE_KINDS) {
+      const profile = settings.profiles[kind];
+      if (!profile.checkpoint) {
+        problems.push(`${kind}: no checkpoint chosen`);
+      } else if (models && !models.checkpoints.includes(profile.checkpoint)) {
+        problems.push(`${kind}: checkpoint "${profile.checkpoint}" is not in this ComfyUI`);
+      }
+      if (profile.vae && models && !models.vaes.includes(profile.vae)) {
+        problems.push(`${kind}: VAE "${profile.vae}" is not in this ComfyUI`);
+      }
+    }
+    return {
+      success: true,
+      comfyui: settings.target,
+      reachable: !comfyError,
+      ...comfyError ? { comfyui_error: comfyError } : {},
+      profiles: settings.profiles,
+      available: models ? { checkpoints: models.checkpoints, vaes: models.vaes } : void 0,
+      problems
+    };
+  }
+  async saveLocalCopy(filename, image) {
+    await import_fs2.promises.mkdir(this.outputDir, { recursive: true });
+    const filePath = import_path2.default.join(this.outputDir, filename);
+    await import_fs2.promises.writeFile(filePath, image);
+    try {
+      const names = await import_fs2.promises.readdir(this.outputDir);
+      if (names.length > KEEP_LOCAL_COPIES) {
+        const stats = await Promise.all(names.map(async (name) => ({
+          name,
+          time: (await import_fs2.promises.stat(import_path2.default.join(this.outputDir, name))).mtimeMs
+        })));
+        stats.sort((a, b) => a.time - b.time);
+        for (const old of stats.slice(0, names.length - KEEP_LOCAL_COPIES)) {
+          await import_fs2.promises.unlink(import_path2.default.join(this.outputDir, old.name)).catch(() => void 0);
+        }
+      }
+    } catch {
+    }
+    return filePath;
+  }
+};
+
 // dist/tools/journal.js
 init_zod();
 var pageSchema = external_exports.object({
@@ -115737,9 +116294,9 @@ var JournalTools = class {
 init_comfyui_target();
 
 // dist/tools/scene-objects.js
-var import_fs2 = require("fs");
-var import_os = __toESM(require("os"), 1);
-var import_path2 = __toESM(require("path"), 1);
+var import_fs3 = require("fs");
+var import_os2 = __toESM(require("os"), 1);
+var import_path3 = __toESM(require("path"), 1);
 init_zod();
 var PREVIEW_TIMEOUT_MS = 6e4;
 var KEEP_PREVIEWS = 20;
@@ -115998,11 +116555,11 @@ var SceneObjectTools = class {
       if (typeof imageBase64 !== "string" || imageBase64.length === 0) {
         throw new Error("Foundry returned no picture");
       }
-      const dir = import_path2.default.join(import_os.default.tmpdir(), "foundry-mcp-previews");
-      await import_fs2.promises.mkdir(dir, { recursive: true });
+      const dir = import_path3.default.join(import_os2.default.tmpdir(), "foundry-mcp-previews");
+      await import_fs3.promises.mkdir(dir, { recursive: true });
       const safeName = String(info.scene?.name ?? "scene").replace(/[^A-Za-z0-9_-]+/g, "_").slice(0, 40);
-      const file = import_path2.default.join(dir, `${safeName}-${Date.now()}.png`);
-      await import_fs2.promises.writeFile(file, Buffer.from(imageBase64, "base64"));
+      const file = import_path3.default.join(dir, `${safeName}-${Date.now()}.png`);
+      await import_fs3.promises.writeFile(file, Buffer.from(imageBase64, "base64"));
       await this.pruneOldPreviews(dir);
       this.logger.info("Scene preview saved", { file });
       return { ...info, file };
@@ -116014,11 +116571,11 @@ var SceneObjectTools = class {
   /** Keep only the newest previews so the temp folder does not grow forever. */
   async pruneOldPreviews(dir) {
     try {
-      const names = (await import_fs2.promises.readdir(dir)).filter((n) => n.endsWith(".png"));
-      const withTimes = await Promise.all(names.map(async (name) => ({ name, mtime: (await import_fs2.promises.stat(import_path2.default.join(dir, name))).mtimeMs })));
+      const names = (await import_fs3.promises.readdir(dir)).filter((n) => n.endsWith(".png"));
+      const withTimes = await Promise.all(names.map(async (name) => ({ name, mtime: (await import_fs3.promises.stat(import_path3.default.join(dir, name))).mtimeMs })));
       withTimes.sort((a, b) => b.mtime - a.mtime);
       for (const old of withTimes.slice(KEEP_PREVIEWS)) {
-        await import_fs2.promises.rm(import_path2.default.join(dir, old.name), { force: true });
+        await import_fs3.promises.rm(import_path3.default.join(dir, old.name), { force: true });
       }
     } catch {
     }
@@ -116140,11 +116697,11 @@ var InspectTools = class {
 // dist/backend.js
 var CONTROL_HOST = "127.0.0.1";
 var CONTROL_PORT = 31414;
-var LOCK_FILE = path7.join(os2.tmpdir(), "foundry-mcp-backend.lock");
+var LOCK_FILE = path8.join(os3.tmpdir(), "foundry-mcp-backend.lock");
 function getBundledPythonPath() {
-  let installDir = path7.join(os2.homedir(), "AppData", "Local", "FoundryMCPServer");
+  let installDir = path8.join(os3.homedir(), "AppData", "Local", "FoundryMCPServer");
   const currentDir = process.cwd();
-  const execDir = path7.dirname(process.execPath);
+  const execDir = path8.dirname(process.execPath);
   if (currentDir.includes("FoundryMCPServer") || execDir.includes("FoundryMCPServer")) {
     const foundryMcpIndex = currentDir.indexOf("FoundryMCPServer");
     if (foundryMcpIndex !== -1) {
@@ -116156,30 +116713,30 @@ function getBundledPythonPath() {
       }
     }
   }
-  const nestedComfyUIPythonPath = path7.join(installDir, "ComfyUI", "ComfyUI", "python_embeded", "python.exe");
-  if (fs6.existsSync(nestedComfyUIPythonPath)) {
+  const nestedComfyUIPythonPath = path8.join(installDir, "ComfyUI", "ComfyUI", "python_embeded", "python.exe");
+  if (fs7.existsSync(nestedComfyUIPythonPath)) {
     return nestedComfyUIPythonPath;
   }
-  const portablePythonPath = path7.join(installDir, "ComfyUI", "python_embeded", "python.exe");
-  if (fs6.existsSync(portablePythonPath)) {
+  const portablePythonPath = path8.join(installDir, "ComfyUI", "python_embeded", "python.exe");
+  if (fs7.existsSync(portablePythonPath)) {
     return portablePythonPath;
   }
-  const bundledPythonPath = path7.join(installDir, "ComfyUI-env", "Scripts", "python.exe");
-  if (fs6.existsSync(bundledPythonPath)) {
+  const bundledPythonPath = path8.join(installDir, "ComfyUI-env", "Scripts", "python.exe");
+  if (fs7.existsSync(bundledPythonPath)) {
     return bundledPythonPath;
   }
   const fallbackPaths = [
-    path7.join(os2.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI", "ComfyUI", "python_embeded", "python.exe"),
-    path7.join(os2.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI-headless", "ComfyUI", "python_embeded", "python.exe"),
-    path7.join(os2.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI", "python_embeded", "python.exe"),
-    path7.join(os2.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI-headless", "python_embeded", "python.exe"),
-    path7.join(os2.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI-env", "Scripts", "python.exe"),
-    path7.join(process.cwd(), "..", "..", "ComfyUI-env", "Scripts", "python.exe"),
-    path7.join(__dirname, "..", "..", "..", "ComfyUI-env", "Scripts", "python.exe"),
-    path7.join(os2.homedir(), "AppData", "Local", "FoundryMCPServer", "Python", "python.exe")
+    path8.join(os3.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI", "ComfyUI", "python_embeded", "python.exe"),
+    path8.join(os3.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI-headless", "ComfyUI", "python_embeded", "python.exe"),
+    path8.join(os3.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI", "python_embeded", "python.exe"),
+    path8.join(os3.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI-headless", "python_embeded", "python.exe"),
+    path8.join(os3.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI-env", "Scripts", "python.exe"),
+    path8.join(process.cwd(), "..", "..", "ComfyUI-env", "Scripts", "python.exe"),
+    path8.join(__dirname, "..", "..", "..", "ComfyUI-env", "Scripts", "python.exe"),
+    path8.join(os3.homedir(), "AppData", "Local", "FoundryMCPServer", "Python", "python.exe")
   ];
   for (const fallbackPath of fallbackPaths) {
-    if (fs6.existsSync(fallbackPath)) {
+    if (fs7.existsSync(fallbackPath)) {
       return fallbackPath;
     }
   }
@@ -116204,39 +116761,39 @@ var lockFd = null;
 function acquireLock() {
   try {
     try {
-      lockFd = fs6.openSync(LOCK_FILE, "wx");
+      lockFd = fs7.openSync(LOCK_FILE, "wx");
     } catch (err) {
       if (err && err.code === "EEXIST") {
         try {
-          const lockData = fs6.readFileSync(LOCK_FILE, "utf8");
+          const lockData = fs7.readFileSync(LOCK_FILE, "utf8");
           const lockPid = parseInt(lockData.trim(), 10);
           try {
             process.kill(lockPid, 0);
             if (evaluateLockFile(lockPid, LOCK_FILE) === "orphaned") {
               console.error(`Removing orphaned backend lock for PID ${lockPid} (process is not node.exe or lock file is stale)`);
               try {
-                fs6.unlinkSync(LOCK_FILE);
+                fs7.unlinkSync(LOCK_FILE);
               } catch {
               }
-              lockFd = fs6.openSync(LOCK_FILE, "wx");
+              lockFd = fs7.openSync(LOCK_FILE, "wx");
             } else {
               return false;
             }
           } catch {
             console.error(`Removing stale backend lock for PID ${lockPid}`);
             try {
-              fs6.unlinkSync(LOCK_FILE);
+              fs7.unlinkSync(LOCK_FILE);
             } catch {
             }
-            lockFd = fs6.openSync(LOCK_FILE, "wx");
+            lockFd = fs7.openSync(LOCK_FILE, "wx");
           }
         } catch (readErr) {
           console.error("Corrupt backend lock file, removing:", readErr);
           try {
-            fs6.unlinkSync(LOCK_FILE);
+            fs7.unlinkSync(LOCK_FILE);
           } catch {
           }
-          lockFd = fs6.openSync(LOCK_FILE, "wx");
+          lockFd = fs7.openSync(LOCK_FILE, "wx");
         }
       } else {
         console.error("Failed to open backend lock file:", err);
@@ -116245,9 +116802,9 @@ function acquireLock() {
     }
     if (lockFd === null)
       return false;
-    fs6.writeFileSync(lockFd, String(process.pid));
+    fs7.writeFileSync(lockFd, String(process.pid));
     try {
-      fs6.fsyncSync(lockFd);
+      fs7.fsyncSync(lockFd);
     } catch {
     }
     console.error(`Acquired backend lock with PID ${process.pid}`);
@@ -116261,14 +116818,14 @@ function releaseLock() {
   try {
     if (lockFd !== null) {
       try {
-        fs6.closeSync(lockFd);
+        fs7.closeSync(lockFd);
       } catch {
       }
       lockFd = null;
     }
-    if (fs6.existsSync(LOCK_FILE)) {
+    if (fs7.existsSync(LOCK_FILE)) {
       try {
-        fs6.unlinkSync(LOCK_FILE);
+        fs7.unlinkSync(LOCK_FILE);
       } catch {
       }
     }
@@ -116277,20 +116834,20 @@ function releaseLock() {
   }
 }
 async function findComfyUIPath() {
-  const nestedComfyUIPath = path7.join(os2.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI", "ComfyUI");
-  if (fs6.existsSync(path7.join(nestedComfyUIPath, "main.py"))) {
+  const nestedComfyUIPath = path8.join(os3.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI", "ComfyUI");
+  if (fs7.existsSync(path8.join(nestedComfyUIPath, "main.py"))) {
     return nestedComfyUIPath;
   }
-  const nestedHeadlessPath = path7.join(os2.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI-headless", "ComfyUI");
-  if (fs6.existsSync(path7.join(nestedHeadlessPath, "main.py"))) {
+  const nestedHeadlessPath = path8.join(os3.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI-headless", "ComfyUI");
+  if (fs7.existsSync(path8.join(nestedHeadlessPath, "main.py"))) {
     return nestedHeadlessPath;
   }
-  const flatPath = path7.join(os2.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI");
-  if (fs6.existsSync(path7.join(flatPath, "main.py"))) {
+  const flatPath = path8.join(os3.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI");
+  if (fs7.existsSync(path8.join(flatPath, "main.py"))) {
     return flatPath;
   }
-  const legacyFlatPath = path7.join(os2.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI-headless");
-  if (fs6.existsSync(path7.join(legacyFlatPath, "main.py"))) {
+  const legacyFlatPath = path8.join(os3.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI-headless");
+  if (fs7.existsSync(path8.join(legacyFlatPath, "main.py"))) {
     return legacyFlatPath;
   }
   throw new Error("ComfyUI installation not found");
@@ -116330,7 +116887,7 @@ async function startComfyUIService(logger) {
     logger.info("Starting ComfyUI service...");
     const comfyUIPath = await findComfyUIPath();
     logger.info("ComfyUI found", { path: comfyUIPath });
-    logger.info("Starting ComfyUI process", { path: path7.join(comfyUIPath, "main.py") });
+    logger.info("Starting ComfyUI process", { path: path8.join(comfyUIPath, "main.py") });
     const pythonExe = getBundledPythonPath();
     logger.info("Using bundled Python", { pythonPath: pythonExe });
     comfyuiProcess = (0, import_child_process3.spawn)(pythonExe, [
@@ -116731,9 +117288,9 @@ async function processMapGenerationInBackend(jobId, jobQueue, comfyuiClient, log
 `);
     await fs22.appendFile(processDebugLog, `[${(/* @__PURE__ */ new Date()).toISOString()}] About to import fs/path/os for upload...
 `);
-    const fs7 = await import("fs").then((m) => m.promises);
-    const path8 = await import("path");
-    const os3 = await import("os");
+    const fs8 = await import("fs").then((m) => m.promises);
+    const path9 = await import("path");
+    const os4 = await import("os");
     await fs22.appendFile(processDebugLog, `[${(/* @__PURE__ */ new Date()).toISOString()}] Imports complete
 `);
     await fs22.appendFile(processDebugLog, `[${(/* @__PURE__ */ new Date()).toISOString()}] Creating filename and checking connection type...
@@ -116758,8 +117315,8 @@ async function processMapGenerationInBackend(jobId, jobQueue, comfyuiClient, log
     await fs22.appendFile(processDebugLog, `[${(/* @__PURE__ */ new Date()).toISOString()}] Using upload method for all connections
 `);
     const debugLog = async (msg) => {
-      const logPath = path8.join(os3.tmpdir(), "foundry-mcp-upload-debug.log");
-      await fs7.appendFile(logPath, `[${(/* @__PURE__ */ new Date()).toISOString()}] ${msg}
+      const logPath = path9.join(os4.tmpdir(), "foundry-mcp-upload-debug.log");
+      await fs8.appendFile(logPath, `[${(/* @__PURE__ */ new Date()).toISOString()}] ${msg}
 `);
     };
     await debugLog(`=== MAP GENERATION DEBUG START ===`);
@@ -116864,7 +117421,7 @@ async function processMapGenerationInBackend(jobId, jobQueue, comfyuiClient, log
     await fs22.appendFile(processDebugLog, `[${(/* @__PURE__ */ new Date()).toISOString()}] Error stack: ${error.stack}
 `);
     logger.error("Background map generation processing failed", { jobId, error });
-    await jobQueue.markJobFailed(jobId, error.message);
+    await jobQueue.markJobFailedFinal(jobId, error.message);
     foundryClient.sendMessage({
       type: "map-generation-failed",
       jobId,
@@ -116878,7 +117435,7 @@ async function startBackend() {
     format: config.logFormat,
     enableConsole: false,
     enableFile: true,
-    filePath: path7.join(os2.tmpdir(), "foundry-mcp-server", "mcp-server.log")
+    filePath: path8.join(os3.tmpdir(), "foundry-mcp-server", "mcp-server.log")
   });
   logger.info("Starting Foundry MCP Backend", {
     version: config.server.version,
@@ -116907,6 +117464,23 @@ async function startBackend() {
   const compendiumTools = new CompendiumTools({ foundryClient, logger, systemRegistry });
   const sceneTools = new SceneTools({ foundryClient, logger });
   const uploadTools = new UploadTools({ foundryClient, logger });
+  const imageGenerationTools = new ImageGenerationTools({
+    foundryClient,
+    logger,
+    // Created further down, with the other map generation components.
+    getClient: () => {
+      if (!mapGenerationComfyUIClient)
+        throw new Error("The ComfyUI client is not available");
+      return mapGenerationComfyUIClient;
+    },
+    applyTarget: (raw) => {
+      try {
+        applyComfyTarget(raw, mapGenerationComfyUIClient, logger);
+      } catch (error) {
+        throw new Error(`Invalid ComfyUI settings: ${error.message}`);
+      }
+    }
+  });
   const journalTools = new JournalTools({ foundryClient, logger });
   const sceneObjectTools = new SceneObjectTools({ foundryClient, logger });
   const inspectTools = new InspectTools({ foundryClient, logger });
@@ -116962,11 +117536,11 @@ async function startBackend() {
   }
   globalThis.backendComfyUIHandlers = {
     handleMessage: async (message) => {
-      const fs7 = await import("fs").then((m) => m.promises);
-      const path8 = await import("path");
-      const os3 = await import("os");
-      const debugLog = path8.join(os3.tmpdir(), "backend-handler-debug.log");
-      await fs7.appendFile(debugLog, `[${(/* @__PURE__ */ new Date()).toISOString()}] handleMessage called - type: ${message?.type}, requestId: ${message?.requestId}
+      const fs8 = await import("fs").then((m) => m.promises);
+      const path9 = await import("path");
+      const os4 = await import("os");
+      const debugLog = path9.join(os4.tmpdir(), "backend-handler-debug.log");
+      await fs8.appendFile(debugLog, `[${(/* @__PURE__ */ new Date()).toISOString()}] handleMessage called - type: ${message?.type}, requestId: ${message?.requestId}
 `);
       logger.info("Handling ComfyUI message", {
         requestId: message.requestId,
@@ -116974,11 +117548,11 @@ async function startBackend() {
         hasData: !!message.data
       });
       try {
-        const fs8 = await import("fs").then((m) => m.promises);
-        const path9 = await import("path");
-        const os4 = await import("os");
-        const debugLog2 = path9.join(os4.tmpdir(), "backend-handler-debug.log");
-        await fs8.appendFile(debugLog2, `[${(/* @__PURE__ */ new Date()).toISOString()}] About to switch on message.type: "${message.type}"
+        const fs9 = await import("fs").then((m) => m.promises);
+        const path10 = await import("path");
+        const os5 = await import("os");
+        const debugLog2 = path10.join(os5.tmpdir(), "backend-handler-debug.log");
+        await fs9.appendFile(debugLog2, `[${(/* @__PURE__ */ new Date()).toISOString()}] About to switch on message.type: "${message.type}"
 `);
         let result;
         try {
@@ -116996,11 +117570,21 @@ async function startBackend() {
           case "check-comfyui-status":
             result = await checkComfyUIStatus();
             break;
+          case "list-comfyui-models":
+            try {
+              result = {
+                status: "success",
+                models: await mapGenerationComfyUIClient.getModels()
+              };
+            } catch (modelError) {
+              result = { status: "error", message: modelError.message };
+            }
+            break;
           case "generate-map-request":
-            await fs8.appendFile(debugLog2, `[${(/* @__PURE__ */ new Date()).toISOString()}] Matched generate-map-request case, calling handler...
+            await fs9.appendFile(debugLog2, `[${(/* @__PURE__ */ new Date()).toISOString()}] Matched generate-map-request case, calling handler...
 `);
             result = await handleGenerateMapRequest(message, mapGenerationJobQueue, mapGenerationComfyUIClient, logger, foundryClient);
-            await fs8.appendFile(debugLog2, `[${(/* @__PURE__ */ new Date()).toISOString()}] Handler returned: ${JSON.stringify(result)}
+            await fs9.appendFile(debugLog2, `[${(/* @__PURE__ */ new Date()).toISOString()}] Handler returned: ${JSON.stringify(result)}
 `);
             break;
           case "check-map-status-request":
@@ -117061,6 +117645,7 @@ async function startBackend() {
     ...compendiumTools.getToolDefinitions(),
     ...sceneTools.getToolDefinitions(),
     ...uploadTools.getToolDefinitions(),
+    ...imageGenerationTools.getToolDefinitions(),
     ...journalTools.getToolDefinitions(),
     ...sceneObjectTools.getToolDefinitions(),
     ...inspectTools.getToolDefinitions(),
@@ -117290,6 +117875,12 @@ async function startBackend() {
                   break;
                 case "upload-file":
                   result = await uploadTools.handleUploadFile(args);
+                  break;
+                case "generate-image":
+                  result = await imageGenerationTools.handleGenerateImage(args);
+                  break;
+                case "describe-image-generation":
+                  result = await imageGenerationTools.handleDescribe();
                   break;
                 default:
                   throw new Error(`Unknown tool: ${name}`);

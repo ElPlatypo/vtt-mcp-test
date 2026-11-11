@@ -170,7 +170,7 @@ index 0000000..6034370
 +  });
 +});
 diff --git a/packages/foundry-module/src/comfyui-manager.ts b/packages/foundry-module/src/comfyui-manager.ts
-index 7a88c06..26eedcd 100644
+index 7a88c06..621a0bb 100644
 --- a/packages/foundry-module/src/comfyui-manager.ts
 +++ b/packages/foundry-module/src/comfyui-manager.ts
 @@ -1,4 +1,5 @@
@@ -240,6 +240,18 @@ index 7a88c06..26eedcd 100644
          };
  
          bridge.socketBridge.sendMessage(request);
+@@ -354,6 +376,11 @@ export class ComfyUIManager {
+     return this.serviceStatus;
+   }
+ 
++  /** The checkpoints, VAEs, samplers and schedulers the chosen ComfyUI offers. */
++  async listModels(): Promise<{ status: string; message?: string; models?: any }> {
++    return await this.sendBackendRequest('list-comfyui-models');
++  }
++
+   /**
+    * Generate a map using ComfyUI
+    */
 diff --git a/packages/foundry-module/src/comfyui-settings-utils.test.ts b/packages/foundry-module/src/comfyui-settings-utils.test.ts
 new file mode 100644
 index 0000000..53e8cef
@@ -4076,6 +4088,540 @@ index 0000000..83a409c
 +    });
 +  });
 +});
+diff --git a/packages/foundry-module/src/image-profiles-utils.test.ts b/packages/foundry-module/src/image-profiles-utils.test.ts
+new file mode 100644
+index 0000000..bee2147
+--- /dev/null
++++ b/packages/foundry-module/src/image-profiles-utils.test.ts
+@@ -0,0 +1,75 @@
++import { describe, expect, it } from 'vitest';
++import {
++  DEFAULT_PROFILES,
++  IMAGE_KINDS,
++  profilesFromSetting,
++  readProfilesForm,
++  selectChoices,
++} from './image-profiles-utils.js';
++
++/** A form with every field filled in from the defaults. */
++function formFrom(profiles = DEFAULT_PROFILES): Record<string, unknown> {
++  const data: Record<string, unknown> = {};
++  for (const kind of IMAGE_KINDS) {
++    for (const [field, value] of Object.entries(profiles[kind])) {
++      data[`${kind}__${field}`] = String(value);
++    }
++  }
++  return data;
++}
++
++describe('profilesFromSetting', () => {
++  it('gives the defaults for an empty or broken setting', () => {
++    expect(profilesFromSetting('{}')).toEqual(DEFAULT_PROFILES);
++    expect(profilesFromSetting('nope')).toEqual(DEFAULT_PROFILES);
++    expect(profilesFromSetting(undefined)).toEqual(DEFAULT_PROFILES);
++  });
++
++  it('keeps saved values and defaults the rest', () => {
++    const p = profilesFromSetting(JSON.stringify({ portrait: { checkpoint: 'a.safetensors' } }));
++    expect(p.portrait.checkpoint).toBe('a.safetensors');
++    expect(p.portrait.steps).toBe(DEFAULT_PROFILES.portrait.steps);
++    expect(p.map).toEqual(DEFAULT_PROFILES.map);
++  });
++});
++
++describe('readProfilesForm', () => {
++  it('reads a complete form back into the same profiles', () => {
++    const result = readProfilesForm(formFrom());
++    expect(result).toEqual({ ok: true, value: DEFAULT_PROFILES });
++  });
++
++  it('uses what was typed', () => {
++    const data = { ...formFrom(), portrait__checkpoint: ' face.safetensors ', portrait__steps: '31' };
++    const result = readProfilesForm(data);
++    if (!result.ok) throw new Error(result.error);
++    expect(result.value.portrait.checkpoint).toBe('face.safetensors');
++    expect(result.value.portrait.steps).toBe(31);
++  });
++
++  it('names the field that is wrong', () => {
++    const bad = (field: string, value: string) => {
++      const result = readProfilesForm({ ...formFrom(), [field]: value });
++      return result.ok ? 'ok' : result.error;
++    };
++    expect(bad('map__steps', '0')).toContain('Maps: steps');
++    expect(bad('map__steps', '2.5')).toContain('whole number');
++    expect(bad('token__cfg', 'abc')).toContain('Tokens: CFG');
++    expect(bad('handout__width', '100')).toContain('Handouts and illustrations: width');
++    expect(bad('portrait__height', '')).toContain('Character portraits: height');
++    expect(bad('map__sampler', 'bad name')).toContain('choose a sampler');
++    expect(bad('map__scheduler', '')).toContain('choose a scheduler');
++    expect(bad('map__promptPrefix', 'x'.repeat(1001))).toContain('promptPrefix');
++  });
++});
++
++describe('selectChoices', () => {
++  it('keeps the current value even when ComfyUI does not list it', () => {
++    expect(selectChoices(['a', 'b'], 'old', false)).toEqual(['old', 'a', 'b']);
++    expect(selectChoices(['a', 'b'], 'a', false)).toEqual(['a', 'b']);
++  });
++
++  it('can offer an empty choice', () => {
++    expect(selectChoices(['a'], '', true)).toEqual(['', 'a']);
++  });
++});
+diff --git a/packages/foundry-module/src/image-profiles-utils.ts b/packages/foundry-module/src/image-profiles-utils.ts
+new file mode 100644
+index 0000000..64e0493
+--- /dev/null
++++ b/packages/foundry-module/src/image-profiles-utils.ts
+@@ -0,0 +1,242 @@
++/**
++ * Image generation profiles as the settings dialog handles them. The MCP server holds the real
++ * defaults and rules (packages/mcp-server/src/image-profiles.ts); this copy only pre-fills the
++ * dialog and checks what the GM types, so keep the defaults in step with that file.
++ */
++
++export const IMAGE_KINDS = ['map', 'portrait', 'token', 'handout'] as const;
++export type ImageKind = (typeof IMAGE_KINDS)[number];
++
++export interface ImageProfile {
++  checkpoint: string;
++  vae: string;
++  steps: number;
++  cfg: number;
++  sampler: string;
++  scheduler: string;
++  width: number;
++  height: number;
++  promptPrefix: string;
++  promptSuffix: string;
++  negativePrompt: string;
++}
++
++export type ImageProfiles = Record<ImageKind, ImageProfile>;
++
++export const KIND_INFO: Record<ImageKind, { label: string; help: string }> = {
++  map: {
++    label: 'Maps',
++    help: 'Top-down battlemaps. Needs a battlemap checkpoint.',
++  },
++  portrait: {
++    label: 'Character portraits',
++    help: 'Tall pictures of NPCs and characters, for actor and journal images.',
++  },
++  token: {
++    label: 'Tokens',
++    help: 'Square, centered pictures used as token art.',
++  },
++  handout: {
++    label: 'Handouts and illustrations',
++    help: 'Wide pictures to show players: places, items, scenes.',
++  },
++};
++
++export const DEFAULT_PROFILES: ImageProfiles = {
++  map: {
++    checkpoint: 'dDBattlemapsSDXL10_upscaleV10.safetensors',
++    vae: 'sdxl_vae.safetensors',
++    steps: 30,
++    cfg: 2.5,
++    sampler: 'dpmpp_2m_sde',
++    scheduler: 'karras',
++    width: 1024,
++    height: 1024,
++    promptPrefix: '2d DnD battlemap of ',
++    promptSuffix: ', top-down view, overhead perspective, aerial',
++    negativePrompt:
++      'grid, low angle, isometric, oblique, horizon, text, watermark, logo, caption, people, creatures, monsters, blurry, artifacts',
++  },
++  portrait: {
++    checkpoint: '',
++    vae: '',
++    steps: 25,
++    cfg: 6,
++    sampler: 'dpmpp_2m',
++    scheduler: 'karras',
++    width: 832,
++    height: 1216,
++    promptPrefix: 'fantasy character portrait, ',
++    promptSuffix: ', detailed face, painterly, dramatic lighting',
++    negativePrompt: 'text, watermark, signature, blurry, deformed, extra fingers, lowres',
++  },
++  token: {
++    checkpoint: '',
++    vae: '',
++    steps: 25,
++    cfg: 6,
++    sampler: 'dpmpp_2m',
++    scheduler: 'karras',
++    width: 1024,
++    height: 1024,
++    promptPrefix: 'round game token, centered bust of ',
++    promptSuffix: ', plain dark background, fantasy illustration, thick border',
++    negativePrompt: 'text, watermark, signature, blurry, full body, cropped, lowres',
++  },
++  handout: {
++    checkpoint: '',
++    vae: '',
++    steps: 25,
++    cfg: 6,
++    sampler: 'dpmpp_2m',
++    scheduler: 'karras',
++    width: 1216,
++    height: 832,
++    promptPrefix: 'fantasy illustration, ',
++    promptSuffix: ', aged parchment, detailed, no text',
++    negativePrompt: 'text, letters, watermark, signature, blurry, lowres',
++  },
++};
++
++/** Samplers and schedulers to offer until the real lists are read from ComfyUI. */
++export const COMMON_SAMPLERS = [
++  'euler',
++  'euler_ancestral',
++  'heun',
++  'dpm_2',
++  'dpmpp_2m',
++  'dpmpp_2m_sde',
++  'dpmpp_sde',
++  'dpmpp_3m_sde',
++  'ddim',
++  'uni_pc',
++];
++export const COMMON_SCHEDULERS = [
++  'normal',
++  'karras',
++  'exponential',
++  'sgm_uniform',
++  'simple',
++  'ddim_uniform',
++  'beta',
++];
++
++export const FIELD_LIMITS = {
++  steps: [1, 100],
++  cfg: [0, 30],
++  side: [256, 2048],
++  text: 1000,
++} as const;
++
++/** Saved profiles (the JSON text in the setting) over the defaults. */
++export function profilesFromSetting(raw: unknown): ImageProfiles {
++  let value: unknown = raw;
++  if (typeof raw === 'string') {
++    try {
++      value = JSON.parse(raw);
++    } catch {
++      value = undefined;
++    }
++  }
++  const saved = (value && typeof value === 'object' ? value : {}) as Record<string, any>;
++  const result = {} as ImageProfiles;
++  for (const kind of IMAGE_KINDS) {
++    const s = saved[kind] && typeof saved[kind] === 'object' ? saved[kind] : {};
++    const d = DEFAULT_PROFILES[kind];
++    result[kind] = {
++      checkpoint: typeof s.checkpoint === 'string' ? s.checkpoint : d.checkpoint,
++      vae: typeof s.vae === 'string' ? s.vae : d.vae,
++      steps: Number.isFinite(Number(s.steps)) && s.steps !== undefined ? Number(s.steps) : d.steps,
++      cfg: Number.isFinite(Number(s.cfg)) && s.cfg !== undefined ? Number(s.cfg) : d.cfg,
++      sampler: typeof s.sampler === 'string' && s.sampler ? s.sampler : d.sampler,
++      scheduler: typeof s.scheduler === 'string' && s.scheduler ? s.scheduler : d.scheduler,
++      width: Number.isFinite(Number(s.width)) && s.width !== undefined ? Number(s.width) : d.width,
++      height:
++        Number.isFinite(Number(s.height)) && s.height !== undefined ? Number(s.height) : d.height,
++      promptPrefix: typeof s.promptPrefix === 'string' ? s.promptPrefix : d.promptPrefix,
++      promptSuffix: typeof s.promptSuffix === 'string' ? s.promptSuffix : d.promptSuffix,
++      negativePrompt: typeof s.negativePrompt === 'string' ? s.negativePrompt : d.negativePrompt,
++    };
++  }
++  return result;
++}
++
++export type ProfilesFormResult =
++  | { ok: true; value: ImageProfiles }
++  | { ok: false; error: string };
++
++function readNumber(
++  raw: unknown,
++  label: string,
++  [min, max]: readonly [number, number],
++  integer: boolean
++): { ok: true; value: number } | { ok: false; error: string } {
++  const text = typeof raw === 'string' ? raw.trim() : raw;
++  const n = typeof text === 'number' ? text : text === '' || text == null ? NaN : Number(text);
++  if (!Number.isFinite(n) || n < min || n > max || (integer && !Number.isInteger(n))) {
++    return {
++      ok: false,
++      error: `${label} must be ${integer ? 'a whole number' : 'a number'} from ${min} to ${max}`,
++    };
++  }
++  return { ok: true, value: n };
++}
++
++/** Read the dialog's fields (named `<kind>__<field>`) into profiles, or say what is wrong. */
++export function readProfilesForm(data: Record<string, unknown>): ProfilesFormResult {
++  const value = {} as ImageProfiles;
++  for (const kind of IMAGE_KINDS) {
++    const label = KIND_INFO[kind].label;
++    const get = (field: string) => data[`${kind}__${field}`];
++    const str = (field: string): string => {
++      const v = get(field);
++      return typeof v === 'string' ? v : '';
++    };
++
++    const steps = readNumber(get('steps'), `${label}: steps`, FIELD_LIMITS.steps, true);
++    if (!steps.ok) return steps;
++    const cfg = readNumber(get('cfg'), `${label}: CFG`, FIELD_LIMITS.cfg, false);
++    if (!cfg.ok) return cfg;
++    const width = readNumber(get('width'), `${label}: width`, FIELD_LIMITS.side, true);
++    if (!width.ok) return width;
++    const height = readNumber(get('height'), `${label}: height`, FIELD_LIMITS.side, true);
++    if (!height.ok) return height;
++
++    for (const field of ['promptPrefix', 'promptSuffix', 'negativePrompt']) {
++      if (str(field).length > FIELD_LIMITS.text) {
++        return { ok: false, error: `${label}: ${field} is longer than ${FIELD_LIMITS.text} letters` };
++      }
++    }
++
++    const sampler = str('sampler').trim();
++    const scheduler = str('scheduler').trim();
++    if (!/^[A-Za-z0-9_+.\-]{1,60}$/.test(sampler)) {
++      return { ok: false, error: `${label}: choose a sampler` };
++    }
++    if (!/^[A-Za-z0-9_+.\-]{1,60}$/.test(scheduler)) {
++      return { ok: false, error: `${label}: choose a scheduler` };
++    }
++
++    value[kind] = {
++      checkpoint: str('checkpoint').trim(),
++      vae: str('vae').trim(),
++      steps: steps.value,
++      cfg: cfg.value,
++      sampler,
++      scheduler,
++      width: width.value,
++      height: height.value,
++      promptPrefix: str('promptPrefix'),
++      promptSuffix: str('promptSuffix'),
++      negativePrompt: str('negativePrompt'),
++    };
++  }
++  return { ok: true, value };
++}
++
++/** The choices for a drop-down: what ComfyUI offers, plus the current value if it is not there. */
++export function selectChoices(options: string[], current: string, allowEmpty: boolean): string[] {
++  const list = [...options];
++  if (current && !list.includes(current)) list.unshift(current);
++  return allowEmpty ? ['', ...list] : list;
++}
+diff --git a/packages/foundry-module/src/image-settings-dialog.ts b/packages/foundry-module/src/image-settings-dialog.ts
+new file mode 100644
+index 0000000..541e91c
+--- /dev/null
++++ b/packages/foundry-module/src/image-settings-dialog.ts
+@@ -0,0 +1,128 @@
++import { MODULE_ID } from './constants.js';
++import {
++  COMMON_SAMPLERS,
++  COMMON_SCHEDULERS,
++  IMAGE_KINDS,
++  KIND_INFO,
++  profilesFromSetting,
++  readProfilesForm,
++  selectChoices,
++} from './image-profiles-utils.js';
++
++interface KnownModels {
++  checkpoints: string[];
++  vaes: string[];
++  samplers: string[];
++  schedulers: string[];
++}
++
++/**
++ * Settings dialog: which checkpoint and settings Claude's image generation uses for maps,
++ * portraits, tokens and handouts. The choices come from the ComfyUI the map generation settings
++ * point at.
++ */
++export class ImageGenerationDialog extends FormApplication {
++  private models: KnownModels | null = null;
++
++  static get defaultOptions() {
++    return foundry.utils.mergeObject(super.defaultOptions, {
++      title: 'Image Generation Settings',
++      template: `modules/${MODULE_ID}/templates/image-generation-settings.html`,
++      width: 680,
++      height: 'auto',
++      resizable: true,
++      closeOnSubmit: false,
++    } as any);
++  }
++
++  getData(): any {
++    const profiles = profilesFromSetting(game.settings.get(MODULE_ID, 'imageProfiles' as any));
++    return {
++      kinds: IMAGE_KINDS.map((key, index) => ({
++        key,
++        open: index === 0,
++        ...KIND_INFO[key],
++        ...profiles[key],
++      })),
++    };
++  }
++
++  activateListeners(html: JQuery) {
++    super.activateListeners(html);
++    this.fillSelects(html);
++
++    html.find('#igs-refresh-btn').click(async () => {
++      await this.loadModels(html);
++    });
++  }
++
++  /** Fill every drop-down from the known models (or sensible defaults), keeping the choice. */
++  private fillSelects(html: JQuery) {
++    html.find('select[data-list]').each((_index: number, element: HTMLElement) => {
++      const select = element as HTMLSelectElement;
++      const kind = select.dataset.list as 'checkpoint' | 'vae' | 'sampler' | 'scheduler';
++      const current = select.value || select.dataset.current || '';
++
++      const options =
++        kind === 'checkpoint'
++          ? (this.models?.checkpoints ?? [])
++          : kind === 'vae'
++            ? (this.models?.vaes ?? [])
++            : kind === 'sampler'
++              ? this.models?.samplers?.length
++                ? this.models.samplers
++                : COMMON_SAMPLERS
++              : this.models?.schedulers?.length
++                ? this.models.schedulers
++                : COMMON_SCHEDULERS;
++
++      const allowEmpty = kind === 'checkpoint' || kind === 'vae';
++      const emptyLabel = kind === 'vae' ? "(the checkpoint's own VAE)" : '(choose a checkpoint)';
++
++      select.innerHTML = '';
++      for (const value of selectChoices(options, current, allowEmpty)) {
++        const option = document.createElement('option');
++        option.value = value;
++        option.textContent = value === '' ? emptyLabel : value;
++        select.appendChild(option);
++      }
++      select.value = current;
++    });
++  }
++
++  private async loadModels(html: JQuery) {
++    const status = html.find('#igs-model-status');
++    const bridge = (globalThis as any).foundryMCPBridge;
++    if (!bridge?.comfyuiManager) {
++      status.text('The MCP bridge is not running.');
++      return;
++    }
++
++    status.text('Asking ComfyUI...');
++    try {
++      const response = await bridge.comfyuiManager.listModels();
++      if (response.status !== 'success' || !response.models) {
++        status.text(response.message || 'Could not read the models from ComfyUI.');
++        return;
++      }
++      this.models = response.models as KnownModels;
++      this.fillSelects(html);
++      status.text(
++        `Found ${this.models.checkpoints.length} checkpoint(s) and ${this.models.vaes.length} VAE(s).`
++      );
++    } catch (error) {
++      status.text(error instanceof Error ? error.message : 'Could not reach the MCP server.');
++    }
++  }
++
++  async _updateObject(_event: Event, formData: any) {
++    const result = readProfilesForm(formData);
++    if (!result.ok) {
++      ui.notifications?.error(result.error);
++      return; // keep the dialog open so it can be fixed
++    }
++    await game.settings.set(MODULE_ID, 'imageProfiles' as any, JSON.stringify(result.value));
++    ui.notifications?.info('Image generation settings saved');
++    await this.close();
++  }
++}
+diff --git a/packages/foundry-module/src/image-template.test.ts b/packages/foundry-module/src/image-template.test.ts
+new file mode 100644
+index 0000000..051bfa5
+--- /dev/null
++++ b/packages/foundry-module/src/image-template.test.ts
+@@ -0,0 +1,65 @@
++/**
++ * Guards the image generation dialog: the code finds its elements by id and builds the forms
++ * field names from a fixed pattern, so a template edit must not drift from either.
++ */
++
++import { describe, expect, it } from 'vitest';
++import { readFileSync } from 'fs';
++import { dirname, join } from 'path';
++import { fileURLToPath } from 'url';
++import { IMAGE_KINDS } from './image-profiles-utils.js';
++
++const here = dirname(fileURLToPath(import.meta.url));
++const template = readFileSync(join(here, '..', 'templates', 'image-generation-settings.html'), 'utf8');
++const dialog = readFileSync(join(here, 'image-settings-dialog.ts'), 'utf8');
++const css = readFileSync(join(here, '..', 'styles', 'map-generation.css'), 'utf8');
++
++describe('image generation dialog template', () => {
++  it('has every element id the dialog code looks up', () => {
++    const wanted = new Set<string>();
++    for (const match of dialog.matchAll(/find\(\s*'#([\w-]+)'\s*\)/g)) wanted.add(match[1]!);
++    expect(wanted.size).toBeGreaterThanOrEqual(2);
++    const missing = [...wanted].filter(id => !template.includes(`id="${id}"`));
++    expect(missing).toEqual([]);
++  });
++
++  it('has a field for every profile setting, named <kind>__<field>', () => {
++    for (const field of [
++      'checkpoint',
++      'vae',
++      'steps',
++      'cfg',
++      'width',
++      'height',
++      'sampler',
++      'scheduler',
++      'promptPrefix',
++      'promptSuffix',
++      'negativePrompt',
++    ]) {
++      expect(template).toContain(`name="{{key}}__${field}"`);
++    }
++  });
++
++  it('is filled once per kind', () => {
++    expect(template).toContain('{{#each kinds}}');
++    expect(IMAGE_KINDS.length).toBe(4);
++  });
++
++  it('only uses styles that the stylesheet defines', () => {
++    const used = new Set<string>();
++    for (const match of template.matchAll(/class="([^"]+)"/g)) {
++      match[1]!
++        .split(/\s+/)
++        .filter(c => c.startsWith('mgs-'))
++        .forEach(c => used.add(c));
++    }
++    expect([...used].filter(c => !css.includes(`.${c}`))).toEqual([]);
++  });
++
++  it('is loaded by the dialog and listed for the module', () => {
++    expect(dialog).toContain('image-generation-settings.html');
++    const manifest = readFileSync(join(here, '..', 'module.json'), 'utf8');
++    expect(manifest).toContain('map-generation.css');
++  });
++});
 diff --git a/packages/foundry-module/src/inspect-utils.test.ts b/packages/foundry-module/src/inspect-utils.test.ts
 new file mode 100644
 index 0000000..df5970f
@@ -4957,16 +5503,20 @@ index 0000000..8854585
 +  return { width, height };
 +}
 diff --git a/packages/foundry-module/src/queries.ts b/packages/foundry-module/src/queries.ts
-index 9fe02ba..e409f79 100644
+index 9fe02ba..9f7b764 100644
 --- a/packages/foundry-module/src/queries.ts
 +++ b/packages/foundry-module/src/queries.ts
-@@ -1,4 +1,4 @@
+@@ -1,7 +1,8 @@
 -import { MODULE_ID } from './constants.js';
 +import { MODULE_ID, QUERY_NAMESPACE } from './constants.js';
  import { FoundryDataAccess } from './data-access.js';
  import { ComfyUIManager } from './comfyui-manager.js';
  import { guardQueryHandler } from './query-guard.js';
-@@ -27,7 +27,7 @@ export class QueryHandlers {
++import { profilesFromSetting } from './image-profiles-utils.js';
+ 
+ export class QueryHandlers {
+   public dataAccess: FoundryDataAccess;
+@@ -27,7 +28,7 @@ export class QueryHandlers {
     * Register all query handlers in CONFIG.queries
     */
    registerHandlers(): void {
@@ -4975,12 +5525,13 @@ index 9fe02ba..e409f79 100644
  
      // Character/Actor queries
      CONFIG.queries[`${modulePrefix}.getCharacterInfo`] = this.handleGetCharacterInfo.bind(this);
-@@ -46,6 +46,12 @@ export class QueryHandlers {
+@@ -46,6 +47,13 @@ export class QueryHandlers {
      CONFIG.queries[`${modulePrefix}.list-scenes`] = this.handleListScenes.bind(this);
      CONFIG.queries[`${modulePrefix}.switch-scene`] = this.handleSwitchScene.bind(this);
      CONFIG.queries[`${modulePrefix}.update-scene-music`] = this.handleUpdateSceneMusic.bind(this);
 +    CONFIG.queries[`${modulePrefix}.manage-scenes`] = this.handleManageScenes.bind(this);
 +    CONFIG.queries[`${modulePrefix}.upload-file`] = this.handleUploadFile.bind(this);
++    CONFIG.queries[`${modulePrefix}.get-image-settings`] = this.handleGetImageSettings.bind(this);
 +    CONFIG.queries[`${modulePrefix}.manage-journals`] = this.handleManageJournals.bind(this);
 +    CONFIG.queries[`${modulePrefix}.manage-scene-objects`] = this.handleManageSceneObjects.bind(this);
 +    CONFIG.queries[`${modulePrefix}.preview-scene`] = this.handlePreviewScene.bind(this);
@@ -4988,7 +5539,7 @@ index 9fe02ba..e409f79 100644
      CONFIG.queries[`${modulePrefix}.manage-playlists`] = this.handleManagePlaylists.bind(this);
      CONFIG.queries[`${modulePrefix}.control-playlist`] = this.handleControlPlaylist.bind(this);
  
-@@ -184,7 +190,7 @@ export class QueryHandlers {
+@@ -184,7 +192,7 @@ export class QueryHandlers {
     * Unregister all query handlers
     */
    unregisterHandlers(): void {
@@ -4997,7 +5548,7 @@ index 9fe02ba..e409f79 100644
      const keysToRemove = Object.keys(CONFIG.queries).filter(key => key.startsWith(modulePrefix));
  
      for (const key of keysToRemove) {
-@@ -477,7 +483,7 @@ export class QueryHandlers {
+@@ -477,7 +485,7 @@ export class QueryHandlers {
     * Get list of all registered query methods
     */
    getRegisteredMethods(): string[] {
@@ -5006,7 +5557,7 @@ index 9fe02ba..e409f79 100644
      return Object.keys(CONFIG.queries)
        .filter(key => key.startsWith(modulePrefix))
        .map(key => key.replace(`${modulePrefix}.`, ''));
-@@ -487,7 +493,7 @@ export class QueryHandlers {
+@@ -487,7 +495,7 @@ export class QueryHandlers {
     * Test if a specific query handler is registered
     */
    isMethodRegistered(method: string): boolean {
@@ -5015,7 +5566,7 @@ index 9fe02ba..e409f79 100644
      return queryKey in CONFIG.queries && typeof CONFIG.queries[queryKey] === 'function';
    }
  
-@@ -1218,6 +1224,85 @@ export class QueryHandlers {
+@@ -1218,6 +1226,111 @@ export class QueryHandlers {
      }
    }
  
@@ -5062,6 +5613,32 @@ index 9fe02ba..e409f79 100644
 +      return await this.dataAccess.manageJournals(data);
 +    } catch (error) {
 +      throw error instanceof Error ? error : new Error(String(error));
++    }
++  }
++
++  /**
++   * The ComfyUI to use and the image generation profiles the GM chose. The MCP server asks for
++   * these each time it generates an image, so changes in the dialog apply immediately.
++   */
++  private async handleGetImageSettings(_data: any): Promise<any> {
++    try {
++      const gmCheck = this.validateGMAccess();
++      if (!gmCheck.allowed) {
++        return { error: 'Access denied', success: false };
++      }
++      let raw: unknown = '{}';
++      try {
++        raw = game.settings.get(MODULE_ID, 'imageProfiles' as any);
++      } catch {
++        // Not saved yet: the MCP server uses its defaults.
++      }
++      return {
++        success: true,
++        target: this.comfyuiManager.getTarget(),
++        profiles: profilesFromSetting(raw),
++      };
++    } catch (error: any) {
++      return { error: error.message, success: false };
 +    }
 +  }
 +
@@ -5884,12 +6461,13 @@ index 0000000..760d837
 +  });
 +}
 diff --git a/packages/foundry-module/src/settings.ts b/packages/foundry-module/src/settings.ts
-index d689724..c7d6cae 100644
+index d689724..2dca548 100644
 --- a/packages/foundry-module/src/settings.ts
 +++ b/packages/foundry-module/src/settings.ts
-@@ -1,5 +1,11 @@
+@@ -1,5 +1,12 @@
  import { MODULE_ID, DEFAULT_CONFIG } from './constants.js';
  import type { BridgeConfig } from './socket-bridge.js';
++import { ImageGenerationDialog } from './image-settings-dialog.js';
 +import {
 +  DEFAULT_CUSTOM_HOST,
 +  DEFAULT_CUSTOM_PORT,
@@ -5899,7 +6477,7 @@ index d689724..c7d6cae 100644
  
  export class ModuleSettings {
    private moduleId: string = MODULE_ID;
-@@ -82,14 +88,45 @@ export class ModuleSettings {
+@@ -82,14 +89,45 @@ export class ModuleSettings {
          }
  
          getData(): any {
@@ -5947,7 +6525,7 @@ index d689724..c7d6cae 100644
          getConnectionStatus(): string {
            const bridge = (globalThis as any).foundryMCPBridge;
            return bridge?.comfyuiManager ? 'unknown' : 'stopped';
-@@ -114,13 +151,24 @@ export class ModuleSettings {
+@@ -114,13 +152,24 @@ export class ModuleSettings {
            html.find('#stop-service-btn').click(async () => {
              await this.stopService();
            });
@@ -5973,7 +6551,7 @@ index d689724..c7d6cae 100644
                this.updateStatusDisplay(status);
              } catch (error) {
                console.error('Status check failed:', error);
-@@ -158,13 +206,24 @@ export class ModuleSettings {
+@@ -158,13 +207,24 @@ export class ModuleSettings {
          updateStatusDisplay(status: any) {
            const statusElement = this.element.find('#connection-status');
            const statusText = this.element.find('#status-text');
@@ -6003,7 +6581,7 @@ index d689724..c7d6cae 100644
          }
  
          getStatusText(status: string): string {
-@@ -179,9 +238,31 @@ export class ModuleSettings {
+@@ -179,14 +239,54 @@ export class ModuleSettings {
          }
  
          async _updateObject(_event: Event, formData: any) {
@@ -6036,7 +6614,30 @@ index d689724..c7d6cae 100644
          }
        },
        restricted: true,
-@@ -295,6 +376,40 @@ export class ModuleSettings {
+     });
+ 
++    // Image generation submenu: which checkpoint and settings to use for each kind of picture
++    (game.settings as any).registerMenu(this.moduleId, 'imageGenerationSettings', {
++      name: 'Image Generation',
++      label: 'Configure Image Generation',
++      hint: 'Choose the checkpoint and settings Claude uses when it generates maps, portraits, tokens and handouts with your ComfyUI.',
++      icon: 'fas fa-image',
++      type: ImageGenerationDialog,
++      restricted: true,
++    });
++
++    game.settings.register(this.moduleId, 'imageProfiles', {
++      name: 'Image generation profiles',
++      scope: 'world',
++      config: false,
++      type: String,
++      default: '{}',
++    });
++
+     // ============================================================================
+     // SECTION 1: BASIC SETTINGS
+     // ============================================================================
+@@ -295,6 +395,40 @@ export class ModuleSettings {
        default: true,
      });
  
@@ -6332,10 +6933,10 @@ index 0000000..d81af4a
 +}
 diff --git a/packages/foundry-module/styles/map-generation.css b/packages/foundry-module/styles/map-generation.css
 new file mode 100644
-index 0000000..e9646a9
+index 0000000..ec4e2af
 --- /dev/null
 +++ b/packages/foundry-module/styles/map-generation.css
-@@ -0,0 +1,270 @@
+@@ -0,0 +1,336 @@
 +/* Map Generation Service settings dialog. Self-contained (mgs- prefix) so it does not depend on,
 +   or disturb, the Enhanced Creature Index dialog styles. Uses Foundry's theme variables with
 +   fallbacks so it reads on both the dark and light themes. */
@@ -6606,6 +7207,72 @@ index 0000000..e9646a9
 +.mgs-tight {
 +  margin: 0 0 0.9rem;
 +}
++
++/* Image generation dialog */
++.mgs-model-bar {
++  display: flex;
++  flex-wrap: wrap;
++  align-items: center;
++  gap: 0.75rem;
++}
++
++.mgs-model-bar .mgs-btn {
++  flex: 0 0 auto;
++}
++
++.mgs-model-bar .mgs-status-detail {
++  flex: 1 1 12rem;
++  margin: 0;
++}
++
++.mgs-model-bar .mgs-status-detail:empty {
++  display: none;
++}
++
++.mgs-details > .mgs-summary {
++  cursor: pointer;
++  font-size: 1.05rem;
++  font-weight: 700;
++  margin-bottom: 0.4rem;
++}
++
++.mgs-row-2,
++.mgs-row-4 {
++  display: grid;
++  gap: 0.75rem;
++}
++
++.mgs-row-2 {
++  grid-template-columns: 1fr 1fr;
++}
++
++.mgs-row-4 {
++  grid-template-columns: repeat(4, 1fr);
++}
++
++.mgs-row-2 .mgs-form-group,
++.mgs-row-4 .mgs-form-group {
++  margin-bottom: 0.4rem;
++}
++
++.mgs-textarea {
++  width: 100%;
++  min-width: 0;
++  padding: 0.4rem 0.6rem;
++  line-height: 1.35;
++  resize: vertical;
++  color: var(--mgs-text);
++  background: rgba(0, 0, 0, 0.3);
++  border: 1px solid var(--mgs-border);
++  border-radius: 4px;
++  font-family: inherit;
++}
++
++.mgs-textarea:focus {
++  outline: none;
++  border-color: var(--color-border-highlight, #ff9f1c);
++  box-shadow: 0 0 0 2px rgba(255, 159, 28, 0.3);
++}
 diff --git a/packages/foundry-module/templates/comfyui-settings.html b/packages/foundry-module/templates/comfyui-settings.html
 index 15d4166..de7aa2e 100644
 --- a/packages/foundry-module/templates/comfyui-settings.html
@@ -6744,15 +7411,110 @@ index 15d4166..de7aa2e 100644
 -</form>
 \ No newline at end of file
 +</form>
+diff --git a/packages/foundry-module/templates/image-generation-settings.html b/packages/foundry-module/templates/image-generation-settings.html
+new file mode 100644
+index 0000000..b13fd14
+--- /dev/null
++++ b/packages/foundry-module/templates/image-generation-settings.html
+@@ -0,0 +1,88 @@
++<form class="mgs-settings" autocomplete="off">
++  <section class="mgs-block">
++    <h2 class="mgs-title">Image Generation</h2>
++    <p class="mgs-note">
++      Claude can generate pictures with your ComfyUI. Choose here which checkpoint and settings are used
++      for each kind of picture. Which ComfyUI is used (built-in or your own) is set in
++      <strong>Configure Map Generation</strong>.
++    </p>
++  </section>
++
++  <section class="mgs-block mgs-settings-block">
++    <div class="mgs-model-bar">
++      <button type="button" class="mgs-btn check" id="igs-refresh-btn">
++        <i class="fas fa-sync"></i> Load models from ComfyUI
++      </button>
++      <p class="mgs-status-detail" id="igs-model-status">Not loaded yet. The lists below show what is saved.</p>
++    </div>
++    <p class="mgs-hint">
++      Checkpoints must be in ComfyUI's <code>models/checkpoints</code> folder. A VAE is optional: leave it
++      empty to use the one inside the checkpoint.
++    </p>
++  </section>
++
++  {{#each kinds}}
++  <details class="mgs-details mgs-settings-block" {{#if open}}open{{/if}}>
++    <summary class="mgs-summary">{{label}}</summary>
++    <p class="mgs-hint mgs-tight">{{help}}</p>
++
++    <div class="mgs-row-2">
++      <div class="mgs-form-group">
++        <label class="mgs-label">Checkpoint</label>
++        <select name="{{key}}__checkpoint" data-list="checkpoint" data-current="{{checkpoint}}"></select>
++      </div>
++      <div class="mgs-form-group">
++        <label class="mgs-label">VAE</label>
++        <select name="{{key}}__vae" data-list="vae" data-current="{{vae}}"></select>
++      </div>
++    </div>
++
++    <div class="mgs-row-4">
++      <div class="mgs-form-group">
++        <label class="mgs-label">Steps</label>
++        <input type="number" name="{{key}}__steps" value="{{steps}}" min="1" max="100" step="1" />
++      </div>
++      <div class="mgs-form-group">
++        <label class="mgs-label">CFG</label>
++        <input type="number" name="{{key}}__cfg" value="{{cfg}}" min="0" max="30" step="0.1" />
++      </div>
++      <div class="mgs-form-group">
++        <label class="mgs-label">Width</label>
++        <input type="number" name="{{key}}__width" value="{{width}}" min="256" max="2048" step="8" />
++      </div>
++      <div class="mgs-form-group">
++        <label class="mgs-label">Height</label>
++        <input type="number" name="{{key}}__height" value="{{height}}" min="256" max="2048" step="8" />
++      </div>
++    </div>
++
++    <div class="mgs-row-2">
++      <div class="mgs-form-group">
++        <label class="mgs-label">Sampler</label>
++        <select name="{{key}}__sampler" data-list="sampler" data-current="{{sampler}}"></select>
++      </div>
++      <div class="mgs-form-group">
++        <label class="mgs-label">Scheduler</label>
++        <select name="{{key}}__scheduler" data-list="scheduler" data-current="{{scheduler}}"></select>
++      </div>
++    </div>
++
++    <div class="mgs-form-group">
++      <label class="mgs-label">Text before the prompt</label>
++      <textarea class="mgs-textarea" name="{{key}}__promptPrefix" rows="1">{{promptPrefix}}</textarea>
++    </div>
++    <div class="mgs-form-group">
++      <label class="mgs-label">Text after the prompt</label>
++      <textarea class="mgs-textarea" name="{{key}}__promptSuffix" rows="1">{{promptSuffix}}</textarea>
++    </div>
++    <div class="mgs-form-group">
++      <label class="mgs-label">Negative prompt (what to avoid)</label>
++      <textarea class="mgs-textarea" name="{{key}}__negativePrompt" rows="2">{{negativePrompt}}</textarea>
++    </div>
++  </details>
++  {{/each}}
++
++  <div class="mgs-footer">
++    <button type="submit" class="mgs-btn"><i class="fas fa-save"></i> Save Image Settings</button>
++  </div>
++</form>
 diff --git a/packages/mcp-server/src/backend.ts b/packages/mcp-server/src/backend.ts
-index 8967e33..cbc8cf2 100644
+index 8967e33..050640d 100644
 --- a/packages/mcp-server/src/backend.ts
 +++ b/packages/mcp-server/src/backend.ts
-@@ -48,6 +48,17 @@ import { DnD5eAddFeatureTool } from './tools/dnd5e/add-feature.js';
+@@ -48,6 +48,18 @@ import { DnD5eAddFeatureTool } from './tools/dnd5e/add-feature.js';
  import { DnD5eNpcTools } from './tools/dnd5e/npc.js';
  import { DnD5eFeaturesFromCompendiumTools } from './tools/dnd5e/features.js';
  import { ChatTools } from './tools/chat.js';
 +import { UploadTools } from './tools/upload.js';
++import { ImageGenerationTools } from './tools/image-generation.js';
 +import { JournalTools } from './tools/journal.js';
 +import {
 +  BUILTIN_TARGET,
@@ -6766,7 +7528,7 @@ index 8967e33..cbc8cf2 100644
  
  const CONTROL_HOST = '127.0.0.1';
  
-@@ -174,6 +185,22 @@ let comfyuiProcess: ChildProcess | null = null;
+@@ -174,6 +186,22 @@ let comfyuiProcess: ChildProcess | null = null;
  
  let comfyuiStatus: 'stopped' | 'starting' | 'running' | 'error' = 'stopped';
  
@@ -6789,7 +7551,7 @@ index 8967e33..cbc8cf2 100644
  let lockFd: number | null = null;
  
  function acquireLock(): boolean {
-@@ -350,6 +377,18 @@ async function waitForComfyUIReady(timeoutMs: number = 60000): Promise<void> {
+@@ -350,6 +378,18 @@ async function waitForComfyUIReady(timeoutMs: number = 60000): Promise<void> {
  }
  
  async function startComfyUIService(logger: Logger): Promise<any> {
@@ -6808,7 +7570,7 @@ index 8967e33..cbc8cf2 100644
    if (comfyuiStatus === 'running') {
      return { status: 'already_running', message: 'ComfyUI service is already running' };
    }
-@@ -472,6 +511,14 @@ async function startComfyUIService(logger: Logger): Promise<any> {
+@@ -472,6 +512,14 @@ async function startComfyUIService(logger: Logger): Promise<any> {
  }
  
  async function stopComfyUIService(logger: Logger): Promise<any> {
@@ -6823,7 +7585,7 @@ index 8967e33..cbc8cf2 100644
    if (comfyuiStatus === 'stopped') {
      return { status: 'already_stopped', message: 'ComfyUI service is already stopped' };
    }
-@@ -510,7 +557,7 @@ async function checkComfyUIStatus(): Promise<any> {
+@@ -510,7 +558,7 @@ async function checkComfyUIStatus(): Promise<any> {
    // This handles both spawned processes and externally-started instances
  
    try {
@@ -6832,7 +7594,7 @@ index 8967e33..cbc8cf2 100644
        signal: AbortSignal.timeout(5000),
      });
  
-@@ -520,16 +567,23 @@ async function checkComfyUIStatus(): Promise<any> {
+@@ -520,16 +568,23 @@ async function checkComfyUIStatus(): Promise<any> {
        comfyuiStatus = 'error';
      }
    } catch (error) {
@@ -6858,18 +7620,43 @@ index 8967e33..cbc8cf2 100644
    };
  }
  
-@@ -1195,6 +1249,10 @@ async function startBackend(): Promise<void> {
+@@ -1131,7 +1186,7 @@ async function processMapGenerationInBackend(
+     );
+ 
+     logger.error('Background map generation processing failed', { jobId, error });
+-    await jobQueue.markJobFailed(jobId, error.message);
++    await jobQueue.markJobFailedFinal(jobId, error.message);
+ 
+     // Emit failure to Foundry module
+     foundryClient.sendMessage({
+@@ -1195,6 +1250,26 @@ async function startBackend(): Promise<void> {
    const compendiumTools = new CompendiumTools({ foundryClient, logger, systemRegistry });
  
    const sceneTools = new SceneTools({ foundryClient, logger });
 +  const uploadTools = new UploadTools({ foundryClient, logger });
++  const imageGenerationTools = new ImageGenerationTools({
++    foundryClient,
++    logger,
++    // Created further down, with the other map generation components.
++    getClient: () => {
++      if (!mapGenerationComfyUIClient) throw new Error('The ComfyUI client is not available');
++      return mapGenerationComfyUIClient;
++    },
++    applyTarget: raw => {
++      try {
++        applyComfyTarget(raw, mapGenerationComfyUIClient, logger);
++      } catch (error: any) {
++        throw new Error(`Invalid ComfyUI settings: ${error.message}`);
++      }
++    },
++  });
 +  const journalTools = new JournalTools({ foundryClient, logger });
 +  const sceneObjectTools = new SceneObjectTools({ foundryClient, logger });
 +  const inspectTools = new InspectTools({ foundryClient, logger });
    const playlistTools = new PlaylistTools({ foundryClient, logger });
  
    const actorCreationTools = new ActorCreationTools({ foundryClient, logger });
-@@ -1301,6 +1359,13 @@ async function startBackend(): Promise<void> {
+@@ -1301,6 +1376,13 @@ async function startBackend(): Promise<void> {
  
          let result: any;
  
@@ -6883,11 +7670,32 @@ index 8967e33..cbc8cf2 100644
          switch (message.type) {
            case 'start-comfyui-service':
              result = await startComfyUIService(logger);
-@@ -1429,6 +1494,11 @@ async function startBackend(): Promise<void> {
+@@ -1317,6 +1399,19 @@ async function startBackend(): Promise<void> {
+ 
+             break;
+ 
++          case 'list-comfyui-models':
++            // What the chosen ComfyUI offers, to fill the image generation settings.
++            try {
++              result = {
++                status: 'success',
++                models: await mapGenerationComfyUIClient.getModels(),
++              };
++            } catch (modelError: any) {
++              result = { status: 'error', message: modelError.message };
++            }
++
++            break;
++
+           // Map generation handlers (following existing tool pattern)
+           case 'generate-map-request':
+             await fs.appendFile(
+@@ -1429,6 +1524,12 @@ async function startBackend(): Promise<void> {
  
      ...sceneTools.getToolDefinitions(),
  
 +    ...uploadTools.getToolDefinitions(),
++    ...imageGenerationTools.getToolDefinitions(),
 +    ...journalTools.getToolDefinitions(),
 +    ...sceneObjectTools.getToolDefinitions(),
 +    ...inspectTools.getToolDefinitions(),
@@ -6895,7 +7703,7 @@ index 8967e33..cbc8cf2 100644
      ...actorCreationTools.getToolDefinitions(),
      ...actorManagementTools.getToolDefinitions(),
      ...effectManagementTools.getToolDefinitions(),
-@@ -1805,6 +1875,32 @@ async function startBackend(): Promise<void> {
+@@ -1805,6 +1906,40 @@ async function startBackend(): Promise<void> {
  
                    break;
  
@@ -6925,17 +7733,27 @@ index 8967e33..cbc8cf2 100644
 +
 +                  break;
 +
++                case 'generate-image':
++                  result = await imageGenerationTools.handleGenerateImage(args);
++                  break;
++
++                case 'describe-image-generation':
++                  result = await imageGenerationTools.handleDescribe();
++                  break;
++
                  default:
                    throw new Error(`Unknown tool: ${name}`);
                }
 diff --git a/packages/mcp-server/src/comfyui-client.ts b/packages/mcp-server/src/comfyui-client.ts
-index 99ac020..91d02e2 100644
+index 99ac020..a3d09ec 100644
 --- a/packages/mcp-server/src/comfyui-client.ts
 +++ b/packages/mcp-server/src/comfyui-client.ts
-@@ -6,6 +6,13 @@ import * as os from 'os';
+@@ -6,6 +6,15 @@ import * as os from 'os';
  import axios from 'axios';
  import WebSocket from 'ws';
  import { Logger } from './logger.js';
++import { describeComfySubmitError, describeExecutionError } from './comfyui-errors.js';
++import { parseComfyModels, type ComfyModels } from './comfyui-models.js';
 +import {
 +  comfyBaseUrl,
 +  comfyWebSocketUrl,
@@ -6946,7 +7764,7 @@ index 99ac020..91d02e2 100644
  import { getHiddenProcessSpawnOptions, getAppDataDir } from './utils/platform.js';
  import {
    detectComfyUIInstallation,
-@@ -53,6 +60,7 @@ export class ComfyUIClient {
+@@ -53,6 +62,7 @@ export class ComfyUIClient {
    private logger: Logger;
    private process?: ChildProcess | undefined;
    private baseUrl: string;
@@ -6954,7 +7772,7 @@ index 99ac020..91d02e2 100644
    private clientId: string;
    private logStream?: fss.WriteStream | undefined;
    private ws?: WebSocket;
-@@ -80,7 +88,13 @@ export class ComfyUIClient {
+@@ -80,7 +90,13 @@ export class ComfyUIClient {
        ...options.config,
      };
  
@@ -6969,7 +7787,7 @@ index 99ac020..91d02e2 100644
  
      this.logger.info('ComfyUI client initialized', {
        baseUrl: this.baseUrl,
-@@ -93,8 +107,41 @@ export class ComfyUIClient {
+@@ -93,8 +109,41 @@ export class ComfyUIClient {
      this.connectWebSocket();
    }
  
@@ -7012,6 +7830,399 @@ index 99ac020..91d02e2 100644
  
      try {
        this.ws = new WebSocket(wsUrl);
+@@ -387,9 +436,83 @@ export class ComfyUIClient {
+     throw new Error('ComfyUI service failed to become ready within timeout');
+   }
+ 
++  /** What this ComfyUI offers: checkpoints, VAEs, samplers and schedulers. */
++  async getModels(): Promise<ComfyModels> {
++    const get = async (node: string): Promise<unknown> => {
++      try {
++        return (await axios.get(`${this.baseUrl}/object_info/${node}`, { timeout: 10000 })).data;
++      } catch (error) {
++        throw new Error(
++          `Could not read ${node} from ${this.baseUrl}: ${error instanceof Error ? error.message : 'Unknown error'}`
++        );
++      }
++    };
++    const [checkpointLoader, vaeLoader, ksampler] = await Promise.all([
++      get('CheckpointLoaderSimple'),
++      get('VAELoader'),
++      get('KSampler'),
++    ]);
++    return parseComfyModels({ checkpointLoader, vaeLoader, ksampler });
++  }
++
++  /**
++   * Run a workflow to the end and return its first image. Throws with ComfyUI's own words if the
++   * job is rejected or fails while running.
++   */
++  async runWorkflow(
++    workflow: Record<string, any>,
++    options: { timeoutMs?: number } = {}
++  ): Promise<{ image: Buffer; filename: string; promptId: string }> {
++    const timeoutMs = options.timeoutMs ?? 5 * 60 * 1000;
++    const { prompt_id: promptId } = await this.submitWorkflow(workflow);
++    const deadline = Date.now() + timeoutMs;
++
++    while (Date.now() < deadline) {
++      await new Promise(resolve => setTimeout(resolve, 1000));
++
++      let entry: any;
++      try {
++        const history = (
++          await axios.get(`${this.baseUrl}/history/${promptId}`, { timeout: 10000 })
++        ).data;
++        entry = history?.[promptId];
++      } catch {
++        continue; // a hiccup; the next poll decides
++      }
++      if (!entry) continue;
++
++      if (entry.status?.status_str === 'error') {
++        throw new Error(`ComfyUI failed while generating: ${describeExecutionError(entry)}`);
++      }
++
++      const image = Object.values<any>(entry.outputs ?? {})
++        .flatMap(output => (Array.isArray(output?.images) ? output.images : []))
++        .find((img: any) => img?.filename);
++      if (!image) {
++        throw new Error('ComfyUI finished but produced no image');
++      }
++
++      const response = await axios.get(`${this.baseUrl}/view`, {
++        params: { filename: image.filename, subfolder: image.subfolder ?? '', type: image.type ?? 'output' },
++        responseType: 'arraybuffer',
++        timeout: 60000,
++      });
++      return { image: Buffer.from(response.data), filename: image.filename, promptId };
++    }
++
++    try {
++      await axios.post(`${this.baseUrl}/interrupt`, {}, { timeout: 5000 });
++    } catch {
++      // Best effort.
++    }
++    throw new Error(`Image generation did not finish within ${Math.round(timeoutMs / 1000)} seconds`);
++  }
++
+   async submitJob(input: ComfyUIWorkflowInput): Promise<ComfyUIJobResponse> {
+-    const workflow = this.buildWorkflow(input);
++    return this.submitWorkflow(this.buildWorkflow(input));
++  }
+ 
++  private async submitWorkflow(workflow: Record<string, any>): Promise<ComfyUIJobResponse> {
+     try {
+       const response = await axios.post(
+         `${this.baseUrl}/prompt`,
+@@ -416,7 +539,14 @@ export class ComfyUIClient {
+         status: responseStatus,
+         response: responseData,
+       });
+-      throw error;
++      // Say what ComfyUI complained about, not just "status code 400".
++      throw new Error(
++        describeComfySubmitError(
++          responseStatus,
++          responseData,
++          error instanceof Error ? error.message : 'Failed to submit job to ComfyUI'
++        )
++      );
+     }
+   }
+ 
+diff --git a/packages/mcp-server/src/comfyui-errors.test.ts b/packages/mcp-server/src/comfyui-errors.test.ts
+new file mode 100644
+index 0000000..b24b04b
+--- /dev/null
++++ b/packages/mcp-server/src/comfyui-errors.test.ts
+@@ -0,0 +1,87 @@
++import { describe, expect, it } from 'vitest';
++import { describeComfySubmitError, describeExecutionError } from './comfyui-errors.js';
++
++describe('describeExecutionError', () => {
++  it('names the node and the exception', () => {
++    const entry = {
++      status: {
++        status_str: 'error',
++        messages: [
++          ['execution_start', {}],
++          [
++            'execution_error',
++            { node_type: 'KSampler', exception_message: 'CUDA out of memory\n' },
++          ],
++        ],
++      },
++    };
++    expect(describeExecutionError(entry)).toBe('KSampler: CUDA out of memory');
++  });
++
++  it('has a fallback', () => {
++    expect(describeExecutionError({})).toContain('unknown error');
++  });
++});
++
++// What ComfyUI sends when a checkpoint name is not in its checkpoints folder.
++const missingCheckpoint = {
++  error: {
++    type: 'prompt_outputs_failed_validation',
++    message: 'Prompt outputs failed validation',
++    details: '',
++  },
++  node_errors: {
++    '1': {
++      class_type: 'CheckpointLoaderSimple',
++      errors: [
++        {
++          type: 'value_not_in_list',
++          message: 'Value not in list',
++          details: "ckpt_name: 'dDBattlemapsSDXL10_upscaleV10.safetensors' not in []",
++        },
++      ],
++    },
++  },
++};
++
++describe('describeComfySubmitError', () => {
++  it('names the node and the missing model, and says where it must be', () => {
++    const message = describeComfySubmitError(400, missingCheckpoint, 'Request failed');
++    expect(message).toContain('ComfyUI rejected the job (HTTP 400)');
++    expect(message).toContain('CheckpointLoaderSimple (node 1)');
++    expect(message).toContain("ckpt_name: 'dDBattlemapsSDXL10_upscaleV10.safetensors' not in []");
++    expect(message).toContain('models/checkpoints');
++    expect(message).not.toContain('Request failed');
++  });
++
++  it('does not add the model hint for other problems', () => {
++    const message = describeComfySubmitError(
++      400,
++      {
++        error: { message: 'Prompt has no outputs', details: 'nothing to run' },
++      },
++      'x'
++    );
++    expect(message).toBe(
++      'ComfyUI rejected the job (HTTP 400): Prompt has no outputs (nothing to run)'
++    );
++  });
++
++  it('accepts a plain string error', () => {
++    expect(describeComfySubmitError(500, { error: 'boom' }, 'x')).toContain('boom');
++  });
++
++  it('falls back to the original message when the body has nothing useful', () => {
++    expect(describeComfySubmitError(undefined, undefined, 'connect ECONNREFUSED')).toBe(
++      'connect ECONNREFUSED'
++    );
++    expect(describeComfySubmitError(400, '<html>', 'Request failed')).toBe('Request failed');
++    expect(describeComfySubmitError(400, {}, 'Request failed')).toBe('Request failed');
++  });
++
++  it('keeps long messages short', () => {
++    const errors = Array.from({ length: 10 }, () => ({ message: 'm'.repeat(300) }));
++    const message = describeComfySubmitError(400, { node_errors: { '1': { errors } } }, 'x');
++    expect(message.length).toBeLessThanOrEqual(700);
++  });
++});
+diff --git a/packages/mcp-server/src/comfyui-errors.ts b/packages/mcp-server/src/comfyui-errors.ts
+new file mode 100644
+index 0000000..0952b66
+--- /dev/null
++++ b/packages/mcp-server/src/comfyui-errors.ts
+@@ -0,0 +1,77 @@
++/**
++ * Turn ComfyUI's rejection of a job (an HTTP 400 with a JSON body) into a message that says
++ * what is wrong, such as a checkpoint that is not in the models/checkpoints folder, instead
++ * of "Request failed with status code 400".
++ */
++
++const MAX_LENGTH = 700;
++
++interface NodeError {
++  class_type?: string;
++  errors?: Array<{ type?: string; message?: string; details?: string }>;
++}
++
++/**
++ * Why a job that was accepted still failed: the messages ComfyUI keeps in its history entry
++ * (`status.messages` holds `["execution_error", {exception_message, node_type, ...}]`).
++ */
++export function describeExecutionError(entry: unknown): string {
++  const messages = (entry as any)?.status?.messages;
++  if (Array.isArray(messages)) {
++    for (const message of messages) {
++      if (Array.isArray(message) && message[0] === 'execution_error') {
++        const info = message[1] ?? {};
++        const where = info.node_type ? `${info.node_type}: ` : '';
++        const text = String(info.exception_message ?? 'unknown error').trim();
++        return `${where}${text}`.slice(0, MAX_LENGTH);
++      }
++    }
++  }
++  return 'unknown error (see the ComfyUI console)';
++}
++
++export function describeComfySubmitError(
++  status: number | undefined,
++  data: unknown,
++  fallback: string
++): string {
++  const body = (data && typeof data === 'object' ? data : {}) as {
++    error?: { message?: string; details?: string } | string;
++    node_errors?: Record<string, NodeError>;
++  };
++
++  const parts: string[] = [];
++
++  const topMessage =
++    typeof body.error === 'string' ? body.error : (body.error?.message ?? undefined);
++  const topDetails = typeof body.error === 'object' ? body.error?.details : undefined;
++  if (topMessage) parts.push(topDetails ? `${topMessage} (${topDetails})` : topMessage);
++
++  const problems: string[] = [];
++  let missingModel = false;
++  for (const [nodeId, node] of Object.entries(body.node_errors ?? {})) {
++    for (const problem of node.errors ?? []) {
++      const where = node.class_type ? `${node.class_type} (node ${nodeId})` : `node ${nodeId}`;
++      const text = [problem.message, problem.details].filter(Boolean).join(': ');
++      problems.push(`${where}: ${text}`);
++      if (
++        problem.type === 'value_not_in_list' &&
++        /(ckpt_name|vae_name|lora_name|unet_name)/.test(problem.details ?? '')
++      ) {
++        missingModel = true;
++      }
++    }
++  }
++  if (problems.length) parts.push(problems.slice(0, 4).join('; '));
++
++  let message = parts.length
++    ? `ComfyUI rejected the job${status ? ` (HTTP ${status})` : ''}: ${parts.join(' - ')}`
++    : fallback;
++
++  if (missingModel) {
++    message +=
++      ' | A model file is not where this ComfyUI looks. The checkpoint must be in ComfyUI/models/checkpoints and the VAE in models/vae (not diffusion_models), then refresh or restart ComfyUI.';
++  }
++
++  return message.length > MAX_LENGTH ? `${message.slice(0, MAX_LENGTH - 1)}…` : message;
++}
+diff --git a/packages/mcp-server/src/comfyui-models.test.ts b/packages/mcp-server/src/comfyui-models.test.ts
+new file mode 100644
+index 0000000..ec45916
+--- /dev/null
++++ b/packages/mcp-server/src/comfyui-models.test.ts
+@@ -0,0 +1,57 @@
++import { describe, expect, it } from 'vitest';
++import { comboOptions, parseComfyModels } from './comfyui-models.js';
++
++describe('comboOptions', () => {
++  it('reads the list form', () => {
++    expect(comboOptions([['a.safetensors', 'b.safetensors'], { tooltip: 'x' }])).toEqual([
++      'a.safetensors',
++      'b.safetensors',
++    ]);
++  });
++
++  it('reads the COMBO form', () => {
++    expect(comboOptions(['COMBO', { options: ['a', 'b'] }])).toEqual(['a', 'b']);
++  });
++
++  it('gives an empty list for anything else', () => {
++    expect(comboOptions(['INT', { default: 1 }])).toEqual([]);
++    expect(comboOptions(undefined)).toEqual([]);
++    expect(comboOptions([['a', 3, null]])).toEqual(['a']);
++  });
++});
++
++describe('parseComfyModels', () => {
++  it('collects checkpoints, vaes, samplers and schedulers', () => {
++    const models = parseComfyModels({
++      checkpointLoader: {
++        CheckpointLoaderSimple: { input: { required: { ckpt_name: [['m.safetensors']] } } },
++      },
++      vaeLoader: { VAELoader: { input: { required: { vae_name: [['sdxl_vae.safetensors']] } } } },
++      ksampler: {
++        KSampler: {
++          input: {
++            required: {
++              sampler_name: [['euler', 'dpmpp_2m']],
++              scheduler: [['normal', 'karras']],
++            },
++          },
++        },
++      },
++    });
++    expect(models).toEqual({
++      checkpoints: ['m.safetensors'],
++      vaes: ['sdxl_vae.safetensors'],
++      samplers: ['euler', 'dpmpp_2m'],
++      schedulers: ['normal', 'karras'],
++    });
++  });
++
++  it('copes with missing parts', () => {
++    expect(parseComfyModels({})).toEqual({
++      checkpoints: [],
++      vaes: [],
++      samplers: [],
++      schedulers: [],
++    });
++  });
++});
+diff --git a/packages/mcp-server/src/comfyui-models.ts b/packages/mcp-server/src/comfyui-models.ts
+new file mode 100644
+index 0000000..2ef9bbf
+--- /dev/null
++++ b/packages/mcp-server/src/comfyui-models.ts
+@@ -0,0 +1,47 @@
++/**
++ * What a ComfyUI offers: its checkpoints, VAEs, samplers and schedulers, read from /object_info.
++ * Used to fill the choices in the image generation settings.
++ */
++
++export interface ComfyModels {
++  checkpoints: string[];
++  vaes: string[];
++  samplers: string[];
++  schedulers: string[];
++}
++
++/**
++ * The list of allowed values of one input. ComfyUI sends either `[["a","b"], {...}]` or, in
++ * newer versions, `["COMBO", {"options": ["a","b"]}]`.
++ */
++export function comboOptions(spec: unknown): string[] {
++  if (!Array.isArray(spec)) return [];
++  const first = spec[0];
++  let options: unknown;
++  if (Array.isArray(first)) {
++    options = first;
++  } else if (first === 'COMBO') {
++    options = (spec[1] as { options?: unknown } | undefined)?.options;
++  }
++  return Array.isArray(options) ? options.filter((o): o is string => typeof o === 'string') : [];
++}
++
++function inputOptions(info: unknown, node: string, input: string): string[] {
++  const required = (info as any)?.[node]?.input?.required;
++  const optional = (info as any)?.[node]?.input?.optional;
++  return comboOptions(required?.[input] ?? optional?.[input]);
++}
++
++/** Combine the /object_info answers for the loader and sampler nodes. */
++export function parseComfyModels(parts: {
++  checkpointLoader?: unknown;
++  vaeLoader?: unknown;
++  ksampler?: unknown;
++}): ComfyModels {
++  return {
++    checkpoints: inputOptions(parts.checkpointLoader, 'CheckpointLoaderSimple', 'ckpt_name'),
++    vaes: inputOptions(parts.vaeLoader, 'VAELoader', 'vae_name'),
++    samplers: inputOptions(parts.ksampler, 'KSampler', 'sampler_name'),
++    schedulers: inputOptions(parts.ksampler, 'KSampler', 'scheduler'),
++  };
++}
 diff --git a/packages/mcp-server/src/comfyui-target.test.ts b/packages/mcp-server/src/comfyui-target.test.ts
 new file mode 100644
 index 0000000..6feede6
@@ -7225,6 +8436,937 @@ index 6495485..e335970 100644
  
        this.pendingQueries.set(queryId, { resolve, reject, timeout });
  
+diff --git a/packages/mcp-server/src/image-profiles.test.ts b/packages/mcp-server/src/image-profiles.test.ts
+new file mode 100644
+index 0000000..081902e
+--- /dev/null
++++ b/packages/mcp-server/src/image-profiles.test.ts
+@@ -0,0 +1,128 @@
++import { describe, expect, it } from 'vitest';
++import {
++  buildTxt2ImgWorkflow,
++  DEFAULT_PROFILES,
++  fitPixels,
++  IMAGE_KINDS,
++  normalizeProfile,
++  normalizeProfiles,
++  resolveGeneration,
++} from './image-profiles.js';
++
++describe('normalizeProfiles', () => {
++  it('gives the defaults for nothing, nonsense or broken JSON', () => {
++    expect(normalizeProfiles(undefined)).toEqual(DEFAULT_PROFILES);
++    expect(normalizeProfiles('not json')).toEqual(DEFAULT_PROFILES);
++    expect(normalizeProfiles(42)).toEqual(DEFAULT_PROFILES);
++  });
++
++  it('has every kind', () => {
++    expect(Object.keys(normalizeProfiles({})).sort()).toEqual([...IMAGE_KINDS].sort());
++  });
++
++  it('keeps saved values and fills in missing ones from that kind default', () => {
++    const profiles = normalizeProfiles(
++      JSON.stringify({ portrait: { checkpoint: 'face.safetensors', steps: 30 } })
++    );
++    expect(profiles.portrait.checkpoint).toBe('face.safetensors');
++    expect(profiles.portrait.steps).toBe(30);
++    expect(profiles.portrait.cfg).toBe(DEFAULT_PROFILES.portrait.cfg);
++    expect(profiles.map).toEqual(DEFAULT_PROFILES.map);
++  });
++
++  it('clamps and repairs bad numbers and names', () => {
++    const p = normalizeProfile(
++      { steps: 100000, cfg: -4, width: 5000, height: 10, sampler: 'bad name!', scheduler: 7 },
++      DEFAULT_PROFILES.portrait
++    );
++    expect(p.steps).toBe(100);
++    expect(p.cfg).toBe(0);
++    expect(p.width).toBeLessThanOrEqual(2048);
++    expect(p.height).toBe(256);
++    expect(p.sampler).toBe(DEFAULT_PROFILES.portrait.sampler);
++    expect(p.scheduler).toBe(DEFAULT_PROFILES.portrait.scheduler);
++  });
++
++  it('accepts numbers sent as text', () => {
++    const p = normalizeProfile({ steps: '12', cfg: '3.5' }, DEFAULT_PROFILES.map);
++    expect(p.steps).toBe(12);
++    expect(p.cfg).toBe(3.5);
++  });
++});
++
++describe('fitPixels', () => {
++  it('snaps to multiples of 8', () => {
++    expect(fitPixels(1000, 1003)).toEqual({ width: 1000, height: 1000 });
++  });
++
++  it('shrinks a picture that has too many pixels but keeps its shape', () => {
++    const { width, height } = fitPixels(2048, 2048);
++    expect(width * height).toBeLessThanOrEqual(2048 * 2048);
++    const big = fitPixels(2048, 2000);
++    expect(big.width * big.height).toBeLessThanOrEqual(2048 * 2048);
++    expect(big.width % 8).toBe(0);
++  });
++});
++
++describe('resolveGeneration', () => {
++  const profile = { ...DEFAULT_PROFILES.map };
++
++  it('wraps the prompt in the profile wording', () => {
++    const gen = resolveGeneration('map', profile, { prompt: ' a forest clearing ', seed: 5 });
++    expect(gen.positive).toBe(
++      '2d DnD battlemap of a forest clearing, top-down view, overhead perspective, aerial'
++    );
++    expect(gen.seed).toBe(5);
++    expect(gen.steps).toBe(30);
++  });
++
++  it('lets the request override size and steps, and extends the negative prompt', () => {
++    const gen = resolveGeneration('map', profile, {
++      prompt: 'x',
++      width: 1536,
++      height: 1024,
++      steps: 12,
++      negativePrompt: 'fog',
++    });
++    expect([gen.width, gen.height, gen.steps]).toEqual([1536, 1024, 12]);
++    expect(gen.negative.endsWith(', fog')).toBe(true);
++  });
++
++  it('refuses an empty prompt and a missing checkpoint', () => {
++    expect(() => resolveGeneration('map', profile, { prompt: '  ' })).toThrow('prompt');
++    expect(() =>
++      resolveGeneration('portrait', DEFAULT_PROFILES.portrait, { prompt: 'a dwarf' })
++    ).toThrow(/No checkpoint is chosen for "portrait"/);
++  });
++
++  it('picks a seed when none is given', () => {
++    const gen = resolveGeneration('map', profile, { prompt: 'x' });
++    expect(Number.isInteger(gen.seed)).toBe(true);
++    expect(gen.seed).toBeGreaterThanOrEqual(0);
++  });
++});
++
++describe('buildTxt2ImgWorkflow', () => {
++  const gen = resolveGeneration('map', DEFAULT_PROFILES.map, { prompt: 'a cave', seed: 1 });
++
++  it('wires the stock text-to-image nodes with a separate VAE', () => {
++    const wf = buildTxt2ImgWorkflow(gen, 'claude-map');
++    expect(wf['1'].inputs.ckpt_name).toBe(DEFAULT_PROFILES.map.checkpoint);
++    expect(wf['5'].inputs).toMatchObject({
++      seed: 1,
++      steps: 30,
++      cfg: 2.5,
++      sampler_name: 'dpmpp_2m_sde',
++      scheduler: 'karras',
++    });
++    expect(wf['9'].inputs.vae_name).toBe('sdxl_vae.safetensors');
++    expect(wf['6'].inputs.vae).toEqual(['9', 0]);
++    expect(wf['7'].inputs.filename_prefix).toBe('claude-map');
++  });
++
++  it("uses the checkpoint's own VAE when none is chosen", () => {
++    const wf = buildTxt2ImgWorkflow({ ...gen, vae: '' }, 'p');
++    expect(wf['9']).toBeUndefined();
++    expect(wf['6'].inputs.vae).toEqual(['1', 2]);
++  });
++});
+diff --git a/packages/mcp-server/src/image-profiles.ts b/packages/mcp-server/src/image-profiles.ts
+new file mode 100644
+index 0000000..51c1943
+--- /dev/null
++++ b/packages/mcp-server/src/image-profiles.ts
+@@ -0,0 +1,278 @@
++/**
++ * Image generation profiles: what to generate with (checkpoint, sampler, size, prompt wording)
++ * for each kind of picture. The GM edits them in the Foundry module's settings; this file turns
++ * them into a ComfyUI workflow. The module keeps a copy of the defaults for its dialog
++ * (packages/foundry-module/src/image-profiles-utils.ts) - keep the two in step.
++ */
++
++export const IMAGE_KINDS = ['map', 'portrait', 'token', 'handout'] as const;
++export type ImageKind = (typeof IMAGE_KINDS)[number];
++
++export interface ImageProfile {
++  /** Checkpoint file name as ComfyUI lists it (models/checkpoints). Empty = not chosen yet. */
++  checkpoint: string;
++  /** VAE file name (models/vae). Empty = use the VAE inside the checkpoint. */
++  vae: string;
++  steps: number;
++  cfg: number;
++  sampler: string;
++  scheduler: string;
++  width: number;
++  height: number;
++  /** Text put before / after what is asked for. */
++  promptPrefix: string;
++  promptSuffix: string;
++  negativePrompt: string;
++}
++
++export type ImageProfiles = Record<ImageKind, ImageProfile>;
++
++export const LIMITS = {
++  minSteps: 1,
++  maxSteps: 100,
++  minCfg: 0,
++  maxCfg: 30,
++  minSide: 256,
++  maxSide: 2048,
++  maxPixels: 2048 * 2048,
++  maxText: 1000,
++} as const;
++
++export const DEFAULT_PROFILES: ImageProfiles = {
++  map: {
++    checkpoint: 'dDBattlemapsSDXL10_upscaleV10.safetensors',
++    vae: 'sdxl_vae.safetensors',
++    steps: 30,
++    cfg: 2.5,
++    sampler: 'dpmpp_2m_sde',
++    scheduler: 'karras',
++    width: 1024,
++    height: 1024,
++    promptPrefix: '2d DnD battlemap of ',
++    promptSuffix: ', top-down view, overhead perspective, aerial',
++    negativePrompt:
++      'grid, low angle, isometric, oblique, horizon, text, watermark, logo, caption, people, creatures, monsters, blurry, artifacts',
++  },
++  portrait: {
++    checkpoint: '',
++    vae: '',
++    steps: 25,
++    cfg: 6,
++    sampler: 'dpmpp_2m',
++    scheduler: 'karras',
++    width: 832,
++    height: 1216,
++    promptPrefix: 'fantasy character portrait, ',
++    promptSuffix: ', detailed face, painterly, dramatic lighting',
++    negativePrompt: 'text, watermark, signature, blurry, deformed, extra fingers, lowres',
++  },
++  token: {
++    checkpoint: '',
++    vae: '',
++    steps: 25,
++    cfg: 6,
++    sampler: 'dpmpp_2m',
++    scheduler: 'karras',
++    width: 1024,
++    height: 1024,
++    promptPrefix: 'round game token, centered bust of ',
++    promptSuffix: ', plain dark background, fantasy illustration, thick border',
++    negativePrompt: 'text, watermark, signature, blurry, full body, cropped, lowres',
++  },
++  handout: {
++    checkpoint: '',
++    vae: '',
++    steps: 25,
++    cfg: 6,
++    sampler: 'dpmpp_2m',
++    scheduler: 'karras',
++    width: 1216,
++    height: 832,
++    promptPrefix: 'fantasy illustration, ',
++    promptSuffix: ', aged parchment, detailed, no text',
++    negativePrompt: 'text, letters, watermark, signature, blurry, lowres',
++  },
++};
++
++function clamp(value: number, min: number, max: number): number {
++  return Math.min(max, Math.max(min, value));
++}
++
++function num(value: unknown, fallback: number): number {
++  const n = typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : NaN;
++  return Number.isFinite(n) ? n : fallback;
++}
++
++function text(value: unknown, fallback: string, max: number = LIMITS.maxText): string {
++  return typeof value === 'string' ? value.slice(0, max) : fallback;
++}
++
++/** Round to a multiple of 8 within the allowed side length (SDXL and SD need that). */
++export function snapSide(value: number): number {
++  return clamp(Math.round(value / 8) * 8, LIMITS.minSide, LIMITS.maxSide);
++}
++
++/** Keep the picture inside the pixel budget while keeping its shape. */
++export function fitPixels(width: number, height: number): { width: number; height: number } {
++  let w = snapSide(width);
++  let h = snapSide(height);
++  if (w * h > LIMITS.maxPixels) {
++    const scale = Math.sqrt(LIMITS.maxPixels / (w * h));
++    w = Math.max(LIMITS.minSide, Math.floor((w * scale) / 8) * 8);
++    h = Math.max(LIMITS.minSide, Math.floor((h * scale) / 8) * 8);
++  }
++  return { width: w, height: h };
++}
++
++function nameOrDefault(value: unknown, fallback: string): string {
++  return typeof value === 'string' ? value.trim().slice(0, 260) : fallback;
++}
++
++function tokenOrDefault(value: unknown, fallback: string): string {
++  return typeof value === 'string' && /^[A-Za-z0-9_+.\-]{1,60}$/.test(value.trim())
++    ? value.trim()
++    : fallback;
++}
++
++/** One profile from whatever was saved: missing or unusable fields fall back to the default. */
++export function normalizeProfile(raw: unknown, fallback: ImageProfile): ImageProfile {
++  const r = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
++  const size = fitPixels(num(r.width, fallback.width), num(r.height, fallback.height));
++  return {
++    checkpoint: nameOrDefault(r.checkpoint, fallback.checkpoint),
++    vae: nameOrDefault(r.vae, fallback.vae),
++    steps: Math.round(clamp(num(r.steps, fallback.steps), LIMITS.minSteps, LIMITS.maxSteps)),
++    cfg: clamp(num(r.cfg, fallback.cfg), LIMITS.minCfg, LIMITS.maxCfg),
++    sampler: tokenOrDefault(r.sampler, fallback.sampler),
++    scheduler: tokenOrDefault(r.scheduler, fallback.scheduler),
++    width: size.width,
++    height: size.height,
++    promptPrefix: text(r.promptPrefix, fallback.promptPrefix),
++    promptSuffix: text(r.promptSuffix, fallback.promptSuffix),
++    negativePrompt: text(r.negativePrompt, fallback.negativePrompt),
++  };
++}
++
++/** All profiles from the saved setting (an object, or the JSON text of one). */
++export function normalizeProfiles(raw: unknown): ImageProfiles {
++  let value = raw;
++  if (typeof value === 'string') {
++    try {
++      value = JSON.parse(value);
++    } catch {
++      value = undefined;
++    }
++  }
++  const saved = (value && typeof value === 'object' ? value : {}) as Record<string, unknown>;
++  const result = {} as ImageProfiles;
++  for (const kind of IMAGE_KINDS) {
++    result[kind] = normalizeProfile(saved[kind], DEFAULT_PROFILES[kind]);
++  }
++  return result;
++}
++
++export interface ImageRequest {
++  prompt: string;
++  negativePrompt?: string | undefined;
++  width?: number | undefined;
++  height?: number | undefined;
++  steps?: number | undefined;
++  seed?: number | undefined;
++}
++
++export interface ResolvedGeneration {
++  checkpoint: string;
++  vae: string;
++  steps: number;
++  cfg: number;
++  sampler: string;
++  scheduler: string;
++  width: number;
++  height: number;
++  seed: number;
++  positive: string;
++  negative: string;
++}
++
++/** Combine a profile with one request: the request's size, steps and seed win. */
++export function resolveGeneration(
++  kind: ImageKind,
++  profile: ImageProfile,
++  request: ImageRequest
++): ResolvedGeneration {
++  const prompt = request.prompt.trim();
++  if (!prompt) throw new Error('prompt is required');
++  if (!profile.checkpoint) {
++    throw new Error(
++      `No checkpoint is chosen for "${kind}" images. In Foundry open the module settings, click "Configure Image Generation" and pick one.`
++    );
++  }
++  const size = fitPixels(request.width ?? profile.width, request.height ?? profile.height);
++  const steps = Math.round(
++    clamp(request.steps ?? profile.steps, LIMITS.minSteps, LIMITS.maxSteps)
++  );
++  const seed =
++    request.seed !== undefined && Number.isFinite(request.seed)
++      ? Math.abs(Math.trunc(request.seed))
++      : Math.floor(Math.random() * 2 ** 32);
++  const negativeExtra = request.negativePrompt?.trim();
++  return {
++    checkpoint: profile.checkpoint,
++    vae: profile.vae,
++    steps,
++    cfg: profile.cfg,
++    sampler: profile.sampler,
++    scheduler: profile.scheduler,
++    width: size.width,
++    height: size.height,
++    seed,
++    positive: `${profile.promptPrefix}${prompt}${profile.promptSuffix}`,
++    negative: negativeExtra
++      ? [profile.negativePrompt, negativeExtra].filter(Boolean).join(', ')
++      : profile.negativePrompt,
++  };
++}
++
++/** The ComfyUI workflow (stock nodes only) for a plain text-to-image run. */
++export function buildTxt2ImgWorkflow(
++  gen: ResolvedGeneration,
++  filenamePrefix: string
++): Record<string, any> {
++  const workflow: Record<string, any> = {
++    '1': { inputs: { ckpt_name: gen.checkpoint }, class_type: 'CheckpointLoaderSimple' },
++    '2': { inputs: { text: gen.positive, clip: ['1', 1] }, class_type: 'CLIPTextEncode' },
++    '3': { inputs: { text: gen.negative, clip: ['1', 1] }, class_type: 'CLIPTextEncode' },
++    '4': {
++      inputs: { width: gen.width, height: gen.height, batch_size: 1 },
++      class_type: 'EmptyLatentImage',
++    },
++    '5': {
++      inputs: {
++        seed: gen.seed,
++        steps: gen.steps,
++        cfg: gen.cfg,
++        denoise: 1.0,
++        sampler_name: gen.sampler,
++        scheduler: gen.scheduler,
++        model: ['1', 0],
++        positive: ['2', 0],
++        negative: ['3', 0],
++        latent_image: ['4', 0],
++      },
++      class_type: 'KSampler',
++    },
++  };
++
++  if (gen.vae) {
++    workflow['9'] = { inputs: { vae_name: gen.vae }, class_type: 'VAELoader' };
++  }
++  workflow['6'] = {
++    inputs: { samples: ['5', 0], vae: gen.vae ? ['9', 0] : ['1', 2] },
++    class_type: 'VAEDecode',
++  };
++  workflow['7'] = {
++    inputs: { filename_prefix: filenamePrefix, images: ['6', 0] },
++    class_type: 'SaveImage',
++  };
++  return workflow;
++}
+diff --git a/packages/mcp-server/src/job-queue.test.ts b/packages/mcp-server/src/job-queue.test.ts
+index bd9ae9e..81cc789 100644
+--- a/packages/mcp-server/src/job-queue.test.ts
++++ b/packages/mcp-server/src/job-queue.test.ts
+@@ -63,3 +63,29 @@ describe('JobQueue.createJob dedup', () => {
+     expect(b.id).not.toBe(a.id);
+   });
+ });
++
++describe('JobQueue.markJobFailedFinal', () => {
++  it('fails the job for good, with the reason, instead of putting it back in the queue', async () => {
++    const q = queue();
++    const job = await q.createJob({ params: { ...base, scene_name: 'Fails' } });
++
++    await q.markJobFailedFinal(job.id, 'ComfyUI rejected the job (HTTP 400): missing checkpoint');
++
++    const after = await q.getJob(job.id);
++    expect(after?.status).toBe('failed');
++    expect(after?.error).toContain('missing checkpoint');
++  });
++
++  it('is different from markJobFailed, which leaves the job queued for a retry', async () => {
++    const q = queue();
++    const job = await q.createJob({ params: { ...base, scene_name: 'Retry' } });
++
++    await q.markJobFailed(job.id, 'first failure');
++
++    expect((await q.getJob(job.id))?.status).toBe('queued');
++  });
++
++  it('refuses an unknown job', async () => {
++    await expect(queue().markJobFailedFinal('nope', 'x')).rejects.toThrow('not found');
++  });
++});
+diff --git a/packages/mcp-server/src/job-queue.ts b/packages/mcp-server/src/job-queue.ts
+index fe400d1..0bdee03 100644
+--- a/packages/mcp-server/src/job-queue.ts
++++ b/packages/mcp-server/src/job-queue.ts
+@@ -246,6 +246,23 @@ export class JobQueue {
+     }
+   }
+ 
++  /**
++   * Fail a job for good, with no retry. Map generation has no retry step, so a job put back
++   * to "queued" by markJobFailed would just sit there and be reported as queued forever.
++   */
++  async markJobFailedFinal(jobId: string, error: string): Promise<void> {
++    const job = this.jobs.get(jobId);
++    if (!job) {
++      throw new Error(`Job ${jobId} not found`);
++    }
++
++    job.attempts = Math.max(job.attempts + 1, job.max_attempts);
++    job.error = error;
++    job.status = 'failed';
++    job.current_stage = JOB_STAGES.FAILED;
++    this.logger.error('Job failed', { jobId, error });
++  }
++
+   async markJobFailed(jobId: string, error: string): Promise<void> {
+     const job = this.jobs.get(jobId);
+     if (!job) {
+diff --git a/packages/mcp-server/src/tools/image-generation.test.ts b/packages/mcp-server/src/tools/image-generation.test.ts
+new file mode 100644
+index 0000000..3478089
+--- /dev/null
++++ b/packages/mcp-server/src/tools/image-generation.test.ts
+@@ -0,0 +1,155 @@
++import { mkdtempSync, existsSync } from 'fs';
++import os from 'os';
++import path from 'path';
++import { describe, expect, it, vi } from 'vitest';
++import { DEFAULT_PROFILES } from '../image-profiles.js';
++import { ImageGenerationTools, slugify } from './image-generation.js';
++
++const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3]);
++
++function makeTools(options: { profiles?: any; uploadResult?: any; runError?: Error } = {}) {
++  const profiles = options.profiles ?? {
++    map: { checkpoint: 'battle.safetensors' },
++    portrait: { checkpoint: 'face.safetensors', vae: '' },
++  };
++  const query = vi.fn(async (method: string) => {
++    if (method === 'foundry-mcp-bridge.get-image-settings') {
++      return { success: true, target: { mode: 'custom', host: 'h', port: 1 }, profiles };
++    }
++    if (method === 'foundry-mcp-bridge.upload-file') {
++      return options.uploadResult ?? { success: true, path: 'worlds/w/uploads/generated/x.png' };
++    }
++    throw new Error(`unexpected ${method}`);
++  });
++  const runWorkflow = vi.fn(async () => {
++    if (options.runError) throw options.runError;
++    return { image: PNG, filename: 'f.png', promptId: 'p1' };
++  });
++  const getModels = vi.fn(async () => ({
++    checkpoints: ['battle.safetensors', 'face.safetensors'],
++    vaes: ['sdxl_vae.safetensors'],
++    samplers: [],
++    schedulers: [],
++  }));
++  const applyTarget = vi.fn();
++  const logger: any = {
++    info: vi.fn(),
++    debug: vi.fn(),
++    error: vi.fn(),
++    warn: vi.fn(),
++    child: () => logger,
++  };
++  const outputDir = mkdtempSync(path.join(os.tmpdir(), 'img-test-'));
++  const tools = new ImageGenerationTools({
++    foundryClient: { query } as any,
++    logger,
++    getClient: () => ({ runWorkflow, getModels }),
++    applyTarget,
++    outputDir,
++  });
++  return { tools, query, runWorkflow, getModels, applyTarget, outputDir };
++}
++
++describe('slugify', () => {
++  it('makes a safe short name', () => {
++    expect(slugify('A Dwarf, with an axe!')).toBe('a-dwarf-with-an-axe');
++    expect(slugify('???')).toBe('image');
++    expect(slugify('x'.repeat(100)).length).toBeLessThanOrEqual(40);
++  });
++});
++
++describe('definitions', () => {
++  it('offers generate-image and describe-image-generation', () => {
++    const defs = makeTools().tools.getToolDefinitions();
++    expect(defs.map(d => d.name)).toEqual(['generate-image', 'describe-image-generation']);
++    expect(defs[0]!.inputSchema.required).toEqual(['kind', 'prompt']);
++  });
++});
++
++describe('generate-image', () => {
++  it('uses the profile, points at the chosen ComfyUI and uploads the result', async () => {
++    const { tools, runWorkflow, query, applyTarget, outputDir } = makeTools();
++    const result = await tools.handleGenerateImage({ kind: 'map', prompt: 'a cave', seed: 7 });
++
++    expect(applyTarget).toHaveBeenCalledWith({ mode: 'custom', host: 'h', port: 1 });
++    const workflow = (runWorkflow.mock.calls[0] as any[])[0];
++    expect(workflow['1'].inputs.ckpt_name).toBe('battle.safetensors');
++    expect(workflow['2'].inputs.text).toBe(
++      '2d DnD battlemap of a cave, top-down view, overhead perspective, aerial'
++    );
++    expect(workflow['5'].inputs.seed).toBe(7);
++    // Unset fields in the saved map profile fall back to its defaults.
++    expect(workflow['5'].inputs.steps).toBe(DEFAULT_PROFILES.map.steps);
++
++    const uploadCall = query.mock.calls.find(c => c[0] === 'foundry-mcp-bridge.upload-file')!;
++    const payload = uploadCall[1] as any;
++    expect(payload.folder).toBe('generated/map');
++    expect(payload.filename).toMatch(/^a-cave-[a-z0-9]+\.png$/);
++    expect(payload.imageData).toBe(PNG.toString('base64'));
++
++    expect(result).toMatchObject({
++      success: true,
++      uploaded: true,
++      path: 'worlds/w/uploads/generated/x.png',
++      kind: 'map',
++      seed: 7,
++    });
++    expect(existsSync(result.local_path)).toBe(true);
++    expect(result.local_path.startsWith(outputDir)).toBe(true);
++  });
++
++  it('keeps the image local when upload is false', async () => {
++    const { tools, query } = makeTools();
++    const result = await tools.handleGenerateImage({
++      kind: 'portrait',
++      prompt: 'a dwarf',
++      upload: false,
++    });
++    expect(result.uploaded).toBe(false);
++    expect(query.mock.calls.some(c => c[0] === 'foundry-mcp-bridge.upload-file')).toBe(false);
++  });
++
++  it('says so when no checkpoint is chosen for the kind', async () => {
++    const { tools, runWorkflow } = makeTools();
++    await expect(tools.handleGenerateImage({ kind: 'token', prompt: 'an orc' })).rejects.toThrow(
++      /No checkpoint is chosen for "token"/
++    );
++    expect(runWorkflow).not.toHaveBeenCalled();
++  });
++
++  it('passes ComfyUI failures on with context', async () => {
++    const { tools } = makeTools({ runError: new Error('ComfyUI rejected the job (HTTP 400)') });
++    await expect(tools.handleGenerateImage({ kind: 'map', prompt: 'x' })).rejects.toThrow(
++      'Image generation failed: ComfyUI rejected the job (HTTP 400)'
++    );
++  });
++
++  it('reports a failed upload without losing the image', async () => {
++    const { tools } = makeTools({ uploadResult: { success: false, error: 'disk full' } });
++    await expect(tools.handleGenerateImage({ kind: 'map', prompt: 'x' })).rejects.toThrow(
++      /was generated \(kept at .*\) but uploading to Foundry failed: disk full/
++    );
++  });
++
++  it('rejects unknown kinds and unknown arguments', async () => {
++    const { tools } = makeTools();
++    await expect(tools.handleGenerateImage({ kind: 'dragon', prompt: 'x' })).rejects.toThrow();
++    await expect(
++      tools.handleGenerateImage({ kind: 'map', prompt: 'x', extra: 1 })
++    ).rejects.toThrow();
++  });
++});
++
++describe('describe-image-generation', () => {
++  it('lists profiles, what ComfyUI offers and what is missing', async () => {
++    const { tools } = makeTools();
++    const result = await tools.handleDescribe();
++    expect(result.reachable).toBe(true);
++    expect(result.available.checkpoints).toContain('face.safetensors');
++    expect(result.problems).toContain('token: no checkpoint chosen');
++    expect(result.problems).toContain('handout: no checkpoint chosen');
++    expect(result.problems.some((p: string) => p.startsWith('map:'))).toBe(false);
++    // The map profile's default VAE is one this ComfyUI has.
++    expect(result.problems.some((p: string) => p.includes('VAE'))).toBe(false);
++  });
++});
+diff --git a/packages/mcp-server/src/tools/image-generation.ts b/packages/mcp-server/src/tools/image-generation.ts
+new file mode 100644
+index 0000000..1853c3c
+--- /dev/null
++++ b/packages/mcp-server/src/tools/image-generation.ts
+@@ -0,0 +1,284 @@
++import { promises as fs } from 'fs';
++import os from 'os';
++import path from 'path';
++import { z } from 'zod';
++import { FoundryClient } from '../foundry-client.js';
++import { Logger } from '../logger.js';
++import type { ComfyModels } from '../comfyui-models.js';
++import {
++  buildTxt2ImgWorkflow,
++  IMAGE_KINDS,
++  normalizeProfiles,
++  resolveGeneration,
++  type ImageKind,
++  type ImageProfiles,
++} from '../image-profiles.js';
++
++/** The parts of the ComfyUI client this tool needs (so tests can stand in for it). */
++export interface ImageComfyClient {
++  runWorkflow(
++    workflow: Record<string, any>,
++    options?: { timeoutMs?: number }
++  ): Promise<{ image: Buffer; filename: string; promptId: string }>;
++  getModels(): Promise<ComfyModels>;
++}
++
++export interface ImageGenerationToolsOptions {
++  foundryClient: FoundryClient;
++  logger: Logger;
++  /** The ComfyUI client, already pointed at the chosen ComfyUI by applyTarget. */
++  getClient: () => ImageComfyClient;
++  /** Point the client at the ComfyUI the module's settings choose. */
++  applyTarget: (rawTarget: unknown) => void;
++  /** Where to keep the local copies (default: a folder in the system temp directory). */
++  outputDir?: string;
++}
++
++const UPLOAD_TIMEOUT_MS = 120000;
++const KEEP_LOCAL_COPIES = 40;
++
++const generateSchema = z
++  .object({
++    kind: z.enum(IMAGE_KINDS),
++    prompt: z.string().min(1).max(2000),
++    name: z.string().max(80).optional(),
++    negative_prompt: z.string().max(1000).optional(),
++    width: z.number().int().min(64).max(4096).optional(),
++    height: z.number().int().min(64).max(4096).optional(),
++    steps: z.number().int().min(1).max(150).optional(),
++    seed: z.number().int().min(0).optional(),
++    upload: z.boolean().optional(),
++    folder: z.string().max(80).optional(),
++  })
++  .strict();
++
++/** A file-name-safe version of a text: lower case letters, digits and dashes. */
++export function slugify(text: string, maxLength = 40): string {
++  const slug = text
++    .toLowerCase()
++    .replace(/[^a-z0-9]+/g, '-')
++    .replace(/^-+|-+$/g, '')
++    .slice(0, maxLength)
++    .replace(/-+$/g, '');
++  return slug || 'image';
++}
++
++export class ImageGenerationTools {
++  private foundryClient: FoundryClient;
++  private logger: Logger;
++  private getClient: () => ImageComfyClient;
++  private applyTarget: (raw: unknown) => void;
++  private outputDir: string;
++
++  constructor(options: ImageGenerationToolsOptions) {
++    this.foundryClient = options.foundryClient;
++    this.logger = options.logger.child({ component: 'ImageGenerationTools' });
++    this.getClient = options.getClient;
++    this.applyTarget = options.applyTarget;
++    this.outputDir = options.outputDir ?? path.join(os.tmpdir(), 'foundry-mcp-images');
++  }
++
++  getToolDefinitions() {
++    return [
++      {
++        name: 'generate-image',
++        description:
++          'Generate a picture with the GM\'s ComfyUI and (by default) upload it to the Foundry world. "kind" picks the profile the GM configured in the module settings (checkpoint, steps, size and prompt wording): map = top-down battlemap, portrait = character portrait, token = round token art, handout = illustration for players. The profile wraps your prompt, so describe only the subject. Returns the Foundry path (use it in manage-scenes, actors or journals) and a local file path you can open to look at the result. Takes about 10-90 seconds. A kind with no checkpoint chosen fails with a message saying so; describe-image-generation shows what is set up.',
++        inputSchema: {
++          type: 'object',
++          properties: {
++            kind: {
++              type: 'string',
++              enum: [...IMAGE_KINDS],
++              description: 'Which profile to use',
++            },
++            prompt: {
++              type: 'string',
++              description: 'What to draw. The profile adds its own style wording around it.',
++            },
++            name: {
++              type: 'string',
++              description: 'Short name used for the file (default: taken from the prompt)',
++            },
++            negative_prompt: {
++              type: 'string',
++              description: 'Extra things to avoid, added to the profile\'s negative prompt',
++            },
++            width: { type: 'number', description: 'Override the profile width (pixels, 256-2048)' },
++            height: { type: 'number', description: 'Override the profile height (pixels, 256-2048)' },
++            steps: { type: 'number', description: 'Override the profile step count' },
++            seed: {
++              type: 'number',
++              description: 'Use a fixed seed to repeat or tweak a result (default: random)',
++            },
++            upload: {
++              type: 'boolean',
++              description:
++                'Upload to the Foundry world (default true). False keeps it local only, to look at first.',
++            },
++            folder: {
++              type: 'string',
++              description:
++                'Sub-folder in the world upload folder (default "generated/<kind>"); letters, digits, dash, underscore, up to 3 levels',
++            },
++          },
++          required: ['kind', 'prompt'],
++        },
++      },
++      {
++        name: 'describe-image-generation',
++        description:
++          'Show how image generation is set up: which ComfyUI is used, the profile for each kind (map, portrait, token, handout), the checkpoints/VAEs that ComfyUI offers, and any profile whose checkpoint is missing. Read-only.',
++        inputSchema: { type: 'object', properties: {} },
++      },
++    ];
++  }
++
++  private async readSettings(): Promise<{ target: unknown; profiles: ImageProfiles }> {
++    const result = await this.foundryClient.query('foundry-mcp-bridge.get-image-settings', {});
++    if (result?.success === false || result?.error) {
++      throw new Error(result.error || 'Could not read the image generation settings');
++    }
++    return { target: result?.target, profiles: normalizeProfiles(result?.profiles) };
++  }
++
++  async handleGenerateImage(args: unknown): Promise<any> {
++    const parsed = generateSchema.parse(args);
++    const kind: ImageKind = parsed.kind;
++
++    const settings = await this.readSettings();
++    this.applyTarget(settings.target);
++
++    const generation = resolveGeneration(kind, settings.profiles[kind], {
++      prompt: parsed.prompt,
++      negativePrompt: parsed.negative_prompt,
++      width: parsed.width,
++      height: parsed.height,
++      steps: parsed.steps,
++      seed: parsed.seed,
++    });
++
++    const baseName = `${slugify(parsed.name ?? parsed.prompt)}-${Date.now().toString(36)}`;
++    const workflow = buildTxt2ImgWorkflow(generation, `claude-${kind}`);
++
++    this.logger.info('Generating image', {
++      kind,
++      checkpoint: generation.checkpoint,
++      steps: generation.steps,
++      size: `${generation.width}x${generation.height}`,
++    });
++
++    const started = Date.now();
++    let result;
++    try {
++      result = await this.getClient().runWorkflow(workflow);
++    } catch (error) {
++      const message = error instanceof Error ? error.message : String(error);
++      throw new Error(`Image generation failed: ${message}`);
++    }
++    const seconds = Math.round((Date.now() - started) / 1000);
++
++    const localPath = await this.saveLocalCopy(`${baseName}.png`, result.image);
++
++    const summary = {
++      kind,
++      checkpoint: generation.checkpoint,
++      steps: generation.steps,
++      size: `${generation.width}x${generation.height}`,
++      seed: generation.seed,
++      seconds,
++      local_path: localPath,
++    };
++
++    if (parsed.upload === false) {
++      return { success: true, ...summary, uploaded: false };
++    }
++
++    const folder = parsed.folder?.trim() || `generated/${kind}`;
++    try {
++      const uploaded = await this.foundryClient.query(
++        'foundry-mcp-bridge.upload-file',
++        {
++          filename: `${baseName}.png`,
++          imageData: result.image.toString('base64'),
++          folder,
++        },
++        UPLOAD_TIMEOUT_MS
++      );
++      if (uploaded?.success === false) {
++        throw new Error(uploaded.error || 'Upload was refused');
++      }
++      return { success: true, ...summary, uploaded: true, path: uploaded?.path };
++    } catch (error) {
++      const message = error instanceof Error ? error.message : String(error);
++      // The picture exists; say so, so it is not generated twice.
++      throw new Error(
++        `The image was generated (kept at ${localPath}, seed ${generation.seed}) but uploading to Foundry failed: ${message}`
++      );
++    }
++  }
++
++  async handleDescribe(): Promise<any> {
++    const settings = await this.readSettings();
++    this.applyTarget(settings.target);
++
++    let models: ComfyModels | undefined;
++    let comfyError: string | undefined;
++    try {
++      models = await this.getClient().getModels();
++    } catch (error) {
++      comfyError = error instanceof Error ? error.message : String(error);
++    }
++
++    const problems: string[] = [];
++    for (const kind of IMAGE_KINDS) {
++      const profile = settings.profiles[kind];
++      if (!profile.checkpoint) {
++        problems.push(`${kind}: no checkpoint chosen`);
++      } else if (models && !models.checkpoints.includes(profile.checkpoint)) {
++        problems.push(`${kind}: checkpoint "${profile.checkpoint}" is not in this ComfyUI`);
++      }
++      if (profile.vae && models && !models.vaes.includes(profile.vae)) {
++        problems.push(`${kind}: VAE "${profile.vae}" is not in this ComfyUI`);
++      }
++    }
++
++    return {
++      success: true,
++      comfyui: settings.target,
++      reachable: !comfyError,
++      ...(comfyError ? { comfyui_error: comfyError } : {}),
++      profiles: settings.profiles,
++      available: models
++        ? { checkpoints: models.checkpoints, vaes: models.vaes }
++        : undefined,
++      problems,
++    };
++  }
++
++  private async saveLocalCopy(filename: string, image: Buffer): Promise<string> {
++    await fs.mkdir(this.outputDir, { recursive: true });
++    const filePath = path.join(this.outputDir, filename);
++    await fs.writeFile(filePath, image);
++
++    // Keep the folder from growing without end.
++    try {
++      const names = await fs.readdir(this.outputDir);
++      if (names.length > KEEP_LOCAL_COPIES) {
++        const stats = await Promise.all(
++          names.map(async name => ({
++            name,
++            time: (await fs.stat(path.join(this.outputDir, name))).mtimeMs,
++          }))
++        );
++        stats.sort((a, b) => a.time - b.time);
++        for (const old of stats.slice(0, names.length - KEEP_LOCAL_COPIES)) {
++          await fs.unlink(path.join(this.outputDir, old.name)).catch(() => undefined);
++        }
++      }
++    } catch {
++      // Cleaning up is optional.
++    }
++    return filePath;
++  }
++}
 diff --git a/packages/mcp-server/src/tools/inspect.test.ts b/packages/mcp-server/src/tools/inspect.test.ts
 new file mode 100644
 index 0000000..5756ff0
@@ -8956,7 +11098,7 @@ index 0000000..386d634
 +  }
 +}
 diff --git a/scripts/mcp-schema-smoke-test.mjs b/scripts/mcp-schema-smoke-test.mjs
-index c84dcd4..aece334 100644
+index c84dcd4..fcb7685 100644
 --- a/scripts/mcp-schema-smoke-test.mjs
 +++ b/scripts/mcp-schema-smoke-test.mjs
 @@ -22,7 +22,7 @@ const importDist = async (relativePath) =>
@@ -8964,11 +11106,11 @@ index c84dcd4..aece334 100644
  const [{ config }, { Logger }, { FoundryClient }, { CharacterTools }, { CompendiumTools }, { SceneTools },
    { ActorCreationTools }, { QuestCreationTools }, { DiceRollTools }, { CampaignManagementTools },
 -  { OwnershipTools }, { TokenManipulationTools }, { MapGenerationTools }, { getSystemRegistry },
-+  { OwnershipTools }, { TokenManipulationTools }, { MapGenerationTools }, { UploadTools }, { JournalTools }, { SceneObjectTools }, { InspectTools }, { getSystemRegistry },
++  { OwnershipTools }, { TokenManipulationTools }, { MapGenerationTools }, { UploadTools }, { JournalTools }, { SceneObjectTools }, { InspectTools }, { ImageGenerationTools }, { getSystemRegistry },
    { DnD5eAdapter }, { PF2eAdapter }, { DSA5Adapter }, { CosmereRpgAdapter }] = await Promise.all([
    importDist('config.js'),
    importDist('logger.js'),
-@@ -37,6 +37,10 @@ const [{ config }, { Logger }, { FoundryClient }, { CharacterTools }, { Compendi
+@@ -37,6 +37,11 @@ const [{ config }, { Logger }, { FoundryClient }, { CharacterTools }, { Compendi
    importDist('tools/ownership.js'),
    importDist('tools/token-manipulation.js'),
    importDist('tools/map-generation.js'),
@@ -8976,10 +11118,11 @@ index c84dcd4..aece334 100644
 +  importDist('tools/journal.js'),
 +  importDist('tools/scene-objects.js'),
 +  importDist('tools/inspect.js'),
++  importDist('tools/image-generation.js'),
    importDist('systems/index.js'),
    importDist('systems/dnd5e/adapter.js'),
    importDist('systems/pf2e/adapter.js'),
-@@ -64,6 +68,10 @@ const tools = [
+@@ -64,6 +69,11 @@ const tools = [
    ...new OwnershipTools({ foundryClient, logger }).getToolDefinitions(),
    ...new TokenManipulationTools({ foundryClient, logger }).getToolDefinitions(),
    ...new MapGenerationTools({ foundryClient, logger, backendComfyUIHandlers: {} }).getToolDefinitions(),
@@ -8987,6 +11130,7 @@ index c84dcd4..aece334 100644
 +  ...new JournalTools({ foundryClient, logger }).getToolDefinitions(),
 +  ...new SceneObjectTools({ foundryClient, logger }).getToolDefinitions(),
 +  ...new InspectTools({ foundryClient, logger }).getToolDefinitions(),
++  ...new ImageGenerationTools({ foundryClient, logger, getClient: () => { throw new Error('unused'); }, applyTarget: () => {} }).getToolDefinitions(),
  ];
  
  if (!tools.length) {
