@@ -112585,6 +112585,29 @@ var soundEntrySchema = external_exports.object({
 }).refine((s) => s.id || s.path || s.name, {
   message: "sound entry needs at least one of id, name, path"
 });
+var COMMANDS = [
+  "play",
+  "stop",
+  "cycle-mode",
+  "play-sound",
+  "stop-sound",
+  "pause",
+  "pause-sound",
+  "resume",
+  "resume-sound",
+  "next",
+  "previous",
+  "set-volume",
+  "now-playing",
+  "stop-all"
+];
+var newSoundSchema = external_exports.object({
+  path: external_exports.string().min(1),
+  name: external_exports.string().optional(),
+  volume: external_exports.number().min(0).max(1).optional(),
+  repeat: external_exports.boolean().optional(),
+  fade: external_exports.number().optional()
+}).strict();
 var PlaylistTools = class {
   foundryClient;
   logger;
@@ -112596,7 +112619,7 @@ var PlaylistTools = class {
     return [
       {
         name: "manage-playlists",
-        description: "Create, update, delete, or describe playlists. create: name (+mode/fade/description/sorting/folder/color) and optional sounds [{path, name?, volume?, repeat?, fade?}]. update: playlist identifier + fields and/or sounds to patch (matched by exact id or unique path/name within the playlist). delete: playlist identifier matched by exact id or name only (never partial). describe: no identifier lists all playlists; with identifier returns the full playlist with all sounds.",
+        description: "Create, update, delete, or describe playlists. create: name (+mode/fade/description/sorting/folder/color) and optional sounds [{path, name?, volume?, repeat?, fade?}]. update: playlist identifier + fields and/or sounds to patch (matched by exact id or unique path/name within the playlist), add_sounds [{path, name?, volume?, repeat?, fade?}] to put new tracks in (upload them first with upload-file, which takes mp3, ogg, wav, flac and m4a), and remove_sounds [id | exact name | path] to take tracks out. delete: playlist identifier matched by exact id or name only (never partial). describe: no identifier lists all playlists; with identifier returns the full playlist with all sounds.",
         inputSchema: {
           type: "object",
           properties: {
@@ -112644,6 +112667,26 @@ var PlaylistTools = class {
                 }
               }
             },
+            add_sounds: {
+              type: "array",
+              description: "update: new sounds to add to the playlist",
+              items: {
+                type: "object",
+                properties: {
+                  path: { type: "string", description: "Foundry path of the audio file (e.g. from upload-file)" },
+                  name: { type: "string" },
+                  volume: { type: "number", minimum: 0, maximum: 1 },
+                  repeat: { type: "boolean" },
+                  fade: { type: "number" }
+                },
+                required: ["path"]
+              }
+            },
+            remove_sounds: {
+              type: "array",
+              items: { type: "string" },
+              description: "update: sounds to remove, by id, exact name or path"
+            },
             updates: {
               type: "object",
               description: "Free-form patch merged into the playlist update (advanced)"
@@ -112654,22 +112697,23 @@ var PlaylistTools = class {
       },
       {
         name: "control-playlist",
-        description: "Playback control for playlists and their sounds: play (playAll), stop (stopAll), cycle-mode (sequential -> shuffle -> soundboard), play-sound, stop-sound. Playlist and sound accept ids or unique names.",
+        description: "Playback control for playlists and their sounds, heard by everyone connected. play (starts the playlist), stop, pause and resume (the playlist keeps its place), cycle-mode (sequential -> shuffle -> soundboard), next and previous (skip tracks), play-sound, stop-sound, pause-sound, resume-sound (one track), set-volume {volume 0-1, sound?} (one track, or every track of the playlist), now-playing (what is playing or paused, with positions; playlist optional to look at one playlist), stop-all (silence every playlist; no playlist needed). Playlist and sound accept ids or unique names. To start a scene's own music use update-scene-music; to add tracks use manage-playlists.",
         inputSchema: {
           type: "object",
           properties: {
             playlist: { type: "string", description: "Playlist id or unique name" },
             command: {
               type: "string",
-              enum: ["play", "stop", "cycle-mode", "play-sound", "stop-sound"],
+              enum: [...COMMANDS],
               description: "Playback command"
             },
             sound: {
               type: "string",
-              description: "Sound id or unique name within the playlist (play-sound / stop-sound only)"
-            }
+              description: "Sound id or unique name within the playlist (the -sound commands and set-volume)"
+            },
+            volume: { type: "number", minimum: 0, maximum: 1, description: "set-volume: 0 to 1" }
           },
-          required: ["playlist", "command"]
+          required: ["command"]
         }
       }
     ];
@@ -112686,6 +112730,8 @@ var PlaylistTools = class {
       folder: external_exports.string().nullable().optional(),
       color: external_exports.string().nullable().optional(),
       sounds: external_exports.array(soundEntrySchema).optional(),
+      add_sounds: external_exports.array(newSoundSchema).max(100).optional(),
+      remove_sounds: external_exports.array(external_exports.string().min(1)).max(100).optional(),
       updates: external_exports.record(external_exports.any()).optional()
     });
     const parsed = schema4.parse(args);
@@ -112700,13 +112746,20 @@ var PlaylistTools = class {
   }
   async handleControlPlaylist(args) {
     const schema4 = external_exports.object({
-      playlist: external_exports.string().min(1),
-      command: external_exports.enum(["play", "stop", "cycle-mode", "play-sound", "stop-sound"]),
-      sound: external_exports.string().optional()
+      playlist: external_exports.string().min(1).optional(),
+      command: external_exports.enum(COMMANDS),
+      sound: external_exports.string().optional(),
+      volume: external_exports.number().min(0).max(1).optional()
     });
     const parsed = schema4.parse(args);
-    if ((parsed.command === "play-sound" || parsed.command === "stop-sound") && !parsed.sound) {
+    if (!parsed.playlist && parsed.command !== "now-playing" && parsed.command !== "stop-all") {
+      throw new Error(`command ${parsed.command} requires "playlist"`);
+    }
+    if (["play-sound", "stop-sound", "pause-sound", "resume-sound"].includes(parsed.command) && !parsed.sound) {
       throw new Error(`command ${parsed.command} requires "sound"`);
+    }
+    if (parsed.command === "set-volume" && parsed.volume === void 0) {
+      throw new Error('command set-volume requires "volume" (0 to 1)');
     }
     this.logger.info("Controlling playlist", {
       playlist: parsed.playlist,
@@ -112998,7 +113051,7 @@ var ActorCreationTools = class {
             },
             token: {
               type: "object",
-              description: "Token options: width and height in squares (2 for Large), disposition (-1, 0, 1), scale (0.2 to 3), actor_link, display_name (none, control, owner_hover, hover, owner, always), vision",
+              description: `Token options: width and height in squares (2 for a Large creature), disposition (-1 hostile, 0 neutral, 1 friendly), scale (0.2 to 3), actor_link, display_name and display_bars (none, control, owner_hover, hover, owner, always), vision (on/off), vision_range (distance units, e.g. 60), vision_mode (basic, darkvision...), sight {enabled, range, angle, vision_mode, brightness, saturation, contrast}, light {preset: torch|lantern|candle|none, or bright and dim in distance units, color #RRGGBB, alpha, angle, animation {type: torch|pulse|flame..., speed, intensity}}, detection_modes [{id, range}] (e.g. seeAll, feelTremor), lock_rotation, alpha, raw (any other prototype token field as a nested object).`,
               additionalProperties: true
             },
             img: { type: "string", description: "Portrait path to use instead of the compendium one" },
@@ -113267,7 +113320,7 @@ var ActorManagementTools = class {
                   },
                   token: {
                     type: "object",
-                    description: "Token options: width and height in squares (2 for a Large creature), disposition (-1 hostile, 0 neutral, 1 friendly), scale (0.2 to 3), actor_link, display_name (none, control, owner_hover, hover, owner, always), vision.",
+                    description: `Token options: width and height in squares (2 for a Large creature), disposition (-1 hostile, 0 neutral, 1 friendly), scale (0.2 to 3), actor_link, display_name and display_bars (none, control, owner_hover, hover, owner, always), vision (on/off), vision_range (distance units, e.g. 60), vision_mode (basic, darkvision...), sight {enabled, range, angle, vision_mode, brightness, saturation, contrast}, light {preset: torch|lantern|candle|none, or bright and dim in distance units, color #RRGGBB, alpha, angle, animation {type: torch|pulse|flame..., speed, intensity}}, detection_modes [{id, range}] (e.g. seeAll, feelTremor), lock_rotation, alpha, raw (any other prototype token field as a nested object).`,
                     additionalProperties: true
                   },
                   system: {
@@ -113313,7 +113366,7 @@ var ActorManagementTools = class {
                   },
                   token: {
                     type: "object",
-                    description: "Token options: width and height in squares (2 for a Large creature), disposition (-1 hostile, 0 neutral, 1 friendly), scale (0.2 to 3), actor_link, display_name (none, control, owner_hover, hover, owner, always), vision.",
+                    description: `Token options: width and height in squares (2 for a Large creature), disposition (-1 hostile, 0 neutral, 1 friendly), scale (0.2 to 3), actor_link, display_name and display_bars (none, control, owner_hover, hover, owner, always), vision (on/off), vision_range (distance units, e.g. 60), vision_mode (basic, darkvision...), sight {enabled, range, angle, vision_mode, brightness, saturation, contrast}, light {preset: torch|lantern|candle|none, or bright and dim in distance units, color #RRGGBB, alpha, angle, animation {type: torch|pulse|flame..., speed, intensity}}, detection_modes [{id, range}] (e.g. seeAll, feelTremor), lock_rotation, alpha, raw (any other prototype token field as a nested object).`,
                     additionalProperties: true
                   },
                   folder: {
@@ -116550,7 +116603,7 @@ var TokenManipulationTools = class {
     return [
       {
         name: "move-token",
-        description: "Move a token to a new position on the current scene. Can optionally animate the movement.",
+        description: "Move a token to a new position (pixels). The token is found on any scene (or pass scene). Moving a token into a teleport region teleports it. Can optionally animate the movement.",
         inputSchema: {
           type: "object",
           properties: {
@@ -116570,14 +116623,15 @@ var TokenManipulationTools = class {
               type: "boolean",
               description: "Whether to animate the movement (default: false)",
               default: false
-            }
+            },
+            scene: { type: "string", description: "Scene id or exact name (default: found automatically)" }
           },
           required: ["tokenId", "x", "y"]
         }
       },
       {
         name: "update-token",
-        description: "Update various properties of a token such as visibility, disposition, size, rotation, elevation, or name",
+        description: "Update properties of a token already on a scene (found on any scene, or pass scene): updates for position, size, rotation, visibility, disposition, name, elevation; and options for vision and light, in the same form as the token options of manage-actors: vision, vision_range (distance units), vision_mode (basic, darkvision...), sight {enabled, range, angle, vision_mode, brightness...}, light {preset: torch|lantern|candle|none, bright, dim, color, alpha, angle, animation {type, speed, intensity}...}, detection_modes [{id, range}], lock_rotation, alpha, display_name, display_bars, scale, raw {any token field}.",
         inputSchema: {
           type: "object",
           properties: {
@@ -116633,7 +116687,7 @@ var TokenManipulationTools = class {
               }
             }
           },
-          required: ["tokenId", "updates"]
+          required: ["tokenId"]
         }
       },
       {
@@ -116731,6 +116785,8 @@ var TokenManipulationTools = class {
   async handleUpdateToken(args) {
     const schema4 = external_exports.object({
       tokenId: external_exports.string(),
+      scene: external_exports.string().min(1).optional(),
+      options: external_exports.record(external_exports.any()).optional(),
       updates: external_exports.object({
         x: external_exports.number().optional(),
         y: external_exports.number().optional(),
@@ -116742,14 +116798,18 @@ var TokenManipulationTools = class {
         name: external_exports.string().optional(),
         elevation: external_exports.number().optional(),
         lockRotation: external_exports.boolean().optional()
-      })
+      }).default({})
     });
-    const { tokenId, updates } = schema4.parse(args);
+    const { tokenId, updates, options, scene } = schema4.parse(args);
+    if (Object.keys(updates).length === 0 && !options)
+      throw new Error("Give updates or options");
     this.logger.info("Updating token", { tokenId, updates });
     try {
       const result = await this.foundryClient.query("foundry-mcp-bridge.update-token", {
         tokenId,
-        updates
+        updates,
+        ...options ? { options } : {},
+        ...scene ? { scene } : {}
       });
       this.logger.debug("Token updated successfully", { tokenId, result });
       return {
@@ -120024,7 +120084,25 @@ var import_path = __toESM(require("path"), 1);
 init_zod();
 var UPLOAD_MAX_BYTES = 20 * 1024 * 1024;
 var UPLOAD_TIMEOUT_MS = 12e4;
-var ALLOWED_EXTENSIONS = ["png", "jpg", "jpeg", "webp", "gif"];
+var UPLOAD_AUDIO_MAX_BYTES = 25 * 1024 * 1024;
+var ALLOWED_EXTENSIONS = ["png", "jpg", "jpeg", "webp", "gif", "mp3", "ogg", "oga", "opus", "wav", "flac", "m4a"];
+function detectAudioType(bytes) {
+  const b = bytes;
+  const at = (i, ...v) => v.every((x, k) => b[i + k] === x);
+  if (b.length >= 3 && at(0, 73, 68, 51))
+    return "mp3";
+  if (b.length >= 2 && b[0] === 255 && (b[1] & 224) === 224)
+    return "mp3";
+  if (b.length >= 4 && at(0, 79, 103, 103, 83))
+    return "ogg";
+  if (b.length >= 12 && at(0, 82, 73, 70, 70) && at(8, 87, 65, 86, 69))
+    return "wav";
+  if (b.length >= 4 && at(0, 102, 76, 97, 67))
+    return "flac";
+  if (b.length >= 12 && at(4, 102, 116, 121, 112))
+    return "m4a";
+  return null;
+}
 function detectImageType(bytes) {
   const b = bytes;
   if (b.length >= 8 && b[0] === 137 && b[1] === 80 && b[2] === 78 && b[3] === 71 && b[4] === 13 && b[5] === 10 && b[6] === 26 && b[7] === 10) {
@@ -120051,7 +120129,7 @@ var UploadTools = class {
     return [
       {
         name: "upload-file",
-        description: "Upload an image from this computer to the Foundry server, into the current world's own folder (worlds/<world>/uploads/...). Returns the Foundry path, which can be used directly as a scene background (manage-scenes) or an actor or token image. Only png, jpg, webp and gif images up to 20 MB are accepted; the file must really be an image. Existing files are not replaced unless overwrite is true.",
+        description: `Upload an image or an audio file from this computer to the Foundry server, into the current world's own folder (worlds/<world>/uploads/...). Returns the Foundry path, which can be used directly as a scene background (manage-scenes), an actor or token image, or a sound for manage-playlists and manage-scene-objects {kind:"sound"}. Images: png, jpg, webp, gif up to 20 MB. Audio: mp3, ogg, wav, flac, m4a up to 25 MB. The file must really be of the type its name says. Existing files are not replaced unless overwrite is true.`,
         inputSchema: {
           type: "object",
           properties: {
@@ -120105,16 +120183,25 @@ var UploadTools = class {
     if (stat.size === 0) {
       throw new Error("The file is empty");
     }
-    if (stat.size > UPLOAD_MAX_BYTES) {
-      throw new Error(`The file is ${(stat.size / 1024 / 1024).toFixed(1)} MB; the limit is ${UPLOAD_MAX_BYTES / 1024 / 1024} MB`);
+    const isAudioName = ["mp3", "ogg", "oga", "opus", "wav", "flac", "m4a"].includes(extension);
+    const sizeLimit = isAudioName ? UPLOAD_AUDIO_MAX_BYTES : UPLOAD_MAX_BYTES;
+    if (stat.size > sizeLimit) {
+      throw new Error(`The file is ${(stat.size / 1024 / 1024).toFixed(1)} MB; the limit is ${sizeLimit / 1024 / 1024} MB`);
     }
     const bytes = await import_fs.promises.readFile(parsed.file_path);
     const detected = detectImageType(bytes);
-    if (!detected) {
-      throw new Error("The file is not a PNG, JPEG, WebP or GIF image");
+    const detectedAudio = detected ? null : detectAudioType(bytes);
+    if (!detected && !detectedAudio) {
+      throw new Error("The file is not a PNG, JPEG, WebP or GIF image or an MP3, OGG, WAV, FLAC or M4A audio file");
     }
-    if ((extension === "jpeg" ? "jpg" : extension) !== detected) {
+    if (detected && (extension === "jpeg" ? "jpg" : extension) !== detected) {
       throw new Error(`The file content is ${detected.toUpperCase()} but its name says ".${extension}"`);
+    }
+    if (detectedAudio) {
+      const nameOk = detectedAudio === "ogg" ? ["ogg", "oga", "opus"].includes(extension) : extension === detectedAudio;
+      if (!nameOk) {
+        throw new Error(`The file content is ${detectedAudio.toUpperCase()} but its name says ".${extension}"`);
+      }
     }
     this.logger.info("Uploading file to Foundry", {
       name: storedName,
@@ -121056,7 +121143,7 @@ var previewSchema = external_exports.object({
   scene: external_exports.string().min(1).optional(),
   max_size: external_exports.number().int().min(200).max(3e3).optional(),
   label_every: external_exports.number().int().min(1).max(50).optional(),
-  layers: external_exports.array(external_exports.enum(["image", "grid", "walls", "doors", "tokens", "lights", "light_radii", "notes", "regions"])).min(1).optional(),
+  layers: external_exports.array(external_exports.enum(["image", "tiles", "grid", "walls", "doors", "tokens", "lights", "light_radii", "notes", "regions"])).min(1).optional(),
   labels: external_exports.enum(["numbers", "names", "none"]).optional(),
   dim: external_exports.number().min(0).max(0.9).optional(),
   text: external_exports.boolean().optional(),
@@ -121343,8 +121430,8 @@ var SceneObjectTools = class {
             },
             layers: {
               type: "array",
-              items: { type: "string", enum: ["image", "grid", "walls", "doors", "tokens", "lights", "light_radii", "notes", "regions"] },
-              description: 'What to draw (default: image, grid, walls, doors, tokens, lights as dots, notes, regions). Pass e.g. ["image","grid","tokens"] to check only the tokens, ["grid","walls","doors"] for just the walls, or add "light_radii" to see how far lights reach.'
+              items: { type: "string", enum: ["image", "tiles", "grid", "walls", "doors", "tokens", "lights", "light_radii", "notes", "regions"] },
+              description: 'What to draw (default: image, tiles, grid, walls, doors, tokens, lights as dots, notes, regions). Pass e.g. ["image","grid","tokens"] to check only the tokens, ["grid","walls","doors"] for just the walls, or add "light_radii" to see how far lights reach.'
             },
             labels: {
               type: "string",
