@@ -11,9 +11,9 @@ var __esm = (fn, res) => function __init() {
 var __commonJS = (cb, mod) => function __require() {
   return mod || (0, cb[__getOwnPropNames(cb)[0]])((mod = { exports: {} }).exports, mod), mod.exports;
 };
-var __export = (target, all3) => {
+var __export = (target2, all3) => {
   for (var name in all3)
-    __defProp(target, name, { get: all3[name], enumerable: true });
+    __defProp(target2, name, { get: all3[name], enumerable: true });
 };
 var __copyProps = (to, from, except, desc) => {
   if (from && typeof from === "object" || typeof from === "function") {
@@ -23,12 +23,12 @@ var __copyProps = (to, from, except, desc) => {
   }
   return to;
 };
-var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__getProtoOf(mod)) : {}, __copyProps(
+var __toESM = (mod, isNodeMode, target2) => (target2 = mod != null ? __create(__getProtoOf(mod)) : {}, __copyProps(
   // If the importer is in node compatibility mode or this is not an ESM
   // file that has been converted to a CommonJS file using a Babel-
   // compatible transform (i.e. "__esModule" has not been set), then set
   // "default" to the CommonJS "module.exports" for node compatibility.
-  isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target,
+  isNodeMode || !mod || !mod.__esModule ? __defProp(target2, "default", { value: mod, enumerable: true }) : target2,
   mod
 ));
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
@@ -47,9 +47,9 @@ var init_util = __esm({
         throw new Error();
       }
       util4.assertNever = assertNever;
-      util4.arrayToEnum = (items) => {
+      util4.arrayToEnum = (items2) => {
         const obj = {};
-        for (const item of items) {
+        for (const item of items2) {
           obj[item] = item;
         }
         return obj;
@@ -647,30 +647,30 @@ function floatSafeRemainder(val, step) {
   const stepInt = Number.parseInt(step.toFixed(decCount).replace(".", ""));
   return valInt % stepInt / 10 ** decCount;
 }
-function deepPartialify(schema8) {
-  if (schema8 instanceof ZodObject) {
+function deepPartialify(schema11) {
+  if (schema11 instanceof ZodObject) {
     const newShape = {};
-    for (const key in schema8.shape) {
-      const fieldSchema = schema8.shape[key];
+    for (const key in schema11.shape) {
+      const fieldSchema = schema11.shape[key];
       newShape[key] = ZodOptional.create(deepPartialify(fieldSchema));
     }
     return new ZodObject({
-      ...schema8._def,
+      ...schema11._def,
       shape: () => newShape
     });
-  } else if (schema8 instanceof ZodArray) {
+  } else if (schema11 instanceof ZodArray) {
     return new ZodArray({
-      ...schema8._def,
-      type: deepPartialify(schema8.element)
+      ...schema11._def,
+      type: deepPartialify(schema11.element)
     });
-  } else if (schema8 instanceof ZodOptional) {
-    return ZodOptional.create(deepPartialify(schema8.unwrap()));
-  } else if (schema8 instanceof ZodNullable) {
-    return ZodNullable.create(deepPartialify(schema8.unwrap()));
-  } else if (schema8 instanceof ZodTuple) {
-    return ZodTuple.create(schema8.items.map((item) => deepPartialify(item)));
+  } else if (schema11 instanceof ZodOptional) {
+    return ZodOptional.create(deepPartialify(schema11.unwrap()));
+  } else if (schema11 instanceof ZodNullable) {
+    return ZodNullable.create(deepPartialify(schema11.unwrap()));
+  } else if (schema11 instanceof ZodTuple) {
+    return ZodTuple.create(schema11.items.map((item) => deepPartialify(item)));
   } else {
-    return schema8;
+    return schema11;
   }
 }
 function mergeValues(a, b) {
@@ -1061,8 +1061,8 @@ var init_types = __esm({
           description
         });
       }
-      pipe(target) {
-        return ZodPipeline.create(this, target);
+      pipe(target2) {
+        return ZodPipeline.create(this, target2);
       }
       readonly() {
         return ZodReadonly.create(this);
@@ -2397,9 +2397,9 @@ var init_types = __esm({
         return this.min(1, message);
       }
     };
-    ZodArray.create = (schema8, params) => {
+    ZodArray.create = (schema11, params) => {
       return new ZodArray({
-        type: schema8,
+        type: schema11,
         minLength: null,
         maxLength: null,
         exactLength: null,
@@ -2620,8 +2620,8 @@ var init_types = __esm({
       //   }) as any;
       //   return merged;
       // }
-      setKey(key, schema8) {
-        return this.augment({ [key]: schema8 });
+      setKey(key, schema11) {
+        return this.augment({ [key]: schema11 });
       }
       // merge<Incoming extends AnyZodObject>(
       //   merging: Incoming
@@ -3028,18 +3028,18 @@ var init_types = __esm({
           });
           status.dirty();
         }
-        const items = [...ctx.data].map((item, itemIndex) => {
-          const schema8 = this._def.items[itemIndex] || this._def.rest;
-          if (!schema8)
+        const items2 = [...ctx.data].map((item, itemIndex) => {
+          const schema11 = this._def.items[itemIndex] || this._def.rest;
+          if (!schema11)
             return null;
-          return schema8._parse(new ParseInputLazyPath(ctx, item, ctx.path, itemIndex));
+          return schema11._parse(new ParseInputLazyPath(ctx, item, ctx.path, itemIndex));
         }).filter((x) => !!x);
         if (ctx.common.async) {
-          return Promise.all(items).then((results) => {
+          return Promise.all(items2).then((results) => {
             return ParseStatus.mergeArray(status, results);
           });
         } else {
-          return ParseStatus.mergeArray(status, items);
+          return ParseStatus.mergeArray(status, items2);
         }
       }
       get items() {
@@ -3343,10 +3343,10 @@ var init_types = __esm({
       returnType() {
         return this._def.returns;
       }
-      args(...items) {
+      args(...items2) {
         return new _ZodFunction({
           ...this._def,
-          args: ZodTuple.create(items).rest(ZodUnknown.create())
+          args: ZodTuple.create(items2).rest(ZodUnknown.create())
         });
       }
       returns(returnType) {
@@ -3539,9 +3539,9 @@ var init_types = __esm({
         }));
       }
     };
-    ZodPromise.create = (schema8, params) => {
+    ZodPromise.create = (schema11, params) => {
       return new ZodPromise({
-        type: schema8,
+        type: schema11,
         typeName: ZodFirstPartyTypeKind.ZodPromise,
         ...processCreateParams(params)
       });
@@ -3669,17 +3669,17 @@ var init_types = __esm({
         util.assertNever(effect);
       }
     };
-    ZodEffects.create = (schema8, effect, params) => {
+    ZodEffects.create = (schema11, effect, params) => {
       return new ZodEffects({
-        schema: schema8,
+        schema: schema11,
         typeName: ZodFirstPartyTypeKind.ZodEffects,
         effect,
         ...processCreateParams(params)
       });
     };
-    ZodEffects.createWithPreprocess = (preprocess, schema8, params) => {
+    ZodEffects.createWithPreprocess = (preprocess, schema11, params) => {
       return new ZodEffects({
-        schema: schema8,
+        schema: schema11,
         effect: { type: "preprocess", transform: preprocess },
         typeName: ZodFirstPartyTypeKind.ZodEffects,
         ...processCreateParams(params)
@@ -4754,10 +4754,10 @@ var require_supports_colors = __commonJS({
 // ../../node_modules/@colors/colors/lib/custom/trap.js
 var require_trap = __commonJS({
   "../../node_modules/@colors/colors/lib/custom/trap.js"(exports2, module2) {
-    module2["exports"] = function runTheTrap(text2, options) {
+    module2["exports"] = function runTheTrap(text3, options) {
       var result = "";
-      text2 = text2 || "Run the trap, drop the bass";
-      text2 = text2.split("");
+      text3 = text3 || "Run the trap, drop the bass";
+      text3 = text3.split("");
       var trap = {
         a: ["@", "\u0104", "\u023A", "\u0245", "\u0394", "\u039B", "\u0414"],
         b: ["\xDF", "\u0181", "\u0243", "\u026E", "\u03B2", "\u0E3F"],
@@ -4805,7 +4805,7 @@ var require_trap = __commonJS({
         y: ["\xA5", "\u04B0", "\u04CB"],
         z: ["\u01B5", "\u0240"]
       };
-      text2.forEach(function(c) {
+      text3.forEach(function(c) {
         c = c.toLowerCase();
         var chars = trap[c] || [" "];
         var rand = Math.floor(Math.random() * chars.length);
@@ -4823,8 +4823,8 @@ var require_trap = __commonJS({
 // ../../node_modules/@colors/colors/lib/custom/zalgo.js
 var require_zalgo = __commonJS({
   "../../node_modules/@colors/colors/lib/custom/zalgo.js"(exports2, module2) {
-    module2["exports"] = function zalgo(text2, options) {
-      text2 = text2 || "   he is here   ";
+    module2["exports"] = function zalgo(text3, options) {
+      text3 = text3 || "   he is here   ";
       var soul = {
         "up": [
           "\u030D",
@@ -4957,7 +4957,7 @@ var require_zalgo = __commonJS({
         });
         return bool;
       }
-      function heComes(text3, options2) {
+      function heComes(text4, options2) {
         var result = "";
         var counts;
         var l;
@@ -4966,12 +4966,12 @@ var require_zalgo = __commonJS({
         options2["mid"] = typeof options2["mid"] !== "undefined" ? options2["mid"] : true;
         options2["down"] = typeof options2["down"] !== "undefined" ? options2["down"] : true;
         options2["size"] = typeof options2["size"] !== "undefined" ? options2["size"] : "maxi";
-        text3 = text3.split("");
-        for (l in text3) {
+        text4 = text4.split("");
+        for (l in text4) {
           if (isChar(l)) {
             continue;
           }
-          result = result + text3[l];
+          result = result + text4[l];
           counts = { "up": 0, "down": 0, "mid": 0 };
           switch (options2.size) {
             case "mini":
@@ -5002,7 +5002,7 @@ var require_zalgo = __commonJS({
         }
         return result;
       }
-      return heComes(text2, options);
+      return heComes(text3, options);
     };
   }
 });
@@ -7546,16 +7546,16 @@ var require_buffer_list = __commonJS({
       }
       return keys;
     }
-    function _objectSpread(target) {
+    function _objectSpread(target2) {
       for (var i = 1; i < arguments.length; i++) {
         var source = null != arguments[i] ? arguments[i] : {};
         i % 2 ? ownKeys2(Object(source), true).forEach(function(key) {
-          _defineProperty(target, key, source[key]);
-        }) : Object.getOwnPropertyDescriptors ? Object.defineProperties(target, Object.getOwnPropertyDescriptors(source)) : ownKeys2(Object(source)).forEach(function(key) {
-          Object.defineProperty(target, key, Object.getOwnPropertyDescriptor(source, key));
+          _defineProperty(target2, key, source[key]);
+        }) : Object.getOwnPropertyDescriptors ? Object.defineProperties(target2, Object.getOwnPropertyDescriptors(source)) : ownKeys2(Object(source)).forEach(function(key) {
+          Object.defineProperty(target2, key, Object.getOwnPropertyDescriptor(source, key));
         });
       }
-      return target;
+      return target2;
     }
     function _defineProperty(obj, key, value) {
       key = _toPropertyKey(key);
@@ -7571,14 +7571,14 @@ var require_buffer_list = __commonJS({
         throw new TypeError("Cannot call a class as a function");
       }
     }
-    function _defineProperties(target, props) {
+    function _defineProperties(target2, props) {
       for (var i = 0; i < props.length; i++) {
         var descriptor = props[i];
         descriptor.enumerable = descriptor.enumerable || false;
         descriptor.configurable = true;
         if ("value" in descriptor)
           descriptor.writable = true;
-        Object.defineProperty(target, _toPropertyKey(descriptor.key), descriptor);
+        Object.defineProperty(target2, _toPropertyKey(descriptor.key), descriptor);
       }
     }
     function _createClass(Constructor, protoProps, staticProps) {
@@ -7610,8 +7610,8 @@ var require_buffer_list = __commonJS({
     var _require2 = require("util");
     var inspect = _require2.inspect;
     var custom2 = inspect && inspect.custom || "inspect";
-    function copyBuffer(src, target, offset) {
-      Buffer2.prototype.copy.call(src, target, offset);
+    function copyBuffer(src, target2, offset) {
+      Buffer2.prototype.copy.call(src, target2, offset);
     }
     module2.exports = /* @__PURE__ */ function() {
       function BufferList() {
@@ -8441,16 +8441,16 @@ var require_from = __commonJS({
       }
       return keys;
     }
-    function _objectSpread(target) {
+    function _objectSpread(target2) {
       for (var i = 1; i < arguments.length; i++) {
         var source = null != arguments[i] ? arguments[i] : {};
         i % 2 ? ownKeys2(Object(source), true).forEach(function(key) {
-          _defineProperty(target, key, source[key]);
-        }) : Object.getOwnPropertyDescriptors ? Object.defineProperties(target, Object.getOwnPropertyDescriptors(source)) : ownKeys2(Object(source)).forEach(function(key) {
-          Object.defineProperty(target, key, Object.getOwnPropertyDescriptor(source, key));
+          _defineProperty(target2, key, source[key]);
+        }) : Object.getOwnPropertyDescriptors ? Object.defineProperties(target2, Object.getOwnPropertyDescriptors(source)) : ownKeys2(Object(source)).forEach(function(key) {
+          Object.defineProperty(target2, key, Object.getOwnPropertyDescriptor(source, key));
         });
       }
-      return target;
+      return target2;
     }
     function _defineProperty(obj, key, value) {
       key = _toPropertyKey(key);
@@ -12930,12 +12930,12 @@ var require_colorspace = __commonJS({
 var require_kuler = __commonJS({
   "../../node_modules/kuler/index.js"(exports2, module2) {
     "use strict";
-    function Kuler(text2, color2) {
+    function Kuler(text3, color2) {
       if (color2)
-        return new Kuler(text2).style(color2);
+        return new Kuler(text3).style(color2);
       if (!(this instanceof Kuler))
-        return new Kuler(text2);
-      this.text = text2;
+        return new Kuler(text3);
+      this.text = text3;
     }
     Kuler.prototype.prefix = "\x1B[";
     Kuler.prototype.suffix = "m";
@@ -13200,10 +13200,10 @@ var require_file = __commonJS({
       constructor(options = {}) {
         super(options);
         this.name = options.name || "file";
-        function throwIf(target, ...args) {
+        function throwIf(target2, ...args) {
           args.slice(1).forEach((name) => {
             if (options[name]) {
-              throw new Error(`Cannot set ${name} and ${target} together`);
+              throw new Error(`Cannot set ${name} and ${target2} together`);
             }
           });
         }
@@ -13519,12 +13519,12 @@ var require_file = __commonJS({
        * @returns {undefined}
        */
       stat(callback) {
-        const target = this._getFile();
-        const fullpath = path13.join(this.dirname, target);
+        const target2 = this._getFile();
+        const fullpath = path13.join(this.dirname, target2);
         fs13.stat(fullpath, (err, stat) => {
           if (err && err.code === "ENOENT") {
             debug("ENOENT\xA0ok", fullpath);
-            this.filename = target;
+            this.filename = target2;
             return callback(null, 0);
           }
           if (err) {
@@ -13534,7 +13534,7 @@ var require_file = __commonJS({
           if (!stat || this._needsNewFile(stat.size)) {
             return this._incFile(() => this.stat(callback));
           }
-          this.filename = target;
+          this.filename = target2;
           callback(null, stat.size);
         });
       }
@@ -13704,8 +13704,8 @@ var require_file = __commonJS({
         const isOldest = oldest !== 0 ? oldest : "";
         const isZipped = this.zippedArchive ? ".gz" : "";
         const filePath = `${basename2}${isOldest}${ext}${isZipped}`;
-        const target = path13.join(this.dirname, filePath);
-        fs13.unlink(target, callback);
+        const target2 = path13.join(this.dirname, filePath);
+        fs13.unlink(target2, callback);
       }
       /**
        * Roll files forward based on integer, up to maxFiles. e.g. if base if
@@ -15155,15 +15155,15 @@ var require_logger = __commonJS({
        * @returns {Logger} - TODO: add return description.
        */
       add(transport) {
-        const target = !isStream2(transport) || transport.log.length > 2 ? new LegacyTransportStream({ transport }) : transport;
-        if (!target._writableState || !target._writableState.objectMode) {
+        const target2 = !isStream2(transport) || transport.log.length > 2 ? new LegacyTransportStream({ transport }) : transport;
+        if (!target2._writableState || !target2._writableState.objectMode) {
           throw new Error(
             "Transports must WritableStreams in objectMode. Set { objectMode: true }."
           );
         }
-        this._onEvent("error", target);
-        this._onEvent("warn", target);
-        this.pipe(target);
+        this._onEvent("error", target2);
+        this._onEvent("warn", target2);
+        this.pipe(target2);
         if (transport.handleExceptions) {
           this.exceptions.handle();
         }
@@ -15180,14 +15180,14 @@ var require_logger = __commonJS({
       remove(transport) {
         if (!transport)
           return this;
-        let target = transport;
+        let target2 = transport;
         if (!isStream2(transport) || transport.log.length > 2) {
-          target = this.transports.filter(
+          target2 = this.transports.filter(
             (match) => match.transport === transport
           )[0];
         }
-        if (target) {
-          this.unpipe(target);
+        if (target2) {
+          this.unpipe(target2);
         }
         return this;
       }
@@ -15693,17 +15693,17 @@ var require_buffer_util = __commonJS({
         return EMPTY_BUFFER;
       if (list.length === 1)
         return list[0];
-      const target = Buffer.allocUnsafe(totalLength);
+      const target2 = Buffer.allocUnsafe(totalLength);
       let offset = 0;
       for (let i = 0; i < list.length; i++) {
         const buf = list[i];
-        target.set(buf, offset);
+        target2.set(buf, offset);
         offset += buf.length;
       }
       if (offset < totalLength) {
-        return new FastBuffer(target.buffer, target.byteOffset, offset);
+        return new FastBuffer(target2.buffer, target2.byteOffset, offset);
       }
-      return target;
+      return target2;
     }
     function _mask(source, mask, output, offset, length) {
       for (let i = 0; i < length; i++) {
@@ -17111,32 +17111,32 @@ var require_sender = __commonJS({
           offset += 2;
           payloadLength = 126;
         }
-        const target = Buffer.allocUnsafe(merge2 ? dataLength + offset : offset);
-        target[0] = options.fin ? options.opcode | 128 : options.opcode;
+        const target2 = Buffer.allocUnsafe(merge2 ? dataLength + offset : offset);
+        target2[0] = options.fin ? options.opcode | 128 : options.opcode;
         if (options.rsv1)
-          target[0] |= 64;
-        target[1] = payloadLength;
+          target2[0] |= 64;
+        target2[1] = payloadLength;
         if (payloadLength === 126) {
-          target.writeUInt16BE(dataLength, 2);
+          target2.writeUInt16BE(dataLength, 2);
         } else if (payloadLength === 127) {
-          target[2] = target[3] = 0;
-          target.writeUIntBE(dataLength, 4, 6);
+          target2[2] = target2[3] = 0;
+          target2.writeUIntBE(dataLength, 4, 6);
         }
         if (!options.mask)
-          return [target, data];
-        target[1] |= 128;
-        target[offset - 4] = mask[0];
-        target[offset - 3] = mask[1];
-        target[offset - 2] = mask[2];
-        target[offset - 1] = mask[3];
+          return [target2, data];
+        target2[1] |= 128;
+        target2[offset - 4] = mask[0];
+        target2[offset - 3] = mask[1];
+        target2[offset - 2] = mask[2];
+        target2[offset - 1] = mask[3];
         if (skipMasking)
-          return [target, data];
+          return [target2, data];
         if (merge2) {
-          applyMask(data, mask, target, offset, dataLength);
-          return [target];
+          applyMask(data, mask, target2, offset, dataLength);
+          return [target2];
         }
         applyMask(data, mask, data, 0, dataLength);
-        return [target, data];
+        return [target2, data];
       }
       /**
        * Sends a close message to the other peer.
@@ -22985,37 +22985,37 @@ var require_ip = __commonJS({
           result[offset++] = parseInt(byte, 10) & 255;
         });
       } else if (this.isV6Format(ip2)) {
-        var sections = ip2.split(":", 8);
+        var sections2 = ip2.split(":", 8);
         var i;
-        for (i = 0; i < sections.length; i++) {
-          var isv4 = this.isV4Format(sections[i]);
+        for (i = 0; i < sections2.length; i++) {
+          var isv4 = this.isV4Format(sections2[i]);
           var v4Buffer;
           if (isv4) {
-            v4Buffer = this.toBuffer(sections[i]);
-            sections[i] = v4Buffer.slice(0, 2).toString("hex");
+            v4Buffer = this.toBuffer(sections2[i]);
+            sections2[i] = v4Buffer.slice(0, 2).toString("hex");
           }
           if (v4Buffer && ++i < 8) {
-            sections.splice(i, 0, v4Buffer.slice(2, 4).toString("hex"));
+            sections2.splice(i, 0, v4Buffer.slice(2, 4).toString("hex"));
           }
         }
-        if (sections[0] === "") {
-          while (sections.length < 8)
-            sections.unshift("0");
-        } else if (sections[sections.length - 1] === "") {
-          while (sections.length < 8)
-            sections.push("0");
-        } else if (sections.length < 8) {
-          for (i = 0; i < sections.length && sections[i] !== ""; i++)
+        if (sections2[0] === "") {
+          while (sections2.length < 8)
+            sections2.unshift("0");
+        } else if (sections2[sections2.length - 1] === "") {
+          while (sections2.length < 8)
+            sections2.push("0");
+        } else if (sections2.length < 8) {
+          for (i = 0; i < sections2.length && sections2[i] !== ""; i++)
             ;
           var argv = [i, 1];
-          for (i = 9 - sections.length; i > 0; i--) {
+          for (i = 9 - sections2.length; i > 0; i--) {
             argv.push("0");
           }
-          sections.splice.apply(sections, argv);
+          sections2.splice.apply(sections2, argv);
         }
         result = buff || new Buffer2(offset + 16);
-        for (i = 0; i < sections.length; i++) {
-          var word = parseInt(sections[i], 16);
+        for (i = 0; i < sections2.length; i++) {
+          var word = parseInt(sections2[i], 16);
           result[offset++] = word >> 8 & 255;
           result[offset++] = word & 255;
         }
@@ -26817,8 +26817,8 @@ var require_ice = __commonJS({
           }
         }
         if (!this.iceControlling) {
-          const target = CandidatePairState.SUCCEEDED;
-          if (this.checkList.find(({ state }) => state === target)) {
+          const target2 = CandidatePairState.SUCCEEDED;
+          if (this.checkList.find(({ state }) => state === target2)) {
             return;
           }
         }
@@ -27270,9 +27270,9 @@ var require_av1 = __commonJS({
           if (isFragment) {
             let fragments = [];
             for (let head = i; head < length; head++) {
-              const target = objects[head];
-              if (target.isFragment) {
-                fragments.push(target.data);
+              const target2 = objects[head];
+              if (target2.isFragment) {
+                fragments.push(target2.data);
                 delete objects[head];
               } else {
                 break;
@@ -31829,16 +31829,16 @@ var require_sdes = __commonJS({
       }
       static deSerialize(data) {
         const source = data.readUInt32BE();
-        const items = [];
+        const items2 = [];
         for (let i = 4; i < data.length; ) {
           const type = data[i];
           if (type === 0)
             break;
           const item = SourceDescriptionItem.deSerialize(data.slice(i));
-          items.push(item);
+          items2.push(item);
           i += item.length;
         }
-        return new _SourceDescriptionChunk({ source, items });
+        return new _SourceDescriptionChunk({ source, items: items2 });
       }
     };
     exports2.SourceDescriptionChunk = SourceDescriptionChunk;
@@ -31862,17 +31862,17 @@ var require_sdes = __commonJS({
         return 1 + 1 + Buffer.from(this.text).length;
       }
       serialize() {
-        const text2 = Buffer.from(this.text);
+        const text3 = Buffer.from(this.text);
         return Buffer.concat([
-          (0, src_1.bufferWriter)([1, 1], [this.type, text2.length]),
-          text2
+          (0, src_1.bufferWriter)([1, 1], [this.type, text3.length]),
+          text3
         ]);
       }
       static deSerialize(data) {
         const type = data[0];
         const octetCount = data[1];
-        const text2 = data.slice(2, 2 + octetCount).toString();
-        return new _SourceDescriptionItem({ type, text: text2 });
+        const text3 = data.slice(2, 2 + octetCount).toString();
+        return new _SourceDescriptionItem({ type, text: text3 });
       }
     };
     exports2.SourceDescriptionItem = SourceDescriptionItem;
@@ -32670,13 +32670,13 @@ var require_aes_js = __commonJS({
         targetArray.set(sourceArray, targetStart);
       }
       var convertUtf8 = /* @__PURE__ */ function() {
-        function toBytes(text2) {
+        function toBytes(text3) {
           var result = [], i = 0;
-          text2 = encodeURI(text2);
-          while (i < text2.length) {
-            var c = text2.charCodeAt(i++);
+          text3 = encodeURI(text3);
+          while (i < text3.length) {
+            var c = text3.charCodeAt(i++);
             if (c === 37) {
-              result.push(parseInt(text2.substr(i, 2), 16));
+              result.push(parseInt(text3.substr(i, 2), 16));
               i += 2;
             } else {
               result.push(c);
@@ -32707,10 +32707,10 @@ var require_aes_js = __commonJS({
         };
       }();
       var convertHex = /* @__PURE__ */ function() {
-        function toBytes(text2) {
+        function toBytes(text3) {
           var result = [];
-          for (var i = 0; i < text2.length; i += 2) {
-            result.push(parseInt(text2.substr(i, 2), 16));
+          for (var i = 0; i < text3.length; i += 2) {
+            result.push(parseInt(text3.substr(i, 2), 16));
           }
           return result;
         }
@@ -41332,8 +41332,8 @@ var require_build3 = __commonJS({
     var BASE64_REGEX = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
     var BASE64URL_REGEX = /^[a-zA-Z0-9-_]+$/;
     var Utf8Converter = class {
-      static fromString(text2) {
-        const s = unescape(encodeURIComponent(text2));
+      static fromString(text3) {
+        const s = unescape(encodeURIComponent(text3));
         const uintArray = new Uint8Array(s.length);
         for (let i = 0; i < s.length; i++) {
           uintArray[i] = s.charCodeAt(i);
@@ -41361,11 +41361,11 @@ var require_build3 = __commonJS({
         }
         return res;
       }
-      static fromString(text2, littleEndian = false) {
-        const res = new ArrayBuffer(text2.length * 2);
+      static fromString(text3, littleEndian = false) {
+        const res = new ArrayBuffer(text3.length * 2);
         const dataView = new DataView(res);
-        for (let i = 0; i < text2.length; i++) {
-          dataView.setUint16(i * 2, text2.charCodeAt(i), littleEndian);
+        for (let i = 0; i < text3.length; i++) {
+          dataView.setUint16(i * 2, text3.charCodeAt(i), littleEndian);
         }
         return res;
       }
@@ -41462,18 +41462,18 @@ var require_build3 = __commonJS({
       static ToBase64Url(data) {
         return this.ToBase64(data).replace(/\+/g, "-").replace(/\//g, "_").replace(/\=/g, "");
       }
-      static FromUtf8String(text2, encoding = _Convert.DEFAULT_UTF8_ENCODING) {
+      static FromUtf8String(text3, encoding = _Convert.DEFAULT_UTF8_ENCODING) {
         switch (encoding) {
           case "ascii":
-            return this.FromBinary(text2);
+            return this.FromBinary(text3);
           case "utf8":
-            return Utf8Converter.fromString(text2);
+            return Utf8Converter.fromString(text3);
           case "utf16":
           case "utf16be":
-            return Utf16Converter.fromString(text2);
+            return Utf16Converter.fromString(text3);
           case "utf16le":
           case "usc2":
-            return Utf16Converter.fromString(text2, true);
+            return Utf16Converter.fromString(text3, true);
           default:
             throw new Error(`Unknown type of encoding '${encoding}'`);
         }
@@ -41494,11 +41494,11 @@ var require_build3 = __commonJS({
             throw new Error(`Unknown type of encoding '${encoding}'`);
         }
       }
-      static FromBinary(text2) {
-        const stringLength = text2.length;
+      static FromBinary(text3) {
+        const stringLength = text3.length;
         const resultView = new Uint8Array(stringLength);
         for (let i = 0; i < stringLength; i++) {
-          resultView[i] = text2.charCodeAt(i);
+          resultView[i] = text3.charCodeAt(i);
         }
         return resultView.buffer;
       }
@@ -41544,8 +41544,8 @@ var require_build3 = __commonJS({
       static ToUtf16String(buffer, littleEndian = false) {
         return Utf16Converter.toString(buffer, littleEndian);
       }
-      static FromUtf16String(text2, littleEndian = false) {
-        return Utf16Converter.fromString(text2, littleEndian);
+      static FromUtf16String(text3, littleEndian = false) {
+        return Utf16Converter.fromString(text3, littleEndian);
       }
       static Base64Padding(base64) {
         const padCount = 4 - base64.length % 4;
@@ -41561,7 +41561,7 @@ var require_build3 = __commonJS({
       }
     };
     Convert.DEFAULT_UTF8_ENCODING = "utf8";
-    function assign(target, ...sources) {
+    function assign(target2, ...sources) {
       const res = arguments[0];
       for (let i = 1; i < arguments.length; i++) {
         const obj = arguments[i];
@@ -41664,19 +41664,19 @@ function __rest(s, e) {
     }
   return t;
 }
-function __decorate(decorators, target, key, desc) {
-  var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
+function __decorate(decorators, target2, key, desc) {
+  var c = arguments.length, r = c < 3 ? target2 : desc === null ? desc = Object.getOwnPropertyDescriptor(target2, key) : desc, d;
   if (typeof Reflect === "object" && typeof Reflect.decorate === "function")
-    r = Reflect.decorate(decorators, target, key, desc);
+    r = Reflect.decorate(decorators, target2, key, desc);
   else
     for (var i = decorators.length - 1; i >= 0; i--)
       if (d = decorators[i])
-        r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
-  return c > 3 && r && Object.defineProperty(target, key, r), r;
+        r = (c < 3 ? d(r) : c > 3 ? d(target2, key, r) : d(target2, key)) || r;
+  return c > 3 && r && Object.defineProperty(target2, key, r), r;
 }
 function __param(paramIndex, decorator) {
-  return function(target, key) {
-    decorator(target, key, paramIndex);
+  return function(target2, key) {
+    decorator(target2, key, paramIndex);
   };
 }
 function __esDecorate(ctor, descriptorIn, decorators, contextIn, initializers, extraInitializers) {
@@ -41686,8 +41686,8 @@ function __esDecorate(ctor, descriptorIn, decorators, contextIn, initializers, e
     return f;
   }
   var kind = contextIn.kind, key = kind === "getter" ? "get" : kind === "setter" ? "set" : "value";
-  var target = !descriptorIn && ctor ? contextIn["static"] ? ctor : ctor.prototype : null;
-  var descriptor = descriptorIn || (target ? Object.getOwnPropertyDescriptor(target, contextIn.name) : {});
+  var target2 = !descriptorIn && ctor ? contextIn["static"] ? ctor : ctor.prototype : null;
+  var descriptor = descriptorIn || (target2 ? Object.getOwnPropertyDescriptor(target2, contextIn.name) : {});
   var _, done = false;
   for (var i = decorators.length - 1; i >= 0; i--) {
     var context = {};
@@ -41719,8 +41719,8 @@ function __esDecorate(ctor, descriptorIn, decorators, contextIn, initializers, e
         descriptor[key] = _;
     }
   }
-  if (target)
-    Object.defineProperty(target, contextIn.name, descriptor);
+  if (target2)
+    Object.defineProperty(target2, contextIn.name, descriptor);
   done = true;
 }
 function __runInitializers(thisArg, initializers, value) {
@@ -45790,11 +45790,11 @@ var require_converters = __commonJS({
         if (value === null) {
           return new asn1js.Null();
         }
-        const schema8 = asn1js.fromBER(value);
-        if (schema8.result.error) {
-          throw new Error(schema8.result.error);
+        const schema11 = asn1js.fromBER(value);
+        if (schema11.result.error) {
+          throw new Error(schema11.result.error);
         }
-        return schema8.result;
+        return schema11.result;
       }
     };
     exports2.AsnIntegerConverter = {
@@ -45926,21 +45926,21 @@ var require_helper4 = __commonJS({
     exports2.isConvertible = isConvertible;
     exports2.isTypeOfArray = isTypeOfArray;
     exports2.isArrayEqual = isArrayEqual;
-    function isConvertible(target) {
-      if (typeof target === "function" && target.prototype) {
-        if (target.prototype.toASN && target.prototype.fromASN) {
+    function isConvertible(target2) {
+      if (typeof target2 === "function" && target2.prototype) {
+        if (target2.prototype.toASN && target2.prototype.fromASN) {
           return true;
         } else {
-          return isConvertible(target.prototype);
+          return isConvertible(target2.prototype);
         }
       } else {
-        return !!(target && typeof target === "object" && "toASN" in target && "fromASN" in target);
+        return !!(target2 && typeof target2 === "object" && "toASN" in target2 && "fromASN" in target2);
       }
     }
-    function isTypeOfArray(target) {
+    function isTypeOfArray(target2) {
       var _a;
-      if (target) {
-        const proto = Object.getPrototypeOf(target);
+      if (target2) {
+        const proto = Object.getPrototypeOf(target2);
         if (((_a = proto === null || proto === void 0 ? void 0 : proto.prototype) === null || _a === void 0 ? void 0 : _a.constructor) === Array) {
           return true;
         }
@@ -45980,39 +45980,39 @@ var require_schema = __commonJS({
       constructor() {
         this.items = /* @__PURE__ */ new WeakMap();
       }
-      has(target) {
-        return this.items.has(target);
+      has(target2) {
+        return this.items.has(target2);
       }
-      get(target, checkSchema = false) {
-        const schema8 = this.items.get(target);
-        if (!schema8) {
-          throw new Error(`Cannot get schema for '${target.prototype.constructor.name}' target`);
+      get(target2, checkSchema = false) {
+        const schema11 = this.items.get(target2);
+        if (!schema11) {
+          throw new Error(`Cannot get schema for '${target2.prototype.constructor.name}' target`);
         }
-        if (checkSchema && !schema8.schema) {
-          throw new Error(`Schema '${target.prototype.constructor.name}' doesn't contain ASN.1 schema. Call 'AsnSchemaStorage.cache'.`);
+        if (checkSchema && !schema11.schema) {
+          throw new Error(`Schema '${target2.prototype.constructor.name}' doesn't contain ASN.1 schema. Call 'AsnSchemaStorage.cache'.`);
         }
-        return schema8;
+        return schema11;
       }
-      cache(target) {
-        const schema8 = this.get(target);
-        if (!schema8.schema) {
-          schema8.schema = this.create(target, true);
+      cache(target2) {
+        const schema11 = this.get(target2);
+        if (!schema11.schema) {
+          schema11.schema = this.create(target2, true);
         }
       }
-      createDefault(target) {
-        const schema8 = { type: enums_1.AsnTypeTypes.Sequence, items: {} };
-        const parentSchema = this.findParentSchema(target);
+      createDefault(target2) {
+        const schema11 = { type: enums_1.AsnTypeTypes.Sequence, items: {} };
+        const parentSchema = this.findParentSchema(target2);
         if (parentSchema) {
-          Object.assign(schema8, parentSchema);
-          schema8.items = Object.assign({}, schema8.items, parentSchema.items);
+          Object.assign(schema11, parentSchema);
+          schema11.items = Object.assign({}, schema11.items, parentSchema.items);
         }
-        return schema8;
+        return schema11;
       }
-      create(target, useNames) {
-        const schema8 = this.items.get(target) || this.createDefault(target);
+      create(target2, useNames) {
+        const schema11 = this.items.get(target2) || this.createDefault(target2);
         const asn1Value = [];
-        for (const key in schema8.items) {
-          const item = schema8.items[key];
+        for (const key in schema11.items) {
+          const item = schema11.items[key];
           const name = useNames ? key : "";
           let asn1Item;
           if (typeof item.type === "number") {
@@ -46074,7 +46074,7 @@ var require_schema = __commonJS({
             asn1Value.push(asn1Item);
           }
         }
-        switch (schema8.type) {
+        switch (schema11.type) {
           case enums_1.AsnTypeTypes.Sequence:
             return new asn1js.Sequence({ value: asn1Value, name: "" });
           case enums_1.AsnTypeTypes.Set:
@@ -46085,15 +46085,15 @@ var require_schema = __commonJS({
             throw new Error(`Unsupported ASN1 type in use`);
         }
       }
-      set(target, schema8) {
-        this.items.set(target, schema8);
+      set(target2, schema11) {
+        this.items.set(target2, schema11);
         return this;
       }
-      findParentSchema(target) {
-        const parent = Object.getPrototypeOf(target);
+      findParentSchema(target2) {
+        const parent = Object.getPrototypeOf(target2);
         if (parent) {
-          const schema8 = this.items.get(parent);
-          return schema8 || this.findParentSchema(parent);
+          const schema11 = this.items.get(parent);
+          return schema11 || this.findParentSchema(parent);
         }
         return null;
       }
@@ -46122,15 +46122,15 @@ var require_decorators = __commonJS({
     var converters = require_converters();
     var enums_1 = require_enums();
     var storage_1 = require_storage();
-    var AsnType = (options) => (target) => {
-      let schema8;
-      if (!storage_1.schemaStorage.has(target)) {
-        schema8 = storage_1.schemaStorage.createDefault(target);
-        storage_1.schemaStorage.set(target, schema8);
+    var AsnType = (options) => (target2) => {
+      let schema11;
+      if (!storage_1.schemaStorage.has(target2)) {
+        schema11 = storage_1.schemaStorage.createDefault(target2);
+        storage_1.schemaStorage.set(target2, schema11);
       } else {
-        schema8 = storage_1.schemaStorage.get(target);
+        schema11 = storage_1.schemaStorage.get(target2);
       }
-      Object.assign(schema8, options);
+      Object.assign(schema11, options);
     };
     exports2.AsnType = AsnType;
     var AsnChoiceType = () => (0, exports2.AsnType)({ type: enums_1.AsnTypeTypes.Choice });
@@ -46139,24 +46139,24 @@ var require_decorators = __commonJS({
     exports2.AsnSetType = AsnSetType;
     var AsnSequenceType = (options) => (0, exports2.AsnType)({ type: enums_1.AsnTypeTypes.Sequence, ...options });
     exports2.AsnSequenceType = AsnSequenceType;
-    var AsnProp = (options) => (target, propertyKey) => {
-      let schema8;
-      if (!storage_1.schemaStorage.has(target.constructor)) {
-        schema8 = storage_1.schemaStorage.createDefault(target.constructor);
-        storage_1.schemaStorage.set(target.constructor, schema8);
+    var AsnProp = (options) => (target2, propertyKey) => {
+      let schema11;
+      if (!storage_1.schemaStorage.has(target2.constructor)) {
+        schema11 = storage_1.schemaStorage.createDefault(target2.constructor);
+        storage_1.schemaStorage.set(target2.constructor, schema11);
       } else {
-        schema8 = storage_1.schemaStorage.get(target.constructor);
+        schema11 = storage_1.schemaStorage.get(target2.constructor);
       }
       const copyOptions = Object.assign({}, options);
       if (typeof copyOptions.type === "number" && !copyOptions.converter) {
         const defaultConverter = converters.defaultConverter(options.type);
         if (!defaultConverter) {
-          throw new Error(`Cannot get default converter for property '${propertyKey}' of ${target.constructor.name}`);
+          throw new Error(`Cannot get default converter for property '${propertyKey}' of ${target2.constructor.name}`);
         }
         copyOptions.converter = defaultConverter;
       }
       copyOptions.raw = options.raw;
-      schema8.items[propertyKey] = copyOptions;
+      schema11.items[propertyKey] = copyOptions;
     };
     exports2.AsnProp = AsnProp;
   }
@@ -46201,52 +46201,52 @@ var require_parser = __commonJS({
     var helper_1 = require_helper4();
     var storage_1 = require_storage();
     var AsnParser = class {
-      static parse(data, target) {
+      static parse(data, target2) {
         const asn1Parsed = asn1js.fromBER(data);
         if (asn1Parsed.result.error) {
           throw new Error(asn1Parsed.result.error);
         }
-        const res = this.fromASN(asn1Parsed.result, target);
+        const res = this.fromASN(asn1Parsed.result, target2);
         return res;
       }
-      static fromASN(asn1Schema, target) {
+      static fromASN(asn1Schema, target2) {
         try {
-          if ((0, helper_1.isConvertible)(target)) {
-            const value = new target();
+          if ((0, helper_1.isConvertible)(target2)) {
+            const value = new target2();
             return value.fromASN(asn1Schema);
           }
-          const schema8 = storage_1.schemaStorage.get(target);
-          storage_1.schemaStorage.cache(target);
-          let targetSchema = schema8.schema;
-          const choiceResult = this.handleChoiceTypes(asn1Schema, schema8, target, targetSchema);
+          const schema11 = storage_1.schemaStorage.get(target2);
+          storage_1.schemaStorage.cache(target2);
+          let targetSchema2 = schema11.schema;
+          const choiceResult = this.handleChoiceTypes(asn1Schema, schema11, target2, targetSchema2);
           if (choiceResult === null || choiceResult === void 0 ? void 0 : choiceResult.result) {
             return choiceResult.result;
           }
           if (choiceResult === null || choiceResult === void 0 ? void 0 : choiceResult.targetSchema) {
-            targetSchema = choiceResult.targetSchema;
+            targetSchema2 = choiceResult.targetSchema;
           }
-          const sequenceResult = this.handleSequenceTypes(asn1Schema, schema8, target, targetSchema);
+          const sequenceResult = this.handleSequenceTypes(asn1Schema, schema11, target2, targetSchema2);
           if (sequenceResult && "isManualMapping" in sequenceResult) {
             return sequenceResult.result;
           }
           const asn1ComparedSchema = sequenceResult;
-          const res = new target();
-          if ((0, helper_1.isTypeOfArray)(target)) {
-            return this.handleArrayTypes(asn1Schema, schema8, target);
+          const res = new target2();
+          if ((0, helper_1.isTypeOfArray)(target2)) {
+            return this.handleArrayTypes(asn1Schema, schema11, target2);
           }
-          this.processSchemaItems(schema8, asn1ComparedSchema, res);
+          this.processSchemaItems(schema11, asn1ComparedSchema, res);
           return res;
         } catch (error) {
           if (error instanceof errors_1.AsnSchemaValidationError) {
-            error.schemas.push(target.name);
+            error.schemas.push(target2.name);
           }
           throw error;
         }
       }
-      static handleChoiceTypes(asn1Schema, schema8, target, targetSchema) {
-        if (asn1Schema.constructor === asn1js.Constructed && schema8.type === enums_1.AsnTypeTypes.Choice && asn1Schema.idBlock.tagClass === 3) {
-          for (const key in schema8.items) {
-            const schemaItem = schema8.items[key];
+      static handleChoiceTypes(asn1Schema, schema11, target2, targetSchema2) {
+        if (asn1Schema.constructor === asn1js.Constructed && schema11.type === enums_1.AsnTypeTypes.Choice && asn1Schema.idBlock.tagClass === 3) {
+          for (const key in schema11.items) {
+            const schemaItem = schema11.items[key];
             if (schemaItem.context === asn1Schema.idBlock.tagNumber && schemaItem.implicit) {
               if (typeof schemaItem.type === "function" && storage_1.schemaStorage.has(schemaItem.type)) {
                 const fieldSchema = storage_1.schemaStorage.get(schemaItem.type);
@@ -46255,7 +46255,7 @@ var require_parser = __commonJS({
                   if ("value" in asn1Schema.valueBlock && Array.isArray(asn1Schema.valueBlock.value) && "value" in newSeq.valueBlock) {
                     newSeq.valueBlock.value = asn1Schema.valueBlock.value;
                     const fieldValue = this.fromASN(newSeq, schemaItem.type);
-                    const res = new target();
+                    const res = new target2();
                     res[key] = fieldValue;
                     return { result: res };
                   }
@@ -46263,51 +46263,51 @@ var require_parser = __commonJS({
               }
             }
           }
-        } else if (asn1Schema.constructor === asn1js.Constructed && schema8.type !== enums_1.AsnTypeTypes.Choice) {
+        } else if (asn1Schema.constructor === asn1js.Constructed && schema11.type !== enums_1.AsnTypeTypes.Choice) {
           const newTargetSchema = new asn1js.Constructed({
             idBlock: {
               tagClass: 3,
               tagNumber: asn1Schema.idBlock.tagNumber
             },
-            value: schema8.schema.valueBlock.value
+            value: schema11.schema.valueBlock.value
           });
-          for (const key in schema8.items) {
+          for (const key in schema11.items) {
             delete asn1Schema[key];
           }
           return { targetSchema: newTargetSchema };
         }
         return null;
       }
-      static handleSequenceTypes(asn1Schema, schema8, target, targetSchema) {
-        if (schema8.type === enums_1.AsnTypeTypes.Sequence) {
-          const optionalChoiceFields = Object.keys(schema8.items).filter((key) => {
-            const item = schema8.items[key];
+      static handleSequenceTypes(asn1Schema, schema11, target2, targetSchema2) {
+        if (schema11.type === enums_1.AsnTypeTypes.Sequence) {
+          const optionalChoiceFields = Object.keys(schema11.items).filter((key) => {
+            const item = schema11.items[key];
             return item.optional && typeof item.type === "function" && storage_1.schemaStorage.has(item.type) && storage_1.schemaStorage.get(item.type).type === enums_1.AsnTypeTypes.Choice;
           });
-          if (optionalChoiceFields.length > 0 && "value" in asn1Schema.valueBlock && Array.isArray(asn1Schema.valueBlock.value) && target.name === "CertReqMsg") {
-            return this.handleManualMapping(asn1Schema, schema8, target);
+          if (optionalChoiceFields.length > 0 && "value" in asn1Schema.valueBlock && Array.isArray(asn1Schema.valueBlock.value) && target2.name === "CertReqMsg") {
+            return this.handleManualMapping(asn1Schema, schema11, target2);
           }
-          const asn1ComparedSchema = asn1js.compareSchema({}, asn1Schema, targetSchema);
+          const asn1ComparedSchema = asn1js.compareSchema({}, asn1Schema, targetSchema2);
           if (!asn1ComparedSchema.verified) {
-            throw new errors_1.AsnSchemaValidationError(`Data does not match to ${target.name} ASN1 schema.${asn1ComparedSchema.result.error ? ` ${asn1ComparedSchema.result.error}` : ""}`);
+            throw new errors_1.AsnSchemaValidationError(`Data does not match to ${target2.name} ASN1 schema.${asn1ComparedSchema.result.error ? ` ${asn1ComparedSchema.result.error}` : ""}`);
           }
           return asn1ComparedSchema;
         } else {
-          const asn1ComparedSchema = asn1js.compareSchema({}, asn1Schema, targetSchema);
+          const asn1ComparedSchema = asn1js.compareSchema({}, asn1Schema, targetSchema2);
           if (!asn1ComparedSchema.verified) {
-            throw new errors_1.AsnSchemaValidationError(`Data does not match to ${target.name} ASN1 schema.${asn1ComparedSchema.result.error ? ` ${asn1ComparedSchema.result.error}` : ""}`);
+            throw new errors_1.AsnSchemaValidationError(`Data does not match to ${target2.name} ASN1 schema.${asn1ComparedSchema.result.error ? ` ${asn1ComparedSchema.result.error}` : ""}`);
           }
           return asn1ComparedSchema;
         }
       }
-      static handleManualMapping(asn1Schema, schema8, target) {
-        const res = new target();
+      static handleManualMapping(asn1Schema, schema11, target2) {
+        const res = new target2();
         const asn1Elements = asn1Schema.valueBlock.value;
-        const schemaKeys = Object.keys(schema8.items);
+        const schemaKeys = Object.keys(schema11.items);
         let asn1Index = 0;
         for (let i = 0; i < schemaKeys.length; i++) {
           const key = schemaKeys[i];
-          const schemaItem = schema8.items[key];
+          const schemaItem = schema11.items[key];
           if (asn1Index >= asn1Elements.length)
             break;
           if (schemaItem.repeated) {
@@ -46378,28 +46378,28 @@ var require_parser = __commonJS({
           throw err;
         }
       }
-      static handleArrayTypes(asn1Schema, schema8, target) {
+      static handleArrayTypes(asn1Schema, schema11, target2) {
         if (!("value" in asn1Schema.valueBlock && Array.isArray(asn1Schema.valueBlock.value))) {
           throw new Error(`Cannot get items from the ASN.1 parsed value. ASN.1 object is not constructed.`);
         }
-        const itemType = schema8.itemType;
+        const itemType = schema11.itemType;
         if (typeof itemType === "number") {
           const converter = converters.defaultConverter(itemType);
           if (!converter) {
-            throw new Error(`Cannot get default converter for array item of ${target.name} ASN1 schema`);
+            throw new Error(`Cannot get default converter for array item of ${target2.name} ASN1 schema`);
           }
-          return target.from(asn1Schema.valueBlock.value, (element) => converter.fromASN(element));
+          return target2.from(asn1Schema.valueBlock.value, (element) => converter.fromASN(element));
         } else {
-          return target.from(asn1Schema.valueBlock.value, (element) => this.fromASN(element, itemType));
+          return target2.from(asn1Schema.valueBlock.value, (element) => this.fromASN(element, itemType));
         }
       }
-      static processSchemaItems(schema8, asn1ComparedSchema, res) {
-        for (const key in schema8.items) {
+      static processSchemaItems(schema11, asn1ComparedSchema, res) {
+        for (const key in schema11.items) {
           const asn1SchemaValue = asn1ComparedSchema.result[key];
           if (!asn1SchemaValue) {
             continue;
           }
-          const schemaItem = schema8.items[key];
+          const schemaItem = schema11.items[key];
           const schemaItemType = schemaItem.type;
           let parsedValue;
           if (typeof schemaItemType === "number" || (0, helper_1.isConvertible)(schemaItemType)) {
@@ -46495,14 +46495,14 @@ var require_parser = __commonJS({
       }
       static handleImplicitTagging(asn1SchemaValue, schemaItem, schemaItemType) {
         if (schemaItem.implicit && typeof schemaItem.context === "number") {
-          const schema8 = storage_1.schemaStorage.get(schemaItemType);
-          if (schema8.type === enums_1.AsnTypeTypes.Sequence) {
+          const schema11 = storage_1.schemaStorage.get(schemaItemType);
+          if (schema11.type === enums_1.AsnTypeTypes.Sequence) {
             const newSeq = new asn1js.Sequence();
             if ("value" in asn1SchemaValue.valueBlock && Array.isArray(asn1SchemaValue.valueBlock.value) && "value" in newSeq.valueBlock) {
               newSeq.valueBlock.value = asn1SchemaValue.valueBlock.value;
               return newSeq;
             }
-          } else if (schema8.type === enums_1.AsnTypeTypes.Set) {
+          } else if (schema11.type === enums_1.AsnTypeTypes.Set) {
             const newSet = new asn1js.Set();
             if ("value" in asn1SchemaValue.valueBlock && Array.isArray(asn1SchemaValue.valueBlock.value) && "value" in newSet.valueBlock) {
               newSet.valueBlock.value = asn1SchemaValue.valueBlock.value;
@@ -46542,31 +46542,31 @@ var require_serializer = __commonJS({
         if (!(obj && typeof obj === "object")) {
           throw new TypeError("Parameter 1 should be type of Object.");
         }
-        const target = obj.constructor;
-        const schema8 = storage_1.schemaStorage.get(target);
-        storage_1.schemaStorage.cache(target);
+        const target2 = obj.constructor;
+        const schema11 = storage_1.schemaStorage.get(target2);
+        storage_1.schemaStorage.cache(target2);
         let asn1Value = [];
-        if (schema8.itemType) {
+        if (schema11.itemType) {
           if (!Array.isArray(obj)) {
             throw new TypeError("Parameter 1 should be type of Array.");
           }
-          if (typeof schema8.itemType === "number") {
-            const converter = converters.defaultConverter(schema8.itemType);
+          if (typeof schema11.itemType === "number") {
+            const converter = converters.defaultConverter(schema11.itemType);
             if (!converter) {
-              throw new Error(`Cannot get default converter for array item of ${target.name} ASN1 schema`);
+              throw new Error(`Cannot get default converter for array item of ${target2.name} ASN1 schema`);
             }
             asn1Value = obj.map((o) => converter.toASN(o));
           } else {
-            asn1Value = obj.map((o) => this.toAsnItem({ type: schema8.itemType }, "[]", target, o));
+            asn1Value = obj.map((o) => this.toAsnItem({ type: schema11.itemType }, "[]", target2, o));
           }
         } else {
-          for (const key in schema8.items) {
-            const schemaItem = schema8.items[key];
+          for (const key in schema11.items) {
+            const schemaItem = schema11.items[key];
             const objProp = obj[key];
             if (objProp === void 0 || schemaItem.defaultValue === objProp || typeof schemaItem.defaultValue === "object" && typeof objProp === "object" && (0, helper_1.isArrayEqual)(this.serialize(schemaItem.defaultValue), this.serialize(objProp))) {
               continue;
             }
-            const asn1Item = _AsnSerializer.toAsnItem(schemaItem, key, target, objProp);
+            const asn1Item = _AsnSerializer.toAsnItem(schemaItem, key, target2, objProp);
             if (typeof schemaItem.context === "number") {
               if (schemaItem.implicit) {
                 if (!schemaItem.repeated && (typeof schemaItem.type === "number" || (0, helper_1.isConvertible)(schemaItem.type))) {
@@ -46608,7 +46608,7 @@ var require_serializer = __commonJS({
           }
         }
         let asnSchema;
-        switch (schema8.type) {
+        switch (schema11.type) {
           case enums_1.AsnTypeTypes.Sequence:
             asnSchema = new asn1js.Sequence({ value: asn1Value });
             break;
@@ -46617,28 +46617,28 @@ var require_serializer = __commonJS({
             break;
           case enums_1.AsnTypeTypes.Choice:
             if (!asn1Value[0]) {
-              throw new Error(`Schema '${target.name}' has wrong data. Choice cannot be empty.`);
+              throw new Error(`Schema '${target2.name}' has wrong data. Choice cannot be empty.`);
             }
             asnSchema = asn1Value[0];
             break;
         }
         return asnSchema;
       }
-      static toAsnItem(schemaItem, key, target, objProp) {
+      static toAsnItem(schemaItem, key, target2, objProp) {
         let asn1Item;
         if (typeof schemaItem.type === "number") {
           const converter = schemaItem.converter;
           if (!converter) {
-            throw new Error(`Property '${key}' doesn't have converter for type ${enums_1.AsnPropTypes[schemaItem.type]} in schema '${target.name}'`);
+            throw new Error(`Property '${key}' doesn't have converter for type ${enums_1.AsnPropTypes[schemaItem.type]} in schema '${target2.name}'`);
           }
           if (schemaItem.repeated) {
             if (!Array.isArray(objProp)) {
               throw new TypeError("Parameter 'objProp' should be type of Array.");
             }
-            const items = Array.from(objProp, (element) => converter.toASN(element));
+            const items2 = Array.from(objProp, (element) => converter.toASN(element));
             const Container = schemaItem.repeated === "sequence" ? asn1js.Sequence : asn1js.Set;
             asn1Item = new Container({
-              value: items
+              value: items2
             });
           } else {
             asn1Item = converter.toASN(objProp);
@@ -46648,10 +46648,10 @@ var require_serializer = __commonJS({
             if (!Array.isArray(objProp)) {
               throw new TypeError("Parameter 'objProp' should be type of Array.");
             }
-            const items = Array.from(objProp, (element) => this.toASN(element));
+            const items2 = Array.from(objProp, (element) => this.toASN(element));
             const Container = schemaItem.repeated === "sequence" ? asn1js.Sequence : asn1js.Set;
             asn1Item = new Container({
-              value: items
+              value: items2
             });
           } else {
             asn1Item = this.toASN(objProp);
@@ -46671,12 +46671,12 @@ var require_objects = __commonJS({
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.AsnArray = void 0;
     var AsnArray = class extends Array {
-      constructor(items = []) {
-        if (typeof items === "number") {
-          super(items);
+      constructor(items2 = []) {
+        if (typeof items2 === "number") {
+          super(items2);
         } else {
           super();
-          for (const item of items) {
+          for (const item of items2) {
             this.push(item);
           }
         }
@@ -46700,8 +46700,8 @@ var require_convert = __commonJS({
       static serialize(obj) {
         return serializer_1.AsnSerializer.serialize(obj);
       }
-      static parse(data, target) {
-        return parser_1.AsnParser.parse(data, target);
+      static parse(data, target2) {
+        return parser_1.AsnParser.parse(data, target2);
       }
       static toString(data) {
         const buf = pvtsutils_1.BufferSourceConverter.isBufferSource(data) ? pvtsutils_1.BufferSourceConverter.toArrayBuffer(data) : _AsnConvert.serialize(data);
@@ -46775,14 +46775,14 @@ var require_build5 = __commonJS({
       }
     };
     var TransformError = class extends JsonError {
-      constructor(schema8, message, innerError) {
+      constructor(schema11, message, innerError) {
         super(message, innerError);
-        this.schema = schema8;
+        this.schema = schema11;
       }
     };
     var ParserError = class extends TransformError {
-      constructor(schema8, message, innerError) {
-        super(schema8, `JSON doesn't match to '${schema8.target.name}' schema. ${message}`, innerError);
+      constructor(schema11, message, innerError) {
+        super(schema11, `JSON doesn't match to '${schema11.target.name}' schema. ${message}`, innerError);
       }
     };
     var ValidationError = class extends JsonError {
@@ -46794,8 +46794,8 @@ var require_build5 = __commonJS({
       }
     };
     var KeyError = class extends ParserError {
-      constructor(schema8, keys, errors = {}) {
-        super(schema8, "Some keys doesn't match to schema");
+      constructor(schema11, keys, errors = {}) {
+        super(schema11, "Some keys doesn't match to schema");
         this.keys = keys;
         this.errors = errors;
       }
@@ -46822,53 +46822,53 @@ var require_build5 = __commonJS({
         throw new TypeError(`Value must be ${exports2.JsonPropTypes[type]}`);
       }
     }
-    function isConvertible(target) {
-      if (target && target.prototype) {
-        if (target.prototype.toJSON && target.prototype.fromJSON) {
+    function isConvertible(target2) {
+      if (target2 && target2.prototype) {
+        if (target2.prototype.toJSON && target2.prototype.fromJSON) {
           return true;
         } else {
-          return isConvertible(target.prototype);
+          return isConvertible(target2.prototype);
         }
       } else {
-        return !!(target && target.toJSON && target.fromJSON);
+        return !!(target2 && target2.toJSON && target2.fromJSON);
       }
     }
     var JsonSchemaStorage = class {
       constructor() {
         this.items = /* @__PURE__ */ new Map();
       }
-      has(target) {
-        return this.items.has(target) || !!this.findParentSchema(target);
+      has(target2) {
+        return this.items.has(target2) || !!this.findParentSchema(target2);
       }
-      get(target) {
-        const schema8 = this.items.get(target) || this.findParentSchema(target);
-        if (!schema8) {
+      get(target2) {
+        const schema11 = this.items.get(target2) || this.findParentSchema(target2);
+        if (!schema11) {
           throw new Error("Cannot get schema for current target");
         }
-        return schema8;
+        return schema11;
       }
-      create(target) {
-        const schema8 = { names: {} };
-        const parentSchema = this.findParentSchema(target);
+      create(target2) {
+        const schema11 = { names: {} };
+        const parentSchema = this.findParentSchema(target2);
         if (parentSchema) {
-          Object.assign(schema8, parentSchema);
-          schema8.names = {};
+          Object.assign(schema11, parentSchema);
+          schema11.names = {};
           for (const name in parentSchema.names) {
-            schema8.names[name] = Object.assign({}, parentSchema.names[name]);
+            schema11.names[name] = Object.assign({}, parentSchema.names[name]);
           }
         }
-        schema8.target = target;
-        return schema8;
+        schema11.target = target2;
+        return schema11;
       }
-      set(target, schema8) {
-        this.items.set(target, schema8);
+      set(target2, schema11) {
+        this.items.set(target2, schema11);
         return this;
       }
-      findParentSchema(target) {
-        const parent = target.__proto__;
+      findParentSchema(target2) {
+        const parent = target2.__proto__;
         if (parent) {
-          const schema8 = this.items.get(parent);
-          return schema8 || this.findParentSchema(parent);
+          const schema11 = this.items.get(parent);
+          return schema11 || this.findParentSchema(parent);
         }
         return null;
       }
@@ -46977,8 +46977,8 @@ var require_build5 = __commonJS({
           }
         }
       }
-      static getSchemaByName(schema8, name = DEFAULT_SCHEMA) {
-        return { ...schema8.names[DEFAULT_SCHEMA], ...schema8.names[name] };
+      static getSchemaByName(schema11, name = DEFAULT_SCHEMA) {
+        return { ...schema11.names[DEFAULT_SCHEMA], ...schema11.names[name] };
       }
     };
     var JsonSerializer = class extends JsonTransform {
@@ -46988,7 +46988,7 @@ var require_build5 = __commonJS({
       }
       static toJSON(obj, options = {}) {
         let res;
-        let targetSchema = options.targetSchema;
+        let targetSchema2 = options.targetSchema;
         const schemaName = options.schemaName || DEFAULT_SCHEMA;
         if (isConvertible(obj)) {
           return obj.toJSON();
@@ -46999,14 +46999,14 @@ var require_build5 = __commonJS({
             res.push(this.toJSON(item, options));
           }
         } else if (typeof obj === "object") {
-          if (targetSchema && !schemaStorage.has(targetSchema)) {
+          if (targetSchema2 && !schemaStorage.has(targetSchema2)) {
             throw new JsonError("Cannot get schema for `targetSchema` param");
           }
-          targetSchema = targetSchema || obj.constructor;
-          if (schemaStorage.has(targetSchema)) {
-            const schema8 = schemaStorage.get(targetSchema);
+          targetSchema2 = targetSchema2 || obj.constructor;
+          if (schemaStorage.has(targetSchema2)) {
+            const schema11 = schemaStorage.get(targetSchema2);
             res = {};
-            const namedSchema = this.getSchemaByName(schema8, schemaName);
+            const namedSchema = this.getSchemaByName(schema11, schemaName);
             for (const key in namedSchema) {
               try {
                 const item = namedSchema[key];
@@ -47016,7 +47016,7 @@ var require_build5 = __commonJS({
                   continue;
                 }
                 if (!item.optional && objItem === void 0) {
-                  throw new SerializerError(targetSchema.name, `Property '${key}' is required.`);
+                  throw new SerializerError(targetSchema2.name, `Property '${key}' is required.`);
                 }
                 if (typeof item.type === "number") {
                   if (item.converter) {
@@ -47042,7 +47042,7 @@ var require_build5 = __commonJS({
                 if (e instanceof SerializerError) {
                   throw e;
                 } else {
-                  throw new SerializerError(schema8.target.name, `Property '${key}' is wrong. ${e.message}`, e);
+                  throw new SerializerError(schema11.target.name, `Property '${key}' is wrong. ${e.message}`, e);
                 }
               }
             }
@@ -47063,29 +47063,29 @@ var require_build5 = __commonJS({
         const obj = JSON.parse(data);
         return this.fromJSON(obj, options);
       }
-      static fromJSON(target, options) {
-        const targetSchema = options.targetSchema;
+      static fromJSON(target2, options) {
+        const targetSchema2 = options.targetSchema;
         const schemaName = options.schemaName || DEFAULT_SCHEMA;
-        const obj = new targetSchema();
+        const obj = new targetSchema2();
         if (isConvertible(obj)) {
-          return obj.fromJSON(target);
+          return obj.fromJSON(target2);
         }
-        const schema8 = schemaStorage.get(targetSchema);
-        const namedSchema = this.getSchemaByName(schema8, schemaName);
+        const schema11 = schemaStorage.get(targetSchema2);
+        const namedSchema = this.getSchemaByName(schema11, schemaName);
         const keyErrors = {};
-        if (options.strictProperty && !Array.isArray(target)) {
-          _JsonParser.checkStrictProperty(target, namedSchema, schema8);
+        if (options.strictProperty && !Array.isArray(target2)) {
+          _JsonParser.checkStrictProperty(target2, namedSchema, schema11);
         }
         for (const key in namedSchema) {
           try {
             const item = namedSchema[key];
             const name = item.name || key;
-            const value = target[name];
+            const value = target2[name];
             if (value === void 0 && (item.optional || item.defaultValue !== void 0)) {
               continue;
             }
             if (!item.optional && value === void 0) {
-              throw new ParserError(schema8, `Property '${name}' is required.`);
+              throw new ParserError(schema11, `Property '${name}' is required.`);
             }
             this.checkTypes(value, item);
             this.checkValues(value, item);
@@ -47113,7 +47113,7 @@ var require_build5 = __commonJS({
             }
           } catch (e) {
             if (!(e instanceof ParserError)) {
-              e = new ParserError(schema8, `Property '${key}' is wrong. ${e.message}`, e);
+              e = new ParserError(schema11, `Property '${key}' is wrong. ${e.message}`, e);
             }
             if (options.strictAllKeys) {
               keyErrors[key] = e;
@@ -47124,12 +47124,12 @@ var require_build5 = __commonJS({
         }
         const keys = Object.keys(keyErrors);
         if (keys.length) {
-          throw new KeyError(schema8, keys, keyErrors);
+          throw new KeyError(schema11, keys, keyErrors);
         }
         return obj;
       }
-      static checkStrictProperty(target, namedSchema, schema8) {
-        const jsonProps = Object.keys(target);
+      static checkStrictProperty(target2, namedSchema, schema11) {
+        const jsonProps = Object.keys(target2);
         const schemaProps = Object.keys(namedSchema);
         const keys = [];
         for (const key of jsonProps) {
@@ -47138,7 +47138,7 @@ var require_build5 = __commonJS({
           }
         }
         if (keys.length) {
-          throw new KeyError(schema8, keys);
+          throw new KeyError(schema11, keys);
         }
       }
     };
@@ -47165,17 +47165,17 @@ var require_build5 = __commonJS({
       }
       return validations;
     }
-    var JsonProp = (options = {}) => (target, propertyKey) => {
-      const errorMessage = `Cannot set type for ${propertyKey} property of ${target.constructor.name} schema`;
-      let schema8;
-      if (!schemaStorage.has(target.constructor)) {
-        schema8 = schemaStorage.create(target.constructor);
-        schemaStorage.set(target.constructor, schema8);
+    var JsonProp = (options = {}) => (target2, propertyKey) => {
+      const errorMessage = `Cannot set type for ${propertyKey} property of ${target2.constructor.name} schema`;
+      let schema11;
+      if (!schemaStorage.has(target2.constructor)) {
+        schema11 = schemaStorage.create(target2.constructor);
+        schemaStorage.set(target2.constructor, schema11);
       } else {
-        schema8 = schemaStorage.get(target.constructor);
-        if (schema8.target !== target.constructor) {
-          schema8 = schemaStorage.create(target.constructor);
-          schemaStorage.set(target.constructor, schema8);
+        schema11 = schemaStorage.get(target2.constructor);
+        if (schema11.target !== target2.constructor) {
+          schema11 = schemaStorage.create(target2.constructor);
+          schemaStorage.set(target2.constructor, schema11);
         }
       }
       const defaultSchema = {
@@ -47196,10 +47196,10 @@ var require_build5 = __commonJS({
         schemaNames = [options.schema || DEFAULT_SCHEMA];
       }
       for (const schemaName of schemaNames) {
-        if (!schema8.names[schemaName]) {
-          schema8.names[schemaName] = {};
+        if (!schema11.names[schemaName]) {
+          schema11.names[schemaName] = {};
         }
-        const namedSchema = schema8.names[schemaName];
+        const namedSchema = schema11.names[schemaName];
         namedSchema[propertyKey] = copyOptions;
       }
     };
@@ -51321,9 +51321,9 @@ var require_Reflect = __commonJS({
         if (typeof root.Reflect === "undefined") {
           root.Reflect = Reflect3;
         }
-        function makeExporter(target, previous) {
+        function makeExporter(target2, previous) {
           return function(key, value) {
-            Object.defineProperty(target, key, { configurable: true, writable: true, value });
+            Object.defineProperty(target2, key, { configurable: true, writable: true, value });
             if (previous)
               previous(key, value);
           };
@@ -51378,130 +51378,130 @@ var require_Reflect = __commonJS({
         var registrySymbol = supportsSymbol ? Symbol.for("@reflect-metadata:registry") : void 0;
         var metadataRegistry = GetOrCreateMetadataRegistry();
         var metadataProvider = CreateMetadataProvider(metadataRegistry);
-        function decorate(decorators, target, propertyKey, attributes) {
+        function decorate(decorators, target2, propertyKey, attributes) {
           if (!IsUndefined(propertyKey)) {
             if (!IsArray(decorators))
               throw new TypeError();
-            if (!IsObject(target))
+            if (!IsObject(target2))
               throw new TypeError();
             if (!IsObject(attributes) && !IsUndefined(attributes) && !IsNull(attributes))
               throw new TypeError();
             if (IsNull(attributes))
               attributes = void 0;
             propertyKey = ToPropertyKey(propertyKey);
-            return DecorateProperty(decorators, target, propertyKey, attributes);
+            return DecorateProperty(decorators, target2, propertyKey, attributes);
           } else {
             if (!IsArray(decorators))
               throw new TypeError();
-            if (!IsConstructor(target))
+            if (!IsConstructor(target2))
               throw new TypeError();
-            return DecorateConstructor(decorators, target);
+            return DecorateConstructor(decorators, target2);
           }
         }
         exporter("decorate", decorate);
         function metadata(metadataKey, metadataValue) {
-          function decorator(target, propertyKey) {
-            if (!IsObject(target))
+          function decorator(target2, propertyKey) {
+            if (!IsObject(target2))
               throw new TypeError();
             if (!IsUndefined(propertyKey) && !IsPropertyKey(propertyKey))
               throw new TypeError();
-            OrdinaryDefineOwnMetadata(metadataKey, metadataValue, target, propertyKey);
+            OrdinaryDefineOwnMetadata(metadataKey, metadataValue, target2, propertyKey);
           }
           return decorator;
         }
         exporter("metadata", metadata);
-        function defineMetadata(metadataKey, metadataValue, target, propertyKey) {
-          if (!IsObject(target))
+        function defineMetadata(metadataKey, metadataValue, target2, propertyKey) {
+          if (!IsObject(target2))
             throw new TypeError();
           if (!IsUndefined(propertyKey))
             propertyKey = ToPropertyKey(propertyKey);
-          return OrdinaryDefineOwnMetadata(metadataKey, metadataValue, target, propertyKey);
+          return OrdinaryDefineOwnMetadata(metadataKey, metadataValue, target2, propertyKey);
         }
         exporter("defineMetadata", defineMetadata);
-        function hasMetadata(metadataKey, target, propertyKey) {
-          if (!IsObject(target))
+        function hasMetadata(metadataKey, target2, propertyKey) {
+          if (!IsObject(target2))
             throw new TypeError();
           if (!IsUndefined(propertyKey))
             propertyKey = ToPropertyKey(propertyKey);
-          return OrdinaryHasMetadata(metadataKey, target, propertyKey);
+          return OrdinaryHasMetadata(metadataKey, target2, propertyKey);
         }
         exporter("hasMetadata", hasMetadata);
-        function hasOwnMetadata(metadataKey, target, propertyKey) {
-          if (!IsObject(target))
+        function hasOwnMetadata(metadataKey, target2, propertyKey) {
+          if (!IsObject(target2))
             throw new TypeError();
           if (!IsUndefined(propertyKey))
             propertyKey = ToPropertyKey(propertyKey);
-          return OrdinaryHasOwnMetadata(metadataKey, target, propertyKey);
+          return OrdinaryHasOwnMetadata(metadataKey, target2, propertyKey);
         }
         exporter("hasOwnMetadata", hasOwnMetadata);
-        function getMetadata(metadataKey, target, propertyKey) {
-          if (!IsObject(target))
+        function getMetadata(metadataKey, target2, propertyKey) {
+          if (!IsObject(target2))
             throw new TypeError();
           if (!IsUndefined(propertyKey))
             propertyKey = ToPropertyKey(propertyKey);
-          return OrdinaryGetMetadata(metadataKey, target, propertyKey);
+          return OrdinaryGetMetadata(metadataKey, target2, propertyKey);
         }
         exporter("getMetadata", getMetadata);
-        function getOwnMetadata(metadataKey, target, propertyKey) {
-          if (!IsObject(target))
+        function getOwnMetadata(metadataKey, target2, propertyKey) {
+          if (!IsObject(target2))
             throw new TypeError();
           if (!IsUndefined(propertyKey))
             propertyKey = ToPropertyKey(propertyKey);
-          return OrdinaryGetOwnMetadata(metadataKey, target, propertyKey);
+          return OrdinaryGetOwnMetadata(metadataKey, target2, propertyKey);
         }
         exporter("getOwnMetadata", getOwnMetadata);
-        function getMetadataKeys(target, propertyKey) {
-          if (!IsObject(target))
+        function getMetadataKeys(target2, propertyKey) {
+          if (!IsObject(target2))
             throw new TypeError();
           if (!IsUndefined(propertyKey))
             propertyKey = ToPropertyKey(propertyKey);
-          return OrdinaryMetadataKeys(target, propertyKey);
+          return OrdinaryMetadataKeys(target2, propertyKey);
         }
         exporter("getMetadataKeys", getMetadataKeys);
-        function getOwnMetadataKeys(target, propertyKey) {
-          if (!IsObject(target))
+        function getOwnMetadataKeys(target2, propertyKey) {
+          if (!IsObject(target2))
             throw new TypeError();
           if (!IsUndefined(propertyKey))
             propertyKey = ToPropertyKey(propertyKey);
-          return OrdinaryOwnMetadataKeys(target, propertyKey);
+          return OrdinaryOwnMetadataKeys(target2, propertyKey);
         }
         exporter("getOwnMetadataKeys", getOwnMetadataKeys);
-        function deleteMetadata(metadataKey, target, propertyKey) {
-          if (!IsObject(target))
+        function deleteMetadata(metadataKey, target2, propertyKey) {
+          if (!IsObject(target2))
             throw new TypeError();
           if (!IsUndefined(propertyKey))
             propertyKey = ToPropertyKey(propertyKey);
-          if (!IsObject(target))
+          if (!IsObject(target2))
             throw new TypeError();
           if (!IsUndefined(propertyKey))
             propertyKey = ToPropertyKey(propertyKey);
           var provider = GetMetadataProvider(
-            target,
+            target2,
             propertyKey,
             /*Create*/
             false
           );
           if (IsUndefined(provider))
             return false;
-          return provider.OrdinaryDeleteMetadata(metadataKey, target, propertyKey);
+          return provider.OrdinaryDeleteMetadata(metadataKey, target2, propertyKey);
         }
         exporter("deleteMetadata", deleteMetadata);
-        function DecorateConstructor(decorators, target) {
+        function DecorateConstructor(decorators, target2) {
           for (var i = decorators.length - 1; i >= 0; --i) {
             var decorator = decorators[i];
-            var decorated = decorator(target);
+            var decorated = decorator(target2);
             if (!IsUndefined(decorated) && !IsNull(decorated)) {
               if (!IsConstructor(decorated))
                 throw new TypeError();
-              target = decorated;
+              target2 = decorated;
             }
           }
-          return target;
+          return target2;
         }
-        function DecorateProperty(decorators, target, propertyKey, descriptor) {
+        function DecorateProperty(decorators, target2, propertyKey, descriptor) {
           for (var i = decorators.length - 1; i >= 0; --i) {
             var decorator = decorators[i];
-            var decorated = decorator(target, propertyKey, descriptor);
+            var decorated = decorator(target2, propertyKey, descriptor);
             if (!IsUndefined(decorated) && !IsNull(decorated)) {
               if (!IsObject(decorated))
                 throw new TypeError();
@@ -52291,34 +52291,34 @@ var require_Reflect = __commonJS({
               function WeakMap2() {
                 this._key = CreateUniqueKey();
               }
-              WeakMap2.prototype.has = function(target) {
+              WeakMap2.prototype.has = function(target2) {
                 var table = GetOrCreateWeakMapTable(
-                  target,
+                  target2,
                   /*create*/
                   false
                 );
                 return table !== void 0 ? HashMap.has(table, this._key) : false;
               };
-              WeakMap2.prototype.get = function(target) {
+              WeakMap2.prototype.get = function(target2) {
                 var table = GetOrCreateWeakMapTable(
-                  target,
+                  target2,
                   /*create*/
                   false
                 );
                 return table !== void 0 ? HashMap.get(table, this._key) : void 0;
               };
-              WeakMap2.prototype.set = function(target, value) {
+              WeakMap2.prototype.set = function(target2, value) {
                 var table = GetOrCreateWeakMapTable(
-                  target,
+                  target2,
                   /*create*/
                   true
                 );
                 table[this._key] = value;
                 return this;
               };
-              WeakMap2.prototype.delete = function(target) {
+              WeakMap2.prototype.delete = function(target2) {
                 var table = GetOrCreateWeakMapTable(
-                  target,
+                  target2,
                   /*create*/
                   false
                 );
@@ -52338,13 +52338,13 @@ var require_Reflect = __commonJS({
             keys[key] = true;
             return key;
           }
-          function GetOrCreateWeakMapTable(target, create) {
-            if (!hasOwn.call(target, rootKey)) {
+          function GetOrCreateWeakMapTable(target2, create) {
+            if (!hasOwn.call(target2, rootKey)) {
               if (!create)
                 return void 0;
-              Object.defineProperty(target, rootKey, { value: HashMap.create() });
+              Object.defineProperty(target2, rootKey, { value: HashMap.create() });
             }
-            return target[rootKey];
+            return target2[rootKey];
           }
           function FillRandomBytes(buffer, size) {
             for (var i = 0; i < size; ++i)
@@ -52486,8 +52486,8 @@ var require_ip_converter = __commonJS({
         }
         return ip;
       }
-      static parseCIDR(text2) {
-        const [addr, prefixStr] = text2.split("/");
+      static parseCIDR(text3) {
+        const [addr, prefixStr] = text3.split("/");
         const prefix = parseInt(prefixStr, 10);
         if (this.isIPv4(addr)) {
           if (prefix < 0 || prefix > 32) {
@@ -52540,9 +52540,9 @@ var require_ip_converter = __commonJS({
         }
         return this.decodeIP(pvtsutils_1.Convert.ToHex(buf));
       }
-      static fromString(text2) {
-        if (text2.includes("/")) {
-          const [addr, prefix] = this.parseCIDR(text2);
+      static fromString(text3) {
+        if (text3.includes("/")) {
+          const [addr, prefix] = this.parseCIDR(text3);
           const maskBytes = new Uint8Array(addr.length);
           let bitsLeft = prefix;
           for (let i = 0; i < maskBytes.length; i++) {
@@ -52559,7 +52559,7 @@ var require_ip_converter = __commonJS({
           out.set(maskBytes, addr.length);
           return out.buffer;
         }
-        const bytes = this.isIPv4(text2) ? this.parseIPv4(text2) : this.parseIPv6(text2);
+        const bytes = this.isIPv4(text3) ? this.parseIPv4(text3) : this.parseIPv6(text3);
         return new Uint8Array(bytes).buffer;
       }
     };
@@ -52640,8 +52640,8 @@ var require_name = __commonJS({
       (0, asn1_schema_1.AsnProp)({ type: AttributeValue })
     ], AttributeTypeAndValue.prototype, "value", void 0);
     var RelativeDistinguishedName = RelativeDistinguishedName_1 = class RelativeDistinguishedName extends asn1_schema_1.AsnArray {
-      constructor(items) {
-        super(items);
+      constructor(items2) {
+        super(items2);
         Object.setPrototypeOf(this, RelativeDistinguishedName_1.prototype);
       }
     };
@@ -52650,8 +52650,8 @@ var require_name = __commonJS({
       (0, asn1_schema_1.AsnType)({ type: asn1_schema_1.AsnTypeTypes.Set, itemType: AttributeTypeAndValue })
     ], RelativeDistinguishedName);
     var RDNSequence = RDNSequence_1 = class RDNSequence extends asn1_schema_1.AsnArray {
-      constructor(items) {
-        super(items);
+      constructor(items2) {
+        super(items2);
         Object.setPrototypeOf(this, RDNSequence_1.prototype);
       }
     };
@@ -52660,8 +52660,8 @@ var require_name = __commonJS({
       (0, asn1_schema_1.AsnType)({ type: asn1_schema_1.AsnTypeTypes.Sequence, itemType: RelativeDistinguishedName })
     ], RDNSequence);
     var Name = Name_1 = class Name extends RDNSequence {
-      constructor(items) {
-        super(items);
+      constructor(items2) {
+        super(items2);
         Object.setPrototypeOf(this, Name_1.prototype);
       }
     };
@@ -52805,8 +52805,8 @@ var require_authority_information_access = __commonJS({
       (0, asn1_schema_1.AsnProp)({ type: general_name_1.GeneralName })
     ], AccessDescription.prototype, "accessLocation", void 0);
     var AuthorityInfoAccessSyntax = AuthorityInfoAccessSyntax_1 = class AuthorityInfoAccessSyntax extends asn1_schema_1.AsnArray {
-      constructor(items) {
-        super(items);
+      constructor(items2) {
+        super(items2);
         Object.setPrototypeOf(this, AuthorityInfoAccessSyntax_1.prototype);
       }
     };
@@ -52895,8 +52895,8 @@ var require_general_names = __commonJS({
     var general_name_1 = require_general_name();
     var asn1_schema_2 = require_cjs();
     var GeneralNames = GeneralNames_1 = class GeneralNames extends asn1_schema_2.AsnArray {
-      constructor(items) {
-        super(items);
+      constructor(items2) {
+        super(items2);
         Object.setPrototypeOf(this, GeneralNames_1.prototype);
       }
     };
@@ -52920,8 +52920,8 @@ var require_certificate_issuer = __commonJS({
     var object_identifiers_1 = require_object_identifiers();
     exports2.id_ce_certificateIssuer = `${object_identifiers_1.id_ce}.29`;
     var CertificateIssuer = CertificateIssuer_1 = class CertificateIssuer extends general_names_1.GeneralNames {
-      constructor(items) {
-        super(items);
+      constructor(items2) {
+        super(items2);
         Object.setPrototypeOf(this, CertificateIssuer_1.prototype);
       }
     };
@@ -53037,8 +53037,8 @@ var require_certificate_policies = __commonJS({
       (0, asn1_schema_1.AsnProp)({ type: PolicyQualifierInfo, repeated: "sequence", optional: true })
     ], PolicyInformation.prototype, "policyQualifiers", void 0);
     var CertificatePolicies = CertificatePolicies_1 = class CertificatePolicies extends asn1_schema_1.AsnArray {
-      constructor(items) {
-        super(items);
+      constructor(items2) {
+        super(items2);
         Object.setPrototypeOf(this, CertificatePolicies_1.prototype);
       }
     };
@@ -53188,8 +53188,8 @@ var require_crl_distribution_points = __commonJS({
       (0, asn1_schema_1.AsnProp)({ type: general_name_1.GeneralName, context: 2, optional: true, repeated: "sequence", implicit: true })
     ], DistributionPoint.prototype, "cRLIssuer", void 0);
     var CRLDistributionPoints = CRLDistributionPoints_1 = class CRLDistributionPoints extends asn1_schema_1.AsnArray {
-      constructor(items) {
-        super(items);
+      constructor(items2) {
+        super(items2);
         Object.setPrototypeOf(this, CRLDistributionPoints_1.prototype);
       }
     };
@@ -53213,8 +53213,8 @@ var require_crl_freshest = __commonJS({
     var crl_distribution_points_1 = require_crl_distribution_points();
     exports2.id_ce_freshestCRL = `${object_identifiers_1.id_ce}.46`;
     var FreshestCRL = FreshestCRL_1 = class FreshestCRL extends crl_distribution_points_1.CRLDistributionPoints {
-      constructor(items) {
-        super(items);
+      constructor(items2) {
+        super(items2);
         Object.setPrototypeOf(this, FreshestCRL_1.prototype);
       }
     };
@@ -53346,8 +53346,8 @@ var require_extended_key_usage = __commonJS({
     var object_identifiers_1 = require_object_identifiers();
     exports2.id_ce_extKeyUsage = `${object_identifiers_1.id_ce}.37`;
     var ExtendedKeyUsage = ExtendedKeyUsage_1 = class ExtendedKeyUsage extends asn1_schema_1.AsnArray {
-      constructor(items) {
-        super(items);
+      constructor(items2) {
+        super(items2);
         Object.setPrototypeOf(this, ExtendedKeyUsage_1.prototype);
       }
     };
@@ -53431,8 +53431,8 @@ var require_issuer_alternative_name = __commonJS({
     var object_identifiers_1 = require_object_identifiers();
     exports2.id_ce_issuerAltName = `${object_identifiers_1.id_ce}.18`;
     var IssueAlternativeName = IssueAlternativeName_1 = class IssueAlternativeName extends general_names_1.GeneralNames {
-      constructor(items) {
-        super(items);
+      constructor(items2) {
+        super(items2);
         Object.setPrototypeOf(this, IssueAlternativeName_1.prototype);
       }
     };
@@ -53535,8 +53535,8 @@ var require_name_constraints = __commonJS({
       (0, asn1_schema_1.AsnProp)({ type: asn1_schema_1.AsnPropTypes.Integer, context: 1, optional: true, implicit: true })
     ], GeneralSubtree.prototype, "maximum", void 0);
     var GeneralSubtrees = GeneralSubtrees_1 = class GeneralSubtrees extends asn1_schema_1.AsnArray {
-      constructor(items) {
-        super(items);
+      constructor(items2) {
+        super(items2);
         Object.setPrototypeOf(this, GeneralSubtrees_1.prototype);
       }
     };
@@ -53622,8 +53622,8 @@ var require_policy_mappings = __commonJS({
       (0, asn1_schema_1.AsnProp)({ type: asn1_schema_1.AsnPropTypes.ObjectIdentifier })
     ], PolicyMapping.prototype, "subjectDomainPolicy", void 0);
     var PolicyMappings = PolicyMappings_1 = class PolicyMappings extends asn1_schema_1.AsnArray {
-      constructor(items) {
-        super(items);
+      constructor(items2) {
+        super(items2);
         Object.setPrototypeOf(this, PolicyMappings_1.prototype);
       }
     };
@@ -53647,8 +53647,8 @@ var require_subject_alternative_name = __commonJS({
     var object_identifiers_1 = require_object_identifiers();
     exports2.id_ce_subjectAltName = `${object_identifiers_1.id_ce}.17`;
     var SubjectAlternativeName = SubjectAlternativeName_1 = class SubjectAlternativeName extends general_names_1.GeneralNames {
-      constructor(items) {
-        super(items);
+      constructor(items2) {
+        super(items2);
         Object.setPrototypeOf(this, SubjectAlternativeName_1.prototype);
       }
     };
@@ -53697,8 +53697,8 @@ var require_subject_directory_attributes = __commonJS({
     var object_identifiers_1 = require_object_identifiers();
     exports2.id_ce_subjectDirectoryAttributes = `${object_identifiers_1.id_ce}.9`;
     var SubjectDirectoryAttributes = SubjectDirectoryAttributes_1 = class SubjectDirectoryAttributes extends asn1_schema_1.AsnArray {
-      constructor(items) {
-        super(items);
+      constructor(items2) {
+        super(items2);
         Object.setPrototypeOf(this, SubjectDirectoryAttributes_1.prototype);
       }
     };
@@ -53814,8 +53814,8 @@ var require_subject_info_access = __commonJS({
     var authority_information_access_1 = require_authority_information_access();
     exports2.id_pe_subjectInfoAccess = `${object_identifiers_1.id_pe}.11`;
     var SubjectInfoAccessSyntax = SubjectInfoAccessSyntax_1 = class SubjectInfoAccessSyntax extends asn1_schema_1.AsnArray {
-      constructor(items) {
-        super(items);
+      constructor(items2) {
+        super(items2);
         Object.setPrototypeOf(this, SubjectInfoAccessSyntax_1.prototype);
       }
     };
@@ -54028,8 +54028,8 @@ var require_extension2 = __commonJS({
       (0, asn1_schema_1.AsnProp)({ type: asn1_schema_1.OctetString })
     ], Extension.prototype, "extnValue", void 0);
     var Extensions = Extensions_1 = class Extensions extends asn1_schema_1.AsnArray {
-      constructor(items) {
-        super(items);
+      constructor(items2) {
+        super(items2);
         Object.setPrototypeOf(this, Extensions_1.prototype);
       }
     };
@@ -54464,8 +54464,8 @@ var require_signer_info = __commonJS({
       (0, asn1_schema_1.AsnProp)({ type: attribute_1.Attribute, repeated: "set", context: 1, implicit: true, optional: true })
     ], SignerInfo.prototype, "unsignedAttrs", void 0);
     var SignerInfos = SignerInfos_1 = class SignerInfos extends asn1_schema_1.AsnArray {
-      constructor(items) {
-        super(items);
+      constructor(items2) {
+        super(items2);
         Object.setPrototypeOf(this, SignerInfos_1.prototype);
       }
     };
@@ -54541,8 +54541,8 @@ var require_attr_spec = __commonJS({
     var tslib_1 = (init_tslib_es6(), __toCommonJS(tslib_es6_exports));
     var asn1_schema_1 = require_cjs();
     var AttrSpec = AttrSpec_1 = class AttrSpec extends asn1_schema_1.AsnArray {
-      constructor(items) {
-        super(items);
+      constructor(items2) {
+        super(items2);
         Object.setPrototypeOf(this, AttrSpec_1.prototype);
       }
     };
@@ -55041,8 +55041,8 @@ var require_target = __commonJS({
       (0, asn1_schema_1.AsnType)({ type: asn1_schema_1.AsnTypeTypes.Choice })
     ], Target);
     var Targets = Targets_1 = class Targets extends asn1_schema_1.AsnArray {
-      constructor(items) {
-        super(items);
+      constructor(items2) {
+        super(items2);
         Object.setPrototypeOf(this, Targets_1.prototype);
       }
     };
@@ -55064,8 +55064,8 @@ var require_proxy_info = __commonJS({
     var asn1_schema_1 = require_cjs();
     var target_1 = require_target();
     var ProxyInfo = ProxyInfo_1 = class ProxyInfo extends asn1_schema_1.AsnArray {
-      constructor(items) {
-        super(items);
+      constructor(items2) {
+        super(items2);
         Object.setPrototypeOf(this, ProxyInfo_1.prototype);
       }
     };
@@ -55202,8 +55202,8 @@ var require_certificate_choices = __commonJS({
       (0, asn1_schema_1.AsnType)({ type: asn1_schema_1.AsnTypeTypes.Choice })
     ], CertificateChoices);
     var CertificateSet = CertificateSet_1 = class CertificateSet extends asn1_schema_1.AsnArray {
-      constructor(items) {
-        super(items);
+      constructor(items2) {
+        super(items2);
         Object.setPrototypeOf(this, CertificateSet_1.prototype);
       }
     };
@@ -55412,8 +55412,8 @@ var require_key_agree_recipient_info = __commonJS({
       (0, asn1_schema_1.AsnProp)({ type: asn1_schema_1.OctetString })
     ], RecipientEncryptedKey.prototype, "encryptedKey", void 0);
     var RecipientEncryptedKeys = RecipientEncryptedKeys_1 = class RecipientEncryptedKeys extends asn1_schema_1.AsnArray {
-      constructor(items) {
-        super(items);
+      constructor(items2) {
+        super(items2);
         Object.setPrototypeOf(this, RecipientEncryptedKeys_1.prototype);
       }
     };
@@ -55680,8 +55680,8 @@ var require_recipient_infos = __commonJS({
     var asn1_schema_1 = require_cjs();
     var recipient_info_1 = require_recipient_info();
     var RecipientInfos = RecipientInfos_1 = class RecipientInfos extends asn1_schema_1.AsnArray {
-      constructor(items) {
-        super(items);
+      constructor(items2) {
+        super(items2);
         Object.setPrototypeOf(this, RecipientInfos_1.prototype);
       }
     };
@@ -55733,8 +55733,8 @@ var require_revocation_info_choice = __commonJS({
       (0, asn1_schema_1.AsnType)({ type: asn1_schema_1.AsnTypeTypes.Choice })
     ], RevocationInfoChoice);
     var RevocationInfoChoices = RevocationInfoChoices_1 = class RevocationInfoChoices extends asn1_schema_1.AsnArray {
-      constructor(items) {
-        super(items);
+      constructor(items2) {
+        super(items2);
         Object.setPrototypeOf(this, RevocationInfoChoices_1.prototype);
       }
     };
@@ -55785,8 +55785,8 @@ var require_enveloped_data = __commonJS({
     var originator_info_1 = require_originator_info();
     var encrypted_content_info_1 = require_encrypted_content_info();
     var UnprotectedAttributes = UnprotectedAttributes_1 = class UnprotectedAttributes extends asn1_schema_1.AsnArray {
-      constructor(items) {
-        super(items);
+      constructor(items2) {
+        super(items2);
         Object.setPrototypeOf(this, UnprotectedAttributes_1.prototype);
       }
     };
@@ -55852,8 +55852,8 @@ var require_signed_data = __commonJS({
     var revocation_info_choice_1 = require_revocation_info_choice();
     var signer_info_1 = require_signer_info();
     var DigestAlgorithmIdentifiers = DigestAlgorithmIdentifiers_1 = class DigestAlgorithmIdentifiers extends asn1_schema_1.AsnArray {
-      constructor(items) {
-        super(items);
+      constructor(items2) {
+        super(items2);
         Object.setPrototypeOf(this, DigestAlgorithmIdentifiers_1.prototype);
       }
     };
@@ -56402,8 +56402,8 @@ var require_other_prime_info = __commonJS({
       (0, asn1_schema_1.AsnProp)({ type: asn1_schema_1.AsnPropTypes.Integer, converter: asn1_schema_1.AsnIntegerArrayBufferConverter })
     ], OtherPrimeInfo.prototype, "coefficient", void 0);
     var OtherPrimeInfos = OtherPrimeInfos_1 = class OtherPrimeInfos extends asn1_schema_1.AsnArray {
-      constructor(items) {
-        super(items);
+      constructor(items2) {
+        super(items2);
         Object.setPrototypeOf(this, OtherPrimeInfos_1.prototype);
       }
     };
@@ -56557,19 +56557,19 @@ function __rest2(s, e) {
     }
   return t;
 }
-function __decorate2(decorators, target, key, desc) {
-  var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
+function __decorate2(decorators, target2, key, desc) {
+  var c = arguments.length, r = c < 3 ? target2 : desc === null ? desc = Object.getOwnPropertyDescriptor(target2, key) : desc, d;
   if (typeof Reflect === "object" && typeof Reflect.decorate === "function")
-    r = Reflect.decorate(decorators, target, key, desc);
+    r = Reflect.decorate(decorators, target2, key, desc);
   else
     for (var i = decorators.length - 1; i >= 0; i--)
       if (d = decorators[i])
-        r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
-  return c > 3 && r && Object.defineProperty(target, key, r), r;
+        r = (c < 3 ? d(r) : c > 3 ? d(target2, key, r) : d(target2, key)) || r;
+  return c > 3 && r && Object.defineProperty(target2, key, r), r;
 }
 function __param2(paramIndex, decorator) {
-  return function(target, key) {
-    decorator(target, key, paramIndex);
+  return function(target2, key) {
+    decorator(target2, key, paramIndex);
   };
 }
 function __metadata2(metadataKey, metadataValue) {
@@ -56908,9 +56908,9 @@ var require_reflection_helpers = __commonJS({
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.defineInjectionTokenMetadata = exports2.getParamInfo = exports2.INJECTION_TOKEN_METADATA_KEY = void 0;
     exports2.INJECTION_TOKEN_METADATA_KEY = "injectionTokens";
-    function getParamInfo(target) {
-      const params = Reflect.getMetadata("design:paramtypes", target) || [];
-      const injectionTokens = Reflect.getOwnMetadata(exports2.INJECTION_TOKEN_METADATA_KEY, target) || {};
+    function getParamInfo(target2) {
+      const params = Reflect.getMetadata("design:paramtypes", target2) || [];
+      const injectionTokens = Reflect.getOwnMetadata(exports2.INJECTION_TOKEN_METADATA_KEY, target2) || {};
       Object.keys(injectionTokens).forEach((key) => {
         params[+key] = injectionTokens[key];
       });
@@ -56918,14 +56918,14 @@ var require_reflection_helpers = __commonJS({
     }
     exports2.getParamInfo = getParamInfo;
     function defineInjectionTokenMetadata(data, transform) {
-      return function(target, _propertyKey, parameterIndex) {
-        const descriptors2 = Reflect.getOwnMetadata(exports2.INJECTION_TOKEN_METADATA_KEY, target) || {};
+      return function(target2, _propertyKey, parameterIndex) {
+        const descriptors2 = Reflect.getOwnMetadata(exports2.INJECTION_TOKEN_METADATA_KEY, target2) || {};
         descriptors2[parameterIndex] = transform ? {
           token: data,
           transform: transform.transformToken,
           transformArgs: transform.args || []
         } : data;
-        Reflect.defineMetadata(exports2.INJECTION_TOKEN_METADATA_KEY, descriptors2, target);
+        Reflect.defineMetadata(exports2.INJECTION_TOKEN_METADATA_KEY, descriptors2, target2);
       };
     }
     exports2.defineInjectionTokenMetadata = defineInjectionTokenMetadata;
@@ -56982,7 +56982,7 @@ var require_lazy_helpers = __commonJS({
         ];
       }
       createProxy(createObject) {
-        const target = {};
+        const target2 = {};
         let init = false;
         let value;
         const delayedObject = () => {
@@ -56992,7 +56992,7 @@ var require_lazy_helpers = __commonJS({
           }
           return value;
         };
-        return new Proxy(target, this.createHandler(delayedObject));
+        return new Proxy(target2, this.createHandler(delayedObject));
       }
       createHandler(delayedObject) {
         const handler = {};
@@ -57523,7 +57523,7 @@ var require_dependency_container = __commonJS({
       }
       construct(ctor, context) {
         if (ctor instanceof lazy_helpers_1.DelayedConstructor) {
-          return ctor.createProxy((target) => this.resolve(target, context));
+          return ctor.createProxy((target2) => this.resolve(target2, context));
         }
         const instance = (() => {
           const paramInfo = exports2.typeInfo.get(ctor);
@@ -57581,9 +57581,9 @@ var require_auto_injectable = __commonJS({
     var injection_token_1 = require_injection_token();
     var error_helpers_1 = require_error_helpers();
     function autoInjectable() {
-      return function(target) {
-        const paramInfo = reflection_helpers_1.getParamInfo(target);
-        return class extends target {
+      return function(target2) {
+        const paramInfo = reflection_helpers_1.getParamInfo(target2);
+        return class extends target2 {
           constructor(...args) {
             super(...args.concat(paramInfo.slice(args.length).map((type, index) => {
               try {
@@ -57599,7 +57599,7 @@ var require_auto_injectable = __commonJS({
                 return dependency_container_1.instance.resolve(type);
               } catch (e) {
                 const argIndex = index + args.length;
-                throw new Error(error_helpers_1.formatErrorCtor(target, argIndex, e));
+                throw new Error(error_helpers_1.formatErrorCtor(target2, argIndex, e));
               }
             })));
           }
@@ -57637,14 +57637,14 @@ var require_injectable = __commonJS({
     var dependency_container_1 = require_dependency_container();
     var dependency_container_2 = require_dependency_container();
     function injectable(options) {
-      return function(target) {
-        dependency_container_1.typeInfo.set(target, reflection_helpers_1.getParamInfo(target));
+      return function(target2) {
+        dependency_container_1.typeInfo.set(target2, reflection_helpers_1.getParamInfo(target2));
         if (options && options.token) {
           if (!Array.isArray(options.token)) {
-            dependency_container_2.instance.register(options.token, target);
+            dependency_container_2.instance.register(options.token, target2);
           } else {
             options.token.forEach((token) => {
-              dependency_container_2.instance.register(token, target);
+              dependency_container_2.instance.register(token, target2);
             });
           }
         }
@@ -57662,12 +57662,12 @@ var require_registry2 = __commonJS({
     var tslib_1 = (init_tslib_es62(), __toCommonJS(tslib_es6_exports2));
     var dependency_container_1 = require_dependency_container();
     function registry(registrations = []) {
-      return function(target) {
+      return function(target2) {
         registrations.forEach((_a) => {
           var { token, options } = _a, provider = tslib_1.__rest(_a, ["token", "options"]);
           return dependency_container_1.instance.register(token, provider, options);
         });
-        return target;
+        return target2;
       };
     }
     exports2.default = registry;
@@ -57682,9 +57682,9 @@ var require_singleton = __commonJS({
     var injectable_1 = require_injectable();
     var dependency_container_1 = require_dependency_container();
     function singleton() {
-      return function(target) {
-        injectable_1.default()(target);
-        dependency_container_1.instance.registerSingleton(target);
+      return function(target2) {
+        injectable_1.default()(target2);
+        dependency_container_1.instance.registerSingleton(target2);
       };
     }
     exports2.default = singleton;
@@ -57752,9 +57752,9 @@ var require_scoped = __commonJS({
     var injectable_1 = require_injectable();
     var dependency_container_1 = require_dependency_container();
     function scoped(lifecycle, token) {
-      return function(target) {
-        injectable_1.default()(target);
-        dependency_container_1.instance.register(token || target, target, {
+      return function(target2) {
+        injectable_1.default()(target2);
+        dependency_container_1.instance.register(token || target2, target2, {
           lifecycle
         });
       };
@@ -57940,8 +57940,8 @@ var require_attribute3 = __commonJS({
       (0, asn1_schema_1.AsnProp)({ type: asn1_schema_1.AsnPropTypes.Any, repeated: "set" })
     ], PKCS12Attribute.prototype, "attrValues", void 0);
     var PKCS12AttrSet = PKCS12AttrSet_1 = class PKCS12AttrSet extends asn1_schema_1.AsnArray {
-      constructor(items) {
-        super(items);
+      constructor(items2) {
+        super(items2);
         Object.setPrototypeOf(this, PKCS12AttrSet_1.prototype);
       }
     };
@@ -57963,8 +57963,8 @@ var require_authenticated_safe = __commonJS({
     var asn1_schema_1 = require_cjs();
     var asn1_cms_1 = require_cjs4();
     var AuthenticatedSafe = AuthenticatedSafe_1 = class AuthenticatedSafe extends asn1_schema_1.AsnArray {
-      constructor(items) {
-        super(items);
+      constructor(items2) {
+        super(items2);
         Object.setPrototypeOf(this, AuthenticatedSafe_1.prototype);
       }
     };
@@ -58116,8 +58116,8 @@ var require_private_key_info = __commonJS({
     };
     exports2.PrivateKey = PrivateKey;
     var Attributes = Attributes_1 = class Attributes extends asn1_schema_1.AsnArray {
-      constructor(items) {
-        super(items);
+      constructor(items2) {
+        super(items2);
         Object.setPrototypeOf(this, Attributes_1.prototype);
       }
     };
@@ -58325,8 +58325,8 @@ var require_safe_bag = __commonJS({
       (0, asn1_schema_1.AsnProp)({ type: attribute_1.PKCS12Attribute, repeated: "set", optional: true })
     ], SafeBag.prototype, "bagAttributes", void 0);
     var SafeContents = SafeContents_1 = class SafeContents extends asn1_schema_1.AsnArray {
-      constructor(items) {
-        super(items);
+      constructor(items2) {
+        super(items2);
         Object.setPrototypeOf(this, SafeContents_1.prototype);
       }
     };
@@ -58589,8 +58589,8 @@ var require_cjs10 = __commonJS({
       (0, asn1_schema_1.AsnType)({ type: asn1_schema_1.AsnTypeTypes.Choice })
     ], ChallengePassword);
     var ExtensionRequest = ExtensionRequest_1 = class ExtensionRequest extends x509.Extensions {
-      constructor(items) {
-        super(items);
+      constructor(items2) {
+        super(items2);
         Object.setPrototypeOf(this, ExtensionRequest_1.prototype);
       }
     };
@@ -58599,8 +58599,8 @@ var require_cjs10 = __commonJS({
       (0, asn1_schema_1.AsnType)({ type: asn1_schema_1.AsnTypeTypes.Sequence })
     ], ExtensionRequest);
     var ExtendedCertificateAttributes = ExtendedCertificateAttributes_1 = class ExtendedCertificateAttributes extends asn1_schema_1.AsnArray {
-      constructor(items) {
-        super(items);
+      constructor(items2) {
+        super(items2);
         Object.setPrototypeOf(this, ExtendedCertificateAttributes_1.prototype);
       }
     };
@@ -58636,8 +58636,8 @@ var require_cjs10 = __commonJS({
       (0, asn1_schema_1.AsnType)({ type: asn1_schema_1.AsnTypeTypes.Sequence })
     ], SMIMECapability);
     var SMIMECapabilities = SMIMECapabilities_1 = class SMIMECapabilities extends asn1_schema_1.AsnArray {
-      constructor(items) {
-        super(items);
+      constructor(items2) {
+        super(items2);
         Object.setPrototypeOf(this, SMIMECapabilities_1.prototype);
       }
     };
@@ -58659,8 +58659,8 @@ var require_attributes3 = __commonJS({
     var asn1_schema_1 = require_cjs();
     var asn1_x509_1 = require_cjs2();
     var Attributes = Attributes_1 = class Attributes extends asn1_schema_1.AsnArray {
-      constructor(items) {
-        super(items);
+      constructor(items2) {
+        super(items2);
         Object.setPrototypeOf(this, Attributes_1.prototype);
       }
     };
@@ -59009,11 +59009,11 @@ var require_x509_cjs = __commonJS({
     var NAME = Symbol("name");
     var VALUE = Symbol("value");
     var TextObject = class {
-      constructor(name, items = {}, value = "") {
+      constructor(name, items2 = {}, value = "") {
         this[NAME] = name;
         this[VALUE] = value;
-        for (const key in items) {
-          this[key] = items[key];
+        for (const key in items2) {
+          this[key] = items2[key];
         }
       }
     };
@@ -59342,24 +59342,24 @@ var require_x509_cjs = __commonJS({
     names.register("I", "2.5.4.43");
     names.register("SN", "2.5.4.4");
     names.register("T", "2.5.4.12");
-    function replaceUnknownCharacter(text2, char) {
+    function replaceUnknownCharacter(text3, char) {
       return `\\${pvtsutils.Convert.ToHex(pvtsutils.Convert.FromUtf8String(char)).toUpperCase()}`;
     }
     function escape2(data) {
       return data.replace(/([,+"\\<>;])/g, "\\$1").replace(/^([ #])/, "\\$1").replace(/([ ]$)/, "\\$1").replace(/([\r\n\t])/, replaceUnknownCharacter);
     }
     var Name = class _Name {
-      static isASCII(text2) {
-        for (let i = 0; i < text2.length; i++) {
-          const code = text2.charCodeAt(i);
+      static isASCII(text3) {
+        for (let i = 0; i < text3.length; i++) {
+          const code = text3.charCodeAt(i);
           if (code > 255) {
             return false;
           }
         }
         return true;
       }
-      static isPrintableString(text2) {
-        return /^[A-Za-z0-9 '()+,-./:=?]*$/g.test(text2);
+      static isPrintableString(text3) {
+        return /^[A-Za-z0-9 '()+,-./:=?]*$/g.test(text3);
       }
       constructor(data, extraNames = {}) {
         this.extraNames = new NameIdentifier();
@@ -59684,16 +59684,16 @@ var require_x509_cjs = __commonJS({
         if (params instanceof asn1X509__namespace.GeneralNames) {
           names2 = params;
         } else if (Array.isArray(params)) {
-          const items = [];
+          const items2 = [];
           for (const name of params) {
             if (name instanceof asn1X509__namespace.GeneralName) {
-              items.push(name);
+              items2.push(name);
             } else {
               const asnName = asn1Schema.AsnConvert.parse(new GeneralName(name.type, name.value).rawData, asn1X509__namespace.GeneralName);
-              items.push(asnName);
+              items2.push(asnName);
             }
           }
-          names2 = new asn1X509__namespace.GeneralNames(items);
+          names2 = new asn1X509__namespace.GeneralNames(items2);
         } else if (pvtsutils.BufferSourceConverter.isBufferSource(params)) {
           names2 = asn1Schema.AsnConvert.parse(params, asn1X509__namespace.GeneralNames);
         } else {
@@ -59702,7 +59702,7 @@ var require_x509_cjs = __commonJS({
         super(names2);
       }
       onInit(asn) {
-        const items = [];
+        const items2 = [];
         for (const asnName of asn) {
           let name = null;
           try {
@@ -59710,9 +59710,9 @@ var require_x509_cjs = __commonJS({
           } catch {
             continue;
           }
-          items.push(name);
+          items2.push(name);
         }
-        this.items = items;
+        this.items = items2;
       }
       toJSON() {
         return this.items.map((o) => o.toJSON());
@@ -59790,11 +59790,11 @@ var require_x509_cjs = __commonJS({
         return blocks.map((o) => o.rawData);
       }
       static decodeFirst(pem) {
-        const items = this.decode(pem);
-        if (!items.length) {
+        const items2 = this.decode(pem);
+        if (!items2.length) {
           throw new RangeError("PEM string doesn't contain any objects");
         }
-        return items[0];
+        return items2[0];
       }
       static encode(rawData, tag) {
         if (Array.isArray(rawData)) {
@@ -60392,9 +60392,9 @@ var require_x509_cjs = __commonJS({
       }
     }
     function addAccessDescriptions(value, params, method, key) {
-      const items = params[key];
-      if (items) {
-        const array = Array.isArray(items) ? items : [items];
+      const items2 = params[key];
+      if (items2) {
+        const array = Array.isArray(items2) ? items2 : [items2];
         array.forEach((url2) => {
           if (typeof url2 === "string") {
             url2 = new GeneralName("url", url2);
@@ -62343,14 +62343,14 @@ var require_buffer_list2 = __commonJS({
           return subset.first;
         }
         let leaf = subset.head;
-        const target = Buffer.allocUnsafe(subset.length);
+        const target2 = Buffer.allocUnsafe(subset.length);
         let offset = 0;
         for (let i = 0; i < subset.count; i += 1) {
-          target.set(leaf.buffer, offset);
+          target2.set(leaf.buffer, offset);
           offset += leaf.buffer.length;
           leaf = leaf.next;
         }
-        return target;
+        return target2;
       }
       /**
        * Return a string representation of the buffer.
@@ -62900,8 +62900,8 @@ var require_decode = __commonJS({
       }
       return decodeSchema(rstream, typeOrSchema, meta);
     }
-    function decodeSchema(rstream, schema8, meta) {
-      assertSchema(schema8);
+    function decodeSchema(rstream, schema11, meta) {
+      assertSchema(schema11);
       const node = /* @__PURE__ */ Object.create(null);
       if (meta.node === void 0) {
         meta.node = node;
@@ -62909,10 +62909,10 @@ var require_decode = __commonJS({
       } else {
         meta.current = node;
       }
-      const keys = Object.keys(schema8);
+      const keys = Object.keys(schema11);
       for (let i = 0; i < keys.length; i += 1) {
         const key = keys[i];
-        const type = schema8[key];
+        const type = schema11[key];
         if (!isDecodeType(type)) {
           node[key] = decodeSchema(rstream, type, meta);
           meta.current = node;
@@ -62927,8 +62927,8 @@ var require_decode = __commonJS({
       }
       return node;
     }
-    function assertSchema(schema8) {
-      if (!isUserType(schema8)) {
+    function assertSchema(schema11) {
+      if (!isUserType(schema11)) {
         throw new TypeError("Argument #2 should be a plain object.");
       }
     }
@@ -62947,20 +62947,20 @@ var require_encode = __commonJS({
       encode: encode3,
       encodeCommon
     };
-    function encode3(obj, type, target) {
+    function encode3(obj, type, target2) {
       const meta = new Metadata();
       if (type instanceof BinaryStream) {
-        const tmp = target;
-        target = type;
+        const tmp = target2;
+        target2 = type;
         type = tmp;
       }
-      if (!(target instanceof BinaryStream)) {
-        target = new BinaryStream();
+      if (!(target2 instanceof BinaryStream)) {
+        target2 = new BinaryStream();
       }
-      encodeCommon(obj, target, type, meta);
+      encodeCommon(obj, target2, type, meta);
       encode3.bytes = meta.bytes;
       Metadata.clean(meta);
-      return target;
+      return target2;
     }
     function encodeCommon(object, wstream, typeOrSchema, context) {
       if (isType(typeOrSchema)) {
@@ -62970,18 +62970,18 @@ var require_encode = __commonJS({
         encodeSchema(object, wstream, typeOrSchema, context);
       }
     }
-    function encodeSchema(object, wstream, schema8, context) {
-      assertSchema(schema8);
+    function encodeSchema(object, wstream, schema11, context) {
+      assertSchema(schema11);
       if (context.node === void 0) {
         context.node = object;
         context.current = object;
       } else {
         context.current = object;
       }
-      const keys = Object.keys(schema8);
+      const keys = Object.keys(schema11);
       for (let i = 0; i < keys.length; i += 1) {
         const key = keys[i];
-        const type = schema8[key];
+        const type = schema11[key];
         const value = object[key];
         if (!isEncodeType(type)) {
           encodeSchema(value, wstream, type, context);
@@ -62992,8 +62992,8 @@ var require_encode = __commonJS({
         context[symbols.bytes] += type.encode.bytes;
       }
     }
-    function assertSchema(schema8) {
-      if (!isUserType(schema8)) {
+    function assertSchema(schema11) {
+      if (!isUserType(schema11)) {
         throw new TypeError("Argument `schema` should be a plain object.");
       }
     }
@@ -63011,9 +63011,9 @@ var require_encoding_length = __commonJS({
       encodingLength,
       encodingLengthCommon
     };
-    function encodingLength(obj, schema8) {
+    function encodingLength(obj, schema11) {
       const context = new Metadata();
-      encodingLengthCommon(obj, schema8, context);
+      encodingLengthCommon(obj, schema11, context);
       Metadata.clean(context);
       return context.bytes;
     }
@@ -63024,8 +63024,8 @@ var require_encoding_length = __commonJS({
         encodingLengthSchema(item, typeOrSchema, context);
       }
     }
-    function encodingLengthSchema(item, schema8, context) {
-      if (!isUserType(schema8)) {
+    function encodingLengthSchema(item, schema11, context) {
+      if (!isUserType(schema11)) {
         throw new TypeError("Argument `schema` should be a plain object.");
       }
       if (context.node === void 0) {
@@ -63034,10 +63034,10 @@ var require_encoding_length = __commonJS({
       } else {
         context.current = item;
       }
-      const keys = Object.keys(schema8);
+      const keys = Object.keys(schema11);
       for (let i = 0; i < keys.length; i += 1) {
         const key = keys[i];
-        const type = schema8[key];
+        const type = schema11[key];
         const value = item[key];
         if (!isType(type)) {
           encodingLengthSchema(value, type, context);
@@ -63076,13 +63076,13 @@ var require_array2 = __commonJS({
         decode,
         encodingLength
       };
-      function encode3(items, wstream) {
-        checkArray(items);
+      function encode3(items2, wstream) {
+        checkArray(items2);
         const context = Metadata.clone(this);
         encode3.bytes = 0;
         let expectedSize = 0;
         if (istype) {
-          expectedSize = items.length;
+          expectedSize = items2.length;
         } else if (isnum) {
           expectedSize = length;
         } else if (isfunc) {
@@ -63090,11 +63090,11 @@ var require_array2 = __commonJS({
           checkArraySizeType(expectedSize);
         }
         if (!isLengthInBytes) {
-          checkArraySize(expectedSize, items.length);
+          checkArraySize(expectedSize, items2.length);
         }
         if (isLengthInBytes) {
           const lengthContext = Metadata.clone(context);
-          for (const item of items) {
+          for (const item of items2) {
             encodingLengthCommon(item, type, lengthContext);
           }
           if (istype) {
@@ -63107,7 +63107,7 @@ var require_array2 = __commonJS({
           length.encode.call(context, expectedSize, wstream);
           encode3.bytes += length.encode.bytes;
         }
-        items.forEach((item) => {
+        items2.forEach((item) => {
           encodeCommon(item, wstream, type, context);
         });
         encode3.bytes += context.bytes;
@@ -63136,17 +63136,17 @@ var require_array2 = __commonJS({
         Metadata.clean(context);
         return values;
       }
-      function encodingLength(items) {
-        checkArray(items);
+      function encodingLength(items2) {
+        checkArray(items2);
         const context = Metadata.clone(this);
         let size = 0;
         if (isnum && isLengthInBytes) {
           return length;
         }
         if (istype && !isLengthInBytes) {
-          size = length.encodingLength(items.length);
+          size = length.encodingLength(items2.length);
         }
-        for (const item of items) {
+        for (const item of items2) {
           encodingLengthCommon(item, type, context);
         }
         Metadata.clean(context);
@@ -63157,8 +63157,8 @@ var require_array2 = __commonJS({
         return size;
       }
     }
-    function checkArray(items) {
-      if (!Array.isArray(items)) {
+    function checkArray(items2) {
+      if (!Array.isArray(items2)) {
         throw new TypeError("Argument #1 should be an Array.");
       }
     }
@@ -63175,24 +63175,24 @@ var require_array2 = __commonJS({
       }
     }
     function decodeBytes(type, lengthBytes, rstream, context) {
-      const items = [];
+      const items2 = [];
       const before = context.bytes;
       let bytes = 0;
       while (bytes < lengthBytes) {
-        items.push(decodeCommon(rstream, type, context));
+        items2.push(decodeCommon(rstream, type, context));
         bytes = context.bytes - before;
       }
       if (bytes > lengthBytes) {
         throw new Error("Incorrect length of an array.");
       }
-      return items;
+      return items2;
     }
     function decodeCount(type, length, rstream, context) {
-      const items = new Array(length);
+      const items2 = new Array(length);
       for (let i = 0; i < length; i += 1) {
-        items[i] = decodeCommon(rstream, type, context);
+        items2[i] = decodeCommon(rstream, type, context);
       }
-      return items;
+      return items2;
     }
   }
 });
@@ -63890,27 +63890,27 @@ var require_src5 = __commonJS({
       types[type] = numbers[type];
     }
     var kschema = Symbol("schema");
-    function createEncodeStream(schema8) {
+    function createEncodeStream(schema11) {
       const stream4 = new BinaryStream({
         readableObjectMode: false,
         writableObjectMode: true,
         transform: transformEncode
       });
-      stream4[kschema] = schema8;
+      stream4[kschema] = schema11;
       return stream4;
     }
     function createDecodeStream(bufOrSchema) {
-      let schema8 = null;
+      let schema11 = null;
       const isBuffer2 = Buffer.isBuffer(bufOrSchema);
       if (!isBuffer2) {
-        schema8 = bufOrSchema;
+        schema11 = bufOrSchema;
       }
       const stream4 = new BinaryStream({
         transform: transformDecode,
         readableObjectMode: true,
         writableObjectMode: false
       });
-      stream4[kschema] = schema8;
+      stream4[kschema] = schema11;
       if (isBuffer2) {
         stream4.append(bufOrSchema);
       }
@@ -73700,14 +73700,14 @@ var require_BigInteger = __commonJS({
         }
         return low.add(Integer.fromArray(result, BASE, false));
       }
-      var parseBase = function(text2, base, alphabet, caseSensitive) {
+      var parseBase = function(text3, base, alphabet, caseSensitive) {
         alphabet = alphabet || DEFAULT_ALPHABET;
-        text2 = String(text2);
+        text3 = String(text3);
         if (!caseSensitive) {
-          text2 = text2.toLowerCase();
+          text3 = text3.toLowerCase();
           alphabet = alphabet.toLowerCase();
         }
-        var length = text2.length;
+        var length = text3.length;
         var i2;
         var absBase = Math.abs(base);
         var alphabetValues = {};
@@ -73715,7 +73715,7 @@ var require_BigInteger = __commonJS({
           alphabetValues[alphabet[i2]] = i2;
         }
         for (i2 = 0; i2 < length; i2++) {
-          var c = text2[i2];
+          var c = text3[i2];
           if (c === "-")
             continue;
           if (c in alphabetValues) {
@@ -73728,17 +73728,17 @@ var require_BigInteger = __commonJS({
         }
         base = parseValue(base);
         var digits = [];
-        var isNegative = text2[0] === "-";
-        for (i2 = isNegative ? 1 : 0; i2 < text2.length; i2++) {
-          var c = text2[i2];
+        var isNegative = text3[0] === "-";
+        for (i2 = isNegative ? 1 : 0; i2 < text3.length; i2++) {
+          var c = text3[i2];
           if (c in alphabetValues)
             digits.push(parseValue(alphabetValues[c]));
           else if (c === "<") {
             var start = i2;
             do {
               i2++;
-            } while (text2[i2] !== ">" && i2 < text2.length);
-            digits.push(parseValue(text2.slice(start + 1, i2)));
+            } while (text3[i2] !== ">" && i2 < text3.length);
+            digits.push(parseValue(text3.slice(start + 1, i2)));
           } else
             throw new Error(c + " is not a valid character");
         }
@@ -73882,16 +73882,16 @@ var require_BigInteger = __commonJS({
           exp = +exp;
           if (exp !== truncate(exp) || !isPrecise(exp))
             throw new Error("Invalid integer: " + exp + " is not a valid exponent.");
-          var text2 = split[0];
-          var decimalPlace = text2.indexOf(".");
+          var text3 = split[0];
+          var decimalPlace = text3.indexOf(".");
           if (decimalPlace >= 0) {
-            exp -= text2.length - decimalPlace - 1;
-            text2 = text2.slice(0, decimalPlace) + text2.slice(decimalPlace + 1);
+            exp -= text3.length - decimalPlace - 1;
+            text3 = text3.slice(0, decimalPlace) + text3.slice(decimalPlace + 1);
           }
           if (exp < 0)
             throw new Error("Cannot include negative exponent part for integers");
-          text2 += new Array(exp + 1).join("0");
-          v = text2;
+          text3 += new Array(exp + 1).join("0");
+          v = text3;
         }
         var isValid2 = /^([0-9][0-9]*)$/.test(v);
         if (!isValid2)
@@ -78799,8 +78799,8 @@ var require_receive = __commonJS({
       return packets;
     };
     exports2.parsePacket = parsePacket;
-    var parsePlainText = (dtls, cipher) => (plain) => {
-      const contentType = plain.recordLayerHeader.contentType;
+    var parsePlainText = (dtls, cipher) => (plain2) => {
+      const contentType = plain2.recordLayerHeader.contentType;
       switch (contentType) {
         case const_1.ContentType.changeCipherSpec: {
           log(dtls.sessionId, "change cipher spec");
@@ -78810,11 +78810,11 @@ var require_receive = __commonJS({
           };
         }
         case const_1.ContentType.handshake: {
-          let raw = plain.fragment;
+          let raw = plain2.fragment;
           try {
-            if (plain.recordLayerHeader.epoch > 0) {
+            if (plain2.recordLayerHeader.epoch > 0) {
               log(dtls.sessionId, "decrypt handshake");
-              raw = cipher.decryptPacket(plain);
+              raw = cipher.decryptPacket(plain2);
             }
           } catch (error) {
             err(dtls.sessionId, "decrypt failed", error);
@@ -78833,13 +78833,13 @@ var require_receive = __commonJS({
         case const_1.ContentType.applicationData: {
           return {
             type: const_1.ContentType.applicationData,
-            data: cipher.decryptPacket(plain)
+            data: cipher.decryptPacket(plain2)
           };
         }
         case const_1.ContentType.alert: {
-          let alert = alert_1.Alert.deSerialize(plain.fragment);
+          let alert = alert_1.Alert.deSerialize(plain2.fragment);
           if (const_1.AlertDesc[alert.description] == void 0) {
-            const dec = cipher.decryptPacket(plain);
+            const dec = cipher.decryptPacket(plain2);
             alert = alert_1.Alert.deSerialize(dec);
           }
           err(dtls.sessionId, "ContentType.alert", alert, const_1.AlertDesc[alert.description], "flight", dtls.flight, "lastFlight", dtls.lastFlight);
@@ -79710,8 +79710,8 @@ var require_transport3 = __commonJS({
             });
           })
         });
-        upd.on("message", (buf, target) => {
-          this.rinfo = target;
+        upd.on("message", (buf, target2) => {
+          this.rinfo = target2;
           if (this.onData)
             this.onData(buf);
         });
@@ -82271,9 +82271,9 @@ var require_sctp = __commonJS({
                 return;
               const reconfig = chunk2;
               for (const [type, body] of reconfig.params) {
-                const target = param_1.RECONFIG_PARAM_BY_TYPES[type];
-                if (target) {
-                  await this.receiveReconfigParam(target.parse(body));
+                const target2 = param_1.RECONFIG_PARAM_BY_TYPES[type];
+                if (target2) {
+                  await this.receiveReconfigParam(target2.parse(body));
                 }
               }
             }
@@ -83533,8 +83533,8 @@ var require_sdp = __commonJS({
         });
         const bundle = session.group.find((g) => g.semantic === "BUNDLE");
         mediaGroups.forEach((mediaLines) => {
-          const target = mediaLines[0];
-          const m = target.match(/^m=([^ ]+) ([0-9]+) ([A-Z/]+) (.+)/);
+          const target2 = mediaLines[0];
+          const m = target2.match(/^m=([^ ]+) ([0-9]+) ([A-Z/]+) (.+)/);
           if (!m) {
             throw new Error("m line not found");
           }
@@ -83982,7 +83982,7 @@ var require_sdp = __commonJS({
     };
     exports2.MediaDescription = MediaDescription;
     var GroupDescription = class {
-      constructor(semantic, items) {
+      constructor(semantic, items2) {
         Object.defineProperty(this, "semantic", {
           enumerable: true,
           configurable: true,
@@ -83993,7 +83993,7 @@ var require_sdp = __commonJS({
           enumerable: true,
           configurable: true,
           writable: true,
-          value: items
+          value: items2
         });
       }
       get str() {
@@ -85543,7 +85543,7 @@ var require_peerConnection = __commonJS({
       return mid;
     }
     exports2.allocateMid = allocateMid;
-    var findCodecByMimeType = (codecs, target) => codecs.find((localCodec) => localCodec.mimeType.toLowerCase() === target.mimeType.toLowerCase()) ? target : void 0;
+    var findCodecByMimeType = (codecs, target2) => codecs.find((localCodec) => localCodec.mimeType.toLowerCase() === target2.mimeType.toLowerCase()) ? target2 : void 0;
     exports2.findCodecByMimeType = findCodecByMimeType;
     exports2.defaultPeerConfig = {
       codecs: {
@@ -87802,17 +87802,17 @@ function parseComfyTarget(raw) {
     throw new Error("ComfyUI secure must be true or false");
   return { mode: "custom", host, port, secure };
 }
-function comfyBaseUrl(target) {
-  return `${target.secure ? "https" : "http"}://${target.host}:${target.port}`;
+function comfyBaseUrl(target2) {
+  return `${target2.secure ? "https" : "http"}://${target2.host}:${target2.port}`;
 }
-function comfyWebSocketUrl(target, clientId) {
-  return `${target.secure ? "wss" : "ws"}://${target.host}:${target.port}/ws?clientId=${encodeURIComponent(clientId)}`;
+function comfyWebSocketUrl(target2, clientId) {
+  return `${target2.secure ? "wss" : "ws"}://${target2.host}:${target2.port}/ws?clientId=${encodeURIComponent(clientId)}`;
 }
 function sameComfyTarget(a, b) {
   return a.mode === b.mode && a.host === b.host && a.port === b.port && a.secure === b.secure;
 }
-function describeComfyTarget(target) {
-  return target.mode === "builtin" ? `built-in ComfyUI at ${comfyBaseUrl(target)}` : `custom ComfyUI at ${comfyBaseUrl(target)}`;
+function describeComfyTarget(target2) {
+  return target2.mode === "builtin" ? `built-in ComfyUI at ${comfyBaseUrl(target2)}` : `custom ComfyUI at ${comfyBaseUrl(target2)}`;
 }
 var BUILTIN_COMFY_PORT, BUILTIN_TARGET, HOSTNAME, IPV6;
 var init_comfyui_target = __esm({
@@ -92391,8 +92391,8 @@ var init_adapter5 = __esm({
             current: experience.current ?? total - spent
           };
         }
-        const items = Array.isArray(actorData.items) ? actorData.items : [];
-        const skillItems = items.filter((i) => i?.type === "skill");
+        const items2 = Array.isArray(actorData.items) ? actorData.items : [];
+        const skillItems = items2.filter((i) => i?.type === "skill");
         if (skillItems.length > 0) {
           const chars = system.characteristics || {};
           stats.skills = skillItems.map((skill) => {
@@ -92409,8 +92409,8 @@ var init_adapter5 = __esm({
             return entry;
           }).sort((a, b) => a.name.localeCompare(b.name));
         }
-        const hasSpells = items.some((i) => i?.type === "spell");
-        const hasPrayers = items.some((i) => i?.type === "prayer");
+        const hasSpells = items2.some((i) => i?.type === "spell");
+        const hasPrayers = items2.some((i) => i?.type === "prayer");
         if (hasSpells || hasPrayers) {
           stats.spellcasting = { hasSpells, hasPrayers };
         }
@@ -92460,8 +92460,8 @@ var init_adapter5 = __esm({
        * to `details.career.value` for source data.
        */
       currentCareer(actorData) {
-        const items = Array.isArray(actorData.items) ? actorData.items : [];
-        const currentCareerItem = items.find((i) => i?.type === "career" && i.system?.current?.value);
+        const items2 = Array.isArray(actorData.items) ? actorData.items : [];
+        const currentCareerItem = items2.find((i) => i?.type === "career" && i.system?.current?.value);
         if (currentCareerItem?.name) {
           return currentCareerItem.name;
         }
@@ -93608,13 +93608,13 @@ var init_utils = __esm({
           }
           if (!("toJSON" in source)) {
             stack[i] = source;
-            const target = isArray(source) ? [] : {};
+            const target2 = isArray(source) ? [] : {};
             forEach(source, (value, key) => {
               const reducedValue = visit(value, i + 1);
-              !isUndefined(reducedValue) && (target[key] = reducedValue);
+              !isUndefined(reducedValue) && (target2[key] = reducedValue);
             });
             stack[i] = void 0;
-            return target;
+            return target2;
           }
         }
         return source;
@@ -103195,15 +103195,15 @@ var require_implementation = __commonJS({
       return str;
     };
     module2.exports = function bind2(that) {
-      var target = this;
-      if (typeof target !== "function" || toStr.apply(target) !== funcType) {
-        throw new TypeError(ERROR_MESSAGE + target);
+      var target2 = this;
+      if (typeof target2 !== "function" || toStr.apply(target2) !== funcType) {
+        throw new TypeError(ERROR_MESSAGE + target2);
       }
       var args = slicy(arguments, 1);
       var bound;
       var binder = function() {
         if (this instanceof bound) {
-          var result = target.apply(
+          var result = target2.apply(
             this,
             concatty(args, arguments)
           );
@@ -103212,21 +103212,21 @@ var require_implementation = __commonJS({
           }
           return this;
         }
-        return target.apply(
+        return target2.apply(
           that,
           concatty(args, arguments)
         );
       };
-      var boundLength = max(0, target.length - args.length);
+      var boundLength = max(0, target2.length - args.length);
       var boundArgs = [];
       for (var i = 0; i < boundLength; i++) {
         boundArgs[i] = "$" + i;
       }
       bound = Function("binder", "return function (" + joiny(boundArgs, ",") + "){ return binder.apply(this,arguments); }")(binder);
-      if (target.prototype) {
+      if (target2.prototype) {
         var Empty = function Empty2() {
         };
-        Empty.prototype = target.prototype;
+        Empty.prototype = target2.prototype;
         bound.prototype = new Empty();
         Empty.prototype = null;
       }
@@ -104488,27 +104488,27 @@ function arrayToObject(arr) {
   return obj;
 }
 function formDataToJSON(formData) {
-  function buildPath(path13, value, target, index) {
+  function buildPath(path13, value, target2, index) {
     let name = path13[index++];
     if (name === "__proto__")
       return true;
     const isNumericKey = Number.isFinite(+name);
     const isLast = index >= path13.length;
-    name = !name && utils_default.isArray(target) ? target.length : name;
+    name = !name && utils_default.isArray(target2) ? target2.length : name;
     if (isLast) {
-      if (utils_default.hasOwnProp(target, name)) {
-        target[name] = [target[name], value];
+      if (utils_default.hasOwnProp(target2, name)) {
+        target2[name] = [target2[name], value];
       } else {
-        target[name] = value;
+        target2[name] = value;
       }
       return !isNumericKey;
     }
-    if (!target[name] || !utils_default.isObject(target[name])) {
-      target[name] = [];
+    if (!target2[name] || !utils_default.isObject(target2[name])) {
+      target2[name] = [];
     }
-    const result = buildPath(path13, value, target[name], index);
-    if (result && utils_default.isArray(target[name])) {
-      target[name] = arrayToObject(target[name]);
+    const result = buildPath(path13, value, target2[name], index);
+    if (result && utils_default.isArray(target2[name])) {
+      target2[name] = arrayToObject(target2[name]);
     }
     return !isNumericKey;
   }
@@ -104907,7 +104907,7 @@ var init_AxiosHeaders = __esm({
       }
       static concat(first, ...targets) {
         const computed = new this(first);
-        targets.forEach((target) => computed.set(target));
+        targets.forEach((target2) => computed.set(target2));
         return computed;
       }
       static accessor(header) {
@@ -105560,8 +105560,8 @@ var require_follow_redirects = __commonJS({
       }
       return input;
     }
-    function spreadUrlObject(urlObject, target) {
-      var spread3 = target || {};
+    function spreadUrlObject(urlObject, target2) {
+      var spread3 = target2 || {};
       for (var key of preservedUrlFields) {
         spread3[key] = urlObject[key];
       }
@@ -106761,9 +106761,9 @@ var init_cookies = __esm({
 function mergeConfig(config1, config2) {
   config2 = config2 || {};
   const config3 = {};
-  function getMergedValue(target, source, prop, caseless) {
-    if (utils_default.isPlainObject(target) && utils_default.isPlainObject(source)) {
-      return utils_default.merge.call({ caseless }, target, source);
+  function getMergedValue(target2, source, prop, caseless) {
+    if (utils_default.isPlainObject(target2) && utils_default.isPlainObject(source)) {
+      return utils_default.merge.call({ caseless }, target2, source);
     } else if (utils_default.isPlainObject(source)) {
       return utils_default.merge({}, source);
     } else if (utils_default.isArray(source)) {
@@ -107376,14 +107376,14 @@ var init_fetch = __esm({
         Response,
         fetch2
       ];
-      let len = seeds.length, i = len, seed, target, map = seedCache;
+      let len = seeds.length, i = len, seed, target2, map = seedCache;
       while (i--) {
         seed = seeds[i];
-        target = map.get(seed);
-        target === void 0 && map.set(seed, target = i ? /* @__PURE__ */ new Map() : factory(env));
-        map = target;
+        target2 = map.get(seed);
+        target2 === void 0 && map.set(seed, target2 = i ? /* @__PURE__ */ new Map() : factory(env));
+        map = target2;
       }
-      return target;
+      return target2;
     };
     adapter = getFetch();
   }
@@ -107512,7 +107512,7 @@ var init_dispatchRequest = __esm({
 });
 
 // ../../node_modules/axios/lib/helpers/validator.js
-function assertOptions(options, schema8, allowUnknown) {
+function assertOptions(options, schema11, allowUnknown) {
   if (typeof options !== "object") {
     throw new AxiosError_default("options must be an object", AxiosError_default.ERR_BAD_OPTION_VALUE);
   }
@@ -107520,7 +107520,7 @@ function assertOptions(options, schema8, allowUnknown) {
   let i = keys.length;
   while (i-- > 0) {
     const opt = keys[i];
-    const validator = schema8[opt];
+    const validator = schema11[opt];
     if (validator) {
       const value = options[opt];
       const result = value === void 0 || validator(value, opt, options);
@@ -108064,8 +108064,8 @@ function describeExecutionError(entry) {
       if (Array.isArray(message) && message[0] === "execution_error") {
         const info = message[1] ?? {};
         const where = info.node_type ? `${info.node_type}: ` : "";
-        const text2 = String(info.exception_message ?? "unknown error").trim();
-        return `${where}${text2}`.slice(0, MAX_LENGTH);
+        const text3 = String(info.exception_message ?? "unknown error").trim();
+        return `${where}${text3}`.slice(0, MAX_LENGTH);
       }
     }
   }
@@ -108083,8 +108083,8 @@ function describeComfySubmitError(status, data, fallback) {
   for (const [nodeId, node] of Object.entries(body.node_errors ?? {})) {
     for (const problem of node.errors ?? []) {
       const where = node.class_type ? `${node.class_type} (node ${nodeId})` : `node ${nodeId}`;
-      const text2 = [problem.message, problem.details].filter(Boolean).join(": ");
-      problems.push(`${where}: ${text2}`);
+      const text3 = [problem.message, problem.details].filter(Boolean).join(": ");
+      problems.push(`${where}: ${text3}`);
       if (problem.type === "value_not_in_list" && /(ckpt_name|vae_name|lora_name|unet_name)/.test(problem.details ?? "")) {
         missingModel = true;
       }
@@ -108285,17 +108285,17 @@ var init_comfyui_client = __esm({
        * Point the client at a different ComfyUI (the built-in one or a custom one). Requests and
        * the progress WebSocket use the new address from now on. Does nothing if unchanged.
        */
-      setTarget(target) {
-        if (sameComfyTarget(this.target, target))
+      setTarget(target2) {
+        if (sameComfyTarget(this.target, target2))
           return;
         this.logger.info("ComfyUI target changed", {
           from: describeComfyTarget(this.target),
-          to: describeComfyTarget(target)
+          to: describeComfyTarget(target2)
         });
-        this.target = { ...target };
-        this.config.host = target.host;
-        this.config.port = target.port;
-        this.baseUrl = comfyBaseUrl(target);
+        this.target = { ...target2 };
+        this.config.host = target2.host;
+        this.config.port = target2.port;
+        this.baseUrl = comfyBaseUrl(target2);
         try {
           this.ws?.close();
         } catch {
@@ -110239,10 +110239,10 @@ var CharacterTools = class {
     ];
   }
   async handleGetCharacter(args) {
-    const schema8 = external_exports.object({
+    const schema11 = external_exports.object({
       identifier: external_exports.string().min(1, "Character identifier cannot be empty")
     });
-    const { identifier } = schema8.parse(args);
+    const { identifier } = schema11.parse(args);
     this.logger.info("Getting character information", { identifier });
     try {
       const characterData = await this.foundryClient.query("foundry-mcp-bridge.getCharacterInfo", {
@@ -110259,11 +110259,11 @@ var CharacterTools = class {
     }
   }
   async handleGetCharacterEntity(args) {
-    const schema8 = external_exports.object({
+    const schema11 = external_exports.object({
       characterIdentifier: external_exports.string().min(1, "Character identifier cannot be empty"),
       entityIdentifier: external_exports.string().min(1, "Entity identifier cannot be empty")
     });
-    const { characterIdentifier, entityIdentifier } = schema8.parse(args);
+    const { characterIdentifier, entityIdentifier } = schema11.parse(args);
     this.logger.info("Getting character entity", { characterIdentifier, entityIdentifier });
     try {
       const result = await this.foundryClient.query("foundry-mcp-bridge.getCharacterEntity", {
@@ -110328,10 +110328,10 @@ var CharacterTools = class {
     }
   }
   async handleListCharacters(args) {
-    const schema8 = external_exports.object({
+    const schema11 = external_exports.object({
       type: external_exports.string().optional()
     });
-    const { type } = schema8.parse(args);
+    const { type } = schema11.parse(args);
     this.logger.info("Listing characters", { type });
     try {
       const actors = await this.foundryClient.query("foundry-mcp-bridge.listActors", { type });
@@ -110352,7 +110352,7 @@ var CharacterTools = class {
     }
   }
   async handleUseItem(args) {
-    const schema8 = external_exports.object({
+    const schema11 = external_exports.object({
       actorIdentifier: external_exports.string().min(1, "Actor identifier cannot be empty"),
       itemIdentifier: external_exports.string().min(1, "Item identifier cannot be empty"),
       targets: external_exports.array(external_exports.string()).optional(),
@@ -110360,7 +110360,7 @@ var CharacterTools = class {
       spellLevel: external_exports.number().optional(),
       skipDialog: external_exports.boolean().optional()
     });
-    const { actorIdentifier, itemIdentifier, targets, consume, spellLevel, skipDialog } = schema8.parse(args);
+    const { actorIdentifier, itemIdentifier, targets, consume, spellLevel, skipDialog } = schema11.parse(args);
     this.logger.info("Using item", {
       actorIdentifier,
       itemIdentifier,
@@ -110399,20 +110399,20 @@ var CharacterTools = class {
       img: external_exports.string().optional(),
       system: external_exports.record(external_exports.any()).optional()
     });
-    const schema8 = external_exports.object({
+    const schema11 = external_exports.object({
       actorIdentifier: external_exports.string().min(1, "Actor identifier cannot be empty"),
       items: external_exports.array(itemSchema2).min(1, "At least one item is required")
     });
-    const { actorIdentifier, items } = schema8.parse(args);
+    const { actorIdentifier, items: items2 } = schema11.parse(args);
     this.logger.info("Adding items to actor", {
       actorIdentifier,
-      count: items.length,
-      types: items.map((i) => i.type)
+      count: items2.length,
+      types: items2.map((i) => i.type)
     });
     try {
       const result = await this.foundryClient.query("foundry-mcp-bridge.addActorItems", {
         actorIdentifier,
-        items
+        items: items2
       });
       this.logger.debug("Successfully added actor items", {
         actorName: result.actorName,
@@ -110432,10 +110432,10 @@ var CharacterTools = class {
       system: external_exports.record(external_exports.any()).optional(),
       folder: external_exports.string().optional()
     });
-    const schema8 = external_exports.object({
+    const schema11 = external_exports.object({
       updates: external_exports.array(updateEntrySchema).min(1, "At least one update entry is required")
     });
-    const { updates } = schema8.parse(args);
+    const { updates } = schema11.parse(args);
     this.logger.info("Updating world items", {
       count: updates.length,
       ids: updates.map((u) => u.id)
@@ -110452,27 +110452,27 @@ var CharacterTools = class {
     }
   }
   async handleListWorldItems(args) {
-    const schema8 = external_exports.object({
+    const schema11 = external_exports.object({
       type: external_exports.string().optional(),
       folder: external_exports.string().optional(),
       nameFilter: external_exports.string().optional()
     });
-    const { type, folder, nameFilter } = schema8.parse(args);
+    const { type, folder, nameFilter } = schema11.parse(args);
     this.logger.info("Listing world items", {
       type: type ?? null,
       folder: folder ?? null,
       nameFilter: nameFilter ?? null
     });
     try {
-      const items = await this.foundryClient.query("foundry-mcp-bridge.listWorldItems", {
+      const items2 = await this.foundryClient.query("foundry-mcp-bridge.listWorldItems", {
         ...type !== void 0 ? { type } : {},
         ...folder !== void 0 ? { folder } : {},
         ...nameFilter !== void 0 ? { nameFilter } : {}
       });
-      this.logger.debug("Successfully listed world items", { count: items?.length ?? 0 });
+      this.logger.debug("Successfully listed world items", { count: items2?.length ?? 0 });
       return {
-        items: items ?? [],
-        total: items?.length ?? 0
+        items: items2 ?? [],
+        total: items2?.length ?? 0
       };
     } catch (error) {
       this.logger.error("Failed to list world items", error);
@@ -110500,19 +110500,19 @@ var CharacterTools = class {
       effects: external_exports.array(external_exports.record(external_exports.any())).optional(),
       flags: external_exports.record(external_exports.any()).optional()
     });
-    const schema8 = external_exports.object({
+    const schema11 = external_exports.object({
       items: external_exports.array(itemSchema2).min(1, "At least one item is required"),
       folder: external_exports.string().optional()
     });
-    const { items, folder } = schema8.parse(args);
+    const { items: items2, folder } = schema11.parse(args);
     this.logger.info("Creating world items", {
-      count: items.length,
+      count: items2.length,
       folder: folder ?? null,
-      types: items.map((i) => i.type)
+      types: items2.map((i) => i.type)
     });
     try {
       const result = await this.foundryClient.query("foundry-mcp-bridge.createWorldItems", {
-        items,
+        items: items2,
         folder
       });
       this.logger.debug("Successfully created world items", {
@@ -110555,7 +110555,7 @@ var CharacterTools = class {
     }
   }
   async handleRemoveActorItems(args) {
-    const schema8 = external_exports.object({
+    const schema11 = external_exports.object({
       actorIdentifier: external_exports.string().min(1, "Actor identifier cannot be empty"),
       itemIds: external_exports.array(external_exports.string().min(1)).optional(),
       itemNames: external_exports.array(external_exports.string().min(1)).optional(),
@@ -110563,7 +110563,7 @@ var CharacterTools = class {
     }).refine((v) => (v.itemIds?.length ?? 0) + (v.itemNames?.length ?? 0) > 0, {
       message: "Provide itemIds and/or itemNames identifying the items to remove"
     });
-    const { actorIdentifier, itemIds, itemNames, type } = schema8.parse(args);
+    const { actorIdentifier, itemIds, itemNames, type } = schema11.parse(args);
     this.logger.info("Removing items from actor", {
       actorIdentifier,
       ids: itemIds?.length ?? 0,
@@ -110595,14 +110595,14 @@ var CharacterTools = class {
     }
   }
   async handleSearchCharacterItems(args) {
-    const schema8 = external_exports.object({
+    const schema11 = external_exports.object({
       characterIdentifier: external_exports.string().min(1, "Character identifier cannot be empty"),
       query: external_exports.string().optional(),
       type: external_exports.string().optional(),
       category: external_exports.string().optional(),
       limit: external_exports.number().optional()
     });
-    const { characterIdentifier, query, type, category, limit } = schema8.parse(args);
+    const { characterIdentifier, query, type, category, limit } = schema11.parse(args);
     this.logger.info("Searching character items", {
       characterIdentifier,
       query,
@@ -110822,8 +110822,8 @@ var CharacterTools = class {
     }
     return stats;
   }
-  formatItems(items) {
-    return items.map((item) => {
+  formatItems(items2) {
+    return items2.map((item) => {
       const formattedItem = {
         id: item.id,
         name: item.name,
@@ -110867,11 +110867,11 @@ var CharacterTools = class {
       hasIcon: !!effect.icon
     }));
   }
-  truncateText(text2, maxLength) {
-    if (!text2 || text2.length <= maxLength) {
-      return text2;
+  truncateText(text3, maxLength) {
+    if (!text3 || text3.length <= maxLength) {
+      return text3;
     }
-    return `${text2.substring(0, maxLength - 3)}...`;
+    return `${text3.substring(0, maxLength - 3)}...`;
   }
 };
 
@@ -111345,7 +111345,7 @@ var CompendiumTools = class {
   }
   async handleSearchCompendium(args) {
     const gameSystem = await this.getGameSystem();
-    const schema8 = external_exports.object({
+    const schema11 = external_exports.object({
       query: external_exports.string().min(2, "Search query must be at least 2 characters"),
       packType: external_exports.string().optional(),
       filters: GenericFiltersSchema.optional(),
@@ -111353,14 +111353,14 @@ var CompendiumTools = class {
     });
     let parsedArgs;
     try {
-      parsedArgs = schema8.parse(args);
+      parsedArgs = schema11.parse(args);
     } catch (zodError) {
       if (typeof args === "string") {
-        parsedArgs = schema8.parse({ query: args });
+        parsedArgs = schema11.parse({ query: args });
       } else if (args && typeof args.query === "undefined" && typeof args === "object") {
         const firstKey = Object.keys(args)[0];
         if (firstKey && typeof args[firstKey] === "string") {
-          parsedArgs = schema8.parse({ query: args[firstKey] });
+          parsedArgs = schema11.parse({ query: args[firstKey] });
         } else {
           throw zodError;
         }
@@ -111407,12 +111407,12 @@ var CompendiumTools = class {
     }
   }
   async handleGetCompendiumItem(args) {
-    const schema8 = external_exports.object({
+    const schema11 = external_exports.object({
       packId: external_exports.string().min(1, "Pack ID cannot be empty"),
       itemId: external_exports.string().min(1, "Item ID cannot be empty"),
       compact: external_exports.boolean().default(false)
     });
-    const { packId, itemId, compact } = schema8.parse(args);
+    const { packId, itemId, compact } = schema11.parse(args);
     try {
       const item = await this.foundryClient.query("foundry-mcp-bridge.getCompendiumDocumentFull", {
         packId,
@@ -111462,7 +111462,7 @@ var CompendiumTools = class {
   }
   async handleListCreaturesByCriteria(args) {
     const gameSystem = await this.getGameSystem();
-    const schema8 = external_exports.object({
+    const schema11 = external_exports.object({
       // D&D 5e: challengeRating
       challengeRating: external_exports.union([
         external_exports.object({
@@ -111592,7 +111592,7 @@ var CompendiumTools = class {
     });
     let params;
     try {
-      params = schema8.parse(args);
+      params = schema11.parse(args);
       this.logger.debug("Parsed creature criteria parameters successfully", params);
     } catch (parseError) {
       this.logger.error("Failed to parse creature criteria parameters", { args, parseError });
@@ -111642,10 +111642,10 @@ var CompendiumTools = class {
     }
   }
   async handleListCompendiumPacks(args) {
-    const schema8 = external_exports.object({
+    const schema11 = external_exports.object({
       type: external_exports.string().optional()
     });
-    const { type } = schema8.parse(args);
+    const { type } = schema11.parse(args);
     this.logger.info("Listing compendium packs", { type });
     try {
       const packs = await this.foundryClient.query("foundry-mcp-bridge.getAvailablePacks");
@@ -112157,39 +112157,39 @@ var CompendiumTools = class {
     delete sanitized.ownership;
     return sanitized;
   }
-  stripHtml(text2) {
-    if (!text2)
+  stripHtml(text3) {
+    if (!text3)
       return "";
-    if (typeof text2 === "object" && text2 !== null) {
-      if (text2.value) {
-        text2 = text2.value;
-      } else if (text2.content) {
-        text2 = text2.content;
+    if (typeof text3 === "object" && text3 !== null) {
+      if (text3.value) {
+        text3 = text3.value;
+      } else if (text3.content) {
+        text3 = text3.content;
       } else {
         try {
-          text2 = JSON.stringify(text2);
+          text3 = JSON.stringify(text3);
         } catch {
           return "";
         }
       }
     }
-    if (Array.isArray(text2)) {
-      return text2.map((item) => this.stripHtml(item)).join(" ");
+    if (Array.isArray(text3)) {
+      return text3.map((item) => this.stripHtml(item)).join(" ");
     }
-    if (typeof text2 !== "string") {
-      const stringified = String(text2 || "");
+    if (typeof text3 !== "string") {
+      const stringified = String(text3 || "");
       if (!stringified || stringified === "[object Object]") {
         return "";
       }
-      text2 = stringified;
+      text3 = stringified;
     }
-    return text2.replace(/<[^>]*>/g, "").trim();
+    return text3.replace(/<[^>]*>/g, "").trim();
   }
-  truncateText(text2, maxLength) {
-    if (!text2 || text2.length <= maxLength) {
-      return text2;
+  truncateText(text3, maxLength) {
+    if (!text3 || text3.length <= maxLength) {
+      return text3;
     }
-    return text2.substring(0, maxLength - 3) + "...";
+    return text3.substring(0, maxLength - 3) + "...";
   }
 };
 
@@ -112364,11 +112364,11 @@ var SceneTools = class {
     ];
   }
   async handleGetCurrentScene(args) {
-    const schema8 = external_exports.object({
+    const schema11 = external_exports.object({
       includeTokens: external_exports.boolean().default(true),
       includeHidden: external_exports.boolean().default(false)
     });
-    const { includeTokens, includeHidden } = schema8.parse(args);
+    const { includeTokens, includeHidden } = schema11.parse(args);
     this.logger.info("Getting current scene information", { includeTokens, includeHidden });
     try {
       const sceneData = await this.foundryClient.query("foundry-mcp-bridge.getActiveScene");
@@ -112398,12 +112398,12 @@ var SceneTools = class {
     }
   }
   async handleUpdateSceneMusic(args) {
-    const schema8 = external_exports.object({
+    const schema11 = external_exports.object({
       scene_identifier: external_exports.string().min(1),
       playlist: external_exports.string().nullable().optional(),
       playlist_sound: external_exports.string().nullable().optional()
     });
-    const parsed = schema8.parse(withSceneAlias(args));
+    const parsed = schema11.parse(withSceneAlias(args));
     this.logger.info("Updating scene music", { scene_identifier: parsed.scene_identifier });
     try {
       const result = await this.foundryClient.query("foundry-mcp-bridge.update-scene-music", parsed);
@@ -112415,7 +112415,7 @@ var SceneTools = class {
     }
   }
   async handleManageScenes(args) {
-    const schema8 = external_exports.object({
+    const schema11 = external_exports.object({
       action: external_exports.enum(["create", "update", "describe"]),
       scene_identifier: external_exports.string().min(1).optional(),
       name: external_exports.string().min(1).optional(),
@@ -112446,7 +112446,7 @@ var SceneTools = class {
       }).strict().optional(),
       activate: external_exports.boolean().optional()
     }).strict();
-    const parsed = schema8.parse(withSceneAlias(args, true));
+    const parsed = schema11.parse(withSceneAlias(args, true));
     if (parsed.action === "create" && !parsed.name) {
       throw new Error("name is required for create");
     }
@@ -112580,11 +112580,11 @@ var SceneTools = class {
         return "unknown";
     }
   }
-  truncateText(text2, maxLength) {
-    if (!text2 || text2.length <= maxLength) {
-      return text2;
+  truncateText(text3, maxLength) {
+    if (!text3 || text3.length <= maxLength) {
+      return text3;
     }
-    return text2.substring(0, maxLength - 3) + "...";
+    return text3.substring(0, maxLength - 3) + "...";
   }
 };
 
@@ -112734,7 +112734,7 @@ var PlaylistTools = class {
     ];
   }
   async handleManagePlaylists(args) {
-    const schema8 = external_exports.object({
+    const schema11 = external_exports.object({
       action: external_exports.enum(["create", "update", "delete", "describe"]),
       playlist: external_exports.string().nullable().optional(),
       name: external_exports.string().optional(),
@@ -112749,7 +112749,7 @@ var PlaylistTools = class {
       remove_sounds: external_exports.array(external_exports.string().min(1)).max(100).optional(),
       updates: external_exports.record(external_exports.any()).optional()
     });
-    const parsed = schema8.parse(args);
+    const parsed = schema11.parse(args);
     this.logger.info("Managing playlists", { action: parsed.action, playlist: parsed.playlist });
     try {
       const result = await this.foundryClient.query("foundry-mcp-bridge.manage-playlists", parsed);
@@ -112760,13 +112760,13 @@ var PlaylistTools = class {
     }
   }
   async handleControlPlaylist(args) {
-    const schema8 = external_exports.object({
+    const schema11 = external_exports.object({
       playlist: external_exports.string().min(1).optional(),
       command: external_exports.enum(COMMANDS),
       sound: external_exports.string().optional(),
       volume: external_exports.number().min(0).max(1).optional()
     });
-    const parsed = schema8.parse(args);
+    const parsed = schema11.parse(args);
     if (!parsed.playlist && parsed.command !== "now-playing" && parsed.command !== "stop-all") {
       throw new Error(`command ${parsed.command} requires "playlist"`);
     }
@@ -113129,7 +113129,7 @@ var ActorCreationTools = class {
    * Handle actor creation from specific compendium entry
    */
   async handleCreateActorFromCompendium(args) {
-    const schema8 = external_exports.object({
+    const schema11 = external_exports.object({
       packId: external_exports.string().min(1, "Pack ID cannot be empty"),
       itemId: external_exports.string().min(1, "Item ID cannot be empty"),
       names: external_exports.array(external_exports.string().min(1)).min(1, "At least one name is required"),
@@ -113148,7 +113148,7 @@ var ActorCreationTools = class {
         })).optional()
       }).optional()
     });
-    const { packId, itemId, names, quantity, addToScene, placement, folder, hp, token, img, tokenImg } = schema8.parse(args);
+    const { packId, itemId, names, quantity, addToScene, placement, folder, hp, token, img, tokenImg } = schema11.parse(args);
     const finalQuantity = quantity || names.length;
     this.logger.info("Creating actors from specific compendium entry", {
       packId,
@@ -113194,11 +113194,11 @@ var ActorCreationTools = class {
    * Handle getting full compendium entry data
    */
   async handleGetCompendiumEntryFull(args) {
-    const schema8 = external_exports.object({
+    const schema11 = external_exports.object({
       packId: external_exports.string().min(1, "Pack ID cannot be empty"),
       entryId: external_exports.string().min(1, "Entry ID cannot be empty")
     });
-    const { packId, entryId } = schema8.parse(args);
+    const { packId, entryId } = schema11.parse(args);
     this.logger.info("Getting full compendium entry", { packId, entryId });
     try {
       const fullEntry = await this.foundryClient.query("foundry-mcp-bridge.getCompendiumDocumentFull", {
@@ -113488,12 +113488,12 @@ var ActorManagementTools = class {
   }
   // ── place ─────────────────────────────────────────────────────────────────
   async handlePlace(args) {
-    const schema8 = external_exports.object({
+    const schema11 = external_exports.object({
       actorIds: external_exports.array(external_exports.string().min(1)).min(1),
       placement: external_exports.enum(["random", "grid", "center"]).default("random"),
       hidden: external_exports.boolean().default(false)
     });
-    const { actorIds, placement, hidden } = schema8.parse(args);
+    const { actorIds, placement, hidden } = schema11.parse(args);
     this.logger.info("Placing existing actors on scene", {
       count: actorIds.length,
       placement,
@@ -113514,7 +113514,7 @@ var ActorManagementTools = class {
   }
   // ── create ────────────────────────────────────────────────────────────────
   async handleCreate(args) {
-    const schema8 = external_exports.object({
+    const schema11 = external_exports.object({
       actors: external_exports.array(external_exports.object({
         name: external_exports.string().min(1),
         type: external_exports.string().min(1),
@@ -113526,7 +113526,7 @@ var ActorManagementTools = class {
       })).min(1),
       folder: external_exports.string().optional()
     });
-    const { actors, folder } = schema8.parse(args);
+    const { actors, folder } = schema11.parse(args);
     this.logger.info("Creating actors", {
       count: actors.length,
       types: actors.map((a) => a.type)
@@ -113541,7 +113541,7 @@ var ActorManagementTools = class {
   }
   // ── update ────────────────────────────────────────────────────────────────
   async handleUpdate(args) {
-    const schema8 = external_exports.object({
+    const schema11 = external_exports.object({
       updates: external_exports.array(external_exports.object({
         id: external_exports.string().min(1),
         name: external_exports.string().optional(),
@@ -113553,7 +113553,7 @@ var ActorManagementTools = class {
         folder: external_exports.string().min(1).optional()
       })).min(1)
     });
-    const { updates } = schema8.parse(args);
+    const { updates } = schema11.parse(args);
     this.logger.info("Updating actors", { count: updates.length });
     const adapter2 = await this.getAdapter();
     const normalizedUpdates = adapter2?.normalizePayload ? updates.map((u) => u.system !== void 0 ? { ...u, system: adapter2.normalizePayload(u.system) } : u) : updates;
@@ -113564,17 +113564,17 @@ var ActorManagementTools = class {
   }
   // ── delete ────────────────────────────────────────────────────────────────
   async handleDelete(args) {
-    const schema8 = external_exports.object({
+    const schema11 = external_exports.object({
       ids: external_exports.array(external_exports.string().min(1)).min(1)
     });
-    const { ids } = schema8.parse(args);
+    const { ids } = schema11.parse(args);
     this.logger.info("Deleting actors", { count: ids.length });
     const result = await this.foundryClient.query("foundry-mcp-bridge.deleteActors", { ids });
     return result;
   }
   // ── update-items ────────────────────────────────────────────────────────────
   async handleUpdateItems(args) {
-    const schema8 = external_exports.object({
+    const schema11 = external_exports.object({
       actorIdentifier: external_exports.string().min(1),
       itemUpdates: external_exports.array(external_exports.object({
         id: external_exports.string().min(1),
@@ -113592,7 +113592,7 @@ var ActorManagementTools = class {
         }
       })).min(1)
     });
-    const { actorIdentifier, itemUpdates } = schema8.parse(args);
+    const { actorIdentifier, itemUpdates } = schema11.parse(args);
     this.logger.info("Updating actor embedded items", {
       actorIdentifier,
       count: itemUpdates.length
@@ -113605,11 +113605,11 @@ var ActorManagementTools = class {
   }
   // ── delete-items ────────────────────────────────────────────────────────────
   async handleDeleteItems(args) {
-    const schema8 = external_exports.object({
+    const schema11 = external_exports.object({
       actorIdentifier: external_exports.string().min(1),
       itemIds: external_exports.array(external_exports.string().min(1)).min(1)
     });
-    const { actorIdentifier, itemIds } = schema8.parse(args);
+    const { actorIdentifier, itemIds } = schema11.parse(args);
     this.logger.info("Deleting actor embedded items", {
       actorIdentifier,
       count: itemIds.length
@@ -114621,8 +114621,8 @@ var QuestCreationTools = class {
   /**
    * Format text content for Foundry VTT (convert to proper HTML)
    */
-  formatTextForFoundry(text2) {
-    let escaped = text2.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  formatTextForFoundry(text3) {
+    let escaped = text3.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
     const paragraphs = escaped.split("\n\n").filter((p) => p.trim().length > 0);
     if (paragraphs.length === 0) {
       return "<p></p>";
@@ -114880,8 +114880,8 @@ var QuestCreationTools = class {
       objectives.push("Prevent further spread of the threat");
     }
     if (objectives.length === 0) {
-      const words = description.split(" ");
-      const briefObjective = words.slice(0, 15).join(" ") + (words.length > 15 ? "..." : "");
+      const words2 = description.split(" ");
+      const briefObjective = words2.slice(0, 15).join(" ") + (words2.length > 15 ? "..." : "");
       objectives.push(`Complete the main objective: ${briefObjective}`);
     }
     return objectives;
@@ -114962,7 +114962,7 @@ var DiceRollTools = class {
     ];
   }
   async handleRequestPlayerRolls(args) {
-    const schema8 = external_exports.object({
+    const schema11 = external_exports.object({
       rollType: external_exports.enum(["ability", "skill", "save", "attack", "initiative", "custom"]),
       rollTarget: external_exports.string(),
       targetPlayer: external_exports.string(),
@@ -114972,7 +114972,7 @@ var DiceRollTools = class {
       flavor: external_exports.string().default("")
     });
     try {
-      const params = schema8.parse(args);
+      const params = schema11.parse(args);
       if (typeof params.isPublic !== "boolean") {
         return 'Please specify whether you want this to be a PUBLIC roll (visible to all players) or PRIVATE roll (visible only to the target player and GM). You must provide either "true" for public or "false" for private.';
       }
@@ -116311,10 +116311,10 @@ var WFRP4eAddItemsTools = class {
       const detail = parsed.error.issues.map((i) => `${i.path.join(".") || "(root)"}: ${i.message}`).join("; ");
       return { success: false, error: `Invalid arguments: ${detail}` };
     }
-    const { actor, items } = parsed.data;
-    this.logger.info("Adding WFRP4e items", { actor, count: items.length });
+    const { actor, items: items2 } = parsed.data;
+    this.logger.info("Adding WFRP4e items", { actor, count: items2.length });
     try {
-      return await this.foundryClient.query("foundry-mcp-bridge.addWfrp4eItems", { actor, items });
+      return await this.foundryClient.query("foundry-mcp-bridge.addWfrp4eItems", { actor, items: items2 });
     } catch (error) {
       this.logger.error("Failed to add WFRP4e items", error);
       return { success: false, error: error instanceof Error ? error.message : "Unknown error" };
@@ -116778,7 +116778,7 @@ var TokenManipulationTools = class {
     ];
   }
   async handleMoveToken(args) {
-    const schema8 = external_exports.object({
+    const schema11 = external_exports.object({
       tokenId: external_exports.string(),
       x: external_exports.number(),
       y: external_exports.number(),
@@ -116786,7 +116786,7 @@ var TokenManipulationTools = class {
       scene: external_exports.string().min(1).optional(),
       units: external_exports.enum(["pixels", "squares"]).optional()
     });
-    const { tokenId, x, y, animate, scene, units } = schema8.parse(args);
+    const { tokenId, x, y, animate, scene, units } = schema11.parse(args);
     this.logger.info("Moving token", { tokenId, x, y, animate });
     try {
       const result = await this.foundryClient.query("foundry-mcp-bridge.move-token", {
@@ -116812,7 +116812,7 @@ var TokenManipulationTools = class {
     }
   }
   async handleUpdateToken(args) {
-    const schema8 = external_exports.object({
+    const schema11 = external_exports.object({
       tokenId: external_exports.string(),
       scene: external_exports.string().min(1).optional(),
       options: external_exports.record(external_exports.any()).optional(),
@@ -116829,7 +116829,7 @@ var TokenManipulationTools = class {
         lockRotation: external_exports.boolean().optional()
       }).default({})
     });
-    const { tokenId, updates, options, scene } = schema8.parse(args);
+    const { tokenId, updates, options, scene } = schema11.parse(args);
     if (Object.keys(updates).length === 0 && !options)
       throw new Error("Give updates or options");
     this.logger.info("Updating token", { tokenId, updates });
@@ -116853,10 +116853,10 @@ var TokenManipulationTools = class {
     }
   }
   async handleDeleteTokens(args) {
-    const schema8 = external_exports.object({
+    const schema11 = external_exports.object({
       tokenIds: external_exports.array(external_exports.string()).min(1)
     });
-    const { tokenIds } = schema8.parse(args);
+    const { tokenIds } = schema11.parse(args);
     this.logger.info("Deleting tokens", { count: tokenIds.length, tokenIds });
     try {
       const result = await this.foundryClient.query("foundry-mcp-bridge.delete-tokens", {
@@ -116878,11 +116878,11 @@ var TokenManipulationTools = class {
     }
   }
   async handleGetTokenDetails(args) {
-    const schema8 = external_exports.object({
+    const schema11 = external_exports.object({
       tokenId: external_exports.string(),
       scene: external_exports.string().min(1).optional()
     });
-    const { tokenId, scene } = schema8.parse(args);
+    const { tokenId, scene } = schema11.parse(args);
     this.logger.info("Getting token details", { tokenId });
     try {
       const tokenData = await this.foundryClient.query("foundry-mcp-bridge.get-token-details", {
@@ -116945,12 +116945,12 @@ var TokenManipulationTools = class {
     }
   }
   async handleToggleTokenCondition(args) {
-    const schema8 = external_exports.object({
+    const schema11 = external_exports.object({
       tokenId: external_exports.string(),
       conditionId: external_exports.string(),
       active: external_exports.boolean().optional()
     });
-    const { tokenId, conditionId, active } = schema8.parse(args);
+    const { tokenId, conditionId, active } = schema11.parse(args);
     this.logger.info("Toggling token condition", { tokenId, conditionId, active });
     try {
       const result = await this.foundryClient.query("foundry-mcp-bridge.toggle-token-condition", {
@@ -117107,7 +117107,7 @@ var DSA5CharacterCreator = class {
    * Handle DSA5 character creation from archetype
    */
   async handleCreateCharacterFromArchetype(args) {
-    const schema8 = external_exports.object({
+    const schema11 = external_exports.object({
       archetypePackId: external_exports.string().min(1, "Archetype pack ID cannot be empty"),
       archetypeId: external_exports.string().min(1, "Archetype ID cannot be empty"),
       characterName: external_exports.string().min(1, "Character name cannot be empty"),
@@ -117125,7 +117125,7 @@ var DSA5CharacterCreator = class {
       }).optional(),
       addToWorld: external_exports.boolean().default(true)
     });
-    const { archetypePackId, archetypeId, characterName, customization, addToWorld } = schema8.parse(args);
+    const { archetypePackId, archetypeId, characterName, customization, addToWorld } = schema11.parse(args);
     this.logger.info("Creating DSA5 character from archetype", {
       archetypePackId,
       archetypeId,
@@ -117165,12 +117165,12 @@ var DSA5CharacterCreator = class {
    * Handle listing DSA5 archetypes
    */
   async handleListArchetypes(args) {
-    const schema8 = external_exports.object({
+    const schema11 = external_exports.object({
       packId: external_exports.string().optional(),
       filterBySpecies: external_exports.string().optional(),
       filterByProfession: external_exports.string().optional()
     });
-    const { packId, filterBySpecies, filterByProfession } = schema8.parse(args);
+    const { packId, filterBySpecies, filterByProfession } = schema11.parse(args);
     this.logger.info("Listing DSA5 archetypes", { packId, filterBySpecies, filterByProfession });
     try {
       const packs = await this.foundryClient.query("foundry-mcp-bridge.getAvailablePacks");
@@ -117475,13 +117475,13 @@ var collectQuantityOverrides = (source, itemOverrides) => {
     addItemOverride(itemOverrides, name, { quantity: Math.max(0, Math.round(quantity)) });
   }
 };
-var applyResolvedItemOverrides = (items, itemOverrides) => {
-  if (items.length === 0 || Object.keys(itemOverrides).length === 0) {
+var applyResolvedItemOverrides = (items2, itemOverrides) => {
+  if (items2.length === 0 || Object.keys(itemOverrides).length === 0) {
     return { appliedCount: 0, unappliedSourceNames: [] };
   }
   const matched = /* @__PURE__ */ new Set();
   let appliedCount = 0;
-  for (const item of items) {
+  for (const item of items2) {
     const itemName = toStringValue(item.name);
     if (!itemName)
       continue;
@@ -118221,7 +118221,7 @@ var DSA5JsonActorImporter = class {
     ];
   }
   async handleImportActorFromJson(args) {
-    const schema8 = external_exports.object({
+    const schema11 = external_exports.object({
       jsonPayload: external_exports.union([external_exports.string(), external_exports.record(external_exports.unknown())]).optional(),
       filePath: external_exports.string().optional(),
       strategy: external_exports.enum(["auto", "custom_dsa5", "optolith_like", "raw_foundry", "darkaid"]).default("auto"),
@@ -118233,7 +118233,7 @@ var DSA5JsonActorImporter = class {
     }).refine((value) => Boolean(value.jsonPayload) || Boolean(value.filePath), {
       message: "Either jsonPayload or filePath is required."
     });
-    const { jsonPayload, filePath, strategy, resolveItems, addToScene, updateExisting, existingActorIdentifier, strict } = schema8.parse(args);
+    const { jsonPayload, filePath, strategy, resolveItems, addToScene, updateExisting, existingActorIdentifier, strict } = schema11.parse(args);
     try {
       await this.assertDsa5World();
       const payload = await extractPayload(jsonPayload, filePath);
@@ -118786,7 +118786,7 @@ var DnD5eAddFeatureTool = class {
   // passive
   // ---------------------------------------------------------------------------
   async handlePassive(args) {
-    const schema8 = external_exports.object({
+    const schema11 = external_exports.object({
       featureType: external_exports.literal("passive"),
       actorIdentifier: external_exports.string().min(1, "actorIdentifier cannot be empty"),
       featureName: external_exports.string().min(1, "featureName cannot be empty"),
@@ -118796,7 +118796,7 @@ var DnD5eAddFeatureTool = class {
       sourceBook: external_exports.string().default(""),
       sourcePage: external_exports.string().default("")
     });
-    const parsed = schema8.parse(args);
+    const parsed = schema11.parse(args);
     this.logger.info("Adding passive feature to D&D 5e actor", {
       actorIdentifier: parsed.actorIdentifier,
       featureName: parsed.featureName
@@ -118838,7 +118838,7 @@ ${details}`
   // save
   // ---------------------------------------------------------------------------
   async handleSave(args) {
-    const schema8 = external_exports.object({
+    const schema11 = external_exports.object({
       featureType: external_exports.literal("save"),
       actorIdentifier: external_exports.string().min(1, "actorIdentifier cannot be empty"),
       featureName: external_exports.string().min(1, "featureName cannot be empty"),
@@ -118862,7 +118862,7 @@ ${details}`
         });
       }
     });
-    const parsed = schema8.parse(args);
+    const parsed = schema11.parse(args);
     this.logger.info("Adding save feature to D&D 5e actor", {
       actorIdentifier: parsed.actorIdentifier,
       featureName: parsed.featureName,
@@ -118912,7 +118912,7 @@ ${details}`
   // attack
   // ---------------------------------------------------------------------------
   async handleAttack(args) {
-    const schema8 = external_exports.object({
+    const schema11 = external_exports.object({
       featureType: external_exports.literal("attack"),
       actorIdentifier: external_exports.string().min(1, "actorIdentifier cannot be empty"),
       featureName: external_exports.string().min(1, "featureName cannot be empty"),
@@ -118949,7 +118949,7 @@ ${details}`
         });
       }
     });
-    const parsed = schema8.parse(args);
+    const parsed = schema11.parse(args);
     const effectiveAbility = parsed.abilityModifier ?? (parsed.attackType === "melee" ? "str" : "dex");
     const warnings = [];
     for (const part of parsed.damageParts) {
@@ -119023,7 +119023,7 @@ ${details}${warningSection}`
   // attack-with-save
   // ---------------------------------------------------------------------------
   async handleAttackWithSave(args) {
-    const schema8 = external_exports.object({
+    const schema11 = external_exports.object({
       featureType: external_exports.literal("attack-with-save"),
       actorIdentifier: external_exports.string().min(1, "actorIdentifier cannot be empty"),
       featureName: external_exports.string().min(1, "featureName cannot be empty"),
@@ -119064,7 +119064,7 @@ ${details}${warningSection}`
         });
       }
     });
-    const parsed = schema8.parse(args);
+    const parsed = schema11.parse(args);
     const effectiveAbility = parsed.abilityModifier ?? (parsed.attackType === "melee" ? "str" : "dex");
     const warnings = [];
     for (const part of [...parsed.damageParts, ...parsed.saveDamageParts]) {
@@ -119133,7 +119133,7 @@ ${details}${warningSection}`
   // aura
   // ---------------------------------------------------------------------------
   async handleAura(args) {
-    const schema8 = external_exports.object({
+    const schema11 = external_exports.object({
       featureType: external_exports.literal("aura"),
       actorIdentifier: external_exports.string().min(1, "actorIdentifier cannot be empty"),
       featureName: external_exports.string().min(1, "featureName cannot be empty"),
@@ -119149,7 +119149,7 @@ ${details}${warningSection}`
       sourceBook: external_exports.string().default(""),
       sourcePage: external_exports.string().default("")
     });
-    const parsed = schema8.parse(args);
+    const parsed = schema11.parse(args);
     const warnings = [];
     for (const part of parsed.damageParts) {
       if (!DAMAGE_CANONICAL.has(part.type)) {
@@ -119210,7 +119210,7 @@ ${details}${warningSection}`
   // spellcasting
   // ---------------------------------------------------------------------------
   async handleSpellcasting(args) {
-    const schema8 = external_exports.object({
+    const schema11 = external_exports.object({
       featureType: external_exports.literal("spellcasting"),
       actorIdentifier: external_exports.string().min(1, "actorIdentifier cannot be empty"),
       spellcastingClass: external_exports.enum([
@@ -119228,7 +119228,7 @@ ${details}${warningSection}`
       spellcastingAbility: external_exports.enum(["str", "dex", "con", "int", "wis", "cha"]).optional(),
       sourceRules: external_exports.enum(["2014", "2024"]).default("2014")
     });
-    const parsed = schema8.parse(args);
+    const parsed = schema11.parse(args);
     const effectiveAbility = parsed.spellcastingAbility ?? CLASS_DEFAULT_ABILITY[parsed.spellcastingClass];
     this.logger.info("Setting actor spellcasting", {
       actorIdentifier: parsed.actorIdentifier,
@@ -119280,13 +119280,13 @@ ${details}${warningSection}`
   // spells
   // ---------------------------------------------------------------------------
   async handleSpells(args) {
-    const schema8 = external_exports.object({
+    const schema11 = external_exports.object({
       featureType: external_exports.literal("spells"),
       actorIdentifier: external_exports.string().min(1, "actorIdentifier cannot be empty"),
       spellNames: external_exports.array(external_exports.string().min(1)).min(1).max(50),
       compendiumPacks: external_exports.array(external_exports.string().min(1)).default(["dnd5e.spells"])
     });
-    const parsed = schema8.parse(args);
+    const parsed = schema11.parse(args);
     this.logger.info("Adding spells to D&D 5e actor", {
       actorIdentifier: parsed.actorIdentifier,
       spellCount: parsed.spellNames.length,
@@ -119719,7 +119719,7 @@ var DnD5eNpcTools = class {
     ];
   }
   async handleCreateNpc(args) {
-    const schema8 = external_exports.object({
+    const schema11 = external_exports.object({
       // Identity
       name: external_exports.string().min(1, "name cannot be empty"),
       creatureType: external_exports.enum([
@@ -119821,7 +119821,7 @@ var DnD5eNpcTools = class {
         });
       }
     });
-    const parsed = schema8.parse(args);
+    const parsed = schema11.parse(args);
     const warnings = [];
     const allDamageValues = [
       ...parsed.damageImmunities.map((v) => ({ field: "damageImmunities", value: v })),
@@ -119936,12 +119936,12 @@ var DnD5eFeaturesFromCompendiumTools = class {
     ];
   }
   async handleAddFeaturesFromCompendium(args) {
-    const schema8 = external_exports.object({
+    const schema11 = external_exports.object({
       actorIdentifier: external_exports.string().min(1, "actorIdentifier cannot be empty"),
       featureNames: external_exports.array(external_exports.string().min(1)).min(1).max(50),
       compendiumPacks: external_exports.array(external_exports.string().min(1)).default(["dnd5e.monsterfeatures", "dnd5e.classfeatures"])
     });
-    const parsed = schema8.parse(args);
+    const parsed = schema11.parse(args);
     this.logger.info("Adding features to D&D 5e actor from compendium", {
       actorIdentifier: parsed.actorIdentifier,
       featureCount: parsed.featureNames.length,
@@ -120083,7 +120083,7 @@ var ChatTools = class {
     ];
   }
   async handleCreateChatMessage(args) {
-    const schema8 = external_exports.object({
+    const schema11 = external_exports.object({
       actorIdentifier: external_exports.string().optional(),
       tokenId: external_exports.string().optional(),
       content: external_exports.string().min(1),
@@ -120093,7 +120093,7 @@ var ChatTools = class {
     }).refine((v) => v.actorIdentifier || v.tokenId, {
       message: "Either actorIdentifier or tokenId is required"
     });
-    const parsed = schema8.parse(args);
+    const parsed = schema11.parse(args);
     this.logger.info("Creating chat message", {
       speaker: parsed.tokenId ?? parsed.actorIdentifier,
       whispered: !!parsed.whisperTo?.length
@@ -120187,13 +120187,13 @@ var UploadTools = class {
     ];
   }
   async handleUploadFile(args) {
-    const schema8 = external_exports.object({
+    const schema11 = external_exports.object({
       file_path: external_exports.string().min(1),
       folder: external_exports.string().optional(),
       filename: external_exports.string().min(1).optional(),
       overwrite: external_exports.boolean().optional()
     }).strict();
-    const parsed = schema8.parse(args);
+    const parsed = schema11.parse(args);
     if (!import_path.default.isAbsolute(parsed.file_path)) {
       throw new Error("file_path must be an absolute path");
     }
@@ -120440,6 +120440,37 @@ function keyOutBackground(img, options = {}) {
         minY = y;
       if (y > maxY)
         maxY = y;
+    }
+  }
+  if (bg[0] > 150 && bg[2] > 150 && bg[1] < 110) {
+    let near2 = new Uint8Array(width * height);
+    for (let p = 0; p < width * height; p++)
+      if (out[p * 4 + 3] < 255)
+        near2[p] = 1;
+    for (let pass = 0; pass < 6; pass++) {
+      const grown = near2.slice();
+      for (let p = 0; p < width * height; p++) {
+        if (near2[p])
+          continue;
+        const x = p % width;
+        if (x > 0 && near2[p - 1] || x < width - 1 && near2[p + 1] || p >= width && near2[p - width] || p < width * (height - 1) && near2[p + width])
+          grown[p] = 1;
+      }
+      near2 = grown;
+    }
+    for (let p = 0; p < width * height; p++) {
+      const i = p * 4;
+      if (!near2[p] || out[i + 3] === 0)
+        continue;
+      const r = out[i];
+      const g = out[i + 1];
+      const b = out[i + 2];
+      const excess = Math.min(r, b) - g;
+      if (excess > 25) {
+        const cut = excess * 0.85;
+        out[i] = Math.round(r - cut);
+        out[i + 2] = Math.round(b - cut);
+      }
     }
   }
   const share = opaque / (width * height);
@@ -120824,8 +120855,8 @@ var generateSchema = external_exports.object({
   folder: external_exports.string().max(80).optional(),
   max_side: external_exports.number().int().min(64).max(4096).optional()
 }).strict();
-function slugify(text2, maxLength = 40) {
-  const slug2 = text2.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, maxLength).replace(/-+$/g, "");
+function slugify(text3, maxLength = 40) {
+  const slug2 = text3.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, maxLength).replace(/-+$/g, "");
   return slug2 || "image";
 }
 var ImageGenerationTools = class {
@@ -121959,8 +121990,8 @@ var SceneObjectTools = class {
     }
   }
   async handlePreviewScene(args) {
-    const { text: text2, ...parsed } = previewSchema.parse(args ?? {});
-    if (text2) {
+    const { text: text3, ...parsed } = previewSchema.parse(args ?? {});
+    if (text3) {
       try {
         const result = await this.foundryClient.query("foundry-mcp-bridge.preview-scene", { scene: parsed.scene, data_only: true }, PREVIEW_TIMEOUT_MS);
         if (result?.success === false)
@@ -122795,6 +122826,371 @@ var ShareTools = class {
   }
 };
 
+// dist/tools/campaign-memory.js
+init_zod();
+var MEMORY_PAGES = ["Session Log", "Open Threads", "Player Knowledge", "NPC Notes", "Next Session"];
+var DEFAULT_JOURNAL = "Campaign Memory";
+var text2 = external_exports.string().min(1).max(2e3);
+var schema5 = external_exports.discriminatedUnion("action", [
+  external_exports.object({
+    action: external_exports.literal("brief"),
+    journal: external_exports.string().min(1).optional(),
+    sessions: external_exports.number().int().min(1).max(5).optional(),
+    knowledge: external_exports.boolean().optional()
+  }).strict(),
+  external_exports.object({
+    action: external_exports.literal("log"),
+    journal: external_exports.string().min(1).optional(),
+    session: external_exports.union([external_exports.string().min(1).max(60), external_exports.number().int().min(0)]).optional(),
+    date: external_exports.string().min(1).max(60).optional(),
+    summary: external_exports.string().min(1).max(8e3).optional(),
+    opened: external_exports.array(text2).max(30).optional(),
+    closed: external_exports.array(text2).max(30).optional(),
+    knowledge: external_exports.array(text2).max(30).optional(),
+    npcs: external_exports.array(external_exports.object({ name: external_exports.string().min(1).max(100), note: text2 }).strict()).max(30).optional(),
+    next: external_exports.string().min(1).max(8e3).optional()
+  }).strict(),
+  external_exports.object({
+    action: external_exports.literal("recall"),
+    journal: external_exports.string().min(1).optional(),
+    query: external_exports.string().min(1).max(200)
+  }).strict()
+]);
+function escapeHtml(value) {
+  return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+function plain(html) {
+  return html.replace(/@UUID\[[^\]]*\]\{([^}]*)\}/g, "$1").replace(/<\/(p|li|h[1-6]|div)>/gi, "\n").replace(/<br\s*\/?>/gi, "\n").replace(/<[^>]*>/g, "").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, "&").replace(/\n{2,}/g, "\n").trim();
+}
+function listItems(html) {
+  return [...html.matchAll(/<li[^>]*>([\s\S]*?)<\/li>/gi)].map((m) => m[1].replace(/^\s*<p>([\s\S]*)<\/p>\s*$/i, "$1").trim());
+}
+var items = (list) => `<ul>${list.map((i) => `<li>${i}</li>`).join("")}</ul>`;
+function parseThreads(html) {
+  const split = html.split(/<h2[^>]*>\s*Closed\s*<\/h2>/i);
+  return { open: listItems(split[0] ?? ""), closed: listItems(split[1] ?? "") };
+}
+function buildThreads(open, closed) {
+  return `<h2>Open</h2>${items(open)}<h2>Closed</h2>${items(closed)}`;
+}
+function sections(html, level) {
+  const re = new RegExp(`<h${level}[^>]*>([\\s\\S]*?)<\\/h${level}>`, "gi");
+  const marks = [...html.matchAll(re)];
+  return marks.map((m, i) => ({
+    heading: m[1].trim(),
+    body: html.slice(m.index + m[0].length, i + 1 < marks.length ? marks[i + 1].index : html.length).trim()
+  }));
+}
+function buildNpcs(list) {
+  return list.map((s) => `<h3>${s.heading}</h3>${s.body}`).join("");
+}
+var words = (query) => query.toLowerCase().split(/\s+/).filter(Boolean);
+var CampaignMemoryTools = class {
+  foundryClient;
+  logger;
+  constructor({ foundryClient, logger }) {
+    this.foundryClient = foundryClient;
+    this.logger = logger.child({ component: "CampaignMemoryTools" });
+  }
+  getToolDefinitions() {
+    return [
+      {
+        name: "campaign-memory",
+        description: `The campaign's long-term memory, kept in a GM-only journal (default "${DEFAULT_JOURNAL}", made on first use) with pages: ${MEMORY_PAGES.join(", ")}. You can read and edit it in Foundry. action brief: one call that returns the open threads, the last sessions, NPC notes, the next-session notes and what the players know (knowledge:true for the full list; default just a count). Call it at the start of a session. action log: records what happened in one call: session (number or label; default the next number), date, summary (added to the Session Log), opened (new open threads), closed (threads that were resolved, matched by a few words of their text; they move to Closed), knowledge (facts the players learned), npcs [{name, note}] (notes on an NPC, kept under their name), next (replaces the next-session prep notes). Give at least one of these. action recall: query finds matching lines across all pages (every word must appear). Text can contain {{actor: Name}}, {{scene: Name}}, {{journal: Name}} links.`,
+        inputSchema: {
+          type: "object",
+          properties: {
+            action: { type: "string", enum: ["brief", "log", "recall"] },
+            journal: { type: "string", description: `Memory journal name (default "${DEFAULT_JOURNAL}")` },
+            sessions: { type: "number", description: "brief: how many recent sessions to show (1 to 5, default 2)" },
+            knowledge: {
+              type: ["boolean", "array"],
+              description: "brief: true to list everything the players know. log: list of facts the players learned",
+              items: { type: "string" }
+            },
+            session: { type: ["string", "number"], description: "log: session number or label" },
+            date: { type: "string", description: "log: date or in-world date for the entry" },
+            summary: { type: "string", description: "log: what happened" },
+            opened: { type: "array", items: { type: "string" }, description: "log: new open threads" },
+            closed: { type: "array", items: { type: "string" }, description: "log: resolved threads (a few words of the thread text)" },
+            npcs: {
+              type: "array",
+              items: { type: "object", properties: { name: { type: "string" }, note: { type: "string" } }, required: ["name", "note"], additionalProperties: false },
+              description: "log: notes on NPCs"
+            },
+            next: { type: "string", description: "log: notes for the next session (replaces the old ones)" },
+            query: { type: "string", description: "recall: words to look for" }
+          },
+          required: ["action"],
+          additionalProperties: false
+        }
+      }
+    ];
+  }
+  async query(method, data) {
+    const result = await this.foundryClient.query(`foundry-mcp-bridge.${method}`, data);
+    if (result?.success === false)
+      throw new Error(result.error || "Request was refused");
+    return result;
+  }
+  /** Read the memory pages, creating the journal when it does not exist yet. */
+  async load(name) {
+    let described;
+    try {
+      described = await this.query("manage-journals", { action: "describe", journal: name });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "";
+      if (!/not found/i.test(message))
+        throw error;
+      described = await this.query("manage-journals", {
+        action: "create",
+        name,
+        ownership: "none",
+        pages: MEMORY_PAGES.map((page) => ({ name: page, content: "" }))
+      });
+      described = await this.query("manage-journals", { action: "describe", journal: name });
+    }
+    const pages = /* @__PURE__ */ new Map();
+    for (const p of described?.journal?.pages ?? []) {
+      pages.set(p.name, { id: p.id, name: p.name, content: p.content ?? "" });
+    }
+    const missing = MEMORY_PAGES.filter((p) => !pages.has(p));
+    if (missing.length > 0) {
+      await this.query("manage-journals", { action: "update", journal: name, pages: missing.map((p) => ({ name: p, content: "" })) });
+      for (const p of missing)
+        pages.set(p, { name: p, content: "" });
+    }
+    return { id: described.journal.id, pages };
+  }
+  async handle(args) {
+    const a = schema5.parse(args ?? {});
+    const name = a.journal ?? DEFAULT_JOURNAL;
+    this.logger.info("Campaign memory", { action: a.action });
+    const { id: id2, pages } = await this.load(name);
+    const page = (n) => pages.get(n).content;
+    if (a.action === "brief") {
+      const threads = parseThreads(page("Open Threads"));
+      const log2 = sections(page("Session Log"), 2);
+      const knowledge = listItems(page("Player Knowledge")).map(plain);
+      const npcs = sections(page("NPC Notes"), 3).map((s) => {
+        const notes = s.body.match(/<p[^>]*>[\s\S]*?<\/p>/gi) ?? [];
+        return { name: plain(s.heading), latest: plain(notes[notes.length - 1] ?? ""), notes: notes.length };
+      });
+      return {
+        success: true,
+        journal: { id: id2, name },
+        openThreads: threads.open.map(plain),
+        recentlyClosed: threads.closed.slice(-3).map(plain),
+        lastSessions: log2.slice(-(a.sessions ?? 2)).map((s) => ({ title: plain(s.heading), text: plain(s.body) })),
+        sessionsLogged: log2.length,
+        npcs,
+        playersKnow: a.knowledge ? knowledge : { count: knowledge.length, latest: knowledge.slice(-3) },
+        next: plain(page("Next Session"))
+      };
+    }
+    if (a.action === "recall") {
+      const wanted = words(a.query);
+      const found = [];
+      for (const [pageName, p] of pages) {
+        const chunks = p.content.split(/<\/(?:p|li|h[1-6])>/i).map(plain).filter(Boolean);
+        for (const chunk2 of chunks) {
+          const lower = chunk2.toLowerCase();
+          if (wanted.every((w) => lower.includes(w)))
+            found.push({ page: pageName, text: chunk2 });
+        }
+      }
+      return { success: true, query: a.query, matches: found.slice(0, 20), total: found.length };
+    }
+    if (!a.summary && !a.opened?.length && !a.closed?.length && !a.knowledge?.length && !a.npcs?.length && !a.next) {
+      throw new Error("Nothing to log: give summary, opened, closed, knowledge, npcs or next");
+    }
+    const updates = [];
+    const log = sections(page("Session Log"), 2);
+    const label = a.session !== void 0 ? typeof a.session === "number" ? `Session ${a.session}` : a.session : `Session ${log.length + 1}`;
+    const title = a.date ? `${label} (${a.date})` : label;
+    const done = { session: label };
+    if (a.summary) {
+      updates.push({ name: "Session Log", content: `${page("Session Log")}<h2>${escapeHtml(title)}</h2><p>${escapeHtml(a.summary)}</p>` });
+    }
+    if (a.opened?.length || a.closed?.length) {
+      const threads = parseThreads(page("Open Threads"));
+      const matched = [];
+      const notFound = [];
+      for (const wanted of a.closed ?? []) {
+        const w = wanted.toLowerCase();
+        const at = threads.open.findIndex((t) => plain(t).toLowerCase().includes(w) || w.includes(plain(t).toLowerCase()));
+        if (at < 0) {
+          notFound.push(wanted);
+          continue;
+        }
+        const [thread] = threads.open.splice(at, 1);
+        matched.push(plain(thread));
+        threads.closed.push(`${thread} (resolved ${label})`);
+      }
+      for (const opened of a.opened ?? [])
+        threads.open.push(escapeHtml(opened));
+      updates.push({ name: "Open Threads", content: buildThreads(threads.open, threads.closed) });
+      done.threads = { opened: a.opened?.length ?? 0, closed: matched, ...notFound.length ? { notFound } : {} };
+    }
+    if (a.knowledge?.length) {
+      const known = listItems(page("Player Knowledge"));
+      known.push(...a.knowledge.map((k) => escapeHtml(k)));
+      updates.push({ name: "Player Knowledge", content: items(known) });
+      done.knowledge = a.knowledge.length;
+    }
+    if (a.npcs?.length) {
+      const list = sections(page("NPC Notes"), 3);
+      for (const npc of a.npcs) {
+        const entry = `<p>(${escapeHtml(label)}) ${escapeHtml(npc.note)}</p>`;
+        const at = list.find((s) => plain(s.heading).toLowerCase() === npc.name.trim().toLowerCase());
+        if (at)
+          at.body += entry;
+        else
+          list.push({ heading: escapeHtml(npc.name.trim()), body: entry });
+      }
+      updates.push({ name: "NPC Notes", content: buildNpcs(list) });
+      done.npcs = a.npcs.map((n) => n.name);
+    }
+    if (a.next) {
+      updates.push({ name: "Next Session", content: a.next.split(/\n+/).map((l) => `<p>${escapeHtml(l)}</p>`).join("") });
+      done.next = true;
+    }
+    const result = await this.query("manage-journals", { action: "update", journal: id2, pages: updates });
+    return { success: true, journal: { id: id2, name }, ...done, ...result?.warnings?.length ? { warnings: result.warnings } : {} };
+  }
+};
+
+// dist/tools/table-tools.js
+init_zod();
+var chatSchema = external_exports.object({
+  limit: external_exports.number().int().min(1).max(100).optional(),
+  since_id: external_exports.string().min(1).optional(),
+  since: external_exports.number().min(0).optional(),
+  rolls_only: external_exports.boolean().optional(),
+  whispers: external_exports.boolean().optional()
+}).strict();
+var schema6 = external_exports.object({
+  chat: external_exports.union([external_exports.boolean(), chatSchema]).optional(),
+  combat: external_exports.boolean().optional(),
+  party: external_exports.boolean().optional(),
+  players: external_exports.boolean().optional()
+}).strict();
+var TableTools = class {
+  foundryClient;
+  logger;
+  constructor({ foundryClient, logger }) {
+    this.foundryClient = foundryClient;
+    this.logger = logger.child({ component: "TableTools" });
+  }
+  getToolDefinitions() {
+    return [
+      {
+        name: "read-table",
+        description: "See what is happening at the table in one call. Sections (with none given, all four are returned): chat: recent chat messages, oldest first, each with who said it, the text, flavor, whispers and for rolls the formula, total, each die and the roll type (attack, skill, save...). Pass chat:true or {limit (default 20, max 100), since_id (only messages after this id; pass the latestId of your last read to see only what is new), since (timestamp), rolls_only, whispers:false (leave out whispers)}. The result has latestId. combat: the combat tracker: round, whose turn it is and every combatant with initiative, hit points, armour class and conditions. null when no combat is running. party: the player characters with hit points, armour class, conditions, level, passive Perception, gold, inspiration and which player has them. players: who is connected, their character and the scene they are viewing.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            chat: {
+              type: ["boolean", "object"],
+              description: "Recent chat and rolls: true or {limit, since_id, since, rolls_only, whispers}",
+              properties: {
+                limit: { type: "number" },
+                since_id: { type: "string" },
+                since: { type: "number" },
+                rolls_only: { type: "boolean" },
+                whispers: { type: "boolean" }
+              }
+            },
+            combat: { type: "boolean", description: "The combat tracker" },
+            party: { type: "boolean", description: "Player characters: hit points, AC, conditions" },
+            players: { type: "boolean", description: "Who is connected and where they look" }
+          },
+          additionalProperties: false
+        }
+      }
+    ];
+  }
+  async handleReadTable(args) {
+    const a = schema6.parse(args ?? {});
+    this.logger.debug("Reading the table", { sections: Object.keys(a) });
+    const result = await this.foundryClient.query("foundry-mcp-bridge.read-table", a);
+    if (result?.success === false)
+      throw new Error(result.error || "Request was refused");
+    return result;
+  }
+};
+
+// dist/tools/reveal-tools.js
+init_zod();
+var KINDS = ["token", "light", "tile", "sound", "drawing", "door"];
+var target = external_exports.object({
+  kind: external_exports.enum(KINDS),
+  id: external_exports.string().min(1).optional(),
+  name: external_exports.string().min(1).optional(),
+  x: external_exports.number().min(0).optional(),
+  y: external_exports.number().min(0).optional(),
+  radius: external_exports.number().min(0).max(100).optional(),
+  all: external_exports.boolean().optional()
+}).strict();
+var schema7 = external_exports.object({
+  scene: external_exports.string().min(1).optional(),
+  reveal: external_exports.array(target).max(100).optional(),
+  hide: external_exports.array(target).max(100).optional(),
+  reset_fog: external_exports.boolean().optional()
+}).strict().refine((a) => (a.reveal?.length ?? 0) + (a.hide?.length ?? 0) > 0 || a.reset_fog, { message: "Give reveal, hide and/or reset_fog" });
+var targetSchema = {
+  type: "array",
+  maxItems: 100,
+  items: {
+    type: "object",
+    properties: {
+      kind: { type: "string", enum: [...KINDS] },
+      id: { type: "string", description: "Exact id of the object" },
+      name: { type: "string", description: "tokens only: the token or actor name (exact, else part of it); all matches are changed" },
+      x: { type: "number", description: "Grid squares from the left (with y: objects near this point)" },
+      y: { type: "number", description: "Grid squares from the top" },
+      radius: { type: "number", description: "How near, in squares (default 1)" },
+      all: { type: "boolean", description: "Every object of this kind" }
+    },
+    required: ["kind"],
+    additionalProperties: false
+  }
+};
+var RevealTools = class {
+  foundryClient;
+  logger;
+  constructor({ foundryClient, logger }) {
+    this.foundryClient = foundryClient;
+    this.logger = logger.child({ component: "RevealTools" });
+  }
+  getToolDefinitions() {
+    return [
+      {
+        name: "reveal",
+        description: 'Show or hide things on a scene for the players, whoever placed them, in one call. reveal and hide are lists of targets {kind: token | light | tile | sound | drawing | door, then id, or name (tokens only), or x and y (grid squares, with optional radius), or all:true}. Tokens, lights, tiles, sounds and drawings are shown or hidden; a door target reveals a secret door (it becomes a normal door) or, with hide, makes a normal door secret. Examples: reveal [{kind:"token", name:"Goblin"}] shows every goblin; reveal [{kind:"door", x:12.5, y:8}] reveals the secret door there; hide [{kind:"light", all:true}] hides every light. reset_fog:true clears what the players have explored on the scene being viewed. scene defaults to the scene being viewed. Targets that match nothing are listed in notFound.',
+        inputSchema: {
+          type: "object",
+          properties: {
+            scene: { type: "string", description: "Scene id or exact name (default the one being viewed)" },
+            reveal: { ...targetSchema, description: "Things to show" },
+            hide: { ...targetSchema, description: "Things to hide" },
+            reset_fog: { type: "boolean", description: "Reset the explored fog of war (the scene being viewed)" }
+          },
+          additionalProperties: false
+        }
+      }
+    ];
+  }
+  async handleReveal(args) {
+    const a = schema7.parse(args ?? {});
+    this.logger.info("Reveal and hide", { reveal: a.reveal?.length ?? 0, hide: a.hide?.length ?? 0 });
+    const result = await this.foundryClient.query("foundry-mcp-bridge.reveal", a);
+    if (result?.success === false)
+      throw new Error(result.error || "Request was refused");
+    return result;
+  }
+};
+
 // dist/tools/actor-art-tools.js
 var import_fs6 = require("fs");
 var import_os4 = __toESM(require("os"), 1);
@@ -122802,7 +123198,7 @@ var import_path5 = __toESM(require("path"), 1);
 var import_pngjs4 = __toESM(require_png(), 1);
 init_zod();
 var MAX_ACTORS = 2;
-var schema5 = external_exports.object({
+var schema8 = external_exports.object({
   actors: external_exports.array(external_exports.object({
     actor: external_exports.string().min(1),
     prompt: external_exports.string().min(3).max(1500).optional(),
@@ -122816,8 +123212,8 @@ var schema5 = external_exports.object({
   folder: external_exports.string().min(1).max(80).optional(),
   seed: external_exports.number().int().min(0).optional()
 }).strict();
-function artSlug(text2) {
-  const slug2 = text2.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40);
+function artSlug(text3) {
+  const slug2 = text3.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40);
   return slug2 || "actor";
 }
 var ActorArtTools = class {
@@ -122899,7 +123295,7 @@ var ActorArtTools = class {
       const generated = await this.generate({
         kind: "token",
         name: `token-${slug2}`,
-        prompt: `${look}. Token art: a single character shown from the chest up, facing the viewer, centred with plenty of empty space all around and nothing touching the edges${style}. Isolated on a perfectly flat, uniform pure magenta (#FF00FF) background. No frame, no border, no text, no shadow on the background.`,
+        prompt: `${look}. Token art: only this one subject, centred, facing the viewer, with plenty of empty space all around and nothing touching the edges; if it is a person or creature show it from the chest up, with nobody and nothing else in the picture${style}. Isolated on a perfectly flat, uniform pure magenta (#FF00FF) background. No frame, no border, no text, no shadow on the background.`,
         upload: false,
         ...seed
       });
@@ -122935,7 +123331,7 @@ var ActorArtTools = class {
     return result;
   }
   async handleMakeActorArt(args) {
-    const a = schema5.parse(args ?? {});
+    const a = schema8.parse(args ?? {});
     const options = {
       style: a.style,
       portraitSize: a.portrait_size ?? 1024,
@@ -122983,7 +123379,7 @@ var musicSchema = external_exports.object({
   clear: external_exports.boolean().optional(),
   play: external_exports.boolean().optional()
 }).strict();
-var schema6 = external_exports.object({
+var schema9 = external_exports.object({
   scene: external_exports.string().min(1),
   action: external_exports.enum(["apply", "describe"]).optional(),
   music: musicSchema.optional(),
@@ -123077,7 +123473,7 @@ var SceneSoundTools = class {
     };
   }
   async handleSetupSceneSound(args) {
-    const a = schema6.parse(args ?? {});
+    const a = schema9.parse(args ?? {});
     const action = a.action ?? "apply";
     if (action === "describe") {
       try {
@@ -124044,12 +124440,12 @@ function resolveShape(layout, ref) {
       throw new Error(`No shape with id or label ${ref}`);
     return { shape: shapes[i], index: i };
   }
-  const text2 = ref.trim().toLowerCase();
-  if (/^\d+$/.test(text2))
-    return resolveShape(layout, Number(text2));
+  const text3 = ref.trim().toLowerCase();
+  if (/^\d+$/.test(text3))
+    return resolveShape(layout, Number(text3));
   const named = shapes.map((s, i) => ({ s, i })).filter(({ s }) => non(s) && s.name);
-  const exact = named.filter(({ s }) => s.name.toLowerCase() === text2);
-  const partial = named.filter(({ s }) => s.name.toLowerCase().includes(text2));
+  const exact = named.filter(({ s }) => s.name.toLowerCase() === text3);
+  const partial = named.filter(({ s }) => s.name.toLowerCase().includes(text3));
   const pool = exact.length > 0 ? exact : partial;
   if (pool.length === 0)
     throw new Error(`No shape named "${ref}"; name shapes when you add them, or use the id`);
@@ -124654,13 +125050,13 @@ function setPixel(img, x, y, c, alpha = 1) {
   for (let i = 0; i < 3; i++)
     img.rgb[o + i] = Math.round(img.rgb[o + i] * (1 - alpha) + c[i] * alpha);
 }
-function drawNumber(img, x, y, text2, k, ink) {
-  const boxW = text2.length * 4 * k + k;
+function drawNumber(img, x, y, text3, k, ink) {
+  const boxW = text3.length * 4 * k + k;
   const boxH = 5 * k + 2 * k;
   for (let j = 0; j < boxH; j++)
     for (let i = 0; i < boxW; i++)
       setPixel(img, x + i, y + j, [0, 0, 0], 0.7);
-  [...text2].forEach((ch, n) => {
+  [...text3].forEach((ch, n) => {
     const glyph = DIGITS[ch];
     if (!glyph)
       return;
@@ -124743,9 +125139,9 @@ async function renderPreview(doc, opts = {}) {
         }
       if (n === 0)
         continue;
-      const text2 = String(shape.label ?? shape.id);
-      const boxW = text2.length * 4 * k + k;
-      drawNumber(img, Math.round(sx / n - boxW / 2), Math.round(sy / n - 7 * k / 2), text2, k, shape.shape === "door" ? [255, 160, 40] : [120, 255, 120]);
+      const text3 = String(shape.label ?? shape.id);
+      const boxW = text3.length * 4 * k + k;
+      drawNumber(img, Math.round(sx / n - boxW / 2), Math.round(sy / n - 7 * k / 2), text3, k, shape.shape === "door" ? [255, 160, 40] : [120, 255, 120]);
     }
   }
   const region2 = opts.region ? {
@@ -124788,7 +125184,7 @@ var region = external_exports.object({
   width: external_exports.number().min(1),
   height: external_exports.number().min(1)
 }).strict();
-var schema7 = external_exports.object({
+var schema10 = external_exports.object({
   action: external_exports.enum(["new", "add", "update", "remove", "show", "render", "walls", "apply_walls", "check", "place", "lights", "align", "build", "portals", "set", "undo", "redo", "list", "delete"]),
   layout: external_exports.string().min(1).optional(),
   name: external_exports.string().min(1).max(60).optional(),
@@ -124971,7 +125367,7 @@ var LayoutTools = class {
     ];
   }
   async handleLayout(args) {
-    const a = schema7.parse(args ?? {});
+    const a = schema10.parse(args ?? {});
     switch (a.action) {
       case "list":
         return { success: true, layouts: await this.store.list(), folder: this.store.folder };
@@ -125497,8 +125893,8 @@ var LayoutTools = class {
       ...doc.reference ? { reference: doc.reference } : {}
     };
     if (doc.columns <= MAX_TEXT_COLUMNS && doc.rows <= MAX_TEXT_ROWS) {
-      const { text: text2, legend } = asciiMap(doc);
-      out.map = text2;
+      const { text: text3, legend } = asciiMap(doc);
+      out.map = text3;
       out.legend = legend;
     } else {
       out.note = "The layout is too large for a text map; use show with a region or png:true";
@@ -125511,12 +125907,12 @@ var LayoutTools = class {
       if (!view && (doc.columns > MAX_TEXT_COLUMNS || doc.rows > MAX_TEXT_ROWS)) {
         throw new Error("The layout is too large for one text map; pass a region or png:true");
       }
-      const { text: text2, legend } = asciiMap(doc, view);
+      const { text: text3, legend } = asciiMap(doc, view);
       return {
         success: true,
         layout: doc.id,
         grid: { columns: doc.columns, rows: doc.rows, squarePixels: doc.size, snap: doc.snap },
-        map: text2,
+        map: text3,
         legend,
         ...a.shapes_list ? { shapes: describeShapes(doc) } : {}
       };
@@ -125748,13 +126144,13 @@ var comfyTarget = { ...BUILTIN_TARGET };
 function applyComfyTarget(raw, client, logger) {
   if (raw === void 0)
     return;
-  const target = parseComfyTarget(raw);
-  if (target.mode === comfyTarget.mode && comfyBaseUrl(target) === comfyBaseUrl(comfyTarget)) {
+  const target2 = parseComfyTarget(raw);
+  if (target2.mode === comfyTarget.mode && comfyBaseUrl(target2) === comfyBaseUrl(comfyTarget)) {
     return;
   }
-  logger.info("ComfyUI target selected", { target: describeComfyTarget(target) });
-  comfyTarget = target;
-  client?.setTarget?.(target);
+  logger.info("ComfyUI target selected", { target: describeComfyTarget(target2) });
+  comfyTarget = target2;
+  client?.setTarget?.(target2);
 }
 var lockFd = null;
 function acquireLock() {
@@ -126500,6 +126896,9 @@ async function startBackend() {
   const auditTools = new AuditTools({ foundryClient, logger });
   const lootTools = new LootTools({ foundryClient, logger });
   const shareTools = new ShareTools({ foundryClient, logger });
+  const campaignMemoryTools = new CampaignMemoryTools({ foundryClient, logger });
+  const tableTools = new TableTools({ foundryClient, logger });
+  const revealTools = new RevealTools({ foundryClient, logger });
   const actorArtTools = new ActorArtTools({
     foundryClient,
     logger,
@@ -126679,6 +127078,9 @@ async function startBackend() {
     ...auditTools.getToolDefinitions(),
     ...lootTools.getToolDefinitions(),
     ...shareTools.getToolDefinitions(),
+    ...campaignMemoryTools.getToolDefinitions(),
+    ...tableTools.getToolDefinitions(),
+    ...revealTools.getToolDefinitions(),
     ...actorArtTools.getToolDefinitions(),
     ...sceneSoundTools.getToolDefinitions(),
     ...layoutTools.getToolDefinitions(),
@@ -126930,6 +127332,15 @@ async function startBackend() {
                   break;
                 case "make-actor-art":
                   result = await actorArtTools.handleMakeActorArt(args);
+                  break;
+                case "reveal":
+                  result = await revealTools.handleReveal(args);
+                  break;
+                case "read-table":
+                  result = await tableTools.handleReadTable(args);
+                  break;
+                case "campaign-memory":
+                  result = await campaignMemoryTools.handle(args);
                   break;
                 case "share-with-players":
                   result = await shareTools.handleShareWithPlayers(args);
