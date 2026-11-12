@@ -24412,10 +24412,10 @@ index fe400d1..0bdee03 100644
      if (!job) {
 diff --git a/packages/mcp-server/src/speech.test.ts b/packages/mcp-server/src/speech.test.ts
 new file mode 100644
-index 0000000..3396c5d
+index 0000000..b843513
 --- /dev/null
 +++ b/packages/mcp-server/src/speech.test.ts
-@@ -0,0 +1,138 @@
+@@ -0,0 +1,152 @@
 +import { describe, expect, it } from 'vitest';
 +import {
 +  audioSeconds,
@@ -24554,12 +24554,26 @@ index 0000000..3396c5d
 +    expect(d).toBeLessThan(10000);
 +  });
 +});
++
++import { groupSpeech } from './speech.js';
++
++describe('groupSpeech', () => {
++  it('keeps a paragraph together and only cuts a long text at sentence ends', () => {
++    const para = 'You have been on the Triboar Trail for about half a day. The woods press close on either side. Something is watching from the trees.';
++    expect(groupSpeech(para)).toEqual([para]);
++    const parts = groupSpeech(para, 90);
++    expect(parts.length).toBeGreaterThan(1);
++    expect(parts.every(p => p.length <= 90)).toBe(true);
++    expect(parts.join(' ')).toBe(para);
++    expect(groupSpeech('  ')).toEqual([]);
++  });
++});
 diff --git a/packages/mcp-server/src/speech.ts b/packages/mcp-server/src/speech.ts
 new file mode 100644
-index 0000000..4f45a00
+index 0000000..c300b4b
 --- /dev/null
 +++ b/packages/mcp-server/src/speech.ts
-@@ -0,0 +1,226 @@
+@@ -0,0 +1,240 @@
 +/**
 + * Narration: the settings for spoken text, the ComfyUI workflows that make speech from them, and the
 + * length of a finished audio file. Pure, so it can be tested without ComfyUI.
@@ -24764,6 +24778,20 @@ index 0000000..4f45a00
 +    else joined.push(piece);
 +  }
 +  return joined;
++}
++
++/**
++ * Text in paragraph-sized pieces for an engine that streams: sentences are kept together up to `maxChars`, so one
++ * request (one voice, one context) speaks as much as possible and only a long text is cut, at sentence ends.
++ */
++export function groupSpeech(text: string, maxChars = 600): string[] {
++  const groups: string[] = [];
++  for (const sentence of splitSpeechSegments(text, maxChars)) {
++    const last = groups[groups.length - 1];
++    if (last !== undefined && last.length + sentence.length + 1 <= maxChars) groups[groups.length - 1] = `${last} ${sentence}`;
++    else groups.push(sentence);
++  }
++  return groups;
 +}
 +
 +/**
@@ -37607,10 +37635,10 @@ index 0000000..1aafc44
 +}
 diff --git a/packages/mcp-server/src/tools/speech-tools.test.ts b/packages/mcp-server/src/tools/speech-tools.test.ts
 new file mode 100644
-index 0000000..72c9a65
+index 0000000..826b518
 --- /dev/null
 +++ b/packages/mcp-server/src/tools/speech-tools.test.ts
-@@ -0,0 +1,166 @@
+@@ -0,0 +1,178 @@
 +import { describe, expect, it, vi } from 'vitest';
 +import { SpeechTools } from './speech-tools.js';
 +
@@ -37741,21 +37769,22 @@ index 0000000..72c9a65
 +    return calls;
 +  }
 +
-+  it('streams a sentence into growing pieces with the text shared out', async () => {
++  it('streams a sentence into pieces sized for the server speed, with the text shared out', async () => {
 +    const calls = stubServer([half(), half(), half(), half(), half(), half()]);
 +    const { tools, query, runAudioWorkflow } = make({ engine: 'qwen3-fast', voice: 'Ryan' });
 +    const r = await tools.handleSpeak({ text: 'Four goblins wait in the woods today.', style: 'Grim.' });
 +    expect(runAudioWorkflow).not.toHaveBeenCalled();
 +    const speakCall = calls.find(c => c.url.endsWith('/claude-tts/speak'))!;
 +    expect(speakCall.url).toBe('http://comfy:8188/claude-tts/speak');
-+    expect(speakCall.body).toMatchObject({ text: 'Four goblins wait in the woods today.', speaker: 'Ryan', instruct: 'Grim.', language: 'English', mode: 'custom' });
++    expect(speakCall.body).toMatchObject({ text: 'Four goblins wait in the woods today.', speaker: 'Ryan', instruct: 'Grim.', language: 'English', mode: 'custom', temperature: 0.7 });
++    expect(typeof speakCall.body.seed).toBe('number');
 +    const queued = query.mock.calls.filter(c => c[1]?.action === 'queue').map(c => c[1] as any);
-+    expect(queued.map(q => q.audioSeconds)).toEqual([1, 1.5, 0.5]);
-+    expect(queued.map(q => q.index)).toEqual([0, 1, 2]);
++    expect(queued.map(q => q.audioSeconds)).toEqual([2, 1]);
++    expect(queued.map(q => q.index)).toEqual([0, 1]);
 +    expect(queued.map(q => q.text).join(' ')).toBe('Four goblins wait in the woods today.');
 +    expect(queued[0].path).toMatch(/.wav$/);
 +    expect(query).toHaveBeenLastCalledWith('foundry-mcp-bridge.speak', { action: 'end', id: queued[0].id });
-+    expect(r).toMatchObject({ success: true, engine: 'qwen3-fast', voice: 'Ryan', parts: 3, audio_seconds: 3 });
++    expect(r).toMatchObject({ success: true, engine: 'qwen3-fast', voice: 'Ryan', parts: 2, audio_seconds: 3 });
 +    vi.unstubAllGlobals();
 +  });
 +
@@ -37777,12 +37806,23 @@ index 0000000..72c9a65
 +    vi.unstubAllGlobals();
 +  });
 +});
++
++describe('segmentPlan', () => {
++  it('starts small on a fast server and larger on a slow one', async () => {
++    const { segmentPlan } = await import('./speech-tools.js');
++    expect(segmentPlan(1.7)).toEqual({ first: 0.9, growth: 1.4 });
++    const slow = segmentPlan(1.1);
++    expect(slow.first).toBeGreaterThan(1.5);
++    expect(slow.growth).toBeLessThan(1.1);
++    expect(segmentPlan(0.8).first).toBe(2);
++  });
++});
 diff --git a/packages/mcp-server/src/tools/speech-tools.ts b/packages/mcp-server/src/tools/speech-tools.ts
 new file mode 100644
-index 0000000..bf1bb52
+index 0000000..fecb039
 --- /dev/null
 +++ b/packages/mcp-server/src/tools/speech-tools.ts
-@@ -0,0 +1,422 @@
+@@ -0,0 +1,439 @@
 +import { randomInt } from 'crypto';
 +import { z } from 'zod';
 +import { FoundryClient } from '../foundry-client.js';
@@ -37796,6 +37836,7 @@ index 0000000..bf1bb52
 +  normalizeSpeechSettings,
 +  slugify,
 +  SPEECH_ENGINES,
++  groupSpeech,
 +  splitSpeechSegments,
 +  startDelayMs,
 +  type SpeechEngine,
@@ -37826,12 +37867,23 @@ index 0000000..bf1bb52
 + * Streamed audio is queued in growing pieces: the first one is small so playback starts at once, and each
 + * next one is at most about 1.4 times the last, so generating it (about 1.6 times faster than speech) is done before the previous one has played.
 + */
-+const FIRST_SEGMENT_SECONDS = 0.9;
 +const MAX_SEGMENT_SECONDS = 4;
 +/** Extra wait before the first streamed piece plays, to build a small lead over the uploads that follow. */
-+const FAST_PREROLL_MS = 500;
-+function nextSegmentSeconds(last: number): number {
-+  return Math.min(MAX_SEGMENT_SECONDS, Math.round(last * 1.4 * 100) / 100);
++const FAST_PREROLL_MS = 600;
++function nextSegmentSeconds(last: number, growth: number): number {
++  return Math.min(MAX_SEGMENT_SECONDS, Math.round(last * growth * 100) / 100);
++}
++
++/**
++ * Piece sizes for a streaming speed of `rate` seconds of audio per second of waiting (about 1.7 on an idle GPU,
++ * less when the GPU is busy with something else). A slower server needs a bigger first piece, and pieces that grow
++ * more slowly, so each next piece is ready before the previous one has finished playing.
++ */
++export function segmentPlan(rate: number): { first: number; growth: number } {
++  return {
++    first: Math.round(Math.min(2, Math.max(0.9, 0.9 + (1.7 - rate) * 1.4)) * 100) / 100,
++    growth: Math.min(1.4, Math.max(1, rate * 0.9)),
++  };
 +}
 +
 +const schema = z
@@ -37850,6 +37902,10 @@ index 0000000..bf1bb52
 +  .strict();
 +
 +export class SpeechTools {
++  /** How fast the streaming server has been lately (seconds of audio per second of waiting, uploads included), learned from each narration. */
++  private fastRate = 1.2;
++  /** How long a word of narration lasts, learned from what was spoken, to spread the chat text over the audio of a streamed paragraph. */
++  private secondsPerWord = 0.42;
 +  private foundryClient: FoundryClient;
 +  private logger: Logger;
 +  private getClient: () => SpeechComfyClient;
@@ -38035,7 +38091,8 @@ index 0000000..bf1bb52
 +    const language = (a.language ?? settings.language) === 'auto' ? 'English' : (a.language ?? settings.language);
 +    const instruct = a.style ?? settings.style;
 +    const text = a.text!.trim();
-+    const pieces = splitSpeechSegments(text);
++    const pieces = groupSpeech(text);
++    const seed = a.seed ?? randomInt(0, 2 ** 31 - 1);
 +    const utterance = `${Date.now().toString(36)}${randomInt(0, 1679616).toString(36)}`;
 +    const speaker = a.speaker_name ?? 'Narrator';
 +    const sync = a.chat ?? settings.syncText;
@@ -38044,8 +38101,6 @@ index 0000000..bf1bb52
 +    const started = Date.now();
 +    let firstAudioMs: number | undefined;
 +    let totalAudio = 0;
-+    let totalWords = 0;
-+    let secondsPerWord = 0.42; // refined from what has been spoken so far
 +    let segmentIndex = 0;
 +    let lastPath: string | undefined;
 +    let messageId: string | undefined;
@@ -38090,13 +38145,14 @@ index 0000000..bf1bb52
 +      });
 +    };
 +
-+    let target = FIRST_SEGMENT_SECONDS; // keeps growing across sentences
++    const plan = segmentPlan(this.fastRate);
++    let target = plan.first; // keeps growing across sentences
 +    try {
 +      for (const piece of pieces) {
 +        if (sendError) break;
 +        const words = piece.split(/\s+/).length;
-+        const expected = Math.max(1, words * secondsPerWord);
-+        const stream = await streamSpeech(baseUrl, { text: piece, mode: 'custom', speaker: voice, instruct, language, model: '1.7B', chunk_size: 6 });
++        const expected = Math.max(1, words * this.secondsPerWord);
++        const stream = await streamSpeech(baseUrl, { text: piece, mode: 'custom', speaker: voice, instruct, language, model: '1.7B', chunk_size: 6, seed, temperature: 0.7 });
 +        let pending: Buffer[] = [];
 +        let pendingBytes = 0;
 +        let spoken = 0; // seconds of this sentence already queued
@@ -38109,7 +38165,7 @@ index 0000000..bf1bb52
 +          const from = spoken / expected;
 +          spoken += seconds;
 +          queue(pcm, stream.sampleRate, sliceWords(piece, from, final ? 1 : spoken / expected));
-+          target = nextSegmentSeconds(target);
++          target = nextSegmentSeconds(target, plan.growth);
 +        };
 +        for await (const chunk of stream.chunks) {
 +          pending.push(chunk);
@@ -38118,8 +38174,7 @@ index 0000000..bf1bb52
 +          if (sendError) break;
 +        }
 +        flush(true);
-+        totalWords += words;
-+        if (spoken > 0) secondsPerWord = Math.max(0.2, Math.min(0.9, (secondsPerWord * (totalWords - words) + spoken) / totalWords));
++        if (spoken > 0) this.secondsPerWord = Math.max(0.2, Math.min(0.9, (this.secondsPerWord + spoken / words) / 2));
 +      }
 +      await sendChain;
 +      if (sendError) throw sendError;
@@ -38128,6 +38183,8 @@ index 0000000..bf1bb52
 +      throw new Error(`Speech generation failed: ${error instanceof Error ? error.message : String(error)}`);
 +    }
 +    await this.foundryClient.query('foundry-mcp-bridge.speak', { action: 'end', id: utterance });
++    const waited = (Date.now() - started) / 1000;
++    if (totalAudio >= 3 && waited > 0) this.fastRate = Math.min(2.5, Math.max(0.8, (this.fastRate + totalAudio / waited) / 2));
 +
 +    return {
 +      success: true,
@@ -39234,10 +39291,10 @@ index 0000000..c063d12
 +});
 diff --git a/packages/mcp-server/src/tts-stream.ts b/packages/mcp-server/src/tts-stream.ts
 new file mode 100644
-index 0000000..db68633
+index 0000000..e468e8c
 --- /dev/null
 +++ b/packages/mcp-server/src/tts-stream.ts
-@@ -0,0 +1,113 @@
+@@ -0,0 +1,115 @@
 +/**
 + * Client of the streaming narration server (tts-server/claude_tts), reached through ComfyUI's own address
 + * under /claude-tts. The server streams raw 16-bit mono PCM while it generates.
@@ -39256,6 +39313,8 @@ index 0000000..db68633
 +  language: string;
 +  model?: string;
 +  chunk_size?: number;
++  seed?: number;
++  temperature?: number;
 +}
 +
 +export function serverUrl(comfyBaseUrl: string): string {
@@ -39521,10 +39580,10 @@ index 0000000..c2a6edc
 +_register_routes()
 diff --git a/tts-server/claude_tts/server.py b/tts-server/claude_tts/server.py
 new file mode 100644
-index 0000000..0237df7
+index 0000000..1a17a86
 --- /dev/null
 +++ b/tts-server/claude_tts/server.py
-@@ -0,0 +1,180 @@
+@@ -0,0 +1,187 @@
 +"""
 +Streaming narration server for the Foundry MCP bridge.
 +
@@ -39585,6 +39644,8 @@ index 0000000..0237df7
 +    language: str = "English"
 +    model: str = "1.7B"
 +    chunk_size: int = Field(default=6, ge=2, le=24)  # codec steps per chunk, 12 per second of audio
++    seed: Optional[int] = None  # fixes the sampling, so a take can be repeated and a voice stays steady
++    temperature: float = Field(default=0.7, ge=0.1, le=1.5)
 +
 +
 +def load(mode: str, size: str):
@@ -39652,13 +39713,18 @@ index 0000000..0237df7
 +        with _lock:
 +            _busy = True
 +            try:
++                if req.seed is not None:
++                    import torch
++
++                    torch.manual_seed(req.seed)
++                    torch.cuda.manual_seed_all(req.seed)
 +                if req.mode == "custom":
 +                    gen = tts.generate_custom_voice_streaming(
-+                        text=req.text, speaker=req.speaker, language=req.language, instruct=req.instruct, chunk_size=req.chunk_size
++                        text=req.text, speaker=req.speaker, language=req.language, instruct=req.instruct, chunk_size=req.chunk_size, temperature=req.temperature
 +                    )
 +                else:
 +                    gen = tts.generate_voice_design_streaming(
-+                        text=req.text, instruct=req.instruct or "A calm narrator.", language=req.language, chunk_size=req.chunk_size
++                        text=req.text, instruct=req.instruct or "A calm narrator.", language=req.language, chunk_size=req.chunk_size, temperature=req.temperature
 +                    )
 +                for audio, rate, _timing in gen:
 +                    if cancelled.is_set():

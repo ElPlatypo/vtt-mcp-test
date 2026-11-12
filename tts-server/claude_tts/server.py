@@ -58,6 +58,8 @@ class SpeakRequest(BaseModel):
     language: str = "English"
     model: str = "1.7B"
     chunk_size: int = Field(default=6, ge=2, le=24)  # codec steps per chunk, 12 per second of audio
+    seed: Optional[int] = None  # fixes the sampling, so a take can be repeated and a voice stays steady
+    temperature: float = Field(default=0.7, ge=0.1, le=1.5)
 
 
 def load(mode: str, size: str):
@@ -125,13 +127,18 @@ async def speak(req: SpeakRequest):
         with _lock:
             _busy = True
             try:
+                if req.seed is not None:
+                    import torch
+
+                    torch.manual_seed(req.seed)
+                    torch.cuda.manual_seed_all(req.seed)
                 if req.mode == "custom":
                     gen = tts.generate_custom_voice_streaming(
-                        text=req.text, speaker=req.speaker, language=req.language, instruct=req.instruct, chunk_size=req.chunk_size
+                        text=req.text, speaker=req.speaker, language=req.language, instruct=req.instruct, chunk_size=req.chunk_size, temperature=req.temperature
                     )
                 else:
                     gen = tts.generate_voice_design_streaming(
-                        text=req.text, instruct=req.instruct or "A calm narrator.", language=req.language, chunk_size=req.chunk_size
+                        text=req.text, instruct=req.instruct or "A calm narrator.", language=req.language, chunk_size=req.chunk_size, temperature=req.temperature
                     )
                 for audio, rate, _timing in gen:
                     if cancelled.is_set():

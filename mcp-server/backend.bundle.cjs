@@ -121414,6 +121414,17 @@ function splitSpeechSegments(text3, maxChars = 200) {
   }
   return joined;
 }
+function groupSpeech(text3, maxChars = 600) {
+  const groups = [];
+  for (const sentence of splitSpeechSegments(text3, maxChars)) {
+    const last = groups[groups.length - 1];
+    if (last !== void 0 && last.length + sentence.length + 1 <= maxChars)
+      groups[groups.length - 1] = `${last} ${sentence}`;
+    else
+      groups.push(sentence);
+  }
+  return groups;
+}
 function startDelayMs(pieces, firstSeconds, firstReadyMs, gapMs = 120) {
   if (pieces.length < 2 || firstSeconds <= 0)
     return 0;
@@ -121516,11 +121527,16 @@ function sliceWords(text3, from, to) {
 // dist/tools/speech-tools.js
 var UPLOAD_TIMEOUT_MS3 = 12e4;
 var SPEECH_TIMEOUT_MS = 5 * 60 * 1e3;
-var FIRST_SEGMENT_SECONDS = 0.9;
 var MAX_SEGMENT_SECONDS = 4;
-var FAST_PREROLL_MS = 500;
-function nextSegmentSeconds(last) {
-  return Math.min(MAX_SEGMENT_SECONDS, Math.round(last * 1.4 * 100) / 100);
+var FAST_PREROLL_MS = 600;
+function nextSegmentSeconds(last, growth) {
+  return Math.min(MAX_SEGMENT_SECONDS, Math.round(last * growth * 100) / 100);
+}
+function segmentPlan(rate) {
+  return {
+    first: Math.round(Math.min(2, Math.max(0.9, 0.9 + (1.7 - rate) * 1.4)) * 100) / 100,
+    growth: Math.min(1.4, Math.max(1, rate * 0.9))
+  };
 }
 var schema2 = external_exports.object({
   action: external_exports.enum(["say", "describe", "stop"]).optional(),
@@ -121535,6 +121551,10 @@ var schema2 = external_exports.object({
   seed: external_exports.number().int().min(0).optional()
 }).strict();
 var SpeechTools = class {
+  /** How fast the streaming server has been lately (seconds of audio per second of waiting, uploads included), learned from each narration. */
+  fastRate = 1.2;
+  /** How long a word of narration lasts, learned from what was spoken, to spread the chat text over the audio of a streamed paragraph. */
+  secondsPerWord = 0.42;
   foundryClient;
   logger;
   getClient;
@@ -121698,7 +121718,8 @@ var SpeechTools = class {
     const language = (a.language ?? settings.language) === "auto" ? "English" : a.language ?? settings.language;
     const instruct = a.style ?? settings.style;
     const text3 = a.text.trim();
-    const pieces = splitSpeechSegments(text3);
+    const pieces = groupSpeech(text3);
+    const seed = a.seed ?? (0, import_crypto6.randomInt)(0, 2 ** 31 - 1);
     const utterance = `${Date.now().toString(36)}${(0, import_crypto6.randomInt)(0, 1679616).toString(36)}`;
     const speaker = a.speaker_name ?? "Narrator";
     const sync = a.chat ?? settings.syncText;
@@ -121706,8 +121727,6 @@ var SpeechTools = class {
     const started = Date.now();
     let firstAudioMs;
     let totalAudio = 0;
-    let totalWords = 0;
-    let secondsPerWord = 0.42;
     let segmentIndex = 0;
     let lastPath;
     let messageId;
@@ -121753,14 +121772,15 @@ var SpeechTools = class {
         }
       });
     };
-    let target2 = FIRST_SEGMENT_SECONDS;
+    const plan = segmentPlan(this.fastRate);
+    let target2 = plan.first;
     try {
       for (const piece of pieces) {
         if (sendError)
           break;
         const words2 = piece.split(/\s+/).length;
-        const expected = Math.max(1, words2 * secondsPerWord);
-        const stream4 = await streamSpeech(baseUrl, { text: piece, mode: "custom", speaker: voice, instruct, language, model: "1.7B", chunk_size: 6 });
+        const expected = Math.max(1, words2 * this.secondsPerWord);
+        const stream4 = await streamSpeech(baseUrl, { text: piece, mode: "custom", speaker: voice, instruct, language, model: "1.7B", chunk_size: 6, seed, temperature: 0.7 });
         let pending = [];
         let pendingBytes = 0;
         let spoken = 0;
@@ -121774,7 +121794,7 @@ var SpeechTools = class {
           const from = spoken / expected;
           spoken += seconds;
           queue(pcm, stream4.sampleRate, sliceWords(piece, from, final ? 1 : spoken / expected));
-          target2 = nextSegmentSeconds(target2);
+          target2 = nextSegmentSeconds(target2, plan.growth);
         };
         for await (const chunk2 of stream4.chunks) {
           pending.push(chunk2);
@@ -121785,9 +121805,8 @@ var SpeechTools = class {
             break;
         }
         flush(true);
-        totalWords += words2;
         if (spoken > 0)
-          secondsPerWord = Math.max(0.2, Math.min(0.9, (secondsPerWord * (totalWords - words2) + spoken) / totalWords));
+          this.secondsPerWord = Math.max(0.2, Math.min(0.9, (this.secondsPerWord + spoken / words2) / 2));
       }
       await sendChain;
       if (sendError)
@@ -121797,6 +121816,9 @@ var SpeechTools = class {
       throw new Error(`Speech generation failed: ${error instanceof Error ? error.message : String(error)}`);
     }
     await this.foundryClient.query("foundry-mcp-bridge.speak", { action: "end", id: utterance });
+    const waited = (Date.now() - started) / 1e3;
+    if (totalAudio >= 3 && waited > 0)
+      this.fastRate = Math.min(2.5, Math.max(0.8, (this.fastRate + totalAudio / waited) / 2));
     return {
       success: true,
       engine: "qwen3-fast",
