@@ -20459,10 +20459,10 @@ index d689724..29b47d7 100644
        hint: 'Higher quality = better detail but slower generation. Generation time depends on your hardware.',
 diff --git a/packages/foundry-module/src/speech-player.ts b/packages/foundry-module/src/speech-player.ts
 new file mode 100644
-index 0000000..187153b
+index 0000000..4a4e346
 --- /dev/null
 +++ b/packages/foundry-module/src/speech-player.ts
-@@ -0,0 +1,280 @@
+@@ -0,0 +1,293 @@
 +import { MODULE_ID } from './constants.js';
 +import { escapeHtml, planSegment, segmentsEnd, segmentsHtml, segmentsText, speechSettingsFrom, type SpeechSegment } from './speech-utils.js';
 +
@@ -20507,6 +20507,7 @@ index 0000000..187153b
 +  /** narration messages whose popup notification stays open until their audio has ended: message id to end time */
 +  private holds = new Map<string, number>();
 +  private holdTimer: ReturnType<typeof setInterval> | undefined;
++  private inactiveTimer: ReturnType<typeof setTimeout> | undefined;
 +
 +  /** Listen for the GM's orders and reveal narrated chat messages. Call once, when the game is ready. */
 +  attach(): void {
@@ -20699,15 +20700,22 @@ index 0000000..187153b
 +
 +  /**
 +   * Foundry closes a chat popup (the notification at the bottom right) five seconds after it appears, however long the
-+   * narration still has to run. Keep resetting that countdown until the audio has ended; after that Foundry's own
-+   * countdown fades the popup out. Every update of the message extends the hold.
++   * narration still has to run, and fades the whole notification area (class "active" off) at the same time. Keep both
++   * from happening until the audio has ended; after that Foundry's own countdown closes the popup, and the area is
++   * faded five seconds later. Every update of the message extends the hold.
 +   */
 +  private hold(messageId: string | undefined, endAt: number): void {
 +    if (!messageId || endAt <= this.now()) return;
 +    this.holds.set(messageId, Math.max(endAt, this.holds.get(messageId) ?? 0));
++    if (this.inactiveTimer) {
++      clearTimeout(this.inactiveTimer);
++      this.inactiveTimer = undefined;
++    }
 +    if (this.holdTimer) return;
 +    this.holdTimer = setInterval(() => {
 +      const now = this.now();
++      const area = document.querySelector('#chat-notifications');
++      if (this.holds.size > 0) area?.classList.add('active');
 +      for (const [id, end] of this.holds) {
 +        if (now >= end) {
 +          this.holds.delete(id);
@@ -20719,6 +20727,11 @@ index 0000000..187153b
 +      if (this.holds.size === 0 && this.holdTimer) {
 +        clearInterval(this.holdTimer);
 +        this.holdTimer = undefined;
++        // Foundry's own timer for this has already run, so let the area fade after the popup's five seconds.
++        this.inactiveTimer = setTimeout(() => {
++          this.inactiveTimer = undefined;
++          document.querySelector('#chat-notifications')?.classList.remove('active');
++        }, 5000);
 +      }
 +    }, 400);
 +  }
