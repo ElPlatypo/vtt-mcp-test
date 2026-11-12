@@ -1227,6 +1227,74 @@ index 864412c..71104a6 100644
  
  /**
   * Socket event names
+diff --git a/packages/foundry-module/src/data-access.actor-art.test.ts b/packages/foundry-module/src/data-access.actor-art.test.ts
+new file mode 100644
+index 0000000..dd6edf5
+--- /dev/null
++++ b/packages/foundry-module/src/data-access.actor-art.test.ts
+@@ -0,0 +1,62 @@
++/** set-actor-art: portrait, token picture and tokens already on scenes. Foundry is stubbed. */
++import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
++import { FoundryDataAccess } from './data-access.js';
++
++function setup(allow = true) {
++  const actor: any = { id: 'a1', name: 'Goblin Boss', update: vi.fn(async () => undefined) };
++  const makeScene = (name: string, tokens: Array<{ id: string; actorId: string }>) => {
++    const scene: any = {
++      id: name,
++      name,
++      tokens: { contents: tokens, get: (id: string) => tokens.find(t => t.id === id) },
++      updateEmbeddedDocuments: vi.fn(async () => undefined),
++    };
++    return scene;
++  };
++  const s1 = makeScene('Cave', [{ id: 't1', actorId: 'a1' }, { id: 't2', actorId: 'other' }, { id: 't3', actorId: 'a1' }]);
++  const s2 = makeScene('Town', [{ id: 't4', actorId: 'other' }]);
++  const s3 = makeScene('Trail', [{ id: 't5', actorId: 'a1' }]);
++  vi.stubGlobal('Hooks', { on: vi.fn(), callAll: vi.fn() });
++  vi.stubGlobal('game', {
++    ready: true,
++    world: { id: 'w', getFlag: vi.fn(() => []), setFlag: vi.fn() },
++    user: { id: 'gm', name: 'GM' },
++    actors: { get: (id: string) => (id === 'a1' ? actor : undefined), getName: (n: string) => (n === 'Goblin Boss' ? actor : undefined), [Symbol.iterator]: function* () { yield actor; } },
++    scenes: Object.assign([s1, s2, s3], { contents: [s1, s2, s3] }),
++    settings: { get: (_m: string, key: string) => (key === 'allowWriteOperations' ? allow : undefined) },
++  });
++  return { da: new FoundryDataAccess(), actor, s1, s2, s3 };
++}
++
++describe('setActorArt', () => {
++  beforeEach(() => vi.unstubAllGlobals());
++  afterEach(() => vi.unstubAllGlobals());
++
++  it('sets both pictures and updates the tokens of this actor on every scene', async () => {
++    const { da, actor, s1, s2, s3 } = setup();
++    const r = await da.setActorArt({ actor: 'Goblin Boss', img: 'a/portrait.png', tokenImg: 'a/token.png' });
++    expect(actor.update).toHaveBeenCalledWith({ img: 'a/portrait.png', 'prototypeToken.texture.src': 'a/token.png' });
++    expect(s1.updateEmbeddedDocuments).toHaveBeenCalledWith('Token', [{ _id: 't1', 'texture.src': 'a/token.png' }, { _id: 't3', 'texture.src': 'a/token.png' }]);
++    expect(s2.updateEmbeddedDocuments).not.toHaveBeenCalled();
++    expect(s3.updateEmbeddedDocuments).toHaveBeenCalledWith('Token', [{ _id: 't5', 'texture.src': 'a/token.png' }]);
++    expect(r).toMatchObject({ success: true, actor: { id: 'a1' }, img: 'a/portrait.png', tokenImg: 'a/token.png', tokensUpdated: 3, scenes: ['Cave', 'Trail'] });
++  });
++  it('leaves placed tokens alone when asked, and when only the portrait changes', async () => {
++    const { da, actor, s1 } = setup();
++    const r = await da.setActorArt({ actor: 'a1', tokenImg: 'a/token.png', update_placed: false });
++    expect(actor.update).toHaveBeenCalledWith({ 'prototypeToken.texture.src': 'a/token.png' });
++    expect(r.tokensUpdated).toBe(0);
++    await da.setActorArt({ actor: 'a1', img: 'a/p.png' });
++    expect(s1.updateEmbeddedDocuments).not.toHaveBeenCalled();
++  });
++  it('refuses bad requests and respects the write gate', async () => {
++    const { da, actor } = setup();
++    await expect(da.setActorArt({ actor: 'a1' })).rejects.toThrow('Give img');
++    await expect(da.setActorArt({ actor: 'a1', img: 'http://x/a.png' })).rejects.toThrow('not a web address');
++    await expect(da.setActorArt({ actor: 'Nobody', img: 'a.png' })).rejects.toThrow('Actor not found');
++    await expect(da.setActorArt({ actor: '', img: 'a.png' })).rejects.toThrow('actor');
++    expect(actor.update).not.toHaveBeenCalled();
++    const gated = setup(false);
++    await expect(gated.da.setActorArt({ actor: 'a1', img: 'a.png' })).rejects.toThrow();
++  });
++});
 diff --git a/packages/foundry-module/src/data-access.create-actor-from-data.test.ts b/packages/foundry-module/src/data-access.create-actor-from-data.test.ts
 index bcaadda..11b9dcc 100644
 --- a/packages/foundry-module/src/data-access.create-actor-from-data.test.ts
@@ -1940,6 +2008,172 @@ index 0000000..beeb75a
 +    await expect(
 +      off.da.manageRegions({ action: 'link', from: { scene: 'sa', rect: [1, 1, 1, 1] }, to: { scene: 'sb', rect: [1, 1, 1, 1] } })
 +    ).rejects.toThrow();
++  });
++});
+diff --git a/packages/foundry-module/src/data-access.loot.test.ts b/packages/foundry-module/src/data-access.loot.test.ts
+new file mode 100644
+index 0000000..a617af3
+--- /dev/null
++++ b/packages/foundry-module/src/data-access.loot.test.ts
+@@ -0,0 +1,160 @@
++/** add-compendium-items and make-chest. Foundry is stubbed. */
++import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
++import { FoundryDataAccess } from './data-access.js';
++
++function makePack(id: string, type: string, items: Array<{ _id: string; name: string; type: string; quantity?: number }>) {
++  const docs = new Map(items.map(i => [i._id, i]));
++  return {
++    collection: id,
++    metadata: { id, type },
++    indexed: true,
++    index: new Map(items.map(i => [i._id, { _id: i._id, name: i.name, type: i.type }])),
++    getIndex: vi.fn(async () => undefined),
++    getDocument: vi.fn(async (docId: string) => {
++      const d = docs.get(docId);
++      return d
++        ? { toObject: () => ({ _id: d._id, name: d.name, type: d.type, system: d.quantity !== undefined ? { quantity: d.quantity } : {} }) }
++        : null;
++    }),
++  };
++}
++
++function makeActor() {
++  const items: any[] = [];
++  const created: any[] = [];
++  const actor: any = {
++    id: 'chest1',
++    name: 'Old Chest',
++    items: { contents: items },
++    update: vi.fn(async () => undefined),
++    createEmbeddedDocuments: vi.fn(async (_type: string, data: any[]) =>
++      data.map((d, i) => {
++        const doc = { id: `i${items.length + i}`, ...d, update: vi.fn(async (patch: any) => { if (patch['system.quantity'] !== undefined) doc.system.quantity = patch['system.quantity']; }) };
++        items.push(doc);
++        created.push(d);
++        return doc;
++      })
++    ),
++  };
++  return { actor, items, created };
++}
++
++function setup(allow = true) {
++  const { actor, items, created } = makeActor();
++  const packs = new Map<string, any>([
++    ['dnd5e.items', makePack('dnd5e.items', 'Item', [
++      { _id: 'a1', name: 'Longsword', type: 'weapon' },
++      { _id: 'a2', name: 'Arrow', type: 'consumable', quantity: 1 },
++      { _id: 'a3', name: 'Potion of Healing', type: 'consumable', quantity: 1 },
++    ])],
++    ['dnd5e.spells', makePack('dnd5e.spells', 'Item', [{ _id: 's1', name: 'Fireball', type: 'spell' }])],
++    ['dnd5e.monsters', makePack('dnd5e.monsters', 'Actor', [])],
++  ]);
++  vi.stubGlobal('Hooks', { on: vi.fn(), callAll: vi.fn() });
++  vi.stubGlobal('game', {
++    ready: true,
++    world: { id: 'w', getFlag: vi.fn(() => []), setFlag: vi.fn() },
++    user: { id: 'gm', name: 'GM' },
++    packs: { get: (id: string) => packs.get(id), values: () => packs.values() },
++    actors: { get: (id: string) => (id === 'chest1' ? actor : undefined), getName: (n: string) => (n === 'Old Chest' ? actor : undefined), contents: [actor], [Symbol.iterator]: function* () { yield actor; } },
++    scenes: Object.assign([], { contents: [] }),
++    settings: { get: (_m: string, key: string) => (key === 'allowWriteOperations' ? allow : undefined) },
++  });
++  return { da: new FoundryDataAccess(), actor, items, created, packs };
++}
++
++describe('addCompendiumItems', () => {
++  beforeEach(() => vi.unstubAllGlobals());
++  afterEach(() => {
++    vi.restoreAllMocks();
++    vi.unstubAllGlobals();
++  });
++
++  it('adds items by exact name with quantities, from the item packs only', async () => {
++    const { da, created } = setup();
++    const r = await da.addCompendiumItems({ actor: 'Old Chest', items: ['Longsword', { name: 'arrow', quantity: 20 }, 'Potion of Healing', 'Fireball', 'Nonsense'] });
++    expect(r.added.map((a: any) => [a.name, a.quantity, a.pack])).toEqual([
++      ['Longsword', 1, 'dnd5e.items'],
++      ['Arrow', 20, 'dnd5e.items'],
++      ['Potion of Healing', 1, 'dnd5e.items'],
++    ]);
++    expect(r.notFound).toEqual(['Fireball', 'Nonsense']);
++    expect(created[1].system.quantity).toBe(20);
++    expect(created[0]._id).toBeUndefined();
++  });
++  it('takes an item of any type from a pack that is named', async () => {
++    const { da } = setup();
++    const r = await da.addCompendiumItems({ actor: 'chest1', items: [{ name: 'Fireball', pack: 'dnd5e.spells' }] });
++    expect(r.added).toHaveLength(1);
++    expect(r.notFound).toEqual([]);
++  });
++  it('stacks onto an item already there, unless told not to', async () => {
++    const { da, items } = setup();
++    await da.addCompendiumItems({ actor: 'chest1', items: [{ name: 'Arrow', quantity: 10 }] });
++    const again = await da.addCompendiumItems({ actor: 'chest1', items: [{ name: 'Arrow', quantity: 5 }] });
++    expect(again.stacked).toEqual([expect.objectContaining({ name: 'Arrow', quantity: 15 })]);
++    expect(items).toHaveLength(1);
++    const separate = await da.addCompendiumItems({ actor: 'chest1', items: [{ name: 'Arrow', quantity: 5 }], stack: false });
++    expect(separate.added).toHaveLength(1);
++    expect(items).toHaveLength(2);
++  });
++  it('reports a missing pack and refuses bad requests', async () => {
++    const { da } = setup();
++    const r = await da.addCompendiumItems({ actor: 'chest1', items: ['Longsword'], packs: ['nope.items', 'dnd5e.monsters', 'dnd5e.items'] });
++    expect(r.warnings).toEqual(['Compendium pack "nope.items" not found', 'Pack "dnd5e.monsters" holds Actor documents, not items']);
++    expect(r.added).toHaveLength(1);
++    await expect(da.addCompendiumItems({ actor: 'Ghost', items: ['Longsword'] })).rejects.toThrow('Actor not found');
++    await expect(da.addCompendiumItems({ actor: 'chest1', items: [] })).rejects.toThrow('non-empty');
++    await expect(da.addCompendiumItems({ actor: '', items: ['x'] })).rejects.toThrow('actor');
++  });
++  it('respects the write gate', async () => {
++    const { da, items } = setup(false);
++    await expect(da.addCompendiumItems({ actor: 'chest1', items: ['Longsword'] })).rejects.toThrow();
++    expect(items).toHaveLength(0);
++  });
++});
++
++describe('makeChest', () => {
++  beforeEach(() => vi.unstubAllGlobals());
++  afterEach(() => {
++    vi.restoreAllMocks();
++    vi.unstubAllGlobals();
++  });
++
++  it('creates the chest with currency, made-up and compendium items, and sets who can open it', async () => {
++    const { da, actor, created } = setup();
++    const spy = vi.spyOn(FoundryDataAccess.prototype, 'createActors').mockResolvedValue({ created: [{ id: 'chest1', name: 'Goblin Hoard', type: 'group' }], total: 1 });
++    const r = await da.makeChest({
++      name: 'Goblin Hoard',
++      currency: { gp: 120, sp: 30 },
++      items: ['Longsword', { name: 'Potion of Healing', quantity: 2 }],
++      custom_items: [{ name: 'Silver Locket', quantity: 1, price: { value: 25, denomination: 'gp' }, description: '<p>Engraved.</p>' }],
++    });
++    expect(spy).toHaveBeenCalledWith({
++      actors: [{ name: 'Goblin Hoard', type: 'group', img: 'icons/containers/chest/chest-reinforced-steel-brown.webp', tokenImg: 'icons/containers/chest/chest-reinforced-steel-brown.webp', system: { currency: { gp: 120, sp: 30 } } }],
++      folder: 'Loot',
++    });
++    expect(actor.update).toHaveBeenCalledWith({ 'ownership.default': 2 });
++    expect(created[0]).toMatchObject({ name: 'Silver Locket', type: 'loot', system: { quantity: 1, price: { value: 25, denomination: 'gp' }, description: { value: '<p>Engraved.</p>' } } });
++    expect(r).toMatchObject({ success: true, actor: { id: 'chest1', type: 'group' }, ownership: 'observer', currency: { gp: 120, sp: 30 } });
++    expect(r.added.map((a: any) => a.name)).toEqual(['Longsword', 'Potion of Healing']);
++    expect(r.steps).toEqual(['1 made-up item(s) added', '2 compendium item(s) added']);
++  });
++  it('checks everything before it creates anything', async () => {
++    const { da } = setup();
++    const spy = vi.spyOn(FoundryDataAccess.prototype, 'createActors');
++    await expect(da.makeChest({ name: 'x', currency: { gp: -1 } })).rejects.toThrow('currency.gp');
++    await expect(da.makeChest({ name: 'x', ownership: 'everyone' })).rejects.toThrow('ownership must be');
++    await expect(da.makeChest({ name: 'x', items: [] })).rejects.toThrow('non-empty');
++    await expect(da.makeChest({ name: ' ' })).rejects.toThrow('name is required');
++    await expect(da.makeChest({ name: 'x', custom_items: [{}] })).rejects.toThrow('name is required');
++    expect(spy).not.toHaveBeenCalled();
++  });
++  it('works with nothing but a name', async () => {
++    const { da, actor } = setup();
++    vi.spyOn(FoundryDataAccess.prototype, 'createActors').mockResolvedValue({ created: [{ id: 'chest1', name: 'Empty', type: 'group' }], total: 1 });
++    const r = await da.makeChest({ name: 'Empty', ownership: 'owner' });
++    expect(actor.update).toHaveBeenCalledWith({ 'ownership.default': 3 });
++    expect(r.steps).toEqual([]);
 +  });
 +});
 diff --git a/packages/foundry-module/src/data-access.manage-journals.test.ts b/packages/foundry-module/src/data-access.manage-journals.test.ts
@@ -3020,6 +3254,83 @@ index 0000000..666579f
 +    await expect(da.manageModules({ action: 'set_active', modules: [], active: true })).rejects.toThrow('modules');
 +    await expect(da.manageModules({ action: 'set_active', modules: ['tagger'] })).rejects.toThrow('active');
 +    await expect(da.manageModules({ action: 'explode' as any })).rejects.toThrow('Unknown action');
++  });
++});
+diff --git a/packages/foundry-module/src/data-access.object-describe.test.ts b/packages/foundry-module/src/data-access.object-describe.test.ts
+new file mode 100644
+index 0000000..1bcc658
+--- /dev/null
++++ b/packages/foundry-module/src/data-access.object-describe.test.ts
+@@ -0,0 +1,71 @@
++/** manage-scene-objects describe shows the details update can change. Foundry is stubbed. */
++import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
++import { FoundryDataAccess } from './data-access.js';
++
++const MODULE = 'foundry-mcp-bridge-scenes';
++const mine = { [MODULE]: { sceneObjectsTool: true } };
++const col = (docs: any[]) => ({ contents: docs, get: (id: string) => docs.find(d => d.id === id) });
++
++function setup() {
++  const scene: any = {
++    id: 's1',
++    name: 'Town',
++    width: 2000,
++    height: 1500,
++    padding: 0,
++    grid: { size: 100, distance: 5, units: 'ft' },
++    dimensions: { sceneX: 0, sceneY: 0, sceneWidth: 2000, sceneHeight: 1500 },
++    tokens: col([
++      { id: 't1', name: 'Boss', actorId: 'a', x: 100, y: 100, width: 1, height: 1, hidden: false, disposition: -1, elevation: 10, flags: mine },
++      { id: 't2', name: 'Guest', x: 0, y: 0, width: 1, height: 1, disposition: 1, flags: {} },
++      { id: 't3', name: 'Odd', x: 0, y: 0, width: 1, height: 1, disposition: -2, flags: {} },
++    ]),
++    lights: col([{ id: 'l1', x: 0, y: 0, config: { bright: 15, dim: 30, color: '#ff0000', alpha: 0.7, angle: 90, animation: { type: 'torch' } }, flags: mine }, { id: 'l2', x: 0, y: 0, config: { bright: 5, dim: 10 }, flags: {} }]),
++    walls: col([
++      { id: 'w1', c: [0, 0, 100, 0], door: 1, ds: 2, flags: mine },
++      { id: 'w2', c: [0, 0, 100, 0], door: 2, ds: 1, flags: mine },
++      { id: 'w3', c: [0, 0, 100, 0], door: 1, ds: 0, flags: mine },
++      { id: 'w4', c: [0, 0, 100, 0], door: 0, ds: 0, flags: mine },
++    ]),
++    notes: col([]),
++    tiles: col([{ id: 'ti1', x: 0, y: 0, width: 200, height: 100, rotation: 45, alpha: 0.4, elevation: 3, texture: { src: 'a.png' }, flags: mine }]),
++    sounds: col([{ id: 'so1', x: 0, y: 0, radius: 25, path: 'a.mp3', volume: 0.2, repeat: true, walls: false, easing: true, flags: mine }]),
++  };
++  vi.stubGlobal('Hooks', { on: vi.fn(), callAll: vi.fn() });
++  vi.stubGlobal('game', {
++    ready: true,
++    world: { id: 'w', getFlag: vi.fn(() => []), setFlag: vi.fn() },
++    user: { id: 'gm', name: 'GM' },
++    scenes: { contents: [scene], viewed: scene, current: scene },
++    actors: { contents: [] },
++    settings: { get: () => true },
++  });
++  return new FoundryDataAccess();
++}
++
++describe('describe shows what update can change', () => {
++  beforeEach(() => vi.unstubAllGlobals());
++  afterEach(() => vi.unstubAllGlobals());
++
++  it('lists token disposition and elevation, light angle, alpha and animation', async () => {
++    const r = await setup().manageSceneObjects({ action: 'describe', scene: 's1' });
++    expect(r.tokens[0]).toMatchObject({ id: 't1', disposition: 'hostile', elevation: 10, createdByTool: true });
++    expect(r.tokens[1].disposition).toBe('friendly');
++    expect(r.tokens[2].disposition).toBe('secret');
++    expect(r.lights[0]).toMatchObject({ alpha: 0.7, angle: 90, animation: 'torch', color: '#ff0000' });
++    expect(r.lights[1]).toMatchObject({ alpha: 0.5, angle: 360, animation: null });
++  });
++  it('gives the state of doors but not of plain walls', async () => {
++    const r = await setup().manageSceneObjects({ action: 'describe', scene: 's1', kind: 'wall' });
++    const byId = Object.fromEntries(r.walls.map((w: any) => [w.id, w]));
++    expect(byId.w1).toMatchObject({ door: 'door', doorState: 'locked' });
++    expect(byId.w2).toMatchObject({ door: 'secret_door', doorState: 'open' });
++    expect(byId.w3).toMatchObject({ door: 'door', doorState: 'closed' });
++    expect(byId.w4).not.toHaveProperty('doorState');
++  });
++  it('lists tile opacity and elevation and sound walls and easing', async () => {
++    const r = await setup().manageSceneObjects({ action: 'describe', scene: 's1' });
++    expect(r.tiles[0]).toMatchObject({ alpha: 0.4, elevation: 3, rotation: 45, width: 2, height: 1 });
++    expect(r.sounds[0]).toMatchObject({ walls: false, easing: true, volume: 0.2, radiusSquares: 5 });
 +  });
 +});
 diff --git a/packages/foundry-module/src/data-access.object-update.test.ts b/packages/foundry-module/src/data-access.object-update.test.ts
@@ -4420,6 +4731,79 @@ index 0000000..313055c
 +    expect(removed.removed).toEqual([{ kind: 'tile', id: 't1' }]);
 +  });
 +});
+diff --git a/packages/foundry-module/src/data-access.share.test.ts b/packages/foundry-module/src/data-access.share.test.ts
+new file mode 100644
+index 0000000..d9791b5
+--- /dev/null
++++ b/packages/foundry-module/src/data-access.share.test.ts
+@@ -0,0 +1,67 @@
++/** share-with-players: image popout and journal show. Foundry is stubbed. */
++import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
++import { FoundryDataAccess } from './data-access.js';
++
++function setup(allow = true) {
++  const entry: any = { id: 'j1', name: 'Notes', uuid: 'JournalEntry.j1', ownership: { default: 0, u2: 3 }, update: vi.fn(async () => undefined), show: vi.fn(async () => undefined) };
++  const shareImage = vi.fn();
++  const render = vi.fn(async () => undefined);
++  const Popout = vi.fn(function (this: any, opts: any) {
++    this.opts = opts;
++    this.render = render;
++    this.shareImage = shareImage;
++  });
++  const create = vi.fn(async () => undefined);
++  vi.stubGlobal('Hooks', { on: vi.fn(), callAll: vi.fn() });
++  vi.stubGlobal('ChatMessage', { create });
++  vi.stubGlobal('foundry', { applications: { apps: { ImagePopout: Popout } } });
++  const users = [
++    { id: 'gm', name: 'GM', isGM: true },
++    { id: 'u1', name: 'Ann', isGM: false },
++    { id: 'u2', name: 'Bob', isGM: false },
++  ];
++  vi.stubGlobal('game', {
++    ready: true,
++    world: { id: 'w', getFlag: vi.fn(() => []), setFlag: vi.fn() },
++    user: { id: 'gm', name: 'GM' },
++    users: Object.assign([...users], { contents: users }),
++    journal: { get: (id: string) => (id === 'j1' ? entry : undefined), getName: (n: string) => (n === 'Notes' ? entry : undefined), contents: [entry] },
++    settings: { get: (_m: string, key: string) => (key === 'allowWriteOperations' ? allow : undefined) },
++  });
++  return { da: new FoundryDataAccess(), entry, shareImage, render, create };
++}
++
++describe('shareWithPlayers', () => {
++  beforeEach(() => vi.unstubAllGlobals());
++  afterEach(() => vi.unstubAllGlobals());
++
++  it('shares an image with all players and can post it to chat', async () => {
++    const { da, shareImage, render, create } = setup();
++    const r = await da.shareWithPlayers({ image: 'u/map.png', title: 'Cave', chat: true });
++    expect(render).toHaveBeenCalled();
++    expect(shareImage).toHaveBeenCalled();
++    expect(create).toHaveBeenCalled();
++    expect(r).toMatchObject({ success: true, shared: 'image', image: 'u/map.png' });
++  });
++  it('opens a journal, giving observer access to players who lack it', async () => {
++    const { da, entry } = setup();
++    const r = await da.shareWithPlayers({ journal: 'Notes' });
++    expect(entry.update).toHaveBeenCalledWith({ ownership: { u1: 2 } });
++    expect(entry.show).toHaveBeenCalledWith('text', true);
++    expect(r).toMatchObject({ success: true, shared: 'journal', players: ['Ann', 'Bob'], granted: 1 });
++  });
++  it('limits a journal to named players and rejects unknown ones', async () => {
++    const { da, entry } = setup();
++    await da.shareWithPlayers({ journal: 'j1', users: ['Bob'] });
++    expect(entry.update).not.toHaveBeenCalled();
++    await expect(da.shareWithPlayers({ journal: 'j1', users: ['Zed'] })).rejects.toThrow('Player not found');
++  });
++  it('refuses bad requests and respects the write gate', async () => {
++    const { da } = setup();
++    await expect(da.shareWithPlayers({})).rejects.toThrow('either image or journal');
++    await expect(da.shareWithPlayers({ image: 'http://x/a.png' })).rejects.toThrow('not a web address');
++    await expect(da.shareWithPlayers({ image: 'a.png', users: ['Ann'] })).rejects.toThrow('all players');
++    await expect(da.shareWithPlayers({ journal: 'Nope' })).rejects.toThrow('Journal not found');
++    await expect(setup(false).da.shareWithPlayers({ journal: 'Notes' })).rejects.toThrow();
++  });
++});
 diff --git a/packages/foundry-module/src/data-access.token-scene.test.ts b/packages/foundry-module/src/data-access.token-scene.test.ts
 new file mode 100644
 index 0000000..3539e49
@@ -4569,10 +4953,10 @@ index 0000000..26e6aab
 +  });
 +});
 diff --git a/packages/foundry-module/src/data-access.ts b/packages/foundry-module/src/data-access.ts
-index eecda7e..8862823 100644
+index eecda7e..77e27b6 100644
 --- a/packages/foundry-module/src/data-access.ts
 +++ b/packages/foundry-module/src/data-access.ts
-@@ -1,5 +1,128 @@
+@@ -1,5 +1,129 @@
  import { MODULE_ID, ERROR_MESSAGES, TOKEN_DISPOSITIONS } from './constants.js';
  import { permissionManager } from './permissions.js';
 +import {
@@ -4673,8 +5057,9 @@ index eecda7e..8862823 100644
 +  stripForCreate,
 +  summarisePlan,
 +} from './scene-backup-utils.js';
++import { LOOT_ITEM_TYPES, orderPackIds, ownershipLevel, parseCurrency, parseCustomItems, parseItemRequests, type ItemRequest } from './loot-utils.js';
 +import { buildObjectUpdate, OBJECT_DOCUMENT, type ObjectKind } from './object-update-utils.js';
-+import { auditSnapshot, type AuditActor, type AuditScene, type AuditSnapshot, type AuditTeleport } from './world-audit-utils.js';
++import { auditSnapshot, isDefaultActorImage, type AuditActor, type AuditScene, type AuditSnapshot, type AuditTeleport } from './world-audit-utils.js';
 +import { buildTeleportBehavior, linkEndSpec, teleportDestinations, type LinkEnd, type LinkOptions } from './link-utils.js';
 +import { measureGrid as measureGridInPicture } from './grid-measure-utils.js';
 +import {
@@ -4701,7 +5086,7 @@ index eecda7e..8862823 100644
  import { transactionManager } from './transaction-manager.js';
  
  // The same five characters foundry.utils.escapeHTML replaces in v14, kept local because
-@@ -4681,12 +4804,28 @@ export class FoundryDataAccess {
+@@ -4681,12 +4805,28 @@ export class FoundryDataAccess {
        type: 'random' | 'grid' | 'center' | 'coordinates';
        coordinates?: { x: number; y: number }[];
      };
@@ -4730,7 +5115,7 @@ index eecda7e..8862823 100644
        // Validate inputs
        if (!packId || !itemId) {
          throw new Error('Both packId and itemId are required');
-@@ -4753,10 +4892,33 @@ export class FoundryDataAccess {
+@@ -4753,10 +4893,33 @@ export class FoundryDataAccess {
            }
  
            // Organize created actors in a folder - use "Foundry MCP Creatures" for generic monsters
@@ -4765,7 +5150,7 @@ index eecda7e..8862823 100644
  
            // Create the actor
            const newActor = await Actor.create(actorData);
-@@ -6714,7 +6876,7 @@ export class FoundryDataAccess {
+@@ -6714,7 +6877,7 @@ export class FoundryDataAccess {
  
          // Send socket request to GM
          if (game.socket) {
@@ -4774,7 +5159,7 @@ index eecda7e..8862823 100644
              type: 'requestMessageUpdate',
              buttonId,
              userId,
-@@ -8101,198 +8263,3393 @@ export class FoundryDataAccess {
+@@ -8101,198 +8264,3712 @@ export class FoundryDataAccess {
      }
    }
  
@@ -5839,6 +6224,315 @@ index eecda7e..8862823 100644
 +    }
 +  }
 +
++  // ===== ACTOR ART =====
++
++  /**
++   * set-actor-art: give an actor its portrait and token picture, and (by default) change the tokens
++   * already placed on scenes, which otherwise keep the picture they were made with.
++   */
++  async setActorArt(data: { actor: string; img?: string; tokenImg?: string; update_placed?: boolean }): Promise<any> {
++    this.validateFoundryState();
++    const gate = permissionManager.checkWritePermission('createActor', {});
++    if (!gate.allowed) throw new Error(`${ERROR_MESSAGES.ACCESS_DENIED}: ${gate.reason}`);
++    try {
++      if (!data?.actor || typeof data.actor !== 'string') throw new Error('actor (id or name) is required');
++      if (!data.img && !data.tokenImg) throw new Error('Give img (portrait) and/or tokenImg (token picture)');
++      for (const [key, value] of Object.entries({ img: data.img, tokenImg: data.tokenImg })) {
++        if (value !== undefined && (typeof value !== 'string' || !value.trim() || /^[a-z]+:\/\//i.test(value))) {
++          throw new Error(`${key} must be a path in the Foundry files, not a web address`);
++        }
++      }
++      const actor = this.findActorByIdentifier(data.actor);
++      if (!actor) throw new Error(`Actor not found: "${data.actor}"`);
++
++      const patch: Record<string, any> = {};
++      if (data.img) patch.img = data.img.trim();
++      if (data.tokenImg) patch['prototypeToken.texture.src'] = data.tokenImg.trim();
++      await actor.update(patch);
++
++      let placed = 0;
++      const scenesTouched: string[] = [];
++      if (data.tokenImg && data.update_placed !== false) {
++        for (const scene of (((game as any).scenes?.contents || []) as any[])) {
++          const tokens = ((scene.tokens?.contents || []) as any[]).filter(t => t.actorId === actor.id);
++          if (tokens.length === 0) continue;
++          await scene.updateEmbeddedDocuments(
++            'Token',
++            tokens.map(t => ({ _id: t.id, 'texture.src': data.tokenImg!.trim() }))
++          );
++          placed += tokens.length;
++          scenesTouched.push(scene.name);
++        }
++      }
++      this.auditLog('setActorArt', { actor: actor.id, placed }, 'success');
++      return {
++        success: true,
++        actor: { id: actor.id, name: actor.name },
++        ...(data.img ? { img: data.img.trim() } : {}),
++        ...(data.tokenImg ? { tokenImg: data.tokenImg.trim() } : {}),
++        tokensUpdated: placed,
++        ...(scenesTouched.length > 0 ? { scenes: scenesTouched } : {}),
++      };
++    } catch (error) {
++      throw new Error(`Failed to set actor art: ${error instanceof Error ? error.message : 'Unknown error'}`);
++    }
++  }
++
++  // ===== SHARING WITH PLAYERS =====
++
++  /**
++   * Show an image full-screen to every player, or open a journal for players. For a journal the
++   * named players (default: everyone) are first given observer access if they have less.
++   */
++  async shareWithPlayers(data: { image?: string; title?: string; journal?: string; users?: string[]; chat?: boolean }): Promise<any> {
++    this.validateFoundryState();
++    const gate = permissionManager.checkWritePermission('modifyScene', {});
++    if (!gate.allowed) throw new Error(`${ERROR_MESSAGES.ACCESS_DENIED}: ${gate.reason}`);
++    try {
++      const hasImage = typeof data?.image === 'string' && data.image.trim() !== '';
++      const hasJournal = typeof data?.journal === 'string' && data.journal.trim() !== '';
++      if (hasImage === hasJournal) throw new Error('Give either image or journal (not both)');
++      const g = game as any;
++      if (hasImage) {
++        if (data.users && data.users.length > 0) throw new Error('An image is shown to all players; users only works with a journal');
++        const src = data.image!.trim();
++        if (/^[a-z]+:\/\//i.test(src)) throw new Error('image must be a path in the Foundry files, not a web address');
++        const Popout = (globalThis as any).foundry?.applications?.apps?.ImagePopout ?? (globalThis as any).ImagePopout;
++        if (!Popout) throw new Error('This Foundry version has no image popout');
++        const title = data.title?.trim() || undefined;
++        const popout = new Popout({ src, window: { title: title ?? 'Image' }, caption: title, shareable: true });
++        await popout.render({ force: true });
++        popout.shareImage?.();
++        if (data.chat) {
++          await (globalThis as any).ChatMessage.create({ content: `<p><img src="${src}" style="max-width:100%"></p>${title ? `<p>${title}</p>` : ''}` });
++        }
++        this.auditLog('shareWithPlayers', { image: src }, 'success');
++        return { success: true, shared: 'image', image: src, ...(title ? { title } : {}) };
++      }
++      const entry = this.findJournalByIdentifier(data.journal!.trim());
++      if (!entry) throw new Error(`Journal not found: "${data.journal}"`);
++      const players = ((g.users?.contents || [...(g.users || [])]) as any[]).filter(u => !u.isGM);
++      const wanted = data.users && data.users.length > 0 ? players.filter(u => data.users!.some(n => n === u.id || n === u.name)) : players;
++      if (data.users && data.users.length > 0) {
++        const missing = data.users.filter(n => !players.some(u => u.id === n || u.name === n));
++        if (missing.length > 0) throw new Error(`Player not found: ${missing.map(n => '"' + n + '"').join(', ')}`);
++      }
++      const patch: Record<string, number> = {};
++      for (const user of wanted) {
++        const level = entry.ownership?.[user.id] ?? entry.ownership?.default ?? 0;
++        if (level < 2) patch[user.id] = 2;
++      }
++      if (Object.keys(patch).length > 0) await entry.update({ ownership: { ...patch } });
++      if (typeof entry.show === 'function') await entry.show('text', true);
++      else if (typeof g.socket?.emit === 'function') g.socket.emit('showEntry', entry.uuid, true);
++      else throw new Error('This Foundry version cannot show journals to players');
++      if (data.chat) {
++        await (globalThis as any).ChatMessage.create({ content: `<p>@UUID[${entry.uuid}]{${entry.name}}</p>` });
++      }
++      this.auditLog('shareWithPlayers', { journal: entry.id }, 'success');
++      return { success: true, shared: 'journal', journal: { id: entry.id, name: entry.name }, players: wanted.map(u => u.name), granted: Object.keys(patch).length };
++    } catch (error) {
++      throw new Error(`Failed to share: ${error instanceof Error ? error.message : 'Unknown error'}`);
++    }
++  }
++
++  // ===== LOOT: COMPENDIUM ITEMS AND CHESTS =====
++
++  /**
++   * Copy items from the compendium onto an actor, by exact name. A name already on the actor
++   * stacks (its quantity goes up) unless stack is false. Returns what was added, stacked and not found.
++   */
++  private async addCompendiumItemsToActor(
++    actor: any,
++    requests: ItemRequest[],
++    packIds: string[] | undefined,
++    stack: boolean
++  ): Promise<{ added: any[]; stacked: any[]; notFound: string[]; warnings: string[] }> {
++    const warnings: string[] = [];
++    const allPacks = Array.from(((game as any).packs?.values?.() ?? []) as Iterable<any>).filter(
++      (p: any) => p.metadata?.type === 'Item'
++    );
++    const searchOrder = orderPackIds(
++      allPacks.map((p: any) => String(p.collection ?? p.metadata?.id)),
++      packIds
++    );
++
++    // one name index per pack, built when first needed
++    const indexes = new Map<string, Map<string, { id: string; type: string }>>();
++    const indexOf = async (packId: string) => {
++      const have = indexes.get(packId);
++      if (have) return have;
++      const pack = (game as any).packs?.get(packId);
++      if (!pack) {
++        warnings.push(`Compendium pack "${packId}" not found`);
++        indexes.set(packId, new Map());
++        return indexes.get(packId)!;
++      }
++      if (pack.metadata?.type !== 'Item') {
++        warnings.push(`Pack "${packId}" holds ${pack.metadata?.type} documents, not items`);
++        indexes.set(packId, new Map());
++        return indexes.get(packId)!;
++      }
++      if (!pack.indexed) await pack.getIndex({});
++      const map = new Map<string, { id: string; type: string }>();
++      for (const entry of pack.index.values() as IterableIterator<any>) {
++        const key = String(entry.name ?? '').toLowerCase();
++        if (key && !map.has(key)) map.set(key, { id: String(entry._id), type: String(entry.type ?? '') });
++      }
++      indexes.set(packId, map);
++      return map;
++    };
++
++    const added: any[] = [];
++    const stacked: any[] = [];
++    const notFound: string[] = [];
++
++    for (const request of requests) {
++      const key = request.name.toLowerCase();
++      let hit: { packId: string; id: string } | null = null;
++      for (const packId of request.pack ? [request.pack] : searchOrder) {
++        const entry = (await indexOf(packId)).get(key);
++        if (!entry) continue;
++        // without a named pack only things that can be carried count (not a spell or feature of the same name)
++        if (!request.pack && !LOOT_ITEM_TYPES.includes(entry.type)) continue;
++        hit = { packId, id: entry.id };
++        break;
++      }
++      if (!hit) {
++        notFound.push(request.name);
++        continue;
++      }
++      const document = await (game as any).packs.get(hit.packId).getDocument(hit.id);
++      if (!document) {
++        notFound.push(request.name);
++        continue;
++      }
++      const data = document.toObject() as Record<string, any>;
++      delete data._id;
++
++      const existing = stack
++        ? ((actor.items?.contents ?? []) as any[]).find(
++            i => String(i.name).toLowerCase() === key && i.type === data.type && typeof i.system?.quantity === 'number'
++          )
++        : undefined;
++      if (existing) {
++        const quantity = (existing.system.quantity as number) + request.quantity;
++        await existing.update({ 'system.quantity': quantity });
++        stacked.push({ name: existing.name, quantity, pack: hit.packId, itemId: existing.id });
++        continue;
++      }
++      if (typeof data.system?.quantity === 'number' || request.quantity > 1) {
++        data.system = { ...(data.system ?? {}), quantity: request.quantity };
++      }
++      const [created] = (await actor.createEmbeddedDocuments('Item', [data])) as any[];
++      added.push({ name: created?.name ?? request.name, quantity: request.quantity, pack: hit.packId, itemId: created?.id });
++    }
++    return { added, stacked, notFound, warnings };
++  }
++
++  /** add-compendium-items: put compendium items (by exact name) on an actor, a chest, a party stash. */
++  async addCompendiumItems(data: { actor: string; items: unknown; packs?: string[]; stack?: boolean }): Promise<any> {
++    this.validateFoundryState();
++    const gate = permissionManager.checkWritePermission('createActor', {});
++    if (!gate.allowed) throw new Error(`${ERROR_MESSAGES.ACCESS_DENIED}: ${gate.reason}`);
++    try {
++      if (!data?.actor || typeof data.actor !== 'string') throw new Error('actor (id or name) is required');
++      const requests = parseItemRequests(data.items);
++      const actor = this.findActorByIdentifier(data.actor);
++      if (!actor) throw new Error(`Actor not found: "${data.actor}"`);
++      if (data.packs !== undefined && (!Array.isArray(data.packs) || data.packs.some(p => typeof p !== 'string'))) {
++        throw new Error('packs must be a list of pack ids');
++      }
++      const result = await this.addCompendiumItemsToActor(actor, requests, data.packs, data.stack !== false);
++      this.auditLog('addCompendiumItems', { actor: actor.id, count: requests.length }, 'success');
++      return { success: true, actor: { id: actor.id, name: actor.name }, ...result };
++    } catch (error) {
++      throw new Error(`Failed to add compendium items: ${error instanceof Error ? error.message : 'Unknown error'}`);
++    }
++  }
++
++  /**
++   * make-chest: a stash of loot as an actor (a group in dnd5e), with currency, compendium items and
++   * made-up items, and who can open it. The token is placed by the server tool.
++   */
++  async makeChest(data: {
++    name: string;
++    type?: string;
++    img?: string;
++    folder?: string;
++    ownership?: string;
++    currency?: unknown;
++    items?: unknown;
++    custom_items?: unknown;
++    packs?: string[];
++  }): Promise<any> {
++    this.validateFoundryState();
++    const gate = permissionManager.checkWritePermission('createActor', {});
++    if (!gate.allowed) throw new Error(`${ERROR_MESSAGES.ACCESS_DENIED}: ${gate.reason}`);
++    try {
++      if (!data?.name || typeof data.name !== 'string' || !data.name.trim()) throw new Error('name is required');
++      // check everything before creating anything
++      const currency = parseCurrency(data.currency);
++      const requests = data.items === undefined ? [] : parseItemRequests(data.items);
++      const custom = parseCustomItems(data.custom_items);
++      const level = ownershipLevel(data.ownership ?? 'observer');
++      const type = data.type ?? 'group';
++      const chestImg = data.img ?? 'icons/containers/chest/chest-reinforced-steel-brown.webp';
++
++      const created = await this.createActors({
++        actors: [
++          {
++            name: data.name.trim(),
++            type,
++            img: chestImg,
++            tokenImg: chestImg,
++            ...(Object.keys(currency).length > 0 ? { system: { currency } } : {}),
++          },
++        ],
++        ...(data.folder ? { folder: data.folder } : { folder: 'Loot' }),
++      });
++      const actor = (game as any).actors?.get(created.created[0]!.id);
++      if (!actor) throw new Error('The chest was created but could not be found again');
++      await actor.update({ 'ownership.default': level });
++
++      const steps: string[] = [];
++      if (custom.length > 0) {
++        await actor.createEmbeddedDocuments(
++          'Item',
++          custom.map(c => ({
++            name: c.name,
++            type: c.type,
++            system: {
++              quantity: c.quantity,
++              ...(c.price ? { price: c.price } : {}),
++              ...(c.description ? { description: { value: c.description } } : {}),
++            },
++          }))
++        );
++        steps.push(`${custom.length} made-up item(s) added`);
++      }
++      let report: any = { added: [], stacked: [], notFound: [], warnings: [] };
++      if (requests.length > 0) {
++        report = await this.addCompendiumItemsToActor(actor, requests, data.packs, true);
++        steps.push(`${report.added.length + report.stacked.length} compendium item(s) added`);
++      }
++      this.auditLog('makeChest', { actor: actor.id, items: requests.length + custom.length }, 'success');
++      return {
++        success: true,
++        actor: { id: actor.id, name: actor.name, type },
++        ownership: data.ownership ?? 'observer',
++        currency,
++        steps,
++        added: report.added,
++        stacked: report.stacked,
++        notFound: report.notFound,
++        warnings: report.warnings,
++      };
++    } catch (error) {
++      throw new Error(`Failed to make the chest: ${error instanceof Error ? error.message : 'Unknown error'}`);
++    }
++  }
++
 +  // ===== WORLD AUDIT =====
 +
 +  /** Read-only checklist of what is missing or broken across the world's scenes, playlists and actors. */
@@ -5920,7 +6614,7 @@ index eecda7e..8862823 100644
 +          id: a.id,
 +          name: a.name,
 +          type: a.type,
-+          hasImage: !!a.img && !/mystery-man/.test(String(a.img)),
++          hasImage: !isDefaultActorImage(a.img),
 +          hasPlayerOwner: Object.entries(a.ownership ?? {}).some(
 +            ([userId, level]) => userId !== 'default' && Number(level) >= 3 && !g.users?.get?.(userId)?.isGM
 +          ),
@@ -6389,6 +7083,8 @@ index eecda7e..8862823 100644
 +        width: t.width,
 +        height: t.height,
 +        hidden: !!t.hidden,
++        disposition: t.disposition === -1 ? 'hostile' : t.disposition === 1 ? 'friendly' : t.disposition === 0 ? 'neutral' : 'secret',
++        elevation: t.elevation ?? 0,
 +        createdByTool: this.isToolObject(t),
 +      })));
 +    }
@@ -6399,6 +7095,9 @@ index eecda7e..8862823 100644
 +        brightSquares: (l.config?.bright ?? 0) / (geom.distance || 1),
 +        dimSquares: (l.config?.dim ?? 0) / (geom.distance || 1),
 +        color: l.config?.color ? String(l.config.color) : null,
++        alpha: l.config?.alpha ?? 0.5,
++        angle: l.config?.angle ?? 360,
++        animation: l.config?.animation?.type ?? null,
 +        hidden: !!l.hidden,
 +        createdByTool: this.isToolObject(l),
 +      })));
@@ -6412,6 +7111,7 @@ index eecda7e..8862823 100644
 +          from: [a.x, a.y],
 +          to: [b.x, b.y],
 +          door: w.door === 1 ? 'door' : w.door === 2 ? 'secret_door' : null,
++          ...(w.door ? { doorState: w.ds === 1 ? 'open' : w.ds === 2 ? 'locked' : 'closed' } : {}),
 +          createdByTool: this.isToolObject(w),
 +        };
 +      });
@@ -6437,6 +7137,8 @@ index eecda7e..8862823 100644
 +        height: Math.round((t.height / geom.size) * 100) / 100,
 +        src: t.texture?.src ?? null,
 +        rotation: t.rotation ?? 0,
++        alpha: t.alpha ?? 1,
++        elevation: t.elevation ?? 0,
 +        hidden: !!t.hidden,
 +        createdByTool: this.isToolObject(t),
 +      }));
@@ -6449,6 +7151,8 @@ index eecda7e..8862823 100644
 +        path: s.path ?? null,
 +        volume: s.volume,
 +        repeat: !!s.repeat,
++        walls: s.walls !== false,
++        easing: s.easing !== false,
 +        hidden: !!s.hidden,
 +        createdByTool: this.isToolObject(s),
 +      }));
@@ -8326,7 +9030,7 @@ index eecda7e..8862823 100644
          case 'play':
            await pl.playAll();
            return { success: true, action: 'play', playlist: info };
-@@ -8304,20 +11661,48 @@ export class FoundryDataAccess {
+@@ -8304,20 +11981,48 @@ export class FoundryDataAccess {
            return { success: true, action: 'cycle-mode', playlist: info, mode: pl.mode as number };
          case 'play-sound':
          case 'stop-sound': {
@@ -8381,7 +9085,7 @@ index eecda7e..8862823 100644
        }
      } catch (error) {
        throw new Error(
-@@ -8468,6 +11853,21 @@ export class FoundryDataAccess {
+@@ -8468,6 +12173,21 @@ export class FoundryDataAccess {
      }
    }
  
@@ -8403,7 +9107,7 @@ index eecda7e..8862823 100644
    /**
     * Move a token to a new position on the scene
     */
-@@ -8476,6 +11876,8 @@ export class FoundryDataAccess {
+@@ -8476,6 +12196,8 @@ export class FoundryDataAccess {
      x: number;
      y: number;
      animate?: boolean;
@@ -8412,7 +9116,7 @@ index eecda7e..8862823 100644
    }): Promise<any> {
      this.validateFoundryState();
  
-@@ -8489,21 +11891,33 @@ export class FoundryDataAccess {
+@@ -8489,21 +12211,33 @@ export class FoundryDataAccess {
      }
  
      try {
@@ -8453,7 +9157,7 @@ index eecda7e..8862823 100644
          },
          { animate: data.animate !== false }
        );
-@@ -8514,7 +11928,9 @@ export class FoundryDataAccess {
+@@ -8514,7 +12248,9 @@ export class FoundryDataAccess {
          success: true,
          tokenId: token.id,
          tokenName: token.name,
@@ -8464,7 +9168,7 @@ index eecda7e..8862823 100644
          animated: data.animate !== false,
        };
      } catch (error) {
-@@ -8533,7 +11949,13 @@ export class FoundryDataAccess {
+@@ -8533,7 +12269,13 @@ export class FoundryDataAccess {
    /**
     * Update token properties
     */
@@ -8479,7 +9183,7 @@ index eecda7e..8862823 100644
      this.validateFoundryState();
  
      // Use permission system
-@@ -8546,20 +11968,19 @@ export class FoundryDataAccess {
+@@ -8546,20 +12288,19 @@ export class FoundryDataAccess {
      }
  
      try {
@@ -8506,7 +9210,7 @@ index eecda7e..8862823 100644
  
        // Apply updates
        await token.update(cleanUpdates);
-@@ -8651,18 +12072,15 @@ export class FoundryDataAccess {
+@@ -8651,18 +12392,15 @@ export class FoundryDataAccess {
    /**
     * Get detailed information about a token
     */
@@ -8529,7 +9233,7 @@ index eecda7e..8862823 100644
        }
  
        // Return flat structure that matches MCP server expectations
-@@ -11274,7 +14692,10 @@ export class FoundryDataAccess {
+@@ -11274,7 +15012,10 @@ export class FoundryDataAccess {
        name: string;
        type: string;
        img?: string;
@@ -8540,7 +9244,7 @@ index eecda7e..8862823 100644
      }>;
      folder?: string;
    }): Promise<{ created: Array<{ id: string; name: string; type: string }>; total: number }> {
-@@ -11286,6 +14707,19 @@ export class FoundryDataAccess {
+@@ -11286,6 +15027,19 @@ export class FoundryDataAccess {
      const docs = params.actors.map(a => {
        const doc: Record<string, any> = { name: a.name, type: a.type };
        if (a.img) doc.img = a.img;
@@ -8560,7 +9264,7 @@ index eecda7e..8862823 100644
  
        // Merge system data, adding safe defaults for systems that require certain
        // fields to exist during data preparation (avoids non-fatal init errors).
-@@ -11471,7 +14905,16 @@ export class FoundryDataAccess {
+@@ -11471,7 +15225,16 @@ export class FoundryDataAccess {
     * Merges supplied fields into the actor (top-level keys overwrite).
     */
    async updateActors(
@@ -8578,7 +9282,7 @@ index eecda7e..8862823 100644
    ): Promise<{ updated: Array<{ id: string; name: string }>; total: number }> {
      const updatedActors: Array<{ id: string; name: string }> = [];
  
-@@ -11482,6 +14925,7 @@ export class FoundryDataAccess {
+@@ -11482,6 +15245,7 @@ export class FoundryDataAccess {
        const patch: Record<string, any> = {};
        if (u.name !== undefined) patch.name = u.name;
        if (u.img !== undefined) patch.img = u.img;
@@ -8586,7 +9290,7 @@ index eecda7e..8862823 100644
        if (u.system !== undefined) {
          // Build a single patch.system nested object so Foundry deep-merges everything
          // in one pass without flat-key vs nested-key conflicts.
-@@ -11504,6 +14948,19 @@ export class FoundryDataAccess {
+@@ -11504,6 +15268,19 @@ export class FoundryDataAccess {
          }
          patch.system = systemPatch;
        }
@@ -10825,6 +11529,212 @@ index 0000000..d51ec37
 +  const list: unknown[] = value instanceof Set ? [...value] : Array.isArray(value) ? value : [];
 +  return list.filter((d): d is string => typeof d === 'string');
 +}
+diff --git a/packages/foundry-module/src/loot-utils.test.ts b/packages/foundry-module/src/loot-utils.test.ts
+new file mode 100644
+index 0000000..cd4eeaf
+--- /dev/null
++++ b/packages/foundry-module/src/loot-utils.test.ts
+@@ -0,0 +1,68 @@
++import { describe, expect, it } from 'vitest';
++import { orderPackIds, ownershipLevel, parseCurrency, parseCustomItems, parseItemRequests } from './loot-utils.js';
++
++describe('parseItemRequests', () => {
++  it('takes names, quantities and packs, and adds up repeats', () => {
++    expect(parseItemRequests(['Longsword', { name: 'Arrow', quantity: 20 }, { name: 'arrow', quantity: 5 }, { name: 'Rope', pack: 'dnd5e.items' }, 'longsword'])).toEqual([
++      { name: 'Longsword', quantity: 2 },
++      { name: 'Arrow', quantity: 25 },
++      { name: 'Rope', quantity: 1, pack: 'dnd5e.items' },
++    ]);
++  });
++  it('keeps the same name from two packs apart', () => {
++    expect(parseItemRequests([{ name: 'Chest', pack: 'a' }, { name: 'Chest', pack: 'b' }])).toHaveLength(2);
++  });
++  it('refuses bad entries', () => {
++    expect(() => parseItemRequests([])).toThrow('non-empty');
++    expect(() => parseItemRequests('x')).toThrow('non-empty');
++    expect(() => parseItemRequests([42])).toThrow('give an item name');
++    expect(() => parseItemRequests([{ name: ' ' }])).toThrow('name is required');
++    expect(() => parseItemRequests([{ name: 'a', quantity: 0 }])).toThrow('quantity');
++    expect(() => parseItemRequests([{ name: 'a', quantity: 1.5 }])).toThrow('quantity');
++    expect(() => parseItemRequests([{ name: 'a', pack: 3 }])).toThrow('pack');
++    expect(() => parseItemRequests(Array.from({ length: 101 }, (_, i) => `i${i}`))).toThrow('at most 100');
++  });
++});
++
++describe('orderPackIds', () => {
++  it('uses the named packs as given', () => {
++    expect(orderPackIds(['b', 'a'], ['x', 'y'])).toEqual(['x', 'y']);
++  });
++  it('puts the main item packs first and the rest in order', () => {
++    expect(orderPackIds(['world.loot', 'dnd5e.equipment24', 'dnd5e.items', 'dnd5e.magicitems'])).toEqual(['dnd5e.items', 'dnd5e.equipment24', 'dnd5e.magicitems', 'world.loot']);
++    expect(orderPackIds(['z', 'a'])).toEqual(['a', 'z']);
++  });
++});
++
++describe('parseCurrency', () => {
++  it('accepts whole amounts and nothing else', () => {
++    expect(parseCurrency(undefined)).toEqual({});
++    expect(parseCurrency({ gp: 50, sp: 0 })).toEqual({ gp: 50, sp: 0 });
++    expect(() => parseCurrency({ gold: 5 })).toThrow('not one of');
++    expect(() => parseCurrency({ gp: -1 })).toThrow('whole number');
++    expect(() => parseCurrency({ gp: 1.5 })).toThrow('whole number');
++    expect(() => parseCurrency([1])).toThrow('object');
++  });
++});
++
++describe('ownershipLevel', () => {
++  it('maps the names to Foundry levels', () => {
++    expect([ownershipLevel('none'), ownershipLevel('limited'), ownershipLevel('observer'), ownershipLevel('owner')]).toEqual([0, 1, 2, 3]);
++    expect(() => ownershipLevel('everyone')).toThrow('ownership must be');
++    expect(() => ownershipLevel(undefined)).toThrow('ownership must be');
++  });
++});
++
++describe('parseCustomItems', () => {
++  it('fills in defaults and checks prices', () => {
++    expect(parseCustomItems(undefined)).toEqual([]);
++    expect(parseCustomItems([{ name: 'Silver Locket', price: { value: 25 }, description: '<p>Engraved.</p>' }, { name: 'Note', type: 'loot', quantity: 2 }])).toEqual([
++      { name: 'Silver Locket', type: 'loot', quantity: 1, price: { value: 25, denomination: 'gp' }, description: '<p>Engraved.</p>' },
++      { name: 'Note', type: 'loot', quantity: 2 },
++    ]);
++    expect(() => parseCustomItems('x')).toThrow('list');
++    expect(() => parseCustomItems([{}])).toThrow('name is required');
++    expect(() => parseCustomItems([{ name: 'a', price: { value: 1, denomination: 'dollars' } }])).toThrow('price');
++    expect(() => parseCustomItems([{ name: 'a', quantity: 0 }])).toThrow('quantity');
++  });
++});
+diff --git a/packages/foundry-module/src/loot-utils.ts b/packages/foundry-module/src/loot-utils.ts
+new file mode 100644
+index 0000000..eab3007
+--- /dev/null
++++ b/packages/foundry-module/src/loot-utils.ts
+@@ -0,0 +1,126 @@
++/**
++ * Pure helpers for add-compendium-items and make-chest: reading the list of items wanted,
++ * choosing which compendium packs to look in, and checking currency and ownership. No Foundry
++ * globals, so they can be tested.
++ */
++
++/** Item types searched when no pack is named: things that can be carried, not features or spells. */
++export const LOOT_ITEM_TYPES: readonly string[] = ['weapon', 'equipment', 'consumable', 'tool', 'loot', 'container', 'backpack'];
++
++export const MAX_ITEM_REQUESTS = 100;
++export const MAX_QUANTITY = 9999;
++
++export interface ItemRequest {
++  name: string;
++  quantity: number;
++  /** A pack id to take this item from (for example dnd5e.items); otherwise every item pack is searched. */
++  pack?: string;
++}
++
++/**
++ * Accept "Longsword", {name: "Arrow", quantity: 20} or {name, pack}; give back one request per
++ * name and pack (same item twice adds the quantities).
++ */
++export function parseItemRequests(raw: unknown, label = 'items'): ItemRequest[] {
++  if (!Array.isArray(raw) || raw.length === 0) throw new Error(`${label} must be a non-empty list`);
++  if (raw.length > MAX_ITEM_REQUESTS) throw new Error(`${label} can hold at most ${MAX_ITEM_REQUESTS} entries`);
++  const merged = new Map<string, ItemRequest>();
++  raw.forEach((entry, i) => {
++    const where = `${label}[${i}]`;
++    let name: unknown;
++    let quantity: unknown = 1;
++    let pack: unknown;
++    if (typeof entry === 'string') name = entry;
++    else if (entry && typeof entry === 'object') {
++      name = (entry as any).name;
++      if ((entry as any).quantity !== undefined) quantity = (entry as any).quantity;
++      pack = (entry as any).pack;
++    } else throw new Error(`${where}: give an item name or {name, quantity?, pack?}`);
++    if (typeof name !== 'string' || !name.trim()) throw new Error(`${where}: name is required`);
++    if (!Number.isInteger(quantity) || (quantity as number) < 1 || (quantity as number) > MAX_QUANTITY) {
++      throw new Error(`${where}: quantity must be a whole number from 1 to ${MAX_QUANTITY}`);
++    }
++    if (pack !== undefined && (typeof pack !== 'string' || !pack.trim())) throw new Error(`${where}: pack must be a pack id`);
++    const trimmed = name.trim();
++    const key = `${trimmed.toLowerCase()}|${pack ?? ''}`;
++    const have = merged.get(key);
++    if (have) have.quantity += quantity as number;
++    else merged.set(key, { name: trimmed, quantity: quantity as number, ...(pack ? { pack: (pack as string).trim() } : {}) });
++  });
++  return [...merged.values()];
++}
++
++/**
++ * The order to search item packs in: the packs the caller named, or every pack with the
++ * main item packs of the system first, so "Longsword" finds the standard one.
++ */
++export function orderPackIds(allItemPackIds: string[], named?: string[]): string[] {
++  if (named && named.length > 0) return named;
++  const first = ['dnd5e.items', 'dnd5e.equipment24', 'dnd5e.tradegoods', 'dnd5e.equipment'];
++  const preferred = first.filter(id => allItemPackIds.includes(id));
++  const rest = allItemPackIds.filter(id => !preferred.includes(id)).sort();
++  return [...preferred, ...rest];
++}
++
++export const CURRENCIES = ['pp', 'gp', 'ep', 'sp', 'cp'] as const;
++
++/** Check a currency object and give back only the amounts asked for. */
++export function parseCurrency(raw: unknown): Record<string, number> {
++  if (raw === undefined) return {};
++  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('currency must be an object such as {gp: 50, sp: 10}');
++  const out: Record<string, number> = {};
++  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
++    if (!(CURRENCIES as readonly string[]).includes(key)) throw new Error(`currency: ${key} is not one of ${CURRENCIES.join(', ')}`);
++    if (typeof value !== 'number' || !Number.isInteger(value) || value < 0 || value > 10_000_000) {
++      throw new Error(`currency.${key} must be a whole number from 0 to 10000000`);
++    }
++    out[key] = value;
++  }
++  return out;
++}
++
++const OWNERSHIP: Record<string, number> = { none: 0, limited: 1, observer: 2, owner: 3 };
++
++/** Who can open a chest: none, limited, observer (can look inside), owner (can take things). */
++export function ownershipLevel(name: unknown): number {
++  const level = typeof name === 'string' ? OWNERSHIP[name] : undefined;
++  if (level === undefined) throw new Error('ownership must be none, limited, observer or owner');
++  return level;
++}
++
++export interface CustomItem {
++  name: string;
++  type: string;
++  quantity: number;
++  price?: { value: number; denomination: string };
++  description?: string;
++}
++
++const DENOMINATIONS = ['pp', 'gp', 'ep', 'sp', 'cp'];
++
++/** Items made up on the spot (a locket, a note), as opposed to ones taken from a compendium. */
++export function parseCustomItems(raw: unknown): CustomItem[] {
++  if (raw === undefined) return [];
++  if (!Array.isArray(raw)) throw new Error('custom_items must be a list');
++  if (raw.length > MAX_ITEM_REQUESTS) throw new Error(`custom_items can hold at most ${MAX_ITEM_REQUESTS} entries`);
++  return raw.map((entry: any, i: number) => {
++    const where = `custom_items[${i}]`;
++    if (!entry || typeof entry !== 'object') throw new Error(`${where}: must be an object`);
++    if (typeof entry.name !== 'string' || !entry.name.trim()) throw new Error(`${where}: name is required`);
++    const quantity = entry.quantity ?? 1;
++    if (!Number.isInteger(quantity) || quantity < 1 || quantity > MAX_QUANTITY) throw new Error(`${where}: quantity must be a whole number from 1 to ${MAX_QUANTITY}`);
++    const item: CustomItem = { name: entry.name.trim(), type: typeof entry.type === 'string' && entry.type ? entry.type : 'loot', quantity };
++    if (entry.price !== undefined) {
++      const p = entry.price;
++      if (!p || typeof p.value !== 'number' || p.value < 0 || !DENOMINATIONS.includes(p.denomination ?? 'gp')) {
++        throw new Error(`${where}: price must be {value, denomination: ${DENOMINATIONS.join('|')}}`);
++      }
++      item.price = { value: p.value, denomination: p.denomination ?? 'gp' };
++    }
++    if (entry.description !== undefined) {
++      if (typeof entry.description !== 'string') throw new Error(`${where}: description must be text`);
++      item.description = entry.description;
++    }
++    return item;
++  });
++}
 diff --git a/packages/foundry-module/src/main.ts b/packages/foundry-module/src/main.ts
 index 9024ead..26cc5c1 100644
 --- a/packages/foundry-module/src/main.ts
@@ -12520,7 +13430,7 @@ index 0000000..542d273
 +  return view ? outSize : { width, height };
 +}
 diff --git a/packages/foundry-module/src/queries.ts b/packages/foundry-module/src/queries.ts
-index 9fe02ba..49b14d4 100644
+index 9fe02ba..91f5398 100644
 --- a/packages/foundry-module/src/queries.ts
 +++ b/packages/foundry-module/src/queries.ts
 @@ -1,7 +1,8 @@
@@ -12542,7 +13452,7 @@ index 9fe02ba..49b14d4 100644
  
      // Character/Actor queries
      CONFIG.queries[`${modulePrefix}.getCharacterInfo`] = this.handleGetCharacterInfo.bind(this);
-@@ -46,6 +47,22 @@ export class QueryHandlers {
+@@ -46,6 +47,26 @@ export class QueryHandlers {
      CONFIG.queries[`${modulePrefix}.list-scenes`] = this.handleListScenes.bind(this);
      CONFIG.queries[`${modulePrefix}.switch-scene`] = this.handleSwitchScene.bind(this);
      CONFIG.queries[`${modulePrefix}.update-scene-music`] = this.handleUpdateSceneMusic.bind(this);
@@ -12561,11 +13471,15 @@ index 9fe02ba..49b14d4 100644
 +    CONFIG.queries[`${modulePrefix}.browse-files`] = this.handleBrowseFiles.bind(this);
 +    CONFIG.queries[`${modulePrefix}.manage-scene-backups`] = this.handleManageSceneBackups.bind(this);
 +    CONFIG.queries[`${modulePrefix}.audit-world`] = this.handleAuditWorld.bind(this);
++    CONFIG.queries[`${modulePrefix}.add-compendium-items`] = this.handleAddCompendiumItems.bind(this);
++    CONFIG.queries[`${modulePrefix}.make-chest`] = this.handleMakeChest.bind(this);
++    CONFIG.queries[`${modulePrefix}.set-actor-art`] = this.handleSetActorArt.bind(this);
++    CONFIG.queries[`${modulePrefix}.share-with-players`] = this.handleShareWithPlayers.bind(this);
 +    CONFIG.queries[`${modulePrefix}.inspect-document`] = this.handleInspectDocument.bind(this);
      CONFIG.queries[`${modulePrefix}.manage-playlists`] = this.handleManagePlaylists.bind(this);
      CONFIG.queries[`${modulePrefix}.control-playlist`] = this.handleControlPlaylist.bind(this);
  
-@@ -184,7 +201,7 @@ export class QueryHandlers {
+@@ -184,7 +205,7 @@ export class QueryHandlers {
     * Unregister all query handlers
     */
    unregisterHandlers(): void {
@@ -12574,7 +13488,7 @@ index 9fe02ba..49b14d4 100644
      const keysToRemove = Object.keys(CONFIG.queries).filter(key => key.startsWith(modulePrefix));
  
      for (const key of keysToRemove) {
-@@ -477,7 +494,7 @@ export class QueryHandlers {
+@@ -477,7 +498,7 @@ export class QueryHandlers {
     * Get list of all registered query methods
     */
    getRegisteredMethods(): string[] {
@@ -12583,7 +13497,7 @@ index 9fe02ba..49b14d4 100644
      return Object.keys(CONFIG.queries)
        .filter(key => key.startsWith(modulePrefix))
        .map(key => key.replace(`${modulePrefix}.`, ''));
-@@ -487,7 +504,7 @@ export class QueryHandlers {
+@@ -487,7 +508,7 @@ export class QueryHandlers {
     * Test if a specific query handler is registered
     */
    isMethodRegistered(method: string): boolean {
@@ -12592,7 +13506,7 @@ index 9fe02ba..49b14d4 100644
      return queryKey in CONFIG.queries && typeof CONFIG.queries[queryKey] === 'function';
    }
  
-@@ -530,6 +547,9 @@ export class QueryHandlers {
+@@ -530,6 +551,9 @@ export class QueryHandlers {
        if (data.placement) {
          requestData.placement = data.placement;
        }
@@ -12602,7 +13516,7 @@ index 9fe02ba..49b14d4 100644
  
        return await this.dataAccess.createActorFromCompendiumEntry(requestData);
      } catch (error) {
-@@ -1218,6 +1238,183 @@ export class QueryHandlers {
+@@ -1218,6 +1242,215 @@ export class QueryHandlers {
      }
    }
  
@@ -12674,6 +13588,38 @@ index 9fe02ba..49b14d4 100644
 +      return { error: 'Access denied', success: false };
 +    }
 +    return await this.dataAccess.manageSceneBackups(data ?? {});
++  }
++
++  private async handleAddCompendiumItems(data: any): Promise<any> {
++    const gmCheck = this.validateGMAccess();
++    if (!gmCheck.allowed) {
++      return { error: 'Access denied', success: false };
++    }
++    return await this.dataAccess.addCompendiumItems(data ?? {});
++  }
++
++  private async handleSetActorArt(data: any): Promise<any> {
++    const gmCheck = this.validateGMAccess();
++    if (!gmCheck.allowed) {
++      return { error: 'Access denied', success: false };
++    }
++    return await this.dataAccess.setActorArt(data ?? {});
++  }
++
++  private async handleShareWithPlayers(data: any): Promise<any> {
++    const gmCheck = this.validateGMAccess();
++    if (!gmCheck.allowed) {
++      return { error: 'Access denied', success: false };
++    }
++    return await this.dataAccess.shareWithPlayers(data ?? {});
++  }
++
++  private async handleMakeChest(data: any): Promise<any> {
++    const gmCheck = this.validateGMAccess();
++    if (!gmCheck.allowed) {
++      return { error: 'Access denied', success: false };
++    }
++    return await this.dataAccess.makeChest(data ?? {});
 +  }
 +
 +  private async handleAuditWorld(data: any): Promise<any> {
@@ -12786,7 +13732,7 @@ index 9fe02ba..49b14d4 100644
    private async handleManagePlaylists(data: any): Promise<any> {
      try {
        const gmCheck = this.validateGMAccess();
-@@ -1241,8 +1438,11 @@ export class QueryHandlers {
+@@ -1241,8 +1474,11 @@ export class QueryHandlers {
        if (!gmCheck.allowed) {
          return { error: 'Access denied', success: false };
        }
@@ -12800,7 +13746,7 @@ index 9fe02ba..49b14d4 100644
        }
        return await this.dataAccess.controlPlaylist(data);
      } catch (error) {
-@@ -1547,7 +1747,9 @@ export class QueryHandlers {
+@@ -1547,7 +1783,9 @@ export class QueryHandlers {
     */
    private async handleUpdateToken(data: {
      tokenId: string;
@@ -12811,7 +13757,7 @@ index 9fe02ba..49b14d4 100644
    }): Promise<any> {
      try {
        // SECURITY: Silent GM validation
-@@ -1561,8 +1763,8 @@ export class QueryHandlers {
+@@ -1561,8 +1799,8 @@ export class QueryHandlers {
        if (!data.tokenId) {
          throw new Error('tokenId is required');
        }
@@ -14989,6 +15935,30 @@ index 0000000..7b37163
 +    expect(m[1]).toBe('info: 1 player character(s) are not owned by any player: Thorin');
 +  });
 +});
+diff --git a/packages/foundry-module/src/world-audit-image.test.ts b/packages/foundry-module/src/world-audit-image.test.ts
+new file mode 100644
+index 0000000..d3d8c27
+--- /dev/null
++++ b/packages/foundry-module/src/world-audit-image.test.ts
+@@ -0,0 +1,18 @@
++import { describe, expect, it } from 'vitest';
++import { isDefaultActorImage } from './world-audit-utils.js';
++
++describe('isDefaultActorImage', () => {
++  it('recognises the pictures a new actor gets', () => {
++    expect(isDefaultActorImage('icons/svg/mystery-man.svg')).toBe(true);
++    expect(isDefaultActorImage('systems/dnd5e/icons/svg/actors/npc.svg')).toBe(true);
++    expect(isDefaultActorImage('systems/dnd5e/icons/svg/actors/character.svg')).toBe(true);
++    expect(isDefaultActorImage('icons/svg/item-bag.svg')).toBe(true);
++    expect(isDefaultActorImage('')).toBe(true);
++    expect(isDefaultActorImage(undefined)).toBe(true);
++    expect(isDefaultActorImage(null)).toBe(true);
++  });
++  it('accepts a chosen picture', () => {
++    expect(isDefaultActorImage('worlds/tommy-test/uploads/lmop/tokens/token-goblin.png')).toBe(false);
++    expect(isDefaultActorImage('modules/some-pack/tokens/goblin.webp')).toBe(false);
++  });
++});
 diff --git a/packages/foundry-module/src/world-audit-utils.test.ts b/packages/foundry-module/src/world-audit-utils.test.ts
 new file mode 100644
 index 0000000..203becc
@@ -15067,14 +16037,20 @@ index 0000000..203becc
 +});
 diff --git a/packages/foundry-module/src/world-audit-utils.ts b/packages/foundry-module/src/world-audit-utils.ts
 new file mode 100644
-index 0000000..8ab0d36
+index 0000000..3c7d2e4
 --- /dev/null
 +++ b/packages/foundry-module/src/world-audit-utils.ts
-@@ -0,0 +1,165 @@
+@@ -0,0 +1,171 @@
 +/**
 + * Pure checks for audit-world: given a plain snapshot of the world's scenes, playlists and
 + * actors, list what is missing or broken. No Foundry globals, so it can be tested.
 + */
++
++/** True for the pictures Foundry and dnd5e give a new actor, which mean nobody chose one. */
++export function isDefaultActorImage(img: unknown): boolean {
++  if (typeof img !== 'string' || !img.trim()) return true;
++  return /mystery-man|^icons\/svg\/|\/icons\/svg\/actors\//.test(img);
++}
 +
 +export type AuditSeverity = 'error' | 'warning' | 'info';
 +
@@ -15872,10 +16848,10 @@ index 096f27b..903a94e 100644
      "@vitest/coverage-v8": "^3.2.4",
      "esbuild": "^0.19.0",
 diff --git a/packages/mcp-server/src/backend.ts b/packages/mcp-server/src/backend.ts
-index 8967e33..442f5a8 100644
+index 8967e33..4791548 100644
 --- a/packages/mcp-server/src/backend.ts
 +++ b/packages/mcp-server/src/backend.ts
-@@ -48,6 +48,28 @@ import { DnD5eAddFeatureTool } from './tools/dnd5e/add-feature.js';
+@@ -48,6 +48,31 @@ import { DnD5eAddFeatureTool } from './tools/dnd5e/add-feature.js';
  import { DnD5eNpcTools } from './tools/dnd5e/npc.js';
  import { DnD5eFeaturesFromCompendiumTools } from './tools/dnd5e/features.js';
  import { ChatTools } from './tools/chat.js';
@@ -15898,13 +16874,16 @@ index 8967e33..442f5a8 100644
 +import { PropTools } from './tools/prop-tools.js';
 +import { FileBackupTools } from './tools/file-backup-tools.js';
 +import { AuditTools } from './tools/audit-tools.js';
++import { LootTools } from './tools/loot-tools.js';
++import { ShareTools } from './tools/share-tools.js';
++import { ActorArtTools } from './tools/actor-art-tools.js';
 +import { SceneSoundTools } from './tools/scene-sound-tools.js';
 +import { LayoutTools } from './tools/layout.js';
 +import { InspectTools } from './tools/inspect.js';
  
  const CONTROL_HOST = '127.0.0.1';
  
-@@ -174,6 +196,22 @@ let comfyuiProcess: ChildProcess | null = null;
+@@ -174,6 +199,22 @@ let comfyuiProcess: ChildProcess | null = null;
  
  let comfyuiStatus: 'stopped' | 'starting' | 'running' | 'error' = 'stopped';
  
@@ -15927,7 +16906,7 @@ index 8967e33..442f5a8 100644
  let lockFd: number | null = null;
  
  function acquireLock(): boolean {
-@@ -350,6 +388,18 @@ async function waitForComfyUIReady(timeoutMs: number = 60000): Promise<void> {
+@@ -350,6 +391,18 @@ async function waitForComfyUIReady(timeoutMs: number = 60000): Promise<void> {
  }
  
  async function startComfyUIService(logger: Logger): Promise<any> {
@@ -15946,7 +16925,7 @@ index 8967e33..442f5a8 100644
    if (comfyuiStatus === 'running') {
      return { status: 'already_running', message: 'ComfyUI service is already running' };
    }
-@@ -472,6 +522,14 @@ async function startComfyUIService(logger: Logger): Promise<any> {
+@@ -472,6 +525,14 @@ async function startComfyUIService(logger: Logger): Promise<any> {
  }
  
  async function stopComfyUIService(logger: Logger): Promise<any> {
@@ -15961,7 +16940,7 @@ index 8967e33..442f5a8 100644
    if (comfyuiStatus === 'stopped') {
      return { status: 'already_stopped', message: 'ComfyUI service is already stopped' };
    }
-@@ -510,7 +568,7 @@ async function checkComfyUIStatus(): Promise<any> {
+@@ -510,7 +571,7 @@ async function checkComfyUIStatus(): Promise<any> {
    // This handles both spawned processes and externally-started instances
  
    try {
@@ -15970,7 +16949,7 @@ index 8967e33..442f5a8 100644
        signal: AbortSignal.timeout(5000),
      });
  
-@@ -520,16 +578,23 @@ async function checkComfyUIStatus(): Promise<any> {
+@@ -520,16 +581,23 @@ async function checkComfyUIStatus(): Promise<any> {
        comfyuiStatus = 'error';
      }
    } catch (error) {
@@ -15996,7 +16975,7 @@ index 8967e33..442f5a8 100644
    };
  }
  
-@@ -1131,7 +1196,7 @@ async function processMapGenerationInBackend(
+@@ -1131,7 +1199,7 @@ async function processMapGenerationInBackend(
      );
  
      logger.error('Background map generation processing failed', { jobId, error });
@@ -16005,7 +16984,7 @@ index 8967e33..442f5a8 100644
  
      // Emit failure to Foundry module
      foundryClient.sendMessage({
-@@ -1195,6 +1260,43 @@ async function startBackend(): Promise<void> {
+@@ -1195,6 +1263,51 @@ async function startBackend(): Promise<void> {
    const compendiumTools = new CompendiumTools({ foundryClient, logger, systemRegistry });
  
    const sceneTools = new SceneTools({ foundryClient, logger });
@@ -16044,12 +17023,20 @@ index 8967e33..442f5a8 100644
 +  });
 +  const fileBackupTools = new FileBackupTools({ foundryClient, logger });
 +  const auditTools = new AuditTools({ foundryClient, logger });
++  const lootTools = new LootTools({ foundryClient, logger });
++  const shareTools = new ShareTools({ foundryClient, logger });
++  const actorArtTools = new ActorArtTools({
++    foundryClient,
++    logger,
++    generate: args => imageGenerationTools.handleGenerateImage(args),
++    upload: args => uploadTools.handleUploadFile(args),
++  });
 +  const sceneSoundTools = new SceneSoundTools({ foundryClient, logger });
 +  const inspectTools = new InspectTools({ foundryClient, logger });
    const playlistTools = new PlaylistTools({ foundryClient, logger });
  
    const actorCreationTools = new ActorCreationTools({ foundryClient, logger });
-@@ -1301,6 +1403,13 @@ async function startBackend(): Promise<void> {
+@@ -1301,6 +1414,13 @@ async function startBackend(): Promise<void> {
  
          let result: any;
  
@@ -16063,7 +17050,7 @@ index 8967e33..442f5a8 100644
          switch (message.type) {
            case 'start-comfyui-service':
              result = await startComfyUIService(logger);
-@@ -1317,6 +1426,19 @@ async function startBackend(): Promise<void> {
+@@ -1317,6 +1437,19 @@ async function startBackend(): Promise<void> {
  
              break;
  
@@ -16083,7 +17070,7 @@ index 8967e33..442f5a8 100644
            // Map generation handlers (following existing tool pattern)
            case 'generate-map-request':
              await fs.appendFile(
-@@ -1429,6 +1551,19 @@ async function startBackend(): Promise<void> {
+@@ -1429,6 +1562,22 @@ async function startBackend(): Promise<void> {
  
      ...sceneTools.getToolDefinitions(),
  
@@ -16096,6 +17083,9 @@ index 8967e33..442f5a8 100644
 +    ...propTools.getToolDefinitions(),
 +    ...fileBackupTools.getToolDefinitions(),
 +    ...auditTools.getToolDefinitions(),
++    ...lootTools.getToolDefinitions(),
++    ...shareTools.getToolDefinitions(),
++    ...actorArtTools.getToolDefinitions(),
 +    ...sceneSoundTools.getToolDefinitions(),
 +    ...layoutTools.getToolDefinitions(),
 +    ...inspectTools.getToolDefinitions(),
@@ -16103,7 +17093,7 @@ index 8967e33..442f5a8 100644
      ...actorCreationTools.getToolDefinitions(),
      ...actorManagementTools.getToolDefinitions(),
      ...effectManagementTools.getToolDefinitions(),
-@@ -1456,7 +1591,11 @@ async function startBackend(): Promise<void> {
+@@ -1456,7 +1605,11 @@ async function startBackend(): Promise<void> {
  
      ...tokenManipulationTools.getToolDefinitions(),
  
@@ -16116,7 +17106,7 @@ index 8967e33..442f5a8 100644
  
      ...playlistTools.getToolDefinitions(),
    ];
-@@ -1764,19 +1903,11 @@ async function startBackend(): Promise<void> {
+@@ -1764,19 +1917,11 @@ async function startBackend(): Promise<void> {
                  // Map generation tools
  
                  case 'generate-map':
@@ -16139,7 +17129,7 @@ index 8967e33..442f5a8 100644
  
                  case 'list-scenes':
                    result = await mapGenerationTools.listScenes(args);
-@@ -1805,6 +1936,88 @@ async function startBackend(): Promise<void> {
+@@ -1805,6 +1950,104 @@ async function startBackend(): Promise<void> {
  
                    break;
  
@@ -16194,6 +17184,22 @@ index 8967e33..442f5a8 100644
 +
 +                case 'manage-scene-backups':
 +                  result = await fileBackupTools.handleManageSceneBackups(args);
++                  break;
++
++                case 'make-actor-art':
++                  result = await actorArtTools.handleMakeActorArt(args);
++                  break;
++
++                case 'share-with-players':
++                  result = await shareTools.handleShareWithPlayers(args);
++                  break;
++
++                case 'add-compendium-items':
++                  result = await lootTools.handleAddCompendiumItems(args);
++                  break;
++
++                case 'make-chest':
++                  result = await lootTools.handleMakeChest(args);
 +                  break;
 +
 +                case 'audit-world':
@@ -17804,6 +18810,360 @@ index fe400d1..0bdee03 100644
    async markJobFailed(jobId: string, error: string): Promise<void> {
      const job = this.jobs.get(jobId);
      if (!job) {
+diff --git a/packages/mcp-server/src/tools/actor-art-tools.test.ts b/packages/mcp-server/src/tools/actor-art-tools.test.ts
+new file mode 100644
+index 0000000..2207cd1
+--- /dev/null
++++ b/packages/mcp-server/src/tools/actor-art-tools.test.ts
+@@ -0,0 +1,143 @@
++import { afterAll, describe, expect, it, vi } from 'vitest';
++import { promises as fs } from 'fs';
++import os from 'os';
++import path from 'path';
++import { PNG } from 'pngjs';
++import { ActorArtTools, artSlug } from './actor-art-tools.js';
++import { padToSquare } from './prop-keying.js';
++
++const tmp: string[] = [];
++afterAll(async () => {
++  for (const f of tmp) await fs.rm(f, { force: true });
++});
++
++/** 800 x 600 magenta picture with a 300 x 400 brown figure in it. */
++async function tokenSource(): Promise<string> {
++  const w = 800;
++  const h = 600;
++  const png = new PNG({ width: w, height: h });
++  for (let y = 0; y < h; y++) {
++    for (let x = 0; x < w; x++) {
++      const inside = x >= 250 && x < 550 && y >= 100 && y < 500;
++      const c = inside ? [90, 60, 30] : [255, 0, 255];
++      png.data.set([c[0]!, c[1]!, c[2]!, 255], (y * w + x) * 4);
++    }
++  }
++  const file = path.join(os.tmpdir(), `actor-art-${Date.now()}-${Math.random().toString(36).slice(2)}.png`);
++  await fs.writeFile(file, PNG.sync.write(png));
++  tmp.push(file);
++  return file;
++}
++
++function make(options: { generate?: any; upload?: any; query?: any } = {}) {
++  const query = vi.fn(options.query ?? (async () => ({ success: true, actor: { id: 'a1', name: 'Goblin Boss' }, tokensUpdated: 2 })));
++  const logger: any = { info: vi.fn(), debug: vi.fn(), error: vi.fn(), warn: vi.fn(), child: () => logger };
++  const upload = options.upload ?? vi.fn(async (a: any) => ({ success: true, path: `worlds/w/uploads/${a.folder}/${a.filename}` }));
++  return { tools: new ActorArtTools({ foundryClient: { query } as any, logger, generate: options.generate, upload }), query, upload };
++}
++
++describe('artSlug', () => {
++  it('makes a safe folder name', () => {
++    expect(artSlug('Goblin Boss!')).toBe('goblin-boss');
++    expect(artSlug('???')).toBe('actor');
++  });
++});
++
++describe('padToSquare', () => {
++  it('centres a picture in a transparent square', () => {
++    const data = new Uint8Array(4 * 2 * 4).fill(255);
++    const out = padToSquare({ width: 4, height: 2, data });
++    expect([out.width, out.height]).toEqual([4, 4]);
++    expect(out.data[3]).toBe(0); // top row transparent
++    expect(out.data[(1 * 4 + 0) * 4 + 3]).toBe(255); // second row is the picture
++    const square = { width: 3, height: 3, data: new Uint8Array(36) };
++    expect(padToSquare(square)).toBe(square);
++  });
++});
++
++describe('definition', () => {
++  it('is exposed with actors required', () => {
++    const def = make().tools.getToolDefinitions()[0]!;
++    expect(def.name).toBe('make-actor-art');
++    expect(def.inputSchema.required).toEqual(['actors']);
++  });
++});
++
++describe('make-actor-art', () => {
++  it('makes a portrait and a square transparent token, uploads them and sets them on the actor', async () => {
++    const src = await tokenSource();
++    const generate = vi.fn(async (a: any) => ({ success: true, local_path: src, size: '1664x2432', ...(a.max_side ? { shrunk_to: '700x1024' } : {}) }));
++    const { tools, query, upload } = make({ generate });
++    const r = await tools.handleMakeActorArt({ actors: [{ actor: 'Goblin Boss', prompt: 'a scarred goblin boss' }], style: 'dark fantasy painting' });
++    expect(generate).toHaveBeenCalledTimes(2);
++    const [portrait, token] = generate.mock.calls.map(c => c[0]);
++    expect(portrait).toMatchObject({ kind: 'portrait', upload: false, max_side: 1024 });
++    expect(portrait.prompt).toBe('a scarred goblin boss. Character portrait, dark fantasy painting');
++    expect(token).toMatchObject({ kind: 'token', upload: false });
++    expect(token.prompt).toContain('magenta');
++    expect(upload).toHaveBeenCalledWith(expect.objectContaining({ folder: 'actors/goblin-boss', filename: 'portrait.png', overwrite: true }));
++    expect(upload).toHaveBeenCalledWith(expect.objectContaining({ folder: 'actors/goblin-boss', filename: 'token.png', overwrite: true }));
++    expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.set-actor-art', {
++      actor: 'Goblin Boss',
++      img: 'worlds/w/uploads/actors/goblin-boss/portrait.png',
++      tokenImg: 'worlds/w/uploads/actors/goblin-boss/token.png',
++      update_placed: true,
++    });
++    expect(r).toMatchObject({ success: true, made: 1, failed: 0 });
++    const done = r.results[0];
++    expect(done).toMatchObject({ success: true, actorName: 'Goblin Boss', tokensUpdated: 2 });
++    // the token is square, within the size asked for, and transparent around the figure
++    tmp.push(done.localToken);
++    const png = PNG.sync.read(await fs.readFile(done.localToken));
++    expect(png.width).toBe(png.height);
++    expect(png.width).toBeLessThanOrEqual(512);
++    expect(png.data[3]).toBe(0);
++    expect(done.steps).toHaveLength(3);
++  });
++  it('can make only the token, with its own size, and leave placed tokens alone', async () => {
++    const src = await tokenSource();
++    const generate = vi.fn(async () => ({ success: true, local_path: src }));
++    const { tools, query } = make({ generate });
++    const r = await tools.handleMakeActorArt({ actors: [{ actor: 'a1', portrait: false }], token_size: 128, update_placed: false, folder: 'npc', seed: 7 });
++    expect(generate).toHaveBeenCalledTimes(1);
++    expect(generate.mock.calls[0]![0]).toMatchObject({ kind: 'token', seed: 7 });
++    expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.set-actor-art', expect.objectContaining({ update_placed: false }));
++    expect((query.mock.calls[0]![1] as any).img).toBeUndefined();
++    tmp.push(r.results[0].localToken);
++    const png = PNG.sync.read(await fs.readFile(r.results[0].localToken));
++    expect(png.width).toBe(128);
++  });
++  it('keeps going when one actor fails, and says which', async () => {
++    const src = await tokenSource();
++    let n = 0;
++    const generate = vi.fn(async () => {
++      n++;
++      if (n <= 1) return { success: false, error: 'ComfyUI is offline' };
++      return { success: true, local_path: src };
++    });
++    const { tools } = make({ generate });
++    const r = await tools.handleMakeActorArt({ actors: [{ actor: 'Bad' }, { actor: 'Good', portrait: false }] });
++    expect(r).toMatchObject({ success: true, made: 1, failed: 1 });
++    expect(r.results[0]).toMatchObject({ success: false, actor: 'Bad', error: 'ComfyUI is offline' });
++    expect(r.results[1]).toMatchObject({ success: true, actor: 'Good' });
++    tmp.push(r.results[1].localToken);
++  });
++  it('reports every actor failing, refuses bad input and needs generation', async () => {
++    const { tools } = make({ generate: vi.fn(async () => ({ success: false, error: 'nope' })) });
++    const r = await tools.handleMakeActorArt({ actors: [{ actor: 'A' }] });
++    expect(r).toMatchObject({ success: false, made: 0, failed: 1 });
++    await expect(tools.handleMakeActorArt({ actors: [] })).rejects.toThrow();
++    await expect(tools.handleMakeActorArt({ actors: [{ actor: 'a' }, { actor: 'b' }, { actor: 'c' }] })).rejects.toThrow();
++    await expect(tools.handleMakeActorArt({ actors: [{ actor: 'a' }], token_size: 5 })).rejects.toThrow();
++    const none = make();
++    const r2 = await none.tools.handleMakeActorArt({ actors: [{ actor: 'A' }] });
++    expect(r2.results[0].error).toContain('not available');
++  });
++  it('says when the actor is not found after the pictures were made', async () => {
++    const src = await tokenSource();
++    const generate = vi.fn(async () => ({ success: true, local_path: src }));
++    const { tools } = make({ generate, query: async () => ({ success: false, error: 'Actor not found: "Ghost"' }) });
++    const r = await tools.handleMakeActorArt({ actors: [{ actor: 'Ghost', portrait: false }] });
++    expect(r.results[0]).toMatchObject({ success: false, error: 'Actor not found: "Ghost"' });
++  });
++});
+diff --git a/packages/mcp-server/src/tools/actor-art-tools.ts b/packages/mcp-server/src/tools/actor-art-tools.ts
+new file mode 100644
+index 0000000..3a26d4b
+--- /dev/null
++++ b/packages/mcp-server/src/tools/actor-art-tools.ts
+@@ -0,0 +1,199 @@
++import { promises as fs } from 'fs';
++import os from 'os';
++import path from 'path';
++import { PNG } from 'pngjs';
++import { z } from 'zod';
++import { FoundryClient } from '../foundry-client.js';
++import { Logger } from '../logger.js';
++import { decodeImage } from './layout-image.js';
++import { downscale, keyOutBackground, padToSquare } from './prop-keying.js';
++
++export interface ActorArtToolsOptions {
++  foundryClient: FoundryClient;
++  logger: Logger;
++  generate?: ((args: any) => Promise<any>) | undefined;
++  upload?: ((args: any) => Promise<any>) | undefined;
++}
++
++const MAX_ACTORS = 2;
++
++const schema = z
++  .object({
++    actors: z
++      .array(
++        z
++          .object({
++            actor: z.string().min(1),
++            prompt: z.string().min(3).max(1500).optional(),
++            portrait: z.boolean().optional(),
++            token: z.boolean().optional(),
++          })
++          .strict()
++      )
++      .min(1)
++      .max(MAX_ACTORS),
++    style: z.string().min(1).max(300).optional(),
++    portrait_size: z.number().int().min(256).max(2048).optional(),
++    token_size: z.number().int().min(64).max(1024).optional(),
++    update_placed: z.boolean().optional(),
++    folder: z.string().min(1).max(80).optional(),
++    seed: z.number().int().min(0).optional(),
++  })
++  .strict();
++
++/** A name safe to use in a file path. */
++export function artSlug(text: string): string {
++  const slug = text
++    .toLowerCase()
++    .replace(/[^a-z0-9]+/g, '-')
++    .replace(/^-+|-+$/g, '')
++    .slice(0, 40);
++  return slug || 'actor';
++}
++
++export class ActorArtTools {
++  private foundryClient: FoundryClient;
++  private logger: Logger;
++  private generate: ((args: any) => Promise<any>) | undefined;
++  private upload: ((args: any) => Promise<any>) | undefined;
++  private folder = path.join(os.tmpdir(), 'foundry-mcp-actor-art');
++
++  constructor({ foundryClient, logger, generate, upload }: ActorArtToolsOptions) {
++    this.foundryClient = foundryClient;
++    this.logger = logger.child({ component: 'ActorArtTools' });
++    this.generate = generate;
++    this.upload = upload;
++  }
++
++  getToolDefinitions() {
++    return [
++      {
++        name: 'make-actor-art',
++        description:
++          'Give actors their pictures in one call: generates a portrait and a token (a head-and-shoulders picture with a transparent background, cropped square), uploads both to worlds/<world>/uploads/actors/<name>/, sets the actor\'s portrait and token picture, and swaps the picture on tokens of that actor already on scenes (update_placed, default true). ' +
++          `actors: up to ${MAX_ACTORS} per call, each {actor (id or name), prompt (what they look like, e.g. "a scarred goblin boss in rusted plate armour, yellow eyes"; defaults to the actor name), portrait? (default true), token? (default true)}. ` +
++          'style is added to every prompt (e.g. "dark fantasy oil painting"). portrait_size and token_size are the longest side in pixels of the finished pictures (defaults 1024 and 512); MiniMax H3 pictures are always generated large and shrunk. Takes about two minutes per actor. A failure on one actor does not stop the others; each result says what was done.',
++        inputSchema: {
++          type: 'object',
++          properties: {
++            actors: {
++              type: 'array',
++              maxItems: MAX_ACTORS,
++              items: {
++                type: 'object',
++                properties: {
++                  actor: { type: 'string', description: 'Actor id or name' },
++                  prompt: { type: 'string', description: 'What the character looks like' },
++                  portrait: { type: 'boolean', description: 'Make the portrait (default true)' },
++                  token: { type: 'boolean', description: 'Make the token (default true)' },
++                },
++                required: ['actor'],
++                additionalProperties: false,
++              },
++            },
++            style: { type: 'string', description: 'Art style added to every prompt' },
++            portrait_size: { type: 'number', description: 'Longest side of the portrait in pixels (default 1024)' },
++            token_size: { type: 'number', description: 'Longest side of the token in pixels (default 512)' },
++            update_placed: { type: 'boolean', description: 'Also change tokens of these actors already on scenes (default true)' },
++            folder: { type: 'string', description: 'Folder below the world uploads (default actors)' },
++            seed: { type: 'number', description: 'Seed for the generation (same seed for every picture)' },
++          },
++          required: ['actors'],
++          additionalProperties: false,
++        },
++      },
++    ];
++  }
++
++  private async makeOne(
++    entry: { actor: string; prompt?: string | undefined; portrait?: boolean | undefined; token?: boolean | undefined },
++    options: { style?: string | undefined; portraitSize: number; tokenSize: number; updatePlaced: boolean; folder: string; seed?: number | undefined }
++  ): Promise<Record<string, any>> {
++    if (!this.generate || !this.upload) throw new Error('Image generation and upload are not available here');
++    const slug = artSlug(entry.actor);
++    const look = entry.prompt ?? entry.actor;
++    const style = options.style ? `, ${options.style}` : '';
++    const steps: string[] = [];
++    const result: Record<string, any> = { actor: entry.actor };
++    const seed = options.seed !== undefined ? { seed: options.seed } : {};
++    const where = `${options.folder}/${slug}`;
++
++    if (entry.portrait !== false) {
++      const generated = await this.generate({
++        kind: 'portrait',
++        name: `portrait-${slug}`,
++        prompt: `${look}. Character portrait${style}`,
++        upload: false,
++        max_side: options.portraitSize,
++        ...seed,
++      });
++      if (generated?.success === false || !generated?.local_path) throw new Error(generated?.error || 'The portrait could not be generated');
++      const uploaded = await this.upload({ file_path: generated.local_path, folder: where, filename: 'portrait.png', overwrite: true });
++      if (uploaded?.success === false || !uploaded?.path) throw new Error(uploaded?.error || 'The portrait could not be uploaded');
++      result.portrait = uploaded.path;
++      steps.push(`portrait made (${generated.shrunk_to ?? generated.size})`);
++    }
++
++    if (entry.token !== false) {
++      const generated = await this.generate({
++        kind: 'token',
++        name: `token-${slug}`,
++        prompt:
++          `${look}. Token art: a single character shown from the chest up, facing the viewer, centred with plenty of empty space all around and nothing touching the edges${style}. ` +
++          'Isolated on a perfectly flat, uniform pure magenta (#FF00FF) background. No frame, no border, no text, no shadow on the background.',
++        upload: false,
++        ...seed,
++      });
++      if (generated?.success === false || !generated?.local_path) throw new Error(generated?.error || 'The token could not be generated');
++      const picture = await decodeImage(generated.local_path);
++      const keyed = keyOutBackground({ width: picture.width, height: picture.height, data: picture.data }, { removeEnclosed: true });
++      const square = downscale(padToSquare({ width: keyed.width, height: keyed.height, data: keyed.data }), options.tokenSize);
++      const png = new PNG({ width: square.width, height: square.height });
++      png.data = Buffer.from(square.data);
++      await fs.mkdir(this.folder, { recursive: true });
++      const local = path.join(this.folder, `${slug}-token-${Date.now().toString(36)}.png`);
++      await fs.writeFile(local, PNG.sync.write(png));
++      const uploaded = await this.upload({ file_path: local, folder: where, filename: 'token.png', overwrite: true });
++      if (uploaded?.success === false || !uploaded?.path) throw new Error(uploaded?.error || 'The token could not be uploaded');
++      result.token = uploaded.path;
++      result.localToken = local;
++      steps.push(`token made (${square.width}x${square.height})`);
++    }
++
++    const applied = await this.foundryClient.query('foundry-mcp-bridge.set-actor-art', {
++      actor: entry.actor,
++      ...(result.portrait ? { img: result.portrait } : {}),
++      ...(result.token ? { tokenImg: result.token } : {}),
++      update_placed: options.updatePlaced,
++    });
++    if (applied?.success === false) throw new Error(applied.error || 'The pictures could not be set on the actor');
++    result.actorName = applied?.actor?.name;
++    result.tokensUpdated = applied?.tokensUpdated ?? 0;
++    steps.push('actor updated');
++    result.steps = steps;
++    return result;
++  }
++
++  async handleMakeActorArt(args: unknown): Promise<any> {
++    const a = schema.parse(args ?? {});
++    const options = {
++      style: a.style,
++      portraitSize: a.portrait_size ?? 1024,
++      tokenSize: a.token_size ?? 512,
++      updatePlaced: a.update_placed !== false,
++      folder: a.folder ?? 'actors',
++      seed: a.seed,
++    };
++    const results: Array<Record<string, any>> = [];
++    for (const entry of a.actors) {
++      try {
++        results.push({ success: true, ...(await this.makeOne(entry, options)) });
++      } catch (error) {
++        this.logger.error('Failed to make actor art', error);
++        results.push({ success: false, actor: entry.actor, error: error instanceof Error ? error.message : 'Unknown error' });
++      }
++    }
++    const failed = results.filter(r => !r.success).length;
++    return { success: failed < results.length, made: results.length - failed, failed, results };
++  }
++}
 diff --git a/packages/mcp-server/src/tools/actor-creation.ts b/packages/mcp-server/src/tools/actor-creation.ts
 index 252f3c3..2f42cd4 100644
 --- a/packages/mcp-server/src/tools/actor-creation.ts
@@ -19141,10 +20501,10 @@ index 0000000..8048ab0
 +}
 diff --git a/packages/mcp-server/src/tools/journal.test.ts b/packages/mcp-server/src/tools/journal.test.ts
 new file mode 100644
-index 0000000..1808458
+index 0000000..7642215
 --- /dev/null
 +++ b/packages/mcp-server/src/tools/journal.test.ts
-@@ -0,0 +1,100 @@
+@@ -0,0 +1,129 @@
 +import { describe, expect, it, vi } from 'vitest';
 +import { JournalTools } from './journal.js';
 +
@@ -19172,7 +20532,36 @@ index 0000000..1808458
 +      'name',
 +      'ownership',
 +      'pages',
++      'pin',
 +    ]);
++  });
++});
++
++describe('journal pin', () => {
++  it('creates the journal then places a note pin for it', async () => {
++    const query = vi.fn(async (method: string) =>
++      method.endsWith('manage-journals')
++        ? { success: true, journal: { id: 'j1' } }
++        : { success: true, scene: 'Cave', created: [{ id: 'n1' }] }
++    );
++    const logger: any = { info: vi.fn(), debug: vi.fn(), error: vi.fn(), warn: vi.fn(), child: () => logger };
++    const tools = new JournalTools({ foundryClient: { query } as any, logger });
++    const r = await tools.handleManageJournals({ action: 'create', name: 'Notes', pin: { scene: 'Cave', x: 3, y: 4, page: 'Intro', text: 'Read' } });
++    expect(query).toHaveBeenNthCalledWith(1, 'foundry-mcp-bridge.manage-journals', { action: 'create', name: 'Notes' });
++    expect(query).toHaveBeenNthCalledWith(2, 'foundry-mcp-bridge.manage-scene-objects', {
++      action: 'place',
++      scene: 'Cave',
++      objects: [{ kind: 'note', x: 3, y: 4, journal: 'j1', page: 'Intro', text: 'Read' }],
++    });
++    expect(r.pin).toMatchObject({ id: 'n1', scene: 'Cave' });
++  });
++  it('says the journal was saved when the pin fails', async () => {
++    const query = vi.fn(async (method: string) =>
++      method.endsWith('manage-journals') ? { success: true, journal: { id: 'j1' } } : { success: false, error: 'no scene' }
++    );
++    const logger: any = { info: vi.fn(), debug: vi.fn(), error: vi.fn(), warn: vi.fn(), child: () => logger };
++    const tools = new JournalTools({ foundryClient: { query } as any, logger });
++    await expect(tools.handleManageJournals({ action: 'create', name: 'N', pin: { x: 1, y: 1 } })).rejects.toThrow('journal was saved');
 +  });
 +});
 +
@@ -19247,10 +20636,10 @@ index 0000000..1808458
 +});
 diff --git a/packages/mcp-server/src/tools/journal.ts b/packages/mcp-server/src/tools/journal.ts
 new file mode 100644
-index 0000000..942a444
+index 0000000..10ed902
 --- /dev/null
 +++ b/packages/mcp-server/src/tools/journal.ts
-@@ -0,0 +1,137 @@
+@@ -0,0 +1,194 @@
 +import { z } from 'zod';
 +import { FoundryClient } from '../foundry-client.js';
 +import { Logger } from '../logger.js';
@@ -19273,6 +20662,18 @@ index 0000000..942a444
 +  })
 +  .strict();
 +
++/** A map pin that opens the journal (or one of its pages), placed in the same call. */
++const pinSchema = z
++  .object({
++    scene: z.string().min(1).optional(),
++    x: z.number().min(0),
++    y: z.number().min(0),
++    page: z.string().min(1).optional(),
++    text: z.string().min(1).max(100).optional(),
++    global: z.boolean().optional(),
++  })
++  .strict();
++
 +const journalSchema = z
 +  .object({
 +    action: z.enum(['create', 'update', 'describe']),
@@ -19281,6 +20682,7 @@ index 0000000..942a444
 +    folder: z.string().min(1).optional(),
 +    ownership: z.enum(['none', 'limited', 'observer', 'owner']).optional(),
 +    pages: z.array(pageSchema).max(100).optional(),
++    pin: pinSchema.optional(),
 +  })
 +  .strict();
 +
@@ -19303,6 +20705,7 @@ index 0000000..942a444
 +          'update: needs journal (id or exact name); can rename, move to a folder, change ownership, and upsert pages: a page with an id or an exact existing name is changed, otherwise a new page is added at the end. ' +
 +          'describe: lists all journals, or one journal with its full page contents when journal is given. ' +
 +          'Text pages take HTML in content (headings, paragraphs, lists, tables). Image pages take src, a Foundry file path such as the one upload-file returns. ' +
++          'pin {scene?, x, y, page?, text?, global?} (create or update) also puts a map pin for the journal on a scene in the same call (grid squares from the top-left; page opens that page; text is the label; global shows it to all players).\n' +
 +          'In text you can write {{actor: Name}}, {{scene: Name}}, {{journal: Name}}, {{item: Name}} or {{rolltable: Name}} (or {{actor: Name | label}}) to insert a clickable Foundry link; unmatched names are reported as warnings. Scripts and event handlers are removed from the HTML.',
 +        inputSchema: {
 +          type: 'object',
@@ -19325,6 +20728,20 @@ index 0000000..942a444
 +              enum: ['none', 'limited', 'observer', 'owner'],
 +              description:
 +                'Default permission for players: none (GM only), limited, observer (can read), owner',
++            },
++            pin: {
++              type: 'object',
++              description: 'Also place a map pin for this journal on a scene',
++              properties: {
++                scene: { type: 'string', description: 'Scene id or exact name (default: the one being viewed)' },
++                x: { type: 'number', description: 'Grid squares from the left' },
++                y: { type: 'number', description: 'Grid squares from the top' },
++                page: { type: 'string', description: 'Page name or id the pin opens' },
++                text: { type: 'string', description: 'Pin label (default the journal name)' },
++                global: { type: 'boolean', description: 'Visible to all players' },
++              },
++              required: ['x', 'y'],
++              additionalProperties: false,
 +            },
 +            pages: {
 +              type: 'array',
@@ -19369,15 +20786,44 @@ index 0000000..942a444
 +      throw new Error('journal is required for update');
 +    }
 +
++    if (parsed.pin && parsed.action === 'describe') throw new Error('pin works with create and update');
++    const { pin, ...forModule } = parsed;
++
 +    this.logger.info('Managing journals', {
 +      action: parsed.action,
 +      journal: parsed.journal ?? parsed.name,
 +    });
 +
 +    try {
-+      const result = await this.foundryClient.query('foundry-mcp-bridge.manage-journals', parsed);
++      const result = await this.foundryClient.query('foundry-mcp-bridge.manage-journals', forModule);
 +      if (result?.success === false) {
 +        throw new Error(result.error || 'Request was refused');
++      }
++      if (pin) {
++        const journalId = result?.journal?.id ?? parsed.journal;
++        try {
++          const placed = await this.foundryClient.query('foundry-mcp-bridge.manage-scene-objects', {
++            action: 'place',
++            ...(pin.scene ? { scene: pin.scene } : {}),
++            objects: [
++              {
++                kind: 'note',
++                x: pin.x,
++                y: pin.y,
++                journal: journalId,
++                ...(pin.page ? { page: pin.page } : {}),
++                ...(pin.text ? { text: pin.text } : {}),
++                ...(pin.global !== undefined ? { global: pin.global } : {}),
++              },
++            ],
++          });
++          if (placed?.success === false) throw new Error(placed.error || 'refused');
++          return { ...result, pin: { ...(placed?.created?.[0] ?? {}), scene: placed?.scene } };
++        } catch (error) {
++          throw new Error(
++            `The journal was saved but its pin could not be placed: ${error instanceof Error ? error.message : 'Unknown error'}`
++          );
++        }
 +      }
 +      return result;
 +    } catch (error) {
@@ -23551,6 +24997,316 @@ index 0000000..ea23c7f
 +    }
 +  }
 +}
+diff --git a/packages/mcp-server/src/tools/loot-tools.test.ts b/packages/mcp-server/src/tools/loot-tools.test.ts
+new file mode 100644
+index 0000000..866919c
+--- /dev/null
++++ b/packages/mcp-server/src/tools/loot-tools.test.ts
+@@ -0,0 +1,77 @@
++import { describe, expect, it, vi } from 'vitest';
++import { LootTools } from './loot-tools.js';
++
++function makeTools(impl?: (method: string, data: any) => unknown) {
++  const query = vi.fn(
++    impl ??
++      (async (method: string) => {
++        if (method.endsWith('make-chest')) return { success: true, actor: { id: 'c1', name: 'Hoard', type: 'group' }, steps: ['1 compendium item(s) added'], added: [], stacked: [], notFound: [] };
++        if (method.endsWith('manage-scene-objects')) return { success: true, scene: { id: 's', name: 'Cave' }, created: [{ kind: 'token', id: 't1', x: 4, y: 5 }] };
++        return { success: true };
++      })
++  );
++  const logger: any = { info: vi.fn(), debug: vi.fn(), error: vi.fn(), warn: vi.fn(), child: () => logger };
++  return { tools: new LootTools({ foundryClient: { query } as any, logger }), query };
++}
++
++describe('definitions', () => {
++  it('offers add-compendium-items and make-chest', () => {
++    const defs = makeTools().tools.getToolDefinitions();
++    expect(defs.map(d => d.name)).toEqual(['add-compendium-items', 'make-chest']);
++    expect(defs[0]!.inputSchema.required).toEqual(['actor', 'items']);
++    expect(defs[1]!.inputSchema.required).toEqual(['name']);
++  });
++});
++
++describe('add-compendium-items', () => {
++  it('sends the request as given', async () => {
++    const { tools, query } = makeTools();
++    await tools.handleAddCompendiumItems({ actor: 'Goblin', items: ['Longsword', { name: 'Arrow', quantity: 20 }], packs: ['dnd5e.items'], stack: false });
++    expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.add-compendium-items', { actor: 'Goblin', items: ['Longsword', { name: 'Arrow', quantity: 20 }], packs: ['dnd5e.items'], stack: false });
++  });
++  it('refuses bad input and reports a refusal', async () => {
++    const { tools, query } = makeTools(async () => ({ success: false, error: 'Actor not found' }));
++    await expect(tools.handleAddCompendiumItems({ actor: 'x', items: [] })).rejects.toThrow();
++    await expect(tools.handleAddCompendiumItems({ items: ['a'] })).rejects.toThrow();
++    await expect(tools.handleAddCompendiumItems({ actor: 'x', items: [{ name: 'a', quantity: 0 }] })).rejects.toThrow();
++    expect(query).not.toHaveBeenCalled();
++    await expect(tools.handleAddCompendiumItems({ actor: 'x', items: ['a'] })).rejects.toThrow('Failed to add compendium items: Actor not found');
++  });
++});
++
++describe('make-chest', () => {
++  it('makes the chest and places its token', async () => {
++    const { tools, query } = makeTools();
++    const r = await tools.handleMakeChest({ name: 'Hoard', items: ['Potion of Healing'], currency: { gp: 50 }, scene: 'Cave', x: 4, y: 5, width: 1, hidden: true });
++    expect(query).toHaveBeenNthCalledWith(1, 'foundry-mcp-bridge.make-chest', { name: 'Hoard', items: ['Potion of Healing'], currency: { gp: 50 } });
++    expect(query).toHaveBeenNthCalledWith(2, 'foundry-mcp-bridge.manage-scene-objects', {
++      action: 'place',
++      scene: 'Cave',
++      objects: [{ kind: 'token', actor: 'c1', x: 4, y: 5, name: 'Hoard', width: 1, hidden: true }],
++    });
++    expect(r.token).toMatchObject({ id: 't1', scene: { name: 'Cave' } });
++    expect(r.steps).toEqual(['1 compendium item(s) added', 'token placed']);
++  });
++  it('makes only the actor when no position is given', async () => {
++    const { tools, query } = makeTools();
++    const r = await tools.handleMakeChest({ name: 'Hoard', custom_items: [{ name: 'Locket', price: { value: 25 } }] });
++    expect(query).toHaveBeenCalledTimes(1);
++    expect(r.token).toBeUndefined();
++  });
++  it('needs both x and y, and checks the other fields', async () => {
++    const { tools, query } = makeTools();
++    await expect(tools.handleMakeChest({ name: 'H', x: 3 })).rejects.toThrow('both x and y');
++    await expect(tools.handleMakeChest({ name: 'H', ownership: 'all' })).rejects.toThrow();
++    await expect(tools.handleMakeChest({ name: 'H', currency: { gold: 1 } })).rejects.toThrow();
++    await expect(tools.handleMakeChest({})).rejects.toThrow();
++    expect(query).not.toHaveBeenCalled();
++  });
++  it('says the chest exists when only the token fails', async () => {
++    const { tools } = makeTools(async (m: string) => (m.endsWith('make-chest') ? { success: true, actor: { id: 'c1', name: 'Hoard' } } : { success: false, error: 'outside the scene' }));
++    await expect(tools.handleMakeChest({ name: 'Hoard', x: 99, y: 99 })).rejects.toThrow('was made (id c1) but its token could not be placed: outside the scene');
++  });
++  it('reports a refusal when the chest cannot be made', async () => {
++    const { tools } = makeTools(async () => ({ success: false, error: 'no group type' }));
++    await expect(tools.handleMakeChest({ name: 'Hoard' })).rejects.toThrow('Failed to make the chest: no group type');
++  });
++});
+diff --git a/packages/mcp-server/src/tools/loot-tools.ts b/packages/mcp-server/src/tools/loot-tools.ts
+new file mode 100644
+index 0000000..9384dc7
+--- /dev/null
++++ b/packages/mcp-server/src/tools/loot-tools.ts
+@@ -0,0 +1,221 @@
++import { z } from 'zod';
++import { FoundryClient } from '../foundry-client.js';
++import { Logger } from '../logger.js';
++
++export interface LootToolsOptions {
++  foundryClient: FoundryClient;
++  logger: Logger;
++}
++
++const itemRequest = z.union([
++  z.string().min(1).max(200),
++  z
++    .object({
++      name: z.string().min(1).max(200),
++      quantity: z.number().int().min(1).max(9999).optional(),
++      pack: z.string().min(1).max(200).optional(),
++    })
++    .strict(),
++]);
++
++const customItem = z
++  .object({
++    name: z.string().min(1).max(200),
++    type: z.string().min(1).max(40).optional(),
++    quantity: z.number().int().min(1).max(9999).optional(),
++    price: z.object({ value: z.number().min(0), denomination: z.enum(['pp', 'gp', 'ep', 'sp', 'cp']).optional() }).strict().optional(),
++    description: z.string().max(4000).optional(),
++  })
++  .strict();
++
++const currencySchema = z
++  .object({
++    pp: z.number().int().min(0).optional(),
++    gp: z.number().int().min(0).optional(),
++    ep: z.number().int().min(0).optional(),
++    sp: z.number().int().min(0).optional(),
++    cp: z.number().int().min(0).optional(),
++  })
++  .strict();
++
++const addSchema = z
++  .object({
++    actor: z.string().min(1),
++    items: z.array(itemRequest).min(1).max(100),
++    packs: z.array(z.string().min(1)).max(20).optional(),
++    stack: z.boolean().optional(),
++  })
++  .strict();
++
++const chestSchema = z
++  .object({
++    name: z.string().min(1).max(100),
++    items: z.array(itemRequest).min(1).max(100).optional(),
++    custom_items: z.array(customItem).max(100).optional(),
++    currency: currencySchema.optional(),
++    ownership: z.enum(['none', 'limited', 'observer', 'owner']).optional(),
++    packs: z.array(z.string().min(1)).max(20).optional(),
++    img: z.string().min(1).max(400).optional(),
++    folder: z.string().min(1).max(100).optional(),
++    type: z.string().min(1).max(40).optional(),
++    scene: z.string().min(1).optional(),
++    x: z.number().min(0).optional(),
++    y: z.number().min(0).optional(),
++    width: z.number().min(0.5).max(20).optional(),
++    height: z.number().min(0.5).max(20).optional(),
++    hidden: z.boolean().optional(),
++  })
++  .strict();
++
++export class LootTools {
++  private foundryClient: FoundryClient;
++  private logger: Logger;
++
++  constructor({ foundryClient, logger }: LootToolsOptions) {
++    this.foundryClient = foundryClient;
++    this.logger = logger.child({ component: 'LootTools' });
++  }
++
++  getToolDefinitions() {
++    const itemList = {
++      type: 'array',
++      items: {
++        description: 'An item name ("Longsword") or {name, quantity?, pack?}',
++        anyOf: [
++          { type: 'string' },
++          {
++            type: 'object',
++            properties: { name: { type: 'string' }, quantity: { type: 'number' }, pack: { type: 'string' } },
++            required: ['name'],
++            additionalProperties: false,
++          },
++        ],
++      },
++    };
++    return [
++      {
++        name: 'add-compendium-items',
++        description:
++          'Copy items from the compendium onto an actor by exact name: weapons, armour, potions, gear, loot, for an NPC, a player character or a chest. items: ["Longsword", {name:"Arrow", quantity:20}, {name:"Chest", pack:"dnd5e.items"}]. Without a pack it searches the item packs (the main system ones first) and only takes things that can be carried, not spells or features; name a pack to take anything from it. An item already on the actor stacks (its quantity goes up) unless stack is false. Reports what was added, stacked and not found. Use search-compendium to find exact names.',
++        inputSchema: {
++          type: 'object',
++          properties: {
++            actor: { type: 'string', description: 'Actor id or name' },
++            items: itemList,
++            packs: { type: 'array', items: { type: 'string' }, description: 'Pack ids to search, in order (default: all item packs)' },
++            stack: { type: 'boolean', description: 'Add to an existing stack of the same item (default true)' },
++          },
++          required: ['actor', 'items'],
++          additionalProperties: false,
++        },
++      },
++      {
++        name: 'make-chest',
++        description:
++          'Make a chest, hoard or stash of loot in one call: an actor (a group in D&D 5e) holding currency, compendium items and made-up items, with who may open it, and optionally its token on a scene. ' +
++          'items: compendium items as in add-compendium-items (["Potion of Healing", {name:"Arrow", quantity:20}]); custom_items: things made up on the spot [{name, quantity?, type? (default loot), price?:{value, denomination}, description? (HTML)}]; currency: {pp?, gp?, ep?, sp?, cp?}. ' +
++          'ownership says what players can do with it: none (they cannot see it), limited, observer (default: they can look inside), owner (they can take things). ' +
++          'Give scene (default the one being viewed), x and y (grid squares, top-left corner of the token) to put its token on the map; without x and y only the actor is made. img is the chest picture (default a steel-bound chest from Foundry\'s icons; a prop made with make-prop works too). It lands in a Loot folder. Names not found in the compendium are listed, and the chest is still made.',
++        inputSchema: {
++          type: 'object',
++          properties: {
++            name: { type: 'string', description: 'Name of the chest or hoard' },
++            items: itemList,
++            custom_items: {
++              type: 'array',
++              items: {
++                type: 'object',
++                properties: {
++                  name: { type: 'string' },
++                  type: { type: 'string' },
++                  quantity: { type: 'number' },
++                  price: { type: 'object', properties: { value: { type: 'number' }, denomination: { type: 'string' } } },
++                  description: { type: 'string' },
++                },
++                required: ['name'],
++                additionalProperties: false,
++              },
++            },
++            currency: {
++              type: 'object',
++              properties: { pp: { type: 'number' }, gp: { type: 'number' }, ep: { type: 'number' }, sp: { type: 'number' }, cp: { type: 'number' } },
++              additionalProperties: false,
++            },
++            ownership: { type: 'string', enum: ['none', 'limited', 'observer', 'owner'], description: 'What players can do with it (default observer)' },
++            packs: { type: 'array', items: { type: 'string' }, description: 'Pack ids to search for the items' },
++            img: { type: 'string', description: 'Picture for the chest and its token' },
++            folder: { type: 'string', description: 'Actor folder (default Loot)' },
++            type: { type: 'string', description: 'Actor type (default group)' },
++            scene: { type: 'string', description: 'Scene for the token (id or exact name; default the one being viewed)' },
++            x: { type: 'number', description: 'Token column in grid squares (with y places the token)' },
++            y: { type: 'number', description: 'Token row in grid squares' },
++            width: { type: 'number', description: 'Token width in squares (default 1)' },
++            height: { type: 'number', description: 'Token height in squares (default 1)' },
++            hidden: { type: 'boolean', description: 'Hide the token from players until revealed' },
++          },
++          required: ['name'],
++          additionalProperties: false,
++        },
++      },
++    ];
++  }
++
++  async handleAddCompendiumItems(args: unknown): Promise<any> {
++    const a = addSchema.parse(args ?? {});
++    try {
++      const result = await this.foundryClient.query('foundry-mcp-bridge.add-compendium-items', a);
++      if (result?.success === false) throw new Error(result.error || 'The items could not be added');
++      return result;
++    } catch (error) {
++      this.logger.error('Failed to add compendium items', error);
++      throw new Error(`Failed to add compendium items: ${error instanceof Error ? error.message : 'Unknown error'}`);
++    }
++  }
++
++  async handleMakeChest(args: unknown): Promise<any> {
++    const a = chestSchema.parse(args ?? {});
++    if ((a.x === undefined) !== (a.y === undefined)) throw new Error('Give both x and y to place the token, or neither');
++    if (!a.items && !a.custom_items && !a.currency) {
++      // an empty chest is allowed, but it is usually a forgotten argument
++      this.logger.warn('make-chest called with no items, custom_items or currency');
++    }
++    const { scene, x, y, width, height, hidden, ...chest } = a;
++    try {
++      const made = await this.foundryClient.query('foundry-mcp-bridge.make-chest', chest);
++      if (made?.success === false) throw new Error(made.error || 'The chest could not be made');
++      const result: Record<string, any> = { ...made };
++      if (x !== undefined && y !== undefined) {
++        try {
++          const placed = await this.foundryClient.query('foundry-mcp-bridge.manage-scene-objects', {
++            action: 'place',
++            ...(scene ? { scene } : {}),
++            objects: [
++              {
++                kind: 'token',
++                actor: made.actor.id,
++                x,
++                y,
++                name: a.name,
++                ...(width !== undefined ? { width } : {}),
++                ...(height !== undefined ? { height } : {}),
++                ...(hidden !== undefined ? { hidden } : {}),
++              },
++            ],
++          });
++          if (placed?.success === false) throw new Error(placed.error || 'refused');
++          result.token = { ...(placed?.created?.[0] ?? {}), scene: placed?.scene };
++          result.steps = [...(result.steps ?? []), 'token placed'];
++        } catch (error) {
++          // The chest exists; say so, so it is not made twice.
++          throw new Error(
++            `The chest "${made.actor.name}" was made (id ${made.actor.id}) but its token could not be placed: ${error instanceof Error ? error.message : 'Unknown error'}`
++          );
++        }
++      }
++      return result;
++    } catch (error) {
++      this.logger.error('Failed to make the chest', error);
++      throw new Error(error instanceof Error && /was made \(id/.test(error.message) ? error.message : `Failed to make the chest: ${error instanceof Error ? error.message : 'Unknown error'}`);
++    }
++  }
++}
 diff --git a/packages/mcp-server/src/tools/module-tools.test.ts b/packages/mcp-server/src/tools/module-tools.test.ts
 new file mode 100644
 index 0000000..928207e
@@ -24237,12 +25993,67 @@ index 0000000..44ae426
 +    expect(c.query).toHaveBeenCalledWith('foundry-mcp-bridge.get-token-details', { tokenId: 't', scene: 'Town' });
 +  });
 +});
+diff --git a/packages/mcp-server/src/tools/prop-enclosed.test.ts b/packages/mcp-server/src/tools/prop-enclosed.test.ts
+new file mode 100644
+index 0000000..a897dcc
+--- /dev/null
++++ b/packages/mcp-server/src/tools/prop-enclosed.test.ts
+@@ -0,0 +1,49 @@
++/** Background pockets that do not touch the border (the loop of a handle) are removed on request. */
++import { describe, expect, it } from 'vitest';
++import { keyOutBackground, type Pixels } from './prop-keying.js';
++
++const MAGENTA = [255, 0, 255];
++const BROWN = [120, 80, 40];
++
++/** 100 x 100 magenta picture with a brown frame (a ring) and a magenta hole inside it. */
++function ring(hole: number, speck = false): Pixels {
++  const w = 100;
++  const data = new Uint8Array(w * w * 4);
++  for (let y = 0; y < w; y++) {
++    for (let x = 0; x < w; x++) {
++      const i = (y * w + x) * 4;
++      const inFrame = x >= 20 && x < 80 && y >= 20 && y < 80;
++      const inHole = x >= 50 - hole / 2 && x < 50 + hole / 2 && y >= 50 - hole / 2 && y < 50 + hole / 2;
++      const c = inFrame && !inHole ? BROWN : MAGENTA;
++      data.set([c[0]!, c[1]!, c[2]!, 255], i);
++    }
++  }
++  if (speck) data.set([255, 0, 255, 255], (30 * w + 30) * 4); // a one pixel speck inside the frame
++  return { width: w, height: w, data };
++}
++const alphaAt = (img: Pixels, x: number, y: number) => img.data[(y * img.width + x) * 4 + 3];
++
++describe('removeEnclosed', () => {
++  it('keeps an enclosed pocket by default', () => {
++    const out = keyOutBackground(ring(20), { crop: false });
++    expect(alphaAt(out, 50, 50)).toBe(255);
++  });
++  it('removes it when asked, and leaves the object around it', () => {
++    const out = keyOutBackground(ring(20), { crop: false, removeEnclosed: true });
++    expect(alphaAt(out, 50, 50)).toBe(0);
++    expect(alphaAt(out, 30, 30)).toBe(255);
++    expect(alphaAt(out, 5, 5)).toBe(0);
++    expect(out.opaqueShare).toBeCloseTo((60 * 60 - 20 * 20) / 10000, 2);
++  });
++  it('leaves specks that are too small to be a pocket', () => {
++    const out = keyOutBackground(ring(0, true), { crop: false, removeEnclosed: true });
++    expect(alphaAt(out, 30, 30)).toBe(255);
++  });
++  it('does not remove anything that is far from the background colour', () => {
++    const img = ring(20);
++    // paint the hole green instead: not the key colour, so it stays
++    for (let y = 40; y < 60; y++) for (let x = 40; x < 60; x++) img.data.set([0, 200, 0, 255], (y * 100 + x) * 4);
++    const out = keyOutBackground(img, { crop: false, removeEnclosed: true });
++    expect(alphaAt(out, 50, 50)).toBe(255);
++  });
++});
 diff --git a/packages/mcp-server/src/tools/prop-keying.ts b/packages/mcp-server/src/tools/prop-keying.ts
 new file mode 100644
-index 0000000..313554e
+index 0000000..34e3981
 --- /dev/null
 +++ b/packages/mcp-server/src/tools/prop-keying.ts
-@@ -0,0 +1,232 @@
+@@ -0,0 +1,297 @@
 +/**
 + * Turns a picture of an object on a flat coloured background into a picture with a transparent
 + * background (a prop that can be laid on a map as a tile). Pure pixel work, no files.
@@ -24265,6 +26076,12 @@ index 0000000..313554e
 +  padding?: number;
 +  /** Crop to the object (default true). */
 +  crop?: boolean;
++  /**
++   * Also remove pockets of background that do not touch the border (the loop of a handle, the gap
++   * in a ring) when they match the background colour closely. Default false. Only pockets of a few
++   * dozen pixels or more go, so specks inside the object stay.
++   */
++  removeEnclosed?: boolean;
 +}
 +
 +export interface KeyResult extends Pixels {
@@ -24371,6 +26188,51 @@ index 0000000..313554e
 +    if (y < height - 1) push(x, y + 1);
 +  }
 +
++  if (options.removeEnclosed) {
++    const minPocket = Math.max(40, Math.round(width * height * 0.0002));
++    const seen = new Uint8Array(width * height);
++    const stack = new Int32Array(width * height);
++    const candidate = (p: number) => !reached[p] && !seen[p] && dist(src, p * 4, bg) <= tolerance;
++    for (let start = 0; start < width * height; start++) {
++      if (!candidate(start)) continue;
++      // collect one pocket
++      const members: number[] = [];
++      let top = 0;
++      stack[top++] = start;
++      seen[start] = 1;
++      while (top > 0) {
++        const p = stack[--top]!;
++        members.push(p);
++        const x = p % width;
++        const y = (p - x) / width;
++        const next = [x > 0 ? p - 1 : -1, x < width - 1 ? p + 1 : -1, y > 0 ? p - width : -1, y < height - 1 ? p + width : -1];
++        for (const q of next) {
++          if (q >= 0 && candidate(q)) {
++            seen[q] = 1;
++            stack[top++] = q;
++          }
++        }
++      }
++      if (members.length < minPocket) continue;
++      // spread from the pocket over the soft edge around it, as the border flood does
++      head = 0;
++      tail = 0;
++      for (const p of members) {
++        reached[p] = 1;
++        queue[tail++] = p;
++      }
++      while (head < tail) {
++        const p = queue[head++]!;
++        const x = p % width;
++        const y = (p - x) / width;
++        if (x > 0) push(x - 1, y);
++        if (x < width - 1) push(x + 1, y);
++        if (y > 0) push(x, y - 1);
++        if (y < height - 1) push(x, y + 1);
++      }
++    }
++  }
++
 +  let opaque = 0;
 +  let minX = width;
 +  let minY = height;
@@ -24474,6 +26336,20 @@ index 0000000..313554e
 +    }
 +  }
 +  return { width: w, height: h, data: out };
++}
++
++/** Put a picture in the middle of a transparent square, so a token is not stretched into a circle. */
++export function padToSquare(img: Pixels): Pixels {
++  if (img.width === img.height) return img;
++  const side = Math.max(img.width, img.height);
++  const out = new Uint8Array(side * side * 4);
++  const left = Math.floor((side - img.width) / 2);
++  const top = Math.floor((side - img.height) / 2);
++  for (let y = 0; y < img.height; y++) {
++    const from = y * img.width * 4;
++    out.set(img.data.subarray(from, from + img.width * 4), ((top + y) * side + left) * 4);
++  }
++  return { width: side, height: side, data: out };
 +}
 diff --git a/packages/mcp-server/src/tools/prop-size.test.ts b/packages/mcp-server/src/tools/prop-size.test.ts
 new file mode 100644
@@ -24756,10 +26632,10 @@ index 0000000..24b9cd1
 +});
 diff --git a/packages/mcp-server/src/tools/prop-tools.ts b/packages/mcp-server/src/tools/prop-tools.ts
 new file mode 100644
-index 0000000..9bce4bf
+index 0000000..12988d7
 --- /dev/null
 +++ b/packages/mcp-server/src/tools/prop-tools.ts
-@@ -0,0 +1,209 @@
+@@ -0,0 +1,211 @@
 +import { promises as fs } from 'fs';
 +import os from 'os';
 +import path from 'path';
@@ -24793,6 +26669,7 @@ index 0000000..9bce4bf
 +    key: z.enum(['magenta', 'green', 'blue']).optional(),
 +    image_size: z.number().int().min(256).max(2048).optional(),
 +    final_size: z.number().int().min(32).max(2048).optional(),
++    keep_enclosed: z.boolean().optional(),
 +    tolerance: z.number().min(1).max(200).optional(),
 +    seed: z.number().int().optional(),
 +    negative_prompt: z.string().max(500).optional(),
@@ -24851,6 +26728,7 @@ index 0000000..9bce4bf
 +            image: { type: 'string', description: 'Existing picture on this computer to remove the background from, instead of generating' },
 +            key: { type: 'string', enum: ['magenta', 'green', 'blue'], description: 'Background colour to generate on (default magenta)' },
 +            image_size: { type: 'number', description: 'Size to generate at, a multiple of 32 (default 1024). MiniMax H3 draws badly below about 2 megapixels, so anything smaller is raised to that automatically; the prop is shrunk afterwards.' },
++            keep_enclosed: { type: 'boolean', description: 'Keep background-coloured pockets that do not touch the edge (default false: the loop of a rope handle or the gap in a ring is made transparent too). Set true if the object really contains the key colour.' },
 +            final_size: { type: 'number', description: 'Longest side in pixels of the finished prop picture (default 512; 32 to 2048). The object is generated large and shrunk to this.' },
 +            tolerance: { type: 'number', description: 'How different from the background a pixel must be to stay (default 60)' },
 +            seed: { type: 'number' },
@@ -24907,7 +26785,7 @@ index 0000000..9bce4bf
 +    const picture = await decodeImage(source);
 +    const keyed = keyOutBackground(
 +      { width: picture.width, height: picture.height, data: picture.data },
-+      { ...(a.tolerance !== undefined ? { tolerance: a.tolerance } : {}) }
++      { ...(a.tolerance !== undefined ? { tolerance: a.tolerance } : {}), removeEnclosed: !a.keep_enclosed }
 +    );
 +    steps.push(`background removed (was rgb ${keyed.background.join(',')}), cropped to ${keyed.width} x ${keyed.height}`);
 +
@@ -27189,6 +29067,103 @@ index 1e422bf..a3e86c3 100644
    private formatSceneResponse(sceneData: any, includeTokens: boolean, includeHidden: boolean): any {
      const response: any = {
        id: sceneData.id,
+diff --git a/packages/mcp-server/src/tools/share-tools.test.ts b/packages/mcp-server/src/tools/share-tools.test.ts
+new file mode 100644
+index 0000000..384484b
+--- /dev/null
++++ b/packages/mcp-server/src/tools/share-tools.test.ts
+@@ -0,0 +1,27 @@
++import { describe, expect, it, vi } from 'vitest';
++import { ShareTools } from './share-tools.js';
++
++function make(result: any = { success: true }) {
++  const query = vi.fn(async () => result);
++  const logger: any = { info: vi.fn(), debug: vi.fn(), error: vi.fn(), warn: vi.fn(), child: () => logger };
++  return { tools: new ShareTools({ foundryClient: { query } as any, logger }), query };
++}
++
++describe('share-with-players', () => {
++  it('sends an image or a journal to the bridge', async () => {
++    const { tools, query } = make();
++    await tools.handleShareWithPlayers({ image: 'a/map.png', title: 'The cave', chat: true });
++    expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.share-with-players', { image: 'a/map.png', title: 'The cave', chat: true });
++    await tools.handleShareWithPlayers({ journal: 'Notes', users: ['Ann'] });
++    expect(query).toHaveBeenLastCalledWith('foundry-mcp-bridge.share-with-players', { journal: 'Notes', users: ['Ann'] });
++  });
++  it('needs exactly one of image and journal', async () => {
++    const { tools } = make();
++    await expect(tools.handleShareWithPlayers({})).rejects.toThrow();
++    await expect(tools.handleShareWithPlayers({ image: 'a', journal: 'b' })).rejects.toThrow();
++  });
++  it('passes on a refusal', async () => {
++    const { tools } = make({ success: false, error: 'nope' });
++    await expect(tools.handleShareWithPlayers({ journal: 'x' })).rejects.toThrow('nope');
++  });
++});
+diff --git a/packages/mcp-server/src/tools/share-tools.ts b/packages/mcp-server/src/tools/share-tools.ts
+new file mode 100644
+index 0000000..1aafc44
+--- /dev/null
++++ b/packages/mcp-server/src/tools/share-tools.ts
+@@ -0,0 +1,58 @@
++import { z } from 'zod';
++import { FoundryClient } from '../foundry-client.js';
++import { Logger } from '../logger.js';
++
++export interface ShareToolsOptions {
++  foundryClient: FoundryClient;
++  logger: Logger;
++}
++
++const schema = z
++  .object({
++    image: z.string().min(1).optional(),
++    title: z.string().min(1).max(200).optional(),
++    journal: z.string().min(1).optional(),
++    users: z.array(z.string().min(1)).max(20).optional(),
++    chat: z.boolean().optional(),
++  })
++  .strict()
++  .refine(a => (a.image === undefined) !== (a.journal === undefined), { message: 'Give either image or journal (not both)' });
++
++export class ShareTools {
++  private foundryClient: FoundryClient;
++  private logger: Logger;
++
++  constructor({ foundryClient, logger }: ShareToolsOptions) {
++    this.foundryClient = foundryClient;
++    this.logger = logger.child({ component: 'ShareTools' });
++  }
++
++  getToolDefinitions() {
++    return [
++      {
++        name: 'share-with-players',
++        description:
++          'Show something to the players. image: a Foundry file path (e.g. a handout or map from uploads) opens full-screen for every player, with an optional title. journal: a journal id or name opens for the players; players who cannot yet see it are given observer access first (users limits this to named players, default all). chat: true also posts it to the chat (the picture, or a link to the journal).',
++        inputSchema: {
++          type: 'object',
++          properties: {
++            image: { type: 'string', description: 'Foundry file path of the picture to show' },
++            title: { type: 'string', description: 'Title shown with the picture' },
++            journal: { type: 'string', description: 'Journal id or name to show' },
++            users: { type: 'array', maxItems: 20, items: { type: 'string' }, description: 'Player names or ids (journal only; default all players)' },
++            chat: { type: 'boolean', description: 'Also post to the chat' },
++          },
++          additionalProperties: false,
++        },
++      },
++    ];
++  }
++
++  async handleShareWithPlayers(args: unknown): Promise<any> {
++    const a = schema.parse(args ?? {});
++    this.logger.info('Sharing with players', { image: a.image, journal: a.journal });
++    const result = await this.foundryClient.query('foundry-mcp-bridge.share-with-players', a);
++    if (result?.success === false) throw new Error(result.error || 'Request was refused');
++    return result;
++  }
++}
 diff --git a/packages/mcp-server/src/tools/token-manipulation.test.ts b/packages/mcp-server/src/tools/token-manipulation.test.ts
 new file mode 100644
 index 0000000..75481f8

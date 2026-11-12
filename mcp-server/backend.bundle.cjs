@@ -445,8 +445,8 @@ var init_parseUtil = __esm({
     init_errors();
     init_en();
     makeIssue = (params) => {
-      const { data, path: path12, errorMaps, issueData } = params;
-      const fullPath = [...path12, ...issueData.path || []];
+      const { data, path: path13, errorMaps, issueData } = params;
+      const fullPath = [...path13, ...issueData.path || []];
       const fullIssue = {
         ...issueData,
         path: fullPath
@@ -647,30 +647,30 @@ function floatSafeRemainder(val, step) {
   const stepInt = Number.parseInt(step.toFixed(decCount).replace(".", ""));
   return valInt % stepInt / 10 ** decCount;
 }
-function deepPartialify(schema6) {
-  if (schema6 instanceof ZodObject) {
+function deepPartialify(schema8) {
+  if (schema8 instanceof ZodObject) {
     const newShape = {};
-    for (const key in schema6.shape) {
-      const fieldSchema = schema6.shape[key];
+    for (const key in schema8.shape) {
+      const fieldSchema = schema8.shape[key];
       newShape[key] = ZodOptional.create(deepPartialify(fieldSchema));
     }
     return new ZodObject({
-      ...schema6._def,
+      ...schema8._def,
       shape: () => newShape
     });
-  } else if (schema6 instanceof ZodArray) {
+  } else if (schema8 instanceof ZodArray) {
     return new ZodArray({
-      ...schema6._def,
-      type: deepPartialify(schema6.element)
+      ...schema8._def,
+      type: deepPartialify(schema8.element)
     });
-  } else if (schema6 instanceof ZodOptional) {
-    return ZodOptional.create(deepPartialify(schema6.unwrap()));
-  } else if (schema6 instanceof ZodNullable) {
-    return ZodNullable.create(deepPartialify(schema6.unwrap()));
-  } else if (schema6 instanceof ZodTuple) {
-    return ZodTuple.create(schema6.items.map((item) => deepPartialify(item)));
+  } else if (schema8 instanceof ZodOptional) {
+    return ZodOptional.create(deepPartialify(schema8.unwrap()));
+  } else if (schema8 instanceof ZodNullable) {
+    return ZodNullable.create(deepPartialify(schema8.unwrap()));
+  } else if (schema8 instanceof ZodTuple) {
+    return ZodTuple.create(schema8.items.map((item) => deepPartialify(item)));
   } else {
-    return schema6;
+    return schema8;
   }
 }
 function mergeValues(a, b) {
@@ -754,11 +754,11 @@ var init_types = __esm({
     init_parseUtil();
     init_util();
     ParseInputLazyPath = class {
-      constructor(parent, value, path12, key) {
+      constructor(parent, value, path13, key) {
         this._cachedPath = [];
         this.parent = parent;
         this.data = value;
-        this._path = path12;
+        this._path = path13;
         this._key = key;
       }
       get path() {
@@ -2397,9 +2397,9 @@ var init_types = __esm({
         return this.min(1, message);
       }
     };
-    ZodArray.create = (schema6, params) => {
+    ZodArray.create = (schema8, params) => {
       return new ZodArray({
-        type: schema6,
+        type: schema8,
         minLength: null,
         maxLength: null,
         exactLength: null,
@@ -2620,8 +2620,8 @@ var init_types = __esm({
       //   }) as any;
       //   return merged;
       // }
-      setKey(key, schema6) {
-        return this.augment({ [key]: schema6 });
+      setKey(key, schema8) {
+        return this.augment({ [key]: schema8 });
       }
       // merge<Incoming extends AnyZodObject>(
       //   merging: Incoming
@@ -3029,10 +3029,10 @@ var init_types = __esm({
           status.dirty();
         }
         const items = [...ctx.data].map((item, itemIndex) => {
-          const schema6 = this._def.items[itemIndex] || this._def.rest;
-          if (!schema6)
+          const schema8 = this._def.items[itemIndex] || this._def.rest;
+          if (!schema8)
             return null;
-          return schema6._parse(new ParseInputLazyPath(ctx, item, ctx.path, itemIndex));
+          return schema8._parse(new ParseInputLazyPath(ctx, item, ctx.path, itemIndex));
         }).filter((x) => !!x);
         if (ctx.common.async) {
           return Promise.all(items).then((results) => {
@@ -3539,9 +3539,9 @@ var init_types = __esm({
         }));
       }
     };
-    ZodPromise.create = (schema6, params) => {
+    ZodPromise.create = (schema8, params) => {
       return new ZodPromise({
-        type: schema6,
+        type: schema8,
         typeName: ZodFirstPartyTypeKind.ZodPromise,
         ...processCreateParams(params)
       });
@@ -3669,17 +3669,17 @@ var init_types = __esm({
         util.assertNever(effect);
       }
     };
-    ZodEffects.create = (schema6, effect, params) => {
+    ZodEffects.create = (schema8, effect, params) => {
       return new ZodEffects({
-        schema: schema6,
+        schema: schema8,
         typeName: ZodFirstPartyTypeKind.ZodEffects,
         effect,
         ...processCreateParams(params)
       });
     };
-    ZodEffects.createWithPreprocess = (preprocess, schema6, params) => {
+    ZodEffects.createWithPreprocess = (preprocess, schema8, params) => {
       return new ZodEffects({
-        schema: schema6,
+        schema: schema8,
         effect: { type: "preprocess", transform: preprocess },
         typeName: ZodFirstPartyTypeKind.ZodEffects,
         ...processCreateParams(params)
@@ -4210,9 +4210,9 @@ var require_package = __commonJS({
 // ../../node_modules/dotenv/lib/main.js
 var require_main = __commonJS({
   "../../node_modules/dotenv/lib/main.js"(exports2, module2) {
-    var fs12 = require("fs");
-    var path12 = require("path");
-    var os6 = require("os");
+    var fs13 = require("fs");
+    var path13 = require("path");
+    var os7 = require("os");
     var crypto7 = require("crypto");
     var packageJson = require_package();
     var version2 = packageJson.version;
@@ -4319,7 +4319,7 @@ var require_main = __commonJS({
       if (options && options.path && options.path.length > 0) {
         if (Array.isArray(options.path)) {
           for (const filepath of options.path) {
-            if (fs12.existsSync(filepath)) {
+            if (fs13.existsSync(filepath)) {
               possibleVaultPath = filepath.endsWith(".vault") ? filepath : `${filepath}.vault`;
             }
           }
@@ -4327,15 +4327,15 @@ var require_main = __commonJS({
           possibleVaultPath = options.path.endsWith(".vault") ? options.path : `${options.path}.vault`;
         }
       } else {
-        possibleVaultPath = path12.resolve(process.cwd(), ".env.vault");
+        possibleVaultPath = path13.resolve(process.cwd(), ".env.vault");
       }
-      if (fs12.existsSync(possibleVaultPath)) {
+      if (fs13.existsSync(possibleVaultPath)) {
         return possibleVaultPath;
       }
       return null;
     }
     function _resolveHome(envPath) {
-      return envPath[0] === "~" ? path12.join(os6.homedir(), envPath.slice(1)) : envPath;
+      return envPath[0] === "~" ? path13.join(os7.homedir(), envPath.slice(1)) : envPath;
     }
     function _configVault(options) {
       const debug = Boolean(options && options.debug);
@@ -4352,7 +4352,7 @@ var require_main = __commonJS({
       return { parsed };
     }
     function configDotenv(options) {
-      const dotenvPath = path12.resolve(process.cwd(), ".env");
+      const dotenvPath = path13.resolve(process.cwd(), ".env");
       let encoding = "utf8";
       const debug = Boolean(options && options.debug);
       const quiet = options && "quiet" in options ? options.quiet : true;
@@ -4376,13 +4376,13 @@ var require_main = __commonJS({
       }
       let lastError;
       const parsedAll = {};
-      for (const path13 of optionPaths) {
+      for (const path14 of optionPaths) {
         try {
-          const parsed = DotenvModule.parse(fs12.readFileSync(path13, { encoding }));
+          const parsed = DotenvModule.parse(fs13.readFileSync(path14, { encoding }));
           DotenvModule.populate(parsedAll, parsed, options);
         } catch (e) {
           if (debug) {
-            _debug(`Failed to load ${path13} ${e.message}`);
+            _debug(`Failed to load ${path14} ${e.message}`);
           }
           lastError = e;
         }
@@ -4397,7 +4397,7 @@ var require_main = __commonJS({
         const shortPaths = [];
         for (const filePath of optionPaths) {
           try {
-            const relative = path12.relative(process.cwd(), filePath);
+            const relative = path13.relative(process.cwd(), filePath);
             shortPaths.push(relative);
           } catch (e) {
             if (debug) {
@@ -4659,7 +4659,7 @@ var require_has_flag = __commonJS({
 var require_supports_colors = __commonJS({
   "../../node_modules/@colors/colors/lib/system/supports-colors.js"(exports2, module2) {
     "use strict";
-    var os6 = require("os");
+    var os7 = require("os");
     var hasFlag = require_has_flag();
     var env = process.env;
     var forceColor = void 0;
@@ -4697,7 +4697,7 @@ var require_supports_colors = __commonJS({
       }
       var min = forceColor ? 1 : 0;
       if (process.platform === "win32") {
-        var osRelease = os6.release().split(".");
+        var osRelease = os7.release().split(".");
         if (Number(process.versions.node.split(".")[0]) >= 8 && Number(osRelease[0]) >= 10 && Number(osRelease[2]) >= 10586) {
           return Number(osRelease[2]) >= 14931 ? 3 : 2;
         }
@@ -10115,7 +10115,7 @@ var require_winston_transport = __commonJS({
 var require_console = __commonJS({
   "../../node_modules/winston/lib/winston/transports/console.js"(exports2, module2) {
     "use strict";
-    var os6 = require("os");
+    var os7 = require("os");
     var { LEVEL, MESSAGE } = require_triple_beam();
     var TransportStream = require_winston_transport();
     module2.exports = class Console extends TransportStream {
@@ -10129,7 +10129,7 @@ var require_console = __commonJS({
         this.name = options.name || "console";
         this.stderrLevels = this._stringArrayToSet(options.stderrLevels);
         this.consoleWarnLevels = this._stringArrayToSet(options.consoleWarnLevels);
-        this.eol = typeof options.eol === "string" ? options.eol : os6.EOL;
+        this.eol = typeof options.eol === "string" ? options.eol : os7.EOL;
         this.forceConsole = options.forceConsole || false;
         this._consoleLog = console.log.bind(console);
         this._consoleWarn = console.warn.bind(console);
@@ -12421,15 +12421,15 @@ var require_route = __commonJS({
       };
     }
     function wrapConversion(toModel, graph) {
-      var path12 = [graph[toModel].parent, toModel];
+      var path13 = [graph[toModel].parent, toModel];
       var fn = conversions[graph[toModel].parent][toModel];
       var cur = graph[toModel].parent;
       while (graph[cur].parent) {
-        path12.unshift(graph[cur].parent);
+        path13.unshift(graph[cur].parent);
         fn = link(conversions[graph[cur].parent][cur], fn);
         cur = graph[cur].parent;
       }
-      fn.conversion = path12;
+      fn.conversion = path13;
       return fn;
     }
     module2.exports = function(fromModel) {
@@ -13086,7 +13086,7 @@ var require_node2 = __commonJS({
 var require_tail_file = __commonJS({
   "../../node_modules/winston/lib/winston/tail-file.js"(exports2, module2) {
     "use strict";
-    var fs12 = require("fs");
+    var fs13 = require("fs");
     var { StringDecoder } = require("string_decoder");
     var { Stream } = require_readable();
     function noop2() {
@@ -13107,7 +13107,7 @@ var require_tail_file = __commonJS({
         stream4.emit("end");
         stream4.emit("close");
       };
-      fs12.open(options.file, "a+", "0644", (err, fd) => {
+      fs13.open(options.file, "a+", "0644", (err, fd) => {
         if (err) {
           if (!iter) {
             stream4.emit("error", err);
@@ -13119,10 +13119,10 @@ var require_tail_file = __commonJS({
         }
         (function read() {
           if (stream4.destroyed) {
-            fs12.close(fd, noop2);
+            fs13.close(fd, noop2);
             return;
           }
-          return fs12.read(fd, buffer, 0, buffer.length, pos, (error, bytes) => {
+          return fs13.read(fd, buffer, 0, buffer.length, pos, (error, bytes) => {
             if (error) {
               if (!iter) {
                 stream4.emit("error", error);
@@ -13181,15 +13181,15 @@ var require_tail_file = __commonJS({
 var require_file = __commonJS({
   "../../node_modules/winston/lib/winston/transports/file.js"(exports2, module2) {
     "use strict";
-    var fs12 = require("fs");
-    var path12 = require("path");
+    var fs13 = require("fs");
+    var path13 = require("path");
     var asyncSeries = require_series();
     var zlib3 = require("zlib");
     var { MESSAGE } = require_triple_beam();
     var { Stream, PassThrough } = require_readable();
     var TransportStream = require_winston_transport();
     var debug = require_node2()("winston:file");
-    var os6 = require("os");
+    var os7 = require("os");
     var tailFile = require_tail_file();
     module2.exports = class File extends TransportStream {
       /**
@@ -13212,14 +13212,14 @@ var require_file = __commonJS({
         this._onError = this._onError.bind(this);
         if (options.filename || options.dirname) {
           throwIf("filename or dirname", "stream");
-          this._basename = this.filename = options.filename ? path12.basename(options.filename) : "winston.log";
-          this.dirname = options.dirname || path12.dirname(options.filename);
+          this._basename = this.filename = options.filename ? path13.basename(options.filename) : "winston.log";
+          this.dirname = options.dirname || path13.dirname(options.filename);
           this.options = options.options || { flags: "a" };
         } else if (options.stream) {
           console.warn("options.stream will be removed in winston@4. Use winston.transports.Stream");
           throwIf("stream", "filename", "maxsize");
           this._dest = this._stream.pipe(this._setupStream(options.stream));
-          this.dirname = path12.dirname(this._dest.path);
+          this.dirname = path13.dirname(this._dest.path);
         } else {
           throw new Error("Cannot log to file without filename or stream.");
         }
@@ -13227,7 +13227,7 @@ var require_file = __commonJS({
         this.rotationFormat = options.rotationFormat || false;
         this.zippedArchive = options.zippedArchive || false;
         this.maxFiles = options.maxFiles || null;
-        this.eol = typeof options.eol === "string" ? options.eol : os6.EOL;
+        this.eol = typeof options.eol === "string" ? options.eol : os7.EOL;
         this.tailable = options.tailable || false;
         this.lazy = options.lazy || false;
         this._size = 0;
@@ -13362,11 +13362,11 @@ var require_file = __commonJS({
           options = {};
         }
         options = normalizeQuery(options);
-        const file = path12.join(this.dirname, this.filename);
+        const file = path13.join(this.dirname, this.filename);
         let buff = "";
         let results = [];
         let row2 = 0;
-        const stream4 = fs12.createReadStream(file, {
+        const stream4 = fs13.createReadStream(file, {
           encoding: "utf8"
         });
         stream4.on("error", (err) => {
@@ -13468,7 +13468,7 @@ var require_file = __commonJS({
        * TODO: Refactor me.
        */
       stream(options = {}) {
-        const file = path12.join(this.dirname, this.filename);
+        const file = path13.join(this.dirname, this.filename);
         const stream4 = new Stream();
         const tail = {
           file,
@@ -13520,8 +13520,8 @@ var require_file = __commonJS({
        */
       stat(callback) {
         const target = this._getFile();
-        const fullpath = path12.join(this.dirname, target);
-        fs12.stat(fullpath, (err, stat) => {
+        const fullpath = path13.join(this.dirname, target);
+        fs13.stat(fullpath, (err, stat) => {
           if (err && err.code === "ENOENT") {
             debug("ENOENT\xA0ok", fullpath);
             this.filename = target;
@@ -13624,9 +13624,9 @@ var require_file = __commonJS({
        * @returns {WritableStream} Stream that writes to disk for the active file.
        */
       _createStream(source) {
-        const fullpath = path12.join(this.dirname, this.filename);
+        const fullpath = path13.join(this.dirname, this.filename);
         debug("create stream start", fullpath, this.options);
-        const dest = fs12.createWriteStream(fullpath, this.options).on("error", (err) => debug(err)).on("close", () => debug("close", dest.path, dest.bytesWritten)).on("open", () => {
+        const dest = fs13.createWriteStream(fullpath, this.options).on("error", (err) => debug(err)).on("close", () => debug("close", dest.path, dest.bytesWritten)).on("open", () => {
           debug("file open ok", fullpath);
           this.emit("open", fullpath);
           source.pipe(dest);
@@ -13649,16 +13649,16 @@ var require_file = __commonJS({
        */
       _incFile(callback) {
         debug("_incFile", this.filename);
-        const ext = path12.extname(this._basename);
-        const basename2 = path12.basename(this._basename, ext);
+        const ext = path13.extname(this._basename);
+        const basename2 = path13.basename(this._basename, ext);
         const tasks = [];
         if (this.zippedArchive) {
           tasks.push(
             function(cb) {
               const num3 = this._created > 0 && !this.tailable ? this._created : "";
               this._compressFile(
-                path12.join(this.dirname, `${basename2}${num3}${ext}`),
-                path12.join(this.dirname, `${basename2}${num3}${ext}.gz`),
+                path13.join(this.dirname, `${basename2}${num3}${ext}`),
+                path13.join(this.dirname, `${basename2}${num3}${ext}.gz`),
                 cb
               );
             }.bind(this)
@@ -13683,8 +13683,8 @@ var require_file = __commonJS({
        * @private
        */
       _getFile() {
-        const ext = path12.extname(this._basename);
-        const basename2 = path12.basename(this._basename, ext);
+        const ext = path13.extname(this._basename);
+        const basename2 = path13.basename(this._basename, ext);
         const isRotation = this.rotationFormat ? this.rotationFormat() : this._created;
         return !this.tailable && this._created ? `${basename2}${isRotation}${ext}` : `${basename2}${ext}`;
       }
@@ -13704,8 +13704,8 @@ var require_file = __commonJS({
         const isOldest = oldest !== 0 ? oldest : "";
         const isZipped = this.zippedArchive ? ".gz" : "";
         const filePath = `${basename2}${isOldest}${ext}${isZipped}`;
-        const target = path12.join(this.dirname, filePath);
-        fs12.unlink(target, callback);
+        const target = path13.join(this.dirname, filePath);
+        fs13.unlink(target, callback);
       }
       /**
        * Roll files forward based on integer, up to maxFiles. e.g. if base if
@@ -13727,20 +13727,20 @@ var require_file = __commonJS({
         for (let x = this.maxFiles - 1; x > 1; x--) {
           tasks.push(function(i, cb) {
             let fileName = `${basename2}${i - 1}${ext}${isZipped}`;
-            const tmppath = path12.join(this.dirname, fileName);
-            fs12.exists(tmppath, (exists) => {
+            const tmppath = path13.join(this.dirname, fileName);
+            fs13.exists(tmppath, (exists) => {
               if (!exists) {
                 return cb(null);
               }
               fileName = `${basename2}${i}${ext}${isZipped}`;
-              fs12.rename(tmppath, path12.join(this.dirname, fileName), cb);
+              fs13.rename(tmppath, path13.join(this.dirname, fileName), cb);
             });
           }.bind(this, x));
         }
         asyncSeries(tasks, () => {
-          fs12.rename(
-            path12.join(this.dirname, `${basename2}${ext}${isZipped}`),
-            path12.join(this.dirname, `${basename2}1${ext}${isZipped}`),
+          fs13.rename(
+            path13.join(this.dirname, `${basename2}${ext}${isZipped}`),
+            path13.join(this.dirname, `${basename2}1${ext}${isZipped}`),
             callback
           );
         });
@@ -13754,22 +13754,22 @@ var require_file = __commonJS({
        * @private
        */
       _compressFile(src, dest, callback) {
-        fs12.access(src, fs12.F_OK, (err) => {
+        fs13.access(src, fs13.F_OK, (err) => {
           if (err) {
             return callback();
           }
           var gzip = zlib3.createGzip();
-          var inp = fs12.createReadStream(src);
-          var out = fs12.createWriteStream(dest);
+          var inp = fs13.createReadStream(src);
+          var out = fs13.createWriteStream(dest);
           out.on("finish", () => {
-            fs12.unlink(src, callback);
+            fs13.unlink(src, callback);
           });
           inp.pipe(gzip).pipe(out);
         });
       }
       _createLogDirIfNotExist(dirPath) {
-        if (!fs12.existsSync(dirPath)) {
-          fs12.mkdirSync(dirPath, { recursive: true });
+        if (!fs13.existsSync(dirPath)) {
+          fs13.mkdirSync(dirPath, { recursive: true });
         }
       }
     };
@@ -13853,9 +13853,9 @@ var require_http = __commonJS({
         };
         const auth = options.params.auth || null;
         delete options.params.auth;
-        const path12 = options.params.path || null;
+        const path13 = options.params.path || null;
         delete options.params.path;
-        this._request(options, auth, path12, (err, res, body) => {
+        this._request(options, auth, path13, (err, res, body) => {
           if (res && res.statusCode !== 200) {
             err = new Error(`Invalid HTTP Status Code: ${res.statusCode}`);
           }
@@ -13883,12 +13883,12 @@ var require_http = __commonJS({
           method: "stream",
           params: options
         };
-        const path12 = options.params.path || null;
+        const path13 = options.params.path || null;
         delete options.params.path;
         const auth = options.params.auth || null;
         delete options.params.auth;
         let buff = "";
-        const req = this._request(options, auth, path12);
+        const req = this._request(options, auth, path13);
         stream4.destroy = () => req.destroy();
         req.on("data", (data) => {
           data = (buff + data).split(/\n+/);
@@ -13914,14 +13914,14 @@ var require_http = __commonJS({
        * @param {string} path - request path
        * @param {function} callback - Continuation to respond to when complete.
        */
-      _request(options, auth, path12, callback) {
+      _request(options, auth, path13, callback) {
         options = options || {};
         auth = auth || this.auth;
-        path12 = path12 || this.path || "";
+        path13 = path13 || this.path || "";
         if (this.batch) {
-          this._doBatch(options, callback, auth, path12);
+          this._doBatch(options, callback, auth, path13);
         } else {
-          this._doRequest(options, callback, auth, path12);
+          this._doRequest(options, callback, auth, path13);
         }
       }
       /**
@@ -13931,18 +13931,18 @@ var require_http = __commonJS({
        * @param {Object?} auth - authentication options
        * @param {string} path - request path
        */
-      _doBatch(options, callback, auth, path12) {
+      _doBatch(options, callback, auth, path13) {
         this.batchOptions.push(options);
         if (this.batchOptions.length === 1) {
           const me = this;
           this.batchCallback = callback;
           this.batchTimeoutID = setTimeout(function() {
             me.batchTimeoutID = -1;
-            me._doBatchRequest(me.batchCallback, auth, path12);
+            me._doBatchRequest(me.batchCallback, auth, path13);
           }, this.batchInterval);
         }
         if (this.batchOptions.length === this.batchCount) {
-          this._doBatchRequest(this.batchCallback, auth, path12);
+          this._doBatchRequest(this.batchCallback, auth, path13);
         }
       }
       /**
@@ -13951,14 +13951,14 @@ var require_http = __commonJS({
        * @param {Object?} auth - authentication options
        * @param {string} path - request path
        */
-      _doBatchRequest(callback, auth, path12) {
+      _doBatchRequest(callback, auth, path13) {
         if (this.batchTimeoutID > 0) {
           clearTimeout(this.batchTimeoutID);
           this.batchTimeoutID = -1;
         }
         const batchOptionsCopy = this.batchOptions.slice();
         this.batchOptions = [];
-        this._doRequest(batchOptionsCopy, callback, auth, path12);
+        this._doRequest(batchOptionsCopy, callback, auth, path13);
       }
       /**
        * Make a request to a winstond server or any http server which can
@@ -13968,7 +13968,7 @@ var require_http = __commonJS({
        * @param {Object?} auth - authentication options
        * @param {string} path - request path
        */
-      _doRequest(options, callback, auth, path12) {
+      _doRequest(options, callback, auth, path13) {
         const headers = Object.assign({}, this.headers);
         if (auth && auth.bearer) {
           headers.Authorization = `Bearer ${auth.bearer}`;
@@ -13978,7 +13978,7 @@ var require_http = __commonJS({
           method: "POST",
           host: this.host,
           port: this.port,
-          path: `/${path12.replace(/^\//, "")}`,
+          path: `/${path13.replace(/^\//, "")}`,
           headers,
           auth: auth && auth.username && auth.password ? `${auth.username}:${auth.password}` : "",
           agent: this.agent
@@ -14013,7 +14013,7 @@ var require_stream2 = __commonJS({
     "use strict";
     var isStream2 = require_is_stream();
     var { MESSAGE } = require_triple_beam();
-    var os6 = require("os");
+    var os7 = require("os");
     var TransportStream = require_winston_transport();
     module2.exports = class Stream extends TransportStream {
       /**
@@ -14029,7 +14029,7 @@ var require_stream2 = __commonJS({
         this._stream = options.stream;
         this._stream.setMaxListeners(Infinity);
         this.isObjectMode = options.stream._writableState.objectMode;
-        this.eol = typeof options.eol === "string" ? options.eol : os6.EOL;
+        this.eol = typeof options.eol === "string" ? options.eol : os7.EOL;
       }
       /**
        * Core logging method exposed to Winston.
@@ -14415,7 +14415,7 @@ var require_exception_stream = __commonJS({
 var require_exception_handler = __commonJS({
   "../../node_modules/winston/lib/winston/exception-handler.js"(exports2, module2) {
     "use strict";
-    var os6 = require("os");
+    var os7 = require("os");
     var asyncForEach = require_forEach();
     var debug = require_node2()("winston:exception");
     var once = require_one_time();
@@ -14510,8 +14510,8 @@ var require_exception_handler = __commonJS({
        */
       getOsInfo() {
         return {
-          loadavg: os6.loadavg(),
-          uptime: os6.uptime()
+          loadavg: os7.loadavg(),
+          uptime: os7.uptime()
         };
       }
       /**
@@ -14653,7 +14653,7 @@ var require_rejection_stream = __commonJS({
 var require_rejection_handler = __commonJS({
   "../../node_modules/winston/lib/winston/rejection-handler.js"(exports2, module2) {
     "use strict";
-    var os6 = require("os");
+    var os7 = require("os");
     var asyncForEach = require_forEach();
     var debug = require_node2()("winston:rejection");
     var once = require_one_time();
@@ -14750,8 +14750,8 @@ var require_rejection_handler = __commonJS({
        */
       getOsInfo() {
         return {
-          loadavg: os6.loadavg(),
-          uptime: os6.uptime()
+          loadavg: os7.loadavg(),
+          uptime: os7.uptime()
         };
       }
       /**
@@ -22439,7 +22439,7 @@ var require_has_flag2 = __commonJS({
 var require_supports_color = __commonJS({
   "../../node_modules/supports-color/index.js"(exports2, module2) {
     "use strict";
-    var os6 = require("os");
+    var os7 = require("os");
     var tty = require("tty");
     var hasFlag = require_has_flag2();
     var { env } = process;
@@ -22487,7 +22487,7 @@ var require_supports_color = __commonJS({
         return min;
       }
       if (process.platform === "win32") {
-        const osRelease = os6.release().split(".");
+        const osRelease = os7.release().split(".");
         if (Number(osRelease[0]) >= 10 && Number(osRelease[2]) >= 10586) {
           return Number(osRelease[2]) >= 14931 ? 3 : 2;
         }
@@ -22975,7 +22975,7 @@ var require_ip = __commonJS({
   "../../node_modules/ip/lib/ip.js"(exports2) {
     var ip = exports2;
     var { Buffer: Buffer2 } = require("buffer");
-    var os6 = require("os");
+    var os7 = require("os");
     ip.toBuffer = function(ip2, buff, offset) {
       offset = ~~offset;
       var result;
@@ -23248,7 +23248,7 @@ var require_ip = __commonJS({
       return family === "ipv4" ? "127.0.0.1" : "fe80::1";
     };
     ip.address = function(name, family) {
-      var interfaces = os6.networkInterfaces();
+      var interfaces = os7.networkInterfaces();
       family = _normalizeFamily(family);
       if (name && name !== "private" && name !== "public") {
         var res = interfaces[name].filter((details) => {
@@ -28182,8 +28182,8 @@ var require_depacketizer = __commonJS({
     var __1 = require_src4();
     var codec_1 = require_codec();
     var helper_1 = require_helper2();
-    var path12 = `werift-rtp : packages/rtp/src/processor/depacketizer.ts`;
-    var log = (0, debug_1.default)(path12);
+    var path13 = `werift-rtp : packages/rtp/src/processor/depacketizer.ts`;
+    var log = (0, debug_1.default)(path13);
     var DepacketizeBase = class {
       constructor(codec, options = {}) {
         Object.defineProperty(this, "codec", {
@@ -30812,14 +30812,14 @@ var require_webmCallback = __commonJS({
       }
     };
     exports2.WebmCallback = WebmCallback;
-    var saveToFileSystem = (path12) => async (value) => {
+    var saveToFileSystem = (path13) => async (value) => {
       if (value.saveToFile) {
-        await (0, promises_1.appendFile)(path12, value.saveToFile);
+        await (0, promises_1.appendFile)(path13, value.saveToFile);
       } else if (value.eol) {
         const { durationElement } = value.eol;
-        const handler = await (0, promises_1.open)(path12, "r+");
+        const handler = await (0, promises_1.open)(path13, "r+");
         await handler.write(durationElement, 0, durationElement.length, webm_1.DurationPosition);
-        const meta = await (0, promises_1.stat)(path12);
+        const meta = await (0, promises_1.stat)(path13);
         const resize = (0, webm_1.replaceSegmentSize)(meta.size);
         await handler.write(resize, 0, resize.length, webm_1.SegmentSizePosition);
         await handler.close();
@@ -35384,12 +35384,12 @@ var require_writer = __commonJS({
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.MediaWriter = void 0;
     var MediaWriter = class {
-      constructor(path12, options) {
+      constructor(path13, options) {
         Object.defineProperty(this, "path", {
           enumerable: true,
           configurable: true,
           writable: true,
-          value: path12
+          value: path13
         });
         Object.defineProperty(this, "options", {
           enumerable: true,
@@ -35529,7 +35529,7 @@ var require_recorder = __commonJS({
     exports2.MediaRecorder = void 0;
     var webm_1 = require_webm3();
     var MediaRecorder = class {
-      constructor(tracks, path12, options = {}) {
+      constructor(tracks, path13, options = {}) {
         Object.defineProperty(this, "tracks", {
           enumerable: true,
           configurable: true,
@@ -35540,7 +35540,7 @@ var require_recorder = __commonJS({
           enumerable: true,
           configurable: true,
           writable: true,
-          value: path12
+          value: path13
         });
         Object.defineProperty(this, "options", {
           enumerable: true,
@@ -35560,11 +35560,11 @@ var require_recorder = __commonJS({
           writable: true,
           value: void 0
         });
-        this.ext = path12.split(".").slice(-1)[0];
+        this.ext = path13.split(".").slice(-1)[0];
         this.writer = (() => {
           switch (this.ext) {
             case "webm":
-              return new webm_1.WebmFactory(path12, options);
+              return new webm_1.WebmFactory(path13, options);
             default:
               throw new Error();
           }
@@ -35597,18 +35597,18 @@ var require_userMedia = __commonJS({
     var src_1 = require_src();
     var src_2 = require_src4();
     var track_1 = require_track();
-    var getUserMedia = async (path12, loop) => {
+    var getUserMedia = async (path13, loop) => {
       const audioPort = await (0, src_1.randomPort)();
       const videoPort = await (0, src_1.randomPort)();
-      if (path12.endsWith(".mp4")) {
-        return new MediaPlayerMp4(audioPort, videoPort, path12, loop);
+      if (path13.endsWith(".mp4")) {
+        return new MediaPlayerMp4(audioPort, videoPort, path13, loop);
       } else {
-        return new MediaPlayerWebm(audioPort, videoPort, path12, loop);
+        return new MediaPlayerWebm(audioPort, videoPort, path13, loop);
       }
     };
     exports2.getUserMedia = getUserMedia;
     var MediaPlayerMp4 = class {
-      constructor(videoPort, audioPort, path12, loop) {
+      constructor(videoPort, audioPort, path13, loop) {
         Object.defineProperty(this, "videoPort", {
           enumerable: true,
           configurable: true,
@@ -35625,7 +35625,7 @@ var require_userMedia = __commonJS({
           enumerable: true,
           configurable: true,
           writable: true,
-          value: path12
+          value: path13
         });
         Object.defineProperty(this, "loop", {
           enumerable: true,
@@ -35711,7 +35711,7 @@ var require_userMedia = __commonJS({
     };
     exports2.MediaPlayerMp4 = MediaPlayerMp4;
     var MediaPlayerWebm = class {
-      constructor(videoPort, audioPort, path12, loop) {
+      constructor(videoPort, audioPort, path13, loop) {
         Object.defineProperty(this, "videoPort", {
           enumerable: true,
           configurable: true,
@@ -35728,7 +35728,7 @@ var require_userMedia = __commonJS({
           enumerable: true,
           configurable: true,
           writable: true,
-          value: path12
+          value: path13
         });
         Object.defineProperty(this, "loop", {
           enumerable: true,
@@ -42097,13 +42097,13 @@ function __disposeResources(env) {
   }
   return next();
 }
-function __rewriteRelativeImportExtension(path12, preserveJsx) {
-  if (typeof path12 === "string" && /^\.\.?\//.test(path12)) {
-    return path12.replace(/\.(tsx)$|((?:\.d)?)((?:\.[^./]+?)?)\.([cm]?)ts$/i, function(m, tsx, d, ext, cm) {
+function __rewriteRelativeImportExtension(path13, preserveJsx) {
+  if (typeof path13 === "string" && /^\.\.?\//.test(path13)) {
+    return path13.replace(/\.(tsx)$|((?:\.d)?)((?:\.[^./]+?)?)\.([cm]?)ts$/i, function(m, tsx, d, ext, cm) {
       return tsx ? preserveJsx ? ".jsx" : ".js" : d && (!ext || !cm) ? m : d + ext + "." + cm.toLowerCase() + "js";
     });
   }
-  return path12;
+  return path13;
 }
 var extendStatics, __assign, __createBinding, __setModuleDefault, ownKeys, _SuppressedError, tslib_es6_default;
 var init_tslib_es6 = __esm({
@@ -45790,11 +45790,11 @@ var require_converters = __commonJS({
         if (value === null) {
           return new asn1js.Null();
         }
-        const schema6 = asn1js.fromBER(value);
-        if (schema6.result.error) {
-          throw new Error(schema6.result.error);
+        const schema8 = asn1js.fromBER(value);
+        if (schema8.result.error) {
+          throw new Error(schema8.result.error);
         }
-        return schema6.result;
+        return schema8.result;
       }
     };
     exports2.AsnIntegerConverter = {
@@ -45984,35 +45984,35 @@ var require_schema = __commonJS({
         return this.items.has(target);
       }
       get(target, checkSchema = false) {
-        const schema6 = this.items.get(target);
-        if (!schema6) {
+        const schema8 = this.items.get(target);
+        if (!schema8) {
           throw new Error(`Cannot get schema for '${target.prototype.constructor.name}' target`);
         }
-        if (checkSchema && !schema6.schema) {
+        if (checkSchema && !schema8.schema) {
           throw new Error(`Schema '${target.prototype.constructor.name}' doesn't contain ASN.1 schema. Call 'AsnSchemaStorage.cache'.`);
         }
-        return schema6;
+        return schema8;
       }
       cache(target) {
-        const schema6 = this.get(target);
-        if (!schema6.schema) {
-          schema6.schema = this.create(target, true);
+        const schema8 = this.get(target);
+        if (!schema8.schema) {
+          schema8.schema = this.create(target, true);
         }
       }
       createDefault(target) {
-        const schema6 = { type: enums_1.AsnTypeTypes.Sequence, items: {} };
+        const schema8 = { type: enums_1.AsnTypeTypes.Sequence, items: {} };
         const parentSchema = this.findParentSchema(target);
         if (parentSchema) {
-          Object.assign(schema6, parentSchema);
-          schema6.items = Object.assign({}, schema6.items, parentSchema.items);
+          Object.assign(schema8, parentSchema);
+          schema8.items = Object.assign({}, schema8.items, parentSchema.items);
         }
-        return schema6;
+        return schema8;
       }
       create(target, useNames) {
-        const schema6 = this.items.get(target) || this.createDefault(target);
+        const schema8 = this.items.get(target) || this.createDefault(target);
         const asn1Value = [];
-        for (const key in schema6.items) {
-          const item = schema6.items[key];
+        for (const key in schema8.items) {
+          const item = schema8.items[key];
           const name = useNames ? key : "";
           let asn1Item;
           if (typeof item.type === "number") {
@@ -46074,7 +46074,7 @@ var require_schema = __commonJS({
             asn1Value.push(asn1Item);
           }
         }
-        switch (schema6.type) {
+        switch (schema8.type) {
           case enums_1.AsnTypeTypes.Sequence:
             return new asn1js.Sequence({ value: asn1Value, name: "" });
           case enums_1.AsnTypeTypes.Set:
@@ -46085,15 +46085,15 @@ var require_schema = __commonJS({
             throw new Error(`Unsupported ASN1 type in use`);
         }
       }
-      set(target, schema6) {
-        this.items.set(target, schema6);
+      set(target, schema8) {
+        this.items.set(target, schema8);
         return this;
       }
       findParentSchema(target) {
         const parent = Object.getPrototypeOf(target);
         if (parent) {
-          const schema6 = this.items.get(parent);
-          return schema6 || this.findParentSchema(parent);
+          const schema8 = this.items.get(parent);
+          return schema8 || this.findParentSchema(parent);
         }
         return null;
       }
@@ -46123,14 +46123,14 @@ var require_decorators = __commonJS({
     var enums_1 = require_enums();
     var storage_1 = require_storage();
     var AsnType = (options) => (target) => {
-      let schema6;
+      let schema8;
       if (!storage_1.schemaStorage.has(target)) {
-        schema6 = storage_1.schemaStorage.createDefault(target);
-        storage_1.schemaStorage.set(target, schema6);
+        schema8 = storage_1.schemaStorage.createDefault(target);
+        storage_1.schemaStorage.set(target, schema8);
       } else {
-        schema6 = storage_1.schemaStorage.get(target);
+        schema8 = storage_1.schemaStorage.get(target);
       }
-      Object.assign(schema6, options);
+      Object.assign(schema8, options);
     };
     exports2.AsnType = AsnType;
     var AsnChoiceType = () => (0, exports2.AsnType)({ type: enums_1.AsnTypeTypes.Choice });
@@ -46140,12 +46140,12 @@ var require_decorators = __commonJS({
     var AsnSequenceType = (options) => (0, exports2.AsnType)({ type: enums_1.AsnTypeTypes.Sequence, ...options });
     exports2.AsnSequenceType = AsnSequenceType;
     var AsnProp = (options) => (target, propertyKey) => {
-      let schema6;
+      let schema8;
       if (!storage_1.schemaStorage.has(target.constructor)) {
-        schema6 = storage_1.schemaStorage.createDefault(target.constructor);
-        storage_1.schemaStorage.set(target.constructor, schema6);
+        schema8 = storage_1.schemaStorage.createDefault(target.constructor);
+        storage_1.schemaStorage.set(target.constructor, schema8);
       } else {
-        schema6 = storage_1.schemaStorage.get(target.constructor);
+        schema8 = storage_1.schemaStorage.get(target.constructor);
       }
       const copyOptions = Object.assign({}, options);
       if (typeof copyOptions.type === "number" && !copyOptions.converter) {
@@ -46156,7 +46156,7 @@ var require_decorators = __commonJS({
         copyOptions.converter = defaultConverter;
       }
       copyOptions.raw = options.raw;
-      schema6.items[propertyKey] = copyOptions;
+      schema8.items[propertyKey] = copyOptions;
     };
     exports2.AsnProp = AsnProp;
   }
@@ -46215,26 +46215,26 @@ var require_parser = __commonJS({
             const value = new target();
             return value.fromASN(asn1Schema);
           }
-          const schema6 = storage_1.schemaStorage.get(target);
+          const schema8 = storage_1.schemaStorage.get(target);
           storage_1.schemaStorage.cache(target);
-          let targetSchema = schema6.schema;
-          const choiceResult = this.handleChoiceTypes(asn1Schema, schema6, target, targetSchema);
+          let targetSchema = schema8.schema;
+          const choiceResult = this.handleChoiceTypes(asn1Schema, schema8, target, targetSchema);
           if (choiceResult === null || choiceResult === void 0 ? void 0 : choiceResult.result) {
             return choiceResult.result;
           }
           if (choiceResult === null || choiceResult === void 0 ? void 0 : choiceResult.targetSchema) {
             targetSchema = choiceResult.targetSchema;
           }
-          const sequenceResult = this.handleSequenceTypes(asn1Schema, schema6, target, targetSchema);
+          const sequenceResult = this.handleSequenceTypes(asn1Schema, schema8, target, targetSchema);
           if (sequenceResult && "isManualMapping" in sequenceResult) {
             return sequenceResult.result;
           }
           const asn1ComparedSchema = sequenceResult;
           const res = new target();
           if ((0, helper_1.isTypeOfArray)(target)) {
-            return this.handleArrayTypes(asn1Schema, schema6, target);
+            return this.handleArrayTypes(asn1Schema, schema8, target);
           }
-          this.processSchemaItems(schema6, asn1ComparedSchema, res);
+          this.processSchemaItems(schema8, asn1ComparedSchema, res);
           return res;
         } catch (error) {
           if (error instanceof errors_1.AsnSchemaValidationError) {
@@ -46243,10 +46243,10 @@ var require_parser = __commonJS({
           throw error;
         }
       }
-      static handleChoiceTypes(asn1Schema, schema6, target, targetSchema) {
-        if (asn1Schema.constructor === asn1js.Constructed && schema6.type === enums_1.AsnTypeTypes.Choice && asn1Schema.idBlock.tagClass === 3) {
-          for (const key in schema6.items) {
-            const schemaItem = schema6.items[key];
+      static handleChoiceTypes(asn1Schema, schema8, target, targetSchema) {
+        if (asn1Schema.constructor === asn1js.Constructed && schema8.type === enums_1.AsnTypeTypes.Choice && asn1Schema.idBlock.tagClass === 3) {
+          for (const key in schema8.items) {
+            const schemaItem = schema8.items[key];
             if (schemaItem.context === asn1Schema.idBlock.tagNumber && schemaItem.implicit) {
               if (typeof schemaItem.type === "function" && storage_1.schemaStorage.has(schemaItem.type)) {
                 const fieldSchema = storage_1.schemaStorage.get(schemaItem.type);
@@ -46263,29 +46263,29 @@ var require_parser = __commonJS({
               }
             }
           }
-        } else if (asn1Schema.constructor === asn1js.Constructed && schema6.type !== enums_1.AsnTypeTypes.Choice) {
+        } else if (asn1Schema.constructor === asn1js.Constructed && schema8.type !== enums_1.AsnTypeTypes.Choice) {
           const newTargetSchema = new asn1js.Constructed({
             idBlock: {
               tagClass: 3,
               tagNumber: asn1Schema.idBlock.tagNumber
             },
-            value: schema6.schema.valueBlock.value
+            value: schema8.schema.valueBlock.value
           });
-          for (const key in schema6.items) {
+          for (const key in schema8.items) {
             delete asn1Schema[key];
           }
           return { targetSchema: newTargetSchema };
         }
         return null;
       }
-      static handleSequenceTypes(asn1Schema, schema6, target, targetSchema) {
-        if (schema6.type === enums_1.AsnTypeTypes.Sequence) {
-          const optionalChoiceFields = Object.keys(schema6.items).filter((key) => {
-            const item = schema6.items[key];
+      static handleSequenceTypes(asn1Schema, schema8, target, targetSchema) {
+        if (schema8.type === enums_1.AsnTypeTypes.Sequence) {
+          const optionalChoiceFields = Object.keys(schema8.items).filter((key) => {
+            const item = schema8.items[key];
             return item.optional && typeof item.type === "function" && storage_1.schemaStorage.has(item.type) && storage_1.schemaStorage.get(item.type).type === enums_1.AsnTypeTypes.Choice;
           });
           if (optionalChoiceFields.length > 0 && "value" in asn1Schema.valueBlock && Array.isArray(asn1Schema.valueBlock.value) && target.name === "CertReqMsg") {
-            return this.handleManualMapping(asn1Schema, schema6, target);
+            return this.handleManualMapping(asn1Schema, schema8, target);
           }
           const asn1ComparedSchema = asn1js.compareSchema({}, asn1Schema, targetSchema);
           if (!asn1ComparedSchema.verified) {
@@ -46300,14 +46300,14 @@ var require_parser = __commonJS({
           return asn1ComparedSchema;
         }
       }
-      static handleManualMapping(asn1Schema, schema6, target) {
+      static handleManualMapping(asn1Schema, schema8, target) {
         const res = new target();
         const asn1Elements = asn1Schema.valueBlock.value;
-        const schemaKeys = Object.keys(schema6.items);
+        const schemaKeys = Object.keys(schema8.items);
         let asn1Index = 0;
         for (let i = 0; i < schemaKeys.length; i++) {
           const key = schemaKeys[i];
-          const schemaItem = schema6.items[key];
+          const schemaItem = schema8.items[key];
           if (asn1Index >= asn1Elements.length)
             break;
           if (schemaItem.repeated) {
@@ -46378,11 +46378,11 @@ var require_parser = __commonJS({
           throw err;
         }
       }
-      static handleArrayTypes(asn1Schema, schema6, target) {
+      static handleArrayTypes(asn1Schema, schema8, target) {
         if (!("value" in asn1Schema.valueBlock && Array.isArray(asn1Schema.valueBlock.value))) {
           throw new Error(`Cannot get items from the ASN.1 parsed value. ASN.1 object is not constructed.`);
         }
-        const itemType = schema6.itemType;
+        const itemType = schema8.itemType;
         if (typeof itemType === "number") {
           const converter = converters.defaultConverter(itemType);
           if (!converter) {
@@ -46393,13 +46393,13 @@ var require_parser = __commonJS({
           return target.from(asn1Schema.valueBlock.value, (element) => this.fromASN(element, itemType));
         }
       }
-      static processSchemaItems(schema6, asn1ComparedSchema, res) {
-        for (const key in schema6.items) {
+      static processSchemaItems(schema8, asn1ComparedSchema, res) {
+        for (const key in schema8.items) {
           const asn1SchemaValue = asn1ComparedSchema.result[key];
           if (!asn1SchemaValue) {
             continue;
           }
-          const schemaItem = schema6.items[key];
+          const schemaItem = schema8.items[key];
           const schemaItemType = schemaItem.type;
           let parsedValue;
           if (typeof schemaItemType === "number" || (0, helper_1.isConvertible)(schemaItemType)) {
@@ -46495,14 +46495,14 @@ var require_parser = __commonJS({
       }
       static handleImplicitTagging(asn1SchemaValue, schemaItem, schemaItemType) {
         if (schemaItem.implicit && typeof schemaItem.context === "number") {
-          const schema6 = storage_1.schemaStorage.get(schemaItemType);
-          if (schema6.type === enums_1.AsnTypeTypes.Sequence) {
+          const schema8 = storage_1.schemaStorage.get(schemaItemType);
+          if (schema8.type === enums_1.AsnTypeTypes.Sequence) {
             const newSeq = new asn1js.Sequence();
             if ("value" in asn1SchemaValue.valueBlock && Array.isArray(asn1SchemaValue.valueBlock.value) && "value" in newSeq.valueBlock) {
               newSeq.valueBlock.value = asn1SchemaValue.valueBlock.value;
               return newSeq;
             }
-          } else if (schema6.type === enums_1.AsnTypeTypes.Set) {
+          } else if (schema8.type === enums_1.AsnTypeTypes.Set) {
             const newSet = new asn1js.Set();
             if ("value" in asn1SchemaValue.valueBlock && Array.isArray(asn1SchemaValue.valueBlock.value) && "value" in newSet.valueBlock) {
               newSet.valueBlock.value = asn1SchemaValue.valueBlock.value;
@@ -46543,25 +46543,25 @@ var require_serializer = __commonJS({
           throw new TypeError("Parameter 1 should be type of Object.");
         }
         const target = obj.constructor;
-        const schema6 = storage_1.schemaStorage.get(target);
+        const schema8 = storage_1.schemaStorage.get(target);
         storage_1.schemaStorage.cache(target);
         let asn1Value = [];
-        if (schema6.itemType) {
+        if (schema8.itemType) {
           if (!Array.isArray(obj)) {
             throw new TypeError("Parameter 1 should be type of Array.");
           }
-          if (typeof schema6.itemType === "number") {
-            const converter = converters.defaultConverter(schema6.itemType);
+          if (typeof schema8.itemType === "number") {
+            const converter = converters.defaultConverter(schema8.itemType);
             if (!converter) {
               throw new Error(`Cannot get default converter for array item of ${target.name} ASN1 schema`);
             }
             asn1Value = obj.map((o) => converter.toASN(o));
           } else {
-            asn1Value = obj.map((o) => this.toAsnItem({ type: schema6.itemType }, "[]", target, o));
+            asn1Value = obj.map((o) => this.toAsnItem({ type: schema8.itemType }, "[]", target, o));
           }
         } else {
-          for (const key in schema6.items) {
-            const schemaItem = schema6.items[key];
+          for (const key in schema8.items) {
+            const schemaItem = schema8.items[key];
             const objProp = obj[key];
             if (objProp === void 0 || schemaItem.defaultValue === objProp || typeof schemaItem.defaultValue === "object" && typeof objProp === "object" && (0, helper_1.isArrayEqual)(this.serialize(schemaItem.defaultValue), this.serialize(objProp))) {
               continue;
@@ -46608,7 +46608,7 @@ var require_serializer = __commonJS({
           }
         }
         let asnSchema;
-        switch (schema6.type) {
+        switch (schema8.type) {
           case enums_1.AsnTypeTypes.Sequence:
             asnSchema = new asn1js.Sequence({ value: asn1Value });
             break;
@@ -46775,14 +46775,14 @@ var require_build5 = __commonJS({
       }
     };
     var TransformError = class extends JsonError {
-      constructor(schema6, message, innerError) {
+      constructor(schema8, message, innerError) {
         super(message, innerError);
-        this.schema = schema6;
+        this.schema = schema8;
       }
     };
     var ParserError = class extends TransformError {
-      constructor(schema6, message, innerError) {
-        super(schema6, `JSON doesn't match to '${schema6.target.name}' schema. ${message}`, innerError);
+      constructor(schema8, message, innerError) {
+        super(schema8, `JSON doesn't match to '${schema8.target.name}' schema. ${message}`, innerError);
       }
     };
     var ValidationError = class extends JsonError {
@@ -46794,8 +46794,8 @@ var require_build5 = __commonJS({
       }
     };
     var KeyError = class extends ParserError {
-      constructor(schema6, keys, errors = {}) {
-        super(schema6, "Some keys doesn't match to schema");
+      constructor(schema8, keys, errors = {}) {
+        super(schema8, "Some keys doesn't match to schema");
         this.keys = keys;
         this.errors = errors;
       }
@@ -46841,34 +46841,34 @@ var require_build5 = __commonJS({
         return this.items.has(target) || !!this.findParentSchema(target);
       }
       get(target) {
-        const schema6 = this.items.get(target) || this.findParentSchema(target);
-        if (!schema6) {
+        const schema8 = this.items.get(target) || this.findParentSchema(target);
+        if (!schema8) {
           throw new Error("Cannot get schema for current target");
         }
-        return schema6;
+        return schema8;
       }
       create(target) {
-        const schema6 = { names: {} };
+        const schema8 = { names: {} };
         const parentSchema = this.findParentSchema(target);
         if (parentSchema) {
-          Object.assign(schema6, parentSchema);
-          schema6.names = {};
+          Object.assign(schema8, parentSchema);
+          schema8.names = {};
           for (const name in parentSchema.names) {
-            schema6.names[name] = Object.assign({}, parentSchema.names[name]);
+            schema8.names[name] = Object.assign({}, parentSchema.names[name]);
           }
         }
-        schema6.target = target;
-        return schema6;
+        schema8.target = target;
+        return schema8;
       }
-      set(target, schema6) {
-        this.items.set(target, schema6);
+      set(target, schema8) {
+        this.items.set(target, schema8);
         return this;
       }
       findParentSchema(target) {
         const parent = target.__proto__;
         if (parent) {
-          const schema6 = this.items.get(parent);
-          return schema6 || this.findParentSchema(parent);
+          const schema8 = this.items.get(parent);
+          return schema8 || this.findParentSchema(parent);
         }
         return null;
       }
@@ -46977,8 +46977,8 @@ var require_build5 = __commonJS({
           }
         }
       }
-      static getSchemaByName(schema6, name = DEFAULT_SCHEMA) {
-        return { ...schema6.names[DEFAULT_SCHEMA], ...schema6.names[name] };
+      static getSchemaByName(schema8, name = DEFAULT_SCHEMA) {
+        return { ...schema8.names[DEFAULT_SCHEMA], ...schema8.names[name] };
       }
     };
     var JsonSerializer = class extends JsonTransform {
@@ -47004,9 +47004,9 @@ var require_build5 = __commonJS({
           }
           targetSchema = targetSchema || obj.constructor;
           if (schemaStorage.has(targetSchema)) {
-            const schema6 = schemaStorage.get(targetSchema);
+            const schema8 = schemaStorage.get(targetSchema);
             res = {};
-            const namedSchema = this.getSchemaByName(schema6, schemaName);
+            const namedSchema = this.getSchemaByName(schema8, schemaName);
             for (const key in namedSchema) {
               try {
                 const item = namedSchema[key];
@@ -47042,7 +47042,7 @@ var require_build5 = __commonJS({
                 if (e instanceof SerializerError) {
                   throw e;
                 } else {
-                  throw new SerializerError(schema6.target.name, `Property '${key}' is wrong. ${e.message}`, e);
+                  throw new SerializerError(schema8.target.name, `Property '${key}' is wrong. ${e.message}`, e);
                 }
               }
             }
@@ -47070,11 +47070,11 @@ var require_build5 = __commonJS({
         if (isConvertible(obj)) {
           return obj.fromJSON(target);
         }
-        const schema6 = schemaStorage.get(targetSchema);
-        const namedSchema = this.getSchemaByName(schema6, schemaName);
+        const schema8 = schemaStorage.get(targetSchema);
+        const namedSchema = this.getSchemaByName(schema8, schemaName);
         const keyErrors = {};
         if (options.strictProperty && !Array.isArray(target)) {
-          _JsonParser.checkStrictProperty(target, namedSchema, schema6);
+          _JsonParser.checkStrictProperty(target, namedSchema, schema8);
         }
         for (const key in namedSchema) {
           try {
@@ -47085,7 +47085,7 @@ var require_build5 = __commonJS({
               continue;
             }
             if (!item.optional && value === void 0) {
-              throw new ParserError(schema6, `Property '${name}' is required.`);
+              throw new ParserError(schema8, `Property '${name}' is required.`);
             }
             this.checkTypes(value, item);
             this.checkValues(value, item);
@@ -47113,7 +47113,7 @@ var require_build5 = __commonJS({
             }
           } catch (e) {
             if (!(e instanceof ParserError)) {
-              e = new ParserError(schema6, `Property '${key}' is wrong. ${e.message}`, e);
+              e = new ParserError(schema8, `Property '${key}' is wrong. ${e.message}`, e);
             }
             if (options.strictAllKeys) {
               keyErrors[key] = e;
@@ -47124,11 +47124,11 @@ var require_build5 = __commonJS({
         }
         const keys = Object.keys(keyErrors);
         if (keys.length) {
-          throw new KeyError(schema6, keys, keyErrors);
+          throw new KeyError(schema8, keys, keyErrors);
         }
         return obj;
       }
-      static checkStrictProperty(target, namedSchema, schema6) {
+      static checkStrictProperty(target, namedSchema, schema8) {
         const jsonProps = Object.keys(target);
         const schemaProps = Object.keys(namedSchema);
         const keys = [];
@@ -47138,7 +47138,7 @@ var require_build5 = __commonJS({
           }
         }
         if (keys.length) {
-          throw new KeyError(schema6, keys);
+          throw new KeyError(schema8, keys);
         }
       }
     };
@@ -47167,15 +47167,15 @@ var require_build5 = __commonJS({
     }
     var JsonProp = (options = {}) => (target, propertyKey) => {
       const errorMessage = `Cannot set type for ${propertyKey} property of ${target.constructor.name} schema`;
-      let schema6;
+      let schema8;
       if (!schemaStorage.has(target.constructor)) {
-        schema6 = schemaStorage.create(target.constructor);
-        schemaStorage.set(target.constructor, schema6);
+        schema8 = schemaStorage.create(target.constructor);
+        schemaStorage.set(target.constructor, schema8);
       } else {
-        schema6 = schemaStorage.get(target.constructor);
-        if (schema6.target !== target.constructor) {
-          schema6 = schemaStorage.create(target.constructor);
-          schemaStorage.set(target.constructor, schema6);
+        schema8 = schemaStorage.get(target.constructor);
+        if (schema8.target !== target.constructor) {
+          schema8 = schemaStorage.create(target.constructor);
+          schemaStorage.set(target.constructor, schema8);
         }
       }
       const defaultSchema = {
@@ -47196,10 +47196,10 @@ var require_build5 = __commonJS({
         schemaNames = [options.schema || DEFAULT_SCHEMA];
       }
       for (const schemaName of schemaNames) {
-        if (!schema6.names[schemaName]) {
-          schema6.names[schemaName] = {};
+        if (!schema8.names[schemaName]) {
+          schema8.names[schemaName] = {};
         }
-        const namedSchema = schema6.names[schemaName];
+        const namedSchema = schema8.names[schemaName];
         namedSchema[propertyKey] = copyOptions;
       }
     };
@@ -57288,14 +57288,14 @@ var require_dependency_container = __commonJS({
           provider = providerOrConstructor;
         }
         if (providers_1.isTokenProvider(provider)) {
-          const path12 = [token];
+          const path13 = [token];
           let tokenProvider = provider;
           while (tokenProvider != null) {
             const currentToken = tokenProvider.useToken;
-            if (path12.includes(currentToken)) {
-              throw new Error(`Token registration cycle detected! ${[...path12, currentToken].join(" -> ")}`);
+            if (path13.includes(currentToken)) {
+              throw new Error(`Token registration cycle detected! ${[...path13, currentToken].join(" -> ")}`);
             }
-            path12.push(currentToken);
+            path13.push(currentToken);
             const registration = this._registry.get(currentToken);
             if (registration && providers_1.isTokenProvider(registration.provider)) {
               tokenProvider = registration.provider;
@@ -62900,8 +62900,8 @@ var require_decode = __commonJS({
       }
       return decodeSchema(rstream, typeOrSchema, meta);
     }
-    function decodeSchema(rstream, schema6, meta) {
-      assertSchema(schema6);
+    function decodeSchema(rstream, schema8, meta) {
+      assertSchema(schema8);
       const node = /* @__PURE__ */ Object.create(null);
       if (meta.node === void 0) {
         meta.node = node;
@@ -62909,10 +62909,10 @@ var require_decode = __commonJS({
       } else {
         meta.current = node;
       }
-      const keys = Object.keys(schema6);
+      const keys = Object.keys(schema8);
       for (let i = 0; i < keys.length; i += 1) {
         const key = keys[i];
-        const type = schema6[key];
+        const type = schema8[key];
         if (!isDecodeType(type)) {
           node[key] = decodeSchema(rstream, type, meta);
           meta.current = node;
@@ -62927,8 +62927,8 @@ var require_decode = __commonJS({
       }
       return node;
     }
-    function assertSchema(schema6) {
-      if (!isUserType(schema6)) {
+    function assertSchema(schema8) {
+      if (!isUserType(schema8)) {
         throw new TypeError("Argument #2 should be a plain object.");
       }
     }
@@ -62970,18 +62970,18 @@ var require_encode = __commonJS({
         encodeSchema(object, wstream, typeOrSchema, context);
       }
     }
-    function encodeSchema(object, wstream, schema6, context) {
-      assertSchema(schema6);
+    function encodeSchema(object, wstream, schema8, context) {
+      assertSchema(schema8);
       if (context.node === void 0) {
         context.node = object;
         context.current = object;
       } else {
         context.current = object;
       }
-      const keys = Object.keys(schema6);
+      const keys = Object.keys(schema8);
       for (let i = 0; i < keys.length; i += 1) {
         const key = keys[i];
-        const type = schema6[key];
+        const type = schema8[key];
         const value = object[key];
         if (!isEncodeType(type)) {
           encodeSchema(value, wstream, type, context);
@@ -62992,8 +62992,8 @@ var require_encode = __commonJS({
         context[symbols.bytes] += type.encode.bytes;
       }
     }
-    function assertSchema(schema6) {
-      if (!isUserType(schema6)) {
+    function assertSchema(schema8) {
+      if (!isUserType(schema8)) {
         throw new TypeError("Argument `schema` should be a plain object.");
       }
     }
@@ -63011,9 +63011,9 @@ var require_encoding_length = __commonJS({
       encodingLength,
       encodingLengthCommon
     };
-    function encodingLength(obj, schema6) {
+    function encodingLength(obj, schema8) {
       const context = new Metadata();
-      encodingLengthCommon(obj, schema6, context);
+      encodingLengthCommon(obj, schema8, context);
       Metadata.clean(context);
       return context.bytes;
     }
@@ -63024,8 +63024,8 @@ var require_encoding_length = __commonJS({
         encodingLengthSchema(item, typeOrSchema, context);
       }
     }
-    function encodingLengthSchema(item, schema6, context) {
-      if (!isUserType(schema6)) {
+    function encodingLengthSchema(item, schema8, context) {
+      if (!isUserType(schema8)) {
         throw new TypeError("Argument `schema` should be a plain object.");
       }
       if (context.node === void 0) {
@@ -63034,10 +63034,10 @@ var require_encoding_length = __commonJS({
       } else {
         context.current = item;
       }
-      const keys = Object.keys(schema6);
+      const keys = Object.keys(schema8);
       for (let i = 0; i < keys.length; i += 1) {
         const key = keys[i];
-        const type = schema6[key];
+        const type = schema8[key];
         const value = item[key];
         if (!isType(type)) {
           encodingLengthSchema(value, type, context);
@@ -63890,27 +63890,27 @@ var require_src5 = __commonJS({
       types[type] = numbers[type];
     }
     var kschema = Symbol("schema");
-    function createEncodeStream(schema6) {
+    function createEncodeStream(schema8) {
       const stream4 = new BinaryStream({
         readableObjectMode: false,
         writableObjectMode: true,
         transform: transformEncode
       });
-      stream4[kschema] = schema6;
+      stream4[kschema] = schema8;
       return stream4;
     }
     function createDecodeStream(bufOrSchema) {
-      let schema6 = null;
+      let schema8 = null;
       const isBuffer2 = Buffer.isBuffer(bufOrSchema);
       if (!isBuffer2) {
-        schema6 = bufOrSchema;
+        schema8 = bufOrSchema;
       }
       const stream4 = new BinaryStream({
         transform: transformDecode,
         readableObjectMode: true,
         writableObjectMode: false
       });
-      stream4[kschema] = schema6;
+      stream4[kschema] = schema8;
       if (isBuffer2) {
         stream4.append(bufOrSchema);
       }
@@ -87650,7 +87650,7 @@ var require_png = __commonJS({
     var Parser = require_parser_async();
     var Packer = require_packer_async();
     var PNGSync = require_png_sync();
-    var PNG4 = exports2.PNG = function(options) {
+    var PNG5 = exports2.PNG = function(options) {
       Stream.call(this);
       options = options || {};
       this.width = options.width | 0;
@@ -87679,9 +87679,9 @@ var require_png = __commonJS({
       this._parser.on("close", this._handleClose.bind(this));
       this._packer.on("error", this.emit.bind(this, "error"));
     };
-    util4.inherits(PNG4, Stream);
-    PNG4.sync = PNGSync;
-    PNG4.prototype.pack = function() {
+    util4.inherits(PNG5, Stream);
+    PNG5.sync = PNGSync;
+    PNG5.prototype.pack = function() {
       if (!this.data || !this.data.length) {
         this.emit("error", "No data provided");
         return this;
@@ -87693,7 +87693,7 @@ var require_png = __commonJS({
       );
       return this;
     };
-    PNG4.prototype.parse = function(data, callback) {
+    PNG5.prototype.parse = function(data, callback) {
       if (callback) {
         let onParsed, onError;
         onParsed = function(parsedData) {
@@ -87711,27 +87711,27 @@ var require_png = __commonJS({
       this.end(data);
       return this;
     };
-    PNG4.prototype.write = function(data) {
+    PNG5.prototype.write = function(data) {
       this._parser.write(data);
       return true;
     };
-    PNG4.prototype.end = function(data) {
+    PNG5.prototype.end = function(data) {
       this._parser.end(data);
     };
-    PNG4.prototype._metadata = function(metadata) {
+    PNG5.prototype._metadata = function(metadata) {
       this.width = metadata.width;
       this.height = metadata.height;
       this.emit("metadata", metadata);
     };
-    PNG4.prototype._gamma = function(gamma) {
+    PNG5.prototype._gamma = function(gamma) {
       this.gamma = gamma;
     };
-    PNG4.prototype._handleClose = function() {
+    PNG5.prototype._handleClose = function() {
       if (!this._parser.writable && !this._packer.readable) {
         this.emit("close");
       }
     };
-    PNG4.bitblt = function(src, dst, srcX, srcY, width, height, deltaX, deltaY) {
+    PNG5.bitblt = function(src, dst, srcX, srcY, width, height, deltaX, deltaY) {
       srcX |= 0;
       srcY |= 0;
       width |= 0;
@@ -87753,11 +87753,11 @@ var require_png = __commonJS({
         );
       }
     };
-    PNG4.prototype.bitblt = function(dst, srcX, srcY, width, height, deltaX, deltaY) {
-      PNG4.bitblt(this, dst, srcX, srcY, width, height, deltaX, deltaY);
+    PNG5.prototype.bitblt = function(dst, srcX, srcY, width, height, deltaX, deltaY) {
+      PNG5.bitblt(this, dst, srcX, srcY, width, height, deltaX, deltaY);
       return this;
     };
-    PNG4.adjustGamma = function(src) {
+    PNG5.adjustGamma = function(src) {
       if (src.gamma) {
         for (let y = 0; y < src.height; y++) {
           for (let x = 0; x < src.width; x++) {
@@ -87772,8 +87772,8 @@ var require_png = __commonJS({
         src.gamma = 0;
       }
     };
-    PNG4.prototype.adjustGamma = function() {
-      PNG4.adjustGamma(this);
+    PNG5.prototype.adjustGamma = function() {
+      PNG5.adjustGamma(this);
     };
   }
 });
@@ -89423,9 +89423,9 @@ var require_decoder = __commonJS({
         return a < 0 ? 0 : a > 255 ? 255 : a;
       }
       constructor.prototype = {
-        load: function load(path12) {
+        load: function load(path13) {
           var xhr = new XMLHttpRequest();
-          xhr.open("GET", path12, true);
+          xhr.open("GET", path13, true);
           xhr.responseType = "arraybuffer";
           xhr.onload = function() {
             var data = new Uint8Array(xhr.response || xhr.mozResponseArrayBuffer);
@@ -102643,11 +102643,11 @@ var require_mime_types = __commonJS({
       }
       return exts[0];
     }
-    function lookup(path12) {
-      if (!path12 || typeof path12 !== "string") {
+    function lookup(path13) {
+      if (!path13 || typeof path13 !== "string") {
         return false;
       }
-      var extension2 = extname("x." + path12).toLowerCase().substr(1);
+      var extension2 = extname("x." + path13).toLowerCase().substr(1);
       if (!extension2) {
         return false;
       }
@@ -103752,11 +103752,11 @@ var require_form_data = __commonJS({
     "use strict";
     var CombinedStream = require_combined_stream();
     var util4 = require("util");
-    var path12 = require("path");
+    var path13 = require("path");
     var http2 = require("http");
     var https2 = require("https");
     var parseUrl = require("url").parse;
-    var fs12 = require("fs");
+    var fs13 = require("fs");
     var Stream = require("stream").Stream;
     var crypto7 = require("crypto");
     var mime = require_mime_types();
@@ -103823,7 +103823,7 @@ var require_form_data = __commonJS({
         if (value.end != void 0 && value.end != Infinity && value.start != void 0) {
           callback(null, value.end + 1 - (value.start ? value.start : 0));
         } else {
-          fs12.stat(value.path, function(err, stat) {
+          fs13.stat(value.path, function(err, stat) {
             if (err) {
               callback(err);
               return;
@@ -103880,11 +103880,11 @@ var require_form_data = __commonJS({
     FormData3.prototype._getContentDisposition = function(value, options) {
       var filename;
       if (typeof options.filepath === "string") {
-        filename = path12.normalize(options.filepath).replace(/\\/g, "/");
+        filename = path13.normalize(options.filepath).replace(/\\/g, "/");
       } else if (options.filename || value && (value.name || value.path)) {
-        filename = path12.basename(options.filename || value && (value.name || value.path));
+        filename = path13.basename(options.filename || value && (value.name || value.path));
       } else if (value && value.readable && hasOwn(value, "httpVersion")) {
-        filename = path12.basename(value.client._httpMessage.path || "");
+        filename = path13.basename(value.client._httpMessage.path || "");
       }
       if (filename) {
         return 'filename="' + filename + '"';
@@ -104081,10 +104081,10 @@ function isVisitable(thing) {
 function removeBrackets(key) {
   return utils_default.endsWith(key, "[]") ? key.slice(0, -2) : key;
 }
-function renderKey(path12, key, dots) {
-  if (!path12)
+function renderKey(path13, key, dots) {
+  if (!path13)
     return key;
-  return path12.concat(key).map(function each(token, i) {
+  return path13.concat(key).map(function each(token, i) {
     token = removeBrackets(token);
     return !dots && i ? "[" + token + "]" : token;
   }).join(dots ? "." : "");
@@ -104130,9 +104130,9 @@ function toFormData(obj, formData, options) {
     }
     return value;
   }
-  function defaultVisitor(value, key, path12) {
+  function defaultVisitor(value, key, path13) {
     let arr = value;
-    if (value && !path12 && typeof value === "object") {
+    if (value && !path13 && typeof value === "object") {
       if (utils_default.endsWith(key, "{}")) {
         key = metaTokens ? key : key.slice(0, -2);
         value = JSON.stringify(value);
@@ -104151,7 +104151,7 @@ function toFormData(obj, formData, options) {
     if (isVisitable(value)) {
       return true;
     }
-    formData.append(renderKey(path12, key, dots), convertValue(value));
+    formData.append(renderKey(path13, key, dots), convertValue(value));
     return false;
   }
   const stack = [];
@@ -104160,11 +104160,11 @@ function toFormData(obj, formData, options) {
     convertValue,
     isVisitable
   });
-  function build(value, path12) {
+  function build(value, path13) {
     if (utils_default.isUndefined(value))
       return;
     if (stack.indexOf(value) !== -1) {
-      throw Error("Circular reference detected in " + path12.join("."));
+      throw Error("Circular reference detected in " + path13.join("."));
     }
     stack.push(value);
     utils_default.forEach(value, function each(el, key) {
@@ -104172,11 +104172,11 @@ function toFormData(obj, formData, options) {
         formData,
         el,
         utils_default.isString(key) ? key.trim() : key,
-        path12,
+        path13,
         exposedHelpers
       );
       if (result === true) {
-        build(el, path12 ? path12.concat(key) : [key]);
+        build(el, path13 ? path13.concat(key) : [key]);
       }
     });
     stack.pop();
@@ -104450,7 +104450,7 @@ var init_platform2 = __esm({
 // ../../node_modules/axios/lib/helpers/toURLEncodedForm.js
 function toURLEncodedForm(data, options) {
   return toFormData_default(data, new platform_default.classes.URLSearchParams(), {
-    visitor: function(value, key, path12, helpers) {
+    visitor: function(value, key, path13, helpers) {
       if (platform_default.isNode && utils_default.isBuffer(value)) {
         this.append(key, value.toString("base64"));
         return false;
@@ -104488,12 +104488,12 @@ function arrayToObject(arr) {
   return obj;
 }
 function formDataToJSON(formData) {
-  function buildPath(path12, value, target, index) {
-    let name = path12[index++];
+  function buildPath(path13, value, target, index) {
+    let name = path13[index++];
     if (name === "__proto__")
       return true;
     const isNumericKey = Number.isFinite(+name);
-    const isLast = index >= path12.length;
+    const isLast = index >= path13.length;
     name = !name && utils_default.isArray(target) ? target.length : name;
     if (isLast) {
       if (utils_default.hasOwnProp(target, name)) {
@@ -104506,7 +104506,7 @@ function formDataToJSON(formData) {
     if (!target[name] || !utils_default.isObject(target[name])) {
       target[name] = [];
     }
-    const result = buildPath(path12, value, target[name], index);
+    const result = buildPath(path13, value, target[name], index);
     if (result && utils_default.isArray(target[name])) {
       target[name] = arrayToObject(target[name]);
     }
@@ -106461,9 +106461,9 @@ var init_http = __esm({
           auth = urlUsername + ":" + urlPassword;
         }
         auth && headers.delete("authorization");
-        let path12;
+        let path13;
         try {
-          path12 = buildURL(
+          path13 = buildURL(
             parsed.pathname + parsed.search,
             config2.params,
             config2.paramsSerializer
@@ -106481,7 +106481,7 @@ var init_http = __esm({
           false
         );
         const options = {
-          path: path12,
+          path: path13,
           method,
           headers: headers.toJSON(),
           agents: { http: config2.httpAgent, https: config2.httpsAgent },
@@ -106726,10 +106726,10 @@ var init_cookies = __esm({
     cookies_default = platform_default.hasStandardBrowserEnv ? (
       // Standard browser envs support document.cookie
       {
-        write(name, value, expires, path12, domain, secure) {
+        write(name, value, expires, path13, domain, secure) {
           const cookie = [name + "=" + encodeURIComponent(value)];
           utils_default.isNumber(expires) && cookie.push("expires=" + new Date(expires).toGMTString());
-          utils_default.isString(path12) && cookie.push("path=" + path12);
+          utils_default.isString(path13) && cookie.push("path=" + path13);
           utils_default.isString(domain) && cookie.push("domain=" + domain);
           secure === true && cookie.push("secure");
           document.cookie = cookie.join("; ");
@@ -107512,7 +107512,7 @@ var init_dispatchRequest = __esm({
 });
 
 // ../../node_modules/axios/lib/helpers/validator.js
-function assertOptions(options, schema6, allowUnknown) {
+function assertOptions(options, schema8, allowUnknown) {
   if (typeof options !== "object") {
     throw new AxiosError_default("options must be an object", AxiosError_default.ERR_BAD_OPTION_VALUE);
   }
@@ -107520,7 +107520,7 @@ function assertOptions(options, schema6, allowUnknown) {
   let i = keys.length;
   while (i-- > 0) {
     const opt = keys[i];
-    const validator = schema6[opt];
+    const validator = schema8[opt];
     if (validator) {
       const value = options[opt];
       const result = value === void 0 || validator(value, opt, options);
@@ -108143,8 +108143,8 @@ var init_comfyui_models = __esm({
 // dist/utils/comfyui-paths.js
 function isValidComfyUIPath(dirPath) {
   try {
-    const mainPyPath = path9.join(dirPath, "main.py");
-    return fs10.existsSync(mainPyPath) && fs10.statSync(mainPyPath).isFile();
+    const mainPyPath = path10.join(dirPath, "main.py");
+    return fs11.existsSync(mainPyPath) && fs11.statSync(mainPyPath).isFile();
   } catch (error) {
     return false;
   }
@@ -108187,13 +108187,13 @@ function getDefaultPythonCommand(installPath) {
     return "python/python.exe";
   } else if (isMac()) {
     if (installPath) {
-      const venvPython = path9.join(installPath, "venv", "bin", "python");
-      if (fs10.existsSync(venvPython)) {
+      const venvPython = path10.join(installPath, "venv", "bin", "python");
+      if (fs11.existsSync(venvPython)) {
         return venvPython;
       }
     }
     const systemPython311 = "/Library/Frameworks/Python.framework/Versions/3.11/bin/python3";
-    if (fs10.existsSync(systemPython311)) {
+    if (fs11.existsSync(systemPython311)) {
       return systemPython311;
     }
     return "python3";
@@ -108201,12 +108201,12 @@ function getDefaultPythonCommand(installPath) {
     return "python3";
   }
 }
-var fs10, path9;
+var fs11, path10;
 var init_comfyui_paths = __esm({
   "dist/utils/comfyui-paths.js"() {
     "use strict";
-    fs10 = __toESM(require("fs"), 1);
-    path9 = __toESM(require("path"), 1);
+    fs11 = __toESM(require("fs"), 1);
+    path10 = __toESM(require("path"), 1);
     init_platform();
   }
 });
@@ -108216,13 +108216,13 @@ var comfyui_client_exports = {};
 __export(comfyui_client_exports, {
   ComfyUIClient: () => ComfyUIClient
 });
-var import_child_process2, fss, path10, SIZE_MAPPING, ComfyUIClient;
+var import_child_process2, fss, path11, SIZE_MAPPING, ComfyUIClient;
 var init_comfyui_client = __esm({
   "dist/comfyui-client.js"() {
     "use strict";
     import_child_process2 = require("child_process");
     fss = __toESM(require("fs"), 1);
-    path10 = __toESM(require("path"), 1);
+    path11 = __toESM(require("path"), 1);
     init_axios2();
     init_wrapper();
     init_comfyui_errors();
@@ -108349,7 +108349,7 @@ var init_comfyui_client = __esm({
         this.progressCallbacks.delete(promptId);
       }
       getDefaultInstallPath() {
-        return path10.join(getAppDataDir(), "foundry-mcp-server", "ComfyUI-headless");
+        return path11.join(getAppDataDir(), "foundry-mcp-server", "ComfyUI-headless");
       }
       async checkInstallation() {
         if (!this.config.installPath) {
@@ -108422,8 +108422,8 @@ var init_comfyui_client = __esm({
           pythonCommand: this.config.pythonCommand,
           port: this.config.port
         });
-        const mainPyPath = path10.join(this.config.installPath, "main.py");
-        const logPath = path10.join(getAppDataDir(), "comfyui.log");
+        const mainPyPath = path11.join(this.config.installPath, "main.py");
+        const logPath = path11.join(getAppDataDir(), "comfyui.log");
         this.logStream = fss.createWriteStream(logPath, { flags: "a" });
         const spawnOptions = getHiddenProcessSpawnOptions();
         this.process = (0, import_child_process2.spawn)(this.config.pythonCommand, [
@@ -108849,9 +108849,9 @@ var init_comfyui_client = __esm({
 });
 
 // dist/backend.js
-var fs11 = __toESM(require("fs"), 1);
-var os5 = __toESM(require("os"), 1);
-var path11 = __toESM(require("path"), 1);
+var fs12 = __toESM(require("fs"), 1);
+var os6 = __toESM(require("os"), 1);
+var path12 = __toESM(require("path"), 1);
 var net = __toESM(require("net"), 1);
 var import_child_process3 = require("child_process");
 
@@ -109928,11 +109928,11 @@ var SystemPaths = {
     legendaryActions: null
   }
 };
-function extractSystemValue(data, path12) {
-  if (!path12 || !data) {
+function extractSystemValue(data, path13) {
+  if (!path13 || !data) {
     return void 0;
   }
-  const parts = path12.split(".");
+  const parts = path13.split(".");
   let value = data;
   for (const part of parts) {
     if (value === void 0 || value === null) {
@@ -110239,10 +110239,10 @@ var CharacterTools = class {
     ];
   }
   async handleGetCharacter(args) {
-    const schema6 = external_exports.object({
+    const schema8 = external_exports.object({
       identifier: external_exports.string().min(1, "Character identifier cannot be empty")
     });
-    const { identifier } = schema6.parse(args);
+    const { identifier } = schema8.parse(args);
     this.logger.info("Getting character information", { identifier });
     try {
       const characterData = await this.foundryClient.query("foundry-mcp-bridge.getCharacterInfo", {
@@ -110259,11 +110259,11 @@ var CharacterTools = class {
     }
   }
   async handleGetCharacterEntity(args) {
-    const schema6 = external_exports.object({
+    const schema8 = external_exports.object({
       characterIdentifier: external_exports.string().min(1, "Character identifier cannot be empty"),
       entityIdentifier: external_exports.string().min(1, "Entity identifier cannot be empty")
     });
-    const { characterIdentifier, entityIdentifier } = schema6.parse(args);
+    const { characterIdentifier, entityIdentifier } = schema8.parse(args);
     this.logger.info("Getting character entity", { characterIdentifier, entityIdentifier });
     try {
       const result = await this.foundryClient.query("foundry-mcp-bridge.getCharacterEntity", {
@@ -110328,10 +110328,10 @@ var CharacterTools = class {
     }
   }
   async handleListCharacters(args) {
-    const schema6 = external_exports.object({
+    const schema8 = external_exports.object({
       type: external_exports.string().optional()
     });
-    const { type } = schema6.parse(args);
+    const { type } = schema8.parse(args);
     this.logger.info("Listing characters", { type });
     try {
       const actors = await this.foundryClient.query("foundry-mcp-bridge.listActors", { type });
@@ -110352,7 +110352,7 @@ var CharacterTools = class {
     }
   }
   async handleUseItem(args) {
-    const schema6 = external_exports.object({
+    const schema8 = external_exports.object({
       actorIdentifier: external_exports.string().min(1, "Actor identifier cannot be empty"),
       itemIdentifier: external_exports.string().min(1, "Item identifier cannot be empty"),
       targets: external_exports.array(external_exports.string()).optional(),
@@ -110360,7 +110360,7 @@ var CharacterTools = class {
       spellLevel: external_exports.number().optional(),
       skipDialog: external_exports.boolean().optional()
     });
-    const { actorIdentifier, itemIdentifier, targets, consume, spellLevel, skipDialog } = schema6.parse(args);
+    const { actorIdentifier, itemIdentifier, targets, consume, spellLevel, skipDialog } = schema8.parse(args);
     this.logger.info("Using item", {
       actorIdentifier,
       itemIdentifier,
@@ -110399,11 +110399,11 @@ var CharacterTools = class {
       img: external_exports.string().optional(),
       system: external_exports.record(external_exports.any()).optional()
     });
-    const schema6 = external_exports.object({
+    const schema8 = external_exports.object({
       actorIdentifier: external_exports.string().min(1, "Actor identifier cannot be empty"),
       items: external_exports.array(itemSchema2).min(1, "At least one item is required")
     });
-    const { actorIdentifier, items } = schema6.parse(args);
+    const { actorIdentifier, items } = schema8.parse(args);
     this.logger.info("Adding items to actor", {
       actorIdentifier,
       count: items.length,
@@ -110432,10 +110432,10 @@ var CharacterTools = class {
       system: external_exports.record(external_exports.any()).optional(),
       folder: external_exports.string().optional()
     });
-    const schema6 = external_exports.object({
+    const schema8 = external_exports.object({
       updates: external_exports.array(updateEntrySchema).min(1, "At least one update entry is required")
     });
-    const { updates } = schema6.parse(args);
+    const { updates } = schema8.parse(args);
     this.logger.info("Updating world items", {
       count: updates.length,
       ids: updates.map((u) => u.id)
@@ -110452,12 +110452,12 @@ var CharacterTools = class {
     }
   }
   async handleListWorldItems(args) {
-    const schema6 = external_exports.object({
+    const schema8 = external_exports.object({
       type: external_exports.string().optional(),
       folder: external_exports.string().optional(),
       nameFilter: external_exports.string().optional()
     });
-    const { type, folder, nameFilter } = schema6.parse(args);
+    const { type, folder, nameFilter } = schema8.parse(args);
     this.logger.info("Listing world items", {
       type: type ?? null,
       folder: folder ?? null,
@@ -110500,11 +110500,11 @@ var CharacterTools = class {
       effects: external_exports.array(external_exports.record(external_exports.any())).optional(),
       flags: external_exports.record(external_exports.any()).optional()
     });
-    const schema6 = external_exports.object({
+    const schema8 = external_exports.object({
       items: external_exports.array(itemSchema2).min(1, "At least one item is required"),
       folder: external_exports.string().optional()
     });
-    const { items, folder } = schema6.parse(args);
+    const { items, folder } = schema8.parse(args);
     this.logger.info("Creating world items", {
       count: items.length,
       folder: folder ?? null,
@@ -110555,7 +110555,7 @@ var CharacterTools = class {
     }
   }
   async handleRemoveActorItems(args) {
-    const schema6 = external_exports.object({
+    const schema8 = external_exports.object({
       actorIdentifier: external_exports.string().min(1, "Actor identifier cannot be empty"),
       itemIds: external_exports.array(external_exports.string().min(1)).optional(),
       itemNames: external_exports.array(external_exports.string().min(1)).optional(),
@@ -110563,7 +110563,7 @@ var CharacterTools = class {
     }).refine((v) => (v.itemIds?.length ?? 0) + (v.itemNames?.length ?? 0) > 0, {
       message: "Provide itemIds and/or itemNames identifying the items to remove"
     });
-    const { actorIdentifier, itemIds, itemNames, type } = schema6.parse(args);
+    const { actorIdentifier, itemIds, itemNames, type } = schema8.parse(args);
     this.logger.info("Removing items from actor", {
       actorIdentifier,
       ids: itemIds?.length ?? 0,
@@ -110595,14 +110595,14 @@ var CharacterTools = class {
     }
   }
   async handleSearchCharacterItems(args) {
-    const schema6 = external_exports.object({
+    const schema8 = external_exports.object({
       characterIdentifier: external_exports.string().min(1, "Character identifier cannot be empty"),
       query: external_exports.string().optional(),
       type: external_exports.string().optional(),
       category: external_exports.string().optional(),
       limit: external_exports.number().optional()
     });
-    const { characterIdentifier, query, type, category, limit } = schema6.parse(args);
+    const { characterIdentifier, query, type, category, limit } = schema8.parse(args);
     this.logger.info("Searching character items", {
       characterIdentifier,
       query,
@@ -111345,7 +111345,7 @@ var CompendiumTools = class {
   }
   async handleSearchCompendium(args) {
     const gameSystem = await this.getGameSystem();
-    const schema6 = external_exports.object({
+    const schema8 = external_exports.object({
       query: external_exports.string().min(2, "Search query must be at least 2 characters"),
       packType: external_exports.string().optional(),
       filters: GenericFiltersSchema.optional(),
@@ -111353,14 +111353,14 @@ var CompendiumTools = class {
     });
     let parsedArgs;
     try {
-      parsedArgs = schema6.parse(args);
+      parsedArgs = schema8.parse(args);
     } catch (zodError) {
       if (typeof args === "string") {
-        parsedArgs = schema6.parse({ query: args });
+        parsedArgs = schema8.parse({ query: args });
       } else if (args && typeof args.query === "undefined" && typeof args === "object") {
         const firstKey = Object.keys(args)[0];
         if (firstKey && typeof args[firstKey] === "string") {
-          parsedArgs = schema6.parse({ query: args[firstKey] });
+          parsedArgs = schema8.parse({ query: args[firstKey] });
         } else {
           throw zodError;
         }
@@ -111407,12 +111407,12 @@ var CompendiumTools = class {
     }
   }
   async handleGetCompendiumItem(args) {
-    const schema6 = external_exports.object({
+    const schema8 = external_exports.object({
       packId: external_exports.string().min(1, "Pack ID cannot be empty"),
       itemId: external_exports.string().min(1, "Item ID cannot be empty"),
       compact: external_exports.boolean().default(false)
     });
-    const { packId, itemId, compact } = schema6.parse(args);
+    const { packId, itemId, compact } = schema8.parse(args);
     try {
       const item = await this.foundryClient.query("foundry-mcp-bridge.getCompendiumDocumentFull", {
         packId,
@@ -111462,7 +111462,7 @@ var CompendiumTools = class {
   }
   async handleListCreaturesByCriteria(args) {
     const gameSystem = await this.getGameSystem();
-    const schema6 = external_exports.object({
+    const schema8 = external_exports.object({
       // D&D 5e: challengeRating
       challengeRating: external_exports.union([
         external_exports.object({
@@ -111592,7 +111592,7 @@ var CompendiumTools = class {
     });
     let params;
     try {
-      params = schema6.parse(args);
+      params = schema8.parse(args);
       this.logger.debug("Parsed creature criteria parameters successfully", params);
     } catch (parseError) {
       this.logger.error("Failed to parse creature criteria parameters", { args, parseError });
@@ -111642,10 +111642,10 @@ var CompendiumTools = class {
     }
   }
   async handleListCompendiumPacks(args) {
-    const schema6 = external_exports.object({
+    const schema8 = external_exports.object({
       type: external_exports.string().optional()
     });
-    const { type } = schema6.parse(args);
+    const { type } = schema8.parse(args);
     this.logger.info("Listing compendium packs", { type });
     try {
       const packs = await this.foundryClient.query("foundry-mcp-bridge.getAvailablePacks");
@@ -112364,11 +112364,11 @@ var SceneTools = class {
     ];
   }
   async handleGetCurrentScene(args) {
-    const schema6 = external_exports.object({
+    const schema8 = external_exports.object({
       includeTokens: external_exports.boolean().default(true),
       includeHidden: external_exports.boolean().default(false)
     });
-    const { includeTokens, includeHidden } = schema6.parse(args);
+    const { includeTokens, includeHidden } = schema8.parse(args);
     this.logger.info("Getting current scene information", { includeTokens, includeHidden });
     try {
       const sceneData = await this.foundryClient.query("foundry-mcp-bridge.getActiveScene");
@@ -112398,12 +112398,12 @@ var SceneTools = class {
     }
   }
   async handleUpdateSceneMusic(args) {
-    const schema6 = external_exports.object({
+    const schema8 = external_exports.object({
       scene_identifier: external_exports.string().min(1),
       playlist: external_exports.string().nullable().optional(),
       playlist_sound: external_exports.string().nullable().optional()
     });
-    const parsed = schema6.parse(withSceneAlias(args));
+    const parsed = schema8.parse(withSceneAlias(args));
     this.logger.info("Updating scene music", { scene_identifier: parsed.scene_identifier });
     try {
       const result = await this.foundryClient.query("foundry-mcp-bridge.update-scene-music", parsed);
@@ -112415,7 +112415,7 @@ var SceneTools = class {
     }
   }
   async handleManageScenes(args) {
-    const schema6 = external_exports.object({
+    const schema8 = external_exports.object({
       action: external_exports.enum(["create", "update", "describe"]),
       scene_identifier: external_exports.string().min(1).optional(),
       name: external_exports.string().min(1).optional(),
@@ -112446,7 +112446,7 @@ var SceneTools = class {
       }).strict().optional(),
       activate: external_exports.boolean().optional()
     }).strict();
-    const parsed = schema6.parse(withSceneAlias(args, true));
+    const parsed = schema8.parse(withSceneAlias(args, true));
     if (parsed.action === "create" && !parsed.name) {
       throw new Error("name is required for create");
     }
@@ -112734,7 +112734,7 @@ var PlaylistTools = class {
     ];
   }
   async handleManagePlaylists(args) {
-    const schema6 = external_exports.object({
+    const schema8 = external_exports.object({
       action: external_exports.enum(["create", "update", "delete", "describe"]),
       playlist: external_exports.string().nullable().optional(),
       name: external_exports.string().optional(),
@@ -112749,7 +112749,7 @@ var PlaylistTools = class {
       remove_sounds: external_exports.array(external_exports.string().min(1)).max(100).optional(),
       updates: external_exports.record(external_exports.any()).optional()
     });
-    const parsed = schema6.parse(args);
+    const parsed = schema8.parse(args);
     this.logger.info("Managing playlists", { action: parsed.action, playlist: parsed.playlist });
     try {
       const result = await this.foundryClient.query("foundry-mcp-bridge.manage-playlists", parsed);
@@ -112760,13 +112760,13 @@ var PlaylistTools = class {
     }
   }
   async handleControlPlaylist(args) {
-    const schema6 = external_exports.object({
+    const schema8 = external_exports.object({
       playlist: external_exports.string().min(1).optional(),
       command: external_exports.enum(COMMANDS),
       sound: external_exports.string().optional(),
       volume: external_exports.number().min(0).max(1).optional()
     });
-    const parsed = schema6.parse(args);
+    const parsed = schema8.parse(args);
     if (!parsed.playlist && parsed.command !== "now-playing" && parsed.command !== "stop-all") {
       throw new Error(`command ${parsed.command} requires "playlist"`);
     }
@@ -113129,7 +113129,7 @@ var ActorCreationTools = class {
    * Handle actor creation from specific compendium entry
    */
   async handleCreateActorFromCompendium(args) {
-    const schema6 = external_exports.object({
+    const schema8 = external_exports.object({
       packId: external_exports.string().min(1, "Pack ID cannot be empty"),
       itemId: external_exports.string().min(1, "Item ID cannot be empty"),
       names: external_exports.array(external_exports.string().min(1)).min(1, "At least one name is required"),
@@ -113148,7 +113148,7 @@ var ActorCreationTools = class {
         })).optional()
       }).optional()
     });
-    const { packId, itemId, names, quantity, addToScene, placement, folder, hp, token, img, tokenImg } = schema6.parse(args);
+    const { packId, itemId, names, quantity, addToScene, placement, folder, hp, token, img, tokenImg } = schema8.parse(args);
     const finalQuantity = quantity || names.length;
     this.logger.info("Creating actors from specific compendium entry", {
       packId,
@@ -113194,11 +113194,11 @@ var ActorCreationTools = class {
    * Handle getting full compendium entry data
    */
   async handleGetCompendiumEntryFull(args) {
-    const schema6 = external_exports.object({
+    const schema8 = external_exports.object({
       packId: external_exports.string().min(1, "Pack ID cannot be empty"),
       entryId: external_exports.string().min(1, "Entry ID cannot be empty")
     });
-    const { packId, entryId } = schema6.parse(args);
+    const { packId, entryId } = schema8.parse(args);
     this.logger.info("Getting full compendium entry", { packId, entryId });
     try {
       const fullEntry = await this.foundryClient.query("foundry-mcp-bridge.getCompendiumDocumentFull", {
@@ -113488,12 +113488,12 @@ var ActorManagementTools = class {
   }
   // ── place ─────────────────────────────────────────────────────────────────
   async handlePlace(args) {
-    const schema6 = external_exports.object({
+    const schema8 = external_exports.object({
       actorIds: external_exports.array(external_exports.string().min(1)).min(1),
       placement: external_exports.enum(["random", "grid", "center"]).default("random"),
       hidden: external_exports.boolean().default(false)
     });
-    const { actorIds, placement, hidden } = schema6.parse(args);
+    const { actorIds, placement, hidden } = schema8.parse(args);
     this.logger.info("Placing existing actors on scene", {
       count: actorIds.length,
       placement,
@@ -113514,7 +113514,7 @@ var ActorManagementTools = class {
   }
   // ── create ────────────────────────────────────────────────────────────────
   async handleCreate(args) {
-    const schema6 = external_exports.object({
+    const schema8 = external_exports.object({
       actors: external_exports.array(external_exports.object({
         name: external_exports.string().min(1),
         type: external_exports.string().min(1),
@@ -113526,7 +113526,7 @@ var ActorManagementTools = class {
       })).min(1),
       folder: external_exports.string().optional()
     });
-    const { actors, folder } = schema6.parse(args);
+    const { actors, folder } = schema8.parse(args);
     this.logger.info("Creating actors", {
       count: actors.length,
       types: actors.map((a) => a.type)
@@ -113541,7 +113541,7 @@ var ActorManagementTools = class {
   }
   // ── update ────────────────────────────────────────────────────────────────
   async handleUpdate(args) {
-    const schema6 = external_exports.object({
+    const schema8 = external_exports.object({
       updates: external_exports.array(external_exports.object({
         id: external_exports.string().min(1),
         name: external_exports.string().optional(),
@@ -113553,7 +113553,7 @@ var ActorManagementTools = class {
         folder: external_exports.string().min(1).optional()
       })).min(1)
     });
-    const { updates } = schema6.parse(args);
+    const { updates } = schema8.parse(args);
     this.logger.info("Updating actors", { count: updates.length });
     const adapter2 = await this.getAdapter();
     const normalizedUpdates = adapter2?.normalizePayload ? updates.map((u) => u.system !== void 0 ? { ...u, system: adapter2.normalizePayload(u.system) } : u) : updates;
@@ -113564,17 +113564,17 @@ var ActorManagementTools = class {
   }
   // ── delete ────────────────────────────────────────────────────────────────
   async handleDelete(args) {
-    const schema6 = external_exports.object({
+    const schema8 = external_exports.object({
       ids: external_exports.array(external_exports.string().min(1)).min(1)
     });
-    const { ids } = schema6.parse(args);
+    const { ids } = schema8.parse(args);
     this.logger.info("Deleting actors", { count: ids.length });
     const result = await this.foundryClient.query("foundry-mcp-bridge.deleteActors", { ids });
     return result;
   }
   // ── update-items ────────────────────────────────────────────────────────────
   async handleUpdateItems(args) {
-    const schema6 = external_exports.object({
+    const schema8 = external_exports.object({
       actorIdentifier: external_exports.string().min(1),
       itemUpdates: external_exports.array(external_exports.object({
         id: external_exports.string().min(1),
@@ -113592,7 +113592,7 @@ var ActorManagementTools = class {
         }
       })).min(1)
     });
-    const { actorIdentifier, itemUpdates } = schema6.parse(args);
+    const { actorIdentifier, itemUpdates } = schema8.parse(args);
     this.logger.info("Updating actor embedded items", {
       actorIdentifier,
       count: itemUpdates.length
@@ -113605,11 +113605,11 @@ var ActorManagementTools = class {
   }
   // ── delete-items ────────────────────────────────────────────────────────────
   async handleDeleteItems(args) {
-    const schema6 = external_exports.object({
+    const schema8 = external_exports.object({
       actorIdentifier: external_exports.string().min(1),
       itemIds: external_exports.array(external_exports.string().min(1)).min(1)
     });
-    const { actorIdentifier, itemIds } = schema6.parse(args);
+    const { actorIdentifier, itemIds } = schema8.parse(args);
     this.logger.info("Deleting actor embedded items", {
       actorIdentifier,
       count: itemIds.length
@@ -114962,7 +114962,7 @@ var DiceRollTools = class {
     ];
   }
   async handleRequestPlayerRolls(args) {
-    const schema6 = external_exports.object({
+    const schema8 = external_exports.object({
       rollType: external_exports.enum(["ability", "skill", "save", "attack", "initiative", "custom"]),
       rollTarget: external_exports.string(),
       targetPlayer: external_exports.string(),
@@ -114972,7 +114972,7 @@ var DiceRollTools = class {
       flavor: external_exports.string().default("")
     });
     try {
-      const params = schema6.parse(args);
+      const params = schema8.parse(args);
       if (typeof params.isPublic !== "boolean") {
         return 'Please specify whether you want this to be a PUBLIC roll (visible to all players) or PRIVATE roll (visible only to the target player and GM). You must provide either "true" for public or "false" for private.';
       }
@@ -116778,7 +116778,7 @@ var TokenManipulationTools = class {
     ];
   }
   async handleMoveToken(args) {
-    const schema6 = external_exports.object({
+    const schema8 = external_exports.object({
       tokenId: external_exports.string(),
       x: external_exports.number(),
       y: external_exports.number(),
@@ -116786,7 +116786,7 @@ var TokenManipulationTools = class {
       scene: external_exports.string().min(1).optional(),
       units: external_exports.enum(["pixels", "squares"]).optional()
     });
-    const { tokenId, x, y, animate, scene, units } = schema6.parse(args);
+    const { tokenId, x, y, animate, scene, units } = schema8.parse(args);
     this.logger.info("Moving token", { tokenId, x, y, animate });
     try {
       const result = await this.foundryClient.query("foundry-mcp-bridge.move-token", {
@@ -116812,7 +116812,7 @@ var TokenManipulationTools = class {
     }
   }
   async handleUpdateToken(args) {
-    const schema6 = external_exports.object({
+    const schema8 = external_exports.object({
       tokenId: external_exports.string(),
       scene: external_exports.string().min(1).optional(),
       options: external_exports.record(external_exports.any()).optional(),
@@ -116829,7 +116829,7 @@ var TokenManipulationTools = class {
         lockRotation: external_exports.boolean().optional()
       }).default({})
     });
-    const { tokenId, updates, options, scene } = schema6.parse(args);
+    const { tokenId, updates, options, scene } = schema8.parse(args);
     if (Object.keys(updates).length === 0 && !options)
       throw new Error("Give updates or options");
     this.logger.info("Updating token", { tokenId, updates });
@@ -116853,10 +116853,10 @@ var TokenManipulationTools = class {
     }
   }
   async handleDeleteTokens(args) {
-    const schema6 = external_exports.object({
+    const schema8 = external_exports.object({
       tokenIds: external_exports.array(external_exports.string()).min(1)
     });
-    const { tokenIds } = schema6.parse(args);
+    const { tokenIds } = schema8.parse(args);
     this.logger.info("Deleting tokens", { count: tokenIds.length, tokenIds });
     try {
       const result = await this.foundryClient.query("foundry-mcp-bridge.delete-tokens", {
@@ -116878,11 +116878,11 @@ var TokenManipulationTools = class {
     }
   }
   async handleGetTokenDetails(args) {
-    const schema6 = external_exports.object({
+    const schema8 = external_exports.object({
       tokenId: external_exports.string(),
       scene: external_exports.string().min(1).optional()
     });
-    const { tokenId, scene } = schema6.parse(args);
+    const { tokenId, scene } = schema8.parse(args);
     this.logger.info("Getting token details", { tokenId });
     try {
       const tokenData = await this.foundryClient.query("foundry-mcp-bridge.get-token-details", {
@@ -116945,12 +116945,12 @@ var TokenManipulationTools = class {
     }
   }
   async handleToggleTokenCondition(args) {
-    const schema6 = external_exports.object({
+    const schema8 = external_exports.object({
       tokenId: external_exports.string(),
       conditionId: external_exports.string(),
       active: external_exports.boolean().optional()
     });
-    const { tokenId, conditionId, active } = schema6.parse(args);
+    const { tokenId, conditionId, active } = schema8.parse(args);
     this.logger.info("Toggling token condition", { tokenId, conditionId, active });
     try {
       const result = await this.foundryClient.query("foundry-mcp-bridge.toggle-token-condition", {
@@ -117107,7 +117107,7 @@ var DSA5CharacterCreator = class {
    * Handle DSA5 character creation from archetype
    */
   async handleCreateCharacterFromArchetype(args) {
-    const schema6 = external_exports.object({
+    const schema8 = external_exports.object({
       archetypePackId: external_exports.string().min(1, "Archetype pack ID cannot be empty"),
       archetypeId: external_exports.string().min(1, "Archetype ID cannot be empty"),
       characterName: external_exports.string().min(1, "Character name cannot be empty"),
@@ -117125,7 +117125,7 @@ var DSA5CharacterCreator = class {
       }).optional(),
       addToWorld: external_exports.boolean().default(true)
     });
-    const { archetypePackId, archetypeId, characterName, customization, addToWorld } = schema6.parse(args);
+    const { archetypePackId, archetypeId, characterName, customization, addToWorld } = schema8.parse(args);
     this.logger.info("Creating DSA5 character from archetype", {
       archetypePackId,
       archetypeId,
@@ -117165,12 +117165,12 @@ var DSA5CharacterCreator = class {
    * Handle listing DSA5 archetypes
    */
   async handleListArchetypes(args) {
-    const schema6 = external_exports.object({
+    const schema8 = external_exports.object({
       packId: external_exports.string().optional(),
       filterBySpecies: external_exports.string().optional(),
       filterByProfession: external_exports.string().optional()
     });
-    const { packId, filterBySpecies, filterByProfession } = schema6.parse(args);
+    const { packId, filterBySpecies, filterByProfession } = schema8.parse(args);
     this.logger.info("Listing DSA5 archetypes", { packId, filterBySpecies, filterByProfession });
     try {
       const packs = await this.foundryClient.query("foundry-mcp-bridge.getAvailablePacks");
@@ -117370,8 +117370,8 @@ var getByKeys = (source, keys) => {
   }
   return void 0;
 };
-var getNested = (source, path12) => {
-  const parts = path12.split(".");
+var getNested = (source, path13) => {
+  const parts = path13.split(".");
   let current = source;
   for (const part of parts) {
     if (!isRecord(current) || !(part in current))
@@ -118221,7 +118221,7 @@ var DSA5JsonActorImporter = class {
     ];
   }
   async handleImportActorFromJson(args) {
-    const schema6 = external_exports.object({
+    const schema8 = external_exports.object({
       jsonPayload: external_exports.union([external_exports.string(), external_exports.record(external_exports.unknown())]).optional(),
       filePath: external_exports.string().optional(),
       strategy: external_exports.enum(["auto", "custom_dsa5", "optolith_like", "raw_foundry", "darkaid"]).default("auto"),
@@ -118233,7 +118233,7 @@ var DSA5JsonActorImporter = class {
     }).refine((value) => Boolean(value.jsonPayload) || Boolean(value.filePath), {
       message: "Either jsonPayload or filePath is required."
     });
-    const { jsonPayload, filePath, strategy, resolveItems, addToScene, updateExisting, existingActorIdentifier, strict } = schema6.parse(args);
+    const { jsonPayload, filePath, strategy, resolveItems, addToScene, updateExisting, existingActorIdentifier, strict } = schema8.parse(args);
     try {
       await this.assertDsa5World();
       const payload = await extractPayload(jsonPayload, filePath);
@@ -118786,7 +118786,7 @@ var DnD5eAddFeatureTool = class {
   // passive
   // ---------------------------------------------------------------------------
   async handlePassive(args) {
-    const schema6 = external_exports.object({
+    const schema8 = external_exports.object({
       featureType: external_exports.literal("passive"),
       actorIdentifier: external_exports.string().min(1, "actorIdentifier cannot be empty"),
       featureName: external_exports.string().min(1, "featureName cannot be empty"),
@@ -118796,7 +118796,7 @@ var DnD5eAddFeatureTool = class {
       sourceBook: external_exports.string().default(""),
       sourcePage: external_exports.string().default("")
     });
-    const parsed = schema6.parse(args);
+    const parsed = schema8.parse(args);
     this.logger.info("Adding passive feature to D&D 5e actor", {
       actorIdentifier: parsed.actorIdentifier,
       featureName: parsed.featureName
@@ -118838,7 +118838,7 @@ ${details}`
   // save
   // ---------------------------------------------------------------------------
   async handleSave(args) {
-    const schema6 = external_exports.object({
+    const schema8 = external_exports.object({
       featureType: external_exports.literal("save"),
       actorIdentifier: external_exports.string().min(1, "actorIdentifier cannot be empty"),
       featureName: external_exports.string().min(1, "featureName cannot be empty"),
@@ -118862,7 +118862,7 @@ ${details}`
         });
       }
     });
-    const parsed = schema6.parse(args);
+    const parsed = schema8.parse(args);
     this.logger.info("Adding save feature to D&D 5e actor", {
       actorIdentifier: parsed.actorIdentifier,
       featureName: parsed.featureName,
@@ -118912,7 +118912,7 @@ ${details}`
   // attack
   // ---------------------------------------------------------------------------
   async handleAttack(args) {
-    const schema6 = external_exports.object({
+    const schema8 = external_exports.object({
       featureType: external_exports.literal("attack"),
       actorIdentifier: external_exports.string().min(1, "actorIdentifier cannot be empty"),
       featureName: external_exports.string().min(1, "featureName cannot be empty"),
@@ -118949,7 +118949,7 @@ ${details}`
         });
       }
     });
-    const parsed = schema6.parse(args);
+    const parsed = schema8.parse(args);
     const effectiveAbility = parsed.abilityModifier ?? (parsed.attackType === "melee" ? "str" : "dex");
     const warnings = [];
     for (const part of parsed.damageParts) {
@@ -119023,7 +119023,7 @@ ${details}${warningSection}`
   // attack-with-save
   // ---------------------------------------------------------------------------
   async handleAttackWithSave(args) {
-    const schema6 = external_exports.object({
+    const schema8 = external_exports.object({
       featureType: external_exports.literal("attack-with-save"),
       actorIdentifier: external_exports.string().min(1, "actorIdentifier cannot be empty"),
       featureName: external_exports.string().min(1, "featureName cannot be empty"),
@@ -119064,7 +119064,7 @@ ${details}${warningSection}`
         });
       }
     });
-    const parsed = schema6.parse(args);
+    const parsed = schema8.parse(args);
     const effectiveAbility = parsed.abilityModifier ?? (parsed.attackType === "melee" ? "str" : "dex");
     const warnings = [];
     for (const part of [...parsed.damageParts, ...parsed.saveDamageParts]) {
@@ -119133,7 +119133,7 @@ ${details}${warningSection}`
   // aura
   // ---------------------------------------------------------------------------
   async handleAura(args) {
-    const schema6 = external_exports.object({
+    const schema8 = external_exports.object({
       featureType: external_exports.literal("aura"),
       actorIdentifier: external_exports.string().min(1, "actorIdentifier cannot be empty"),
       featureName: external_exports.string().min(1, "featureName cannot be empty"),
@@ -119149,7 +119149,7 @@ ${details}${warningSection}`
       sourceBook: external_exports.string().default(""),
       sourcePage: external_exports.string().default("")
     });
-    const parsed = schema6.parse(args);
+    const parsed = schema8.parse(args);
     const warnings = [];
     for (const part of parsed.damageParts) {
       if (!DAMAGE_CANONICAL.has(part.type)) {
@@ -119210,7 +119210,7 @@ ${details}${warningSection}`
   // spellcasting
   // ---------------------------------------------------------------------------
   async handleSpellcasting(args) {
-    const schema6 = external_exports.object({
+    const schema8 = external_exports.object({
       featureType: external_exports.literal("spellcasting"),
       actorIdentifier: external_exports.string().min(1, "actorIdentifier cannot be empty"),
       spellcastingClass: external_exports.enum([
@@ -119228,7 +119228,7 @@ ${details}${warningSection}`
       spellcastingAbility: external_exports.enum(["str", "dex", "con", "int", "wis", "cha"]).optional(),
       sourceRules: external_exports.enum(["2014", "2024"]).default("2014")
     });
-    const parsed = schema6.parse(args);
+    const parsed = schema8.parse(args);
     const effectiveAbility = parsed.spellcastingAbility ?? CLASS_DEFAULT_ABILITY[parsed.spellcastingClass];
     this.logger.info("Setting actor spellcasting", {
       actorIdentifier: parsed.actorIdentifier,
@@ -119280,13 +119280,13 @@ ${details}${warningSection}`
   // spells
   // ---------------------------------------------------------------------------
   async handleSpells(args) {
-    const schema6 = external_exports.object({
+    const schema8 = external_exports.object({
       featureType: external_exports.literal("spells"),
       actorIdentifier: external_exports.string().min(1, "actorIdentifier cannot be empty"),
       spellNames: external_exports.array(external_exports.string().min(1)).min(1).max(50),
       compendiumPacks: external_exports.array(external_exports.string().min(1)).default(["dnd5e.spells"])
     });
-    const parsed = schema6.parse(args);
+    const parsed = schema8.parse(args);
     this.logger.info("Adding spells to D&D 5e actor", {
       actorIdentifier: parsed.actorIdentifier,
       spellCount: parsed.spellNames.length,
@@ -119719,7 +119719,7 @@ var DnD5eNpcTools = class {
     ];
   }
   async handleCreateNpc(args) {
-    const schema6 = external_exports.object({
+    const schema8 = external_exports.object({
       // Identity
       name: external_exports.string().min(1, "name cannot be empty"),
       creatureType: external_exports.enum([
@@ -119821,7 +119821,7 @@ var DnD5eNpcTools = class {
         });
       }
     });
-    const parsed = schema6.parse(args);
+    const parsed = schema8.parse(args);
     const warnings = [];
     const allDamageValues = [
       ...parsed.damageImmunities.map((v) => ({ field: "damageImmunities", value: v })),
@@ -119936,12 +119936,12 @@ var DnD5eFeaturesFromCompendiumTools = class {
     ];
   }
   async handleAddFeaturesFromCompendium(args) {
-    const schema6 = external_exports.object({
+    const schema8 = external_exports.object({
       actorIdentifier: external_exports.string().min(1, "actorIdentifier cannot be empty"),
       featureNames: external_exports.array(external_exports.string().min(1)).min(1).max(50),
       compendiumPacks: external_exports.array(external_exports.string().min(1)).default(["dnd5e.monsterfeatures", "dnd5e.classfeatures"])
     });
-    const parsed = schema6.parse(args);
+    const parsed = schema8.parse(args);
     this.logger.info("Adding features to D&D 5e actor from compendium", {
       actorIdentifier: parsed.actorIdentifier,
       featureCount: parsed.featureNames.length,
@@ -120083,7 +120083,7 @@ var ChatTools = class {
     ];
   }
   async handleCreateChatMessage(args) {
-    const schema6 = external_exports.object({
+    const schema8 = external_exports.object({
       actorIdentifier: external_exports.string().optional(),
       tokenId: external_exports.string().optional(),
       content: external_exports.string().min(1),
@@ -120093,7 +120093,7 @@ var ChatTools = class {
     }).refine((v) => v.actorIdentifier || v.tokenId, {
       message: "Either actorIdentifier or tokenId is required"
     });
-    const parsed = schema6.parse(args);
+    const parsed = schema8.parse(args);
     this.logger.info("Creating chat message", {
       speaker: parsed.tokenId ?? parsed.actorIdentifier,
       whispered: !!parsed.whisperTo?.length
@@ -120187,13 +120187,13 @@ var UploadTools = class {
     ];
   }
   async handleUploadFile(args) {
-    const schema6 = external_exports.object({
+    const schema8 = external_exports.object({
       file_path: external_exports.string().min(1),
       folder: external_exports.string().optional(),
       filename: external_exports.string().min(1).optional(),
       overwrite: external_exports.boolean().optional()
     }).strict();
-    const parsed = schema6.parse(args);
+    const parsed = schema8.parse(args);
     if (!import_path.default.isAbsolute(parsed.file_path)) {
       throw new Error("file_path must be an absolute path");
     }
@@ -120359,6 +120359,54 @@ function keyOutBackground(img, options = {}) {
     if (y < height - 1)
       push(x, y + 1);
   }
+  if (options.removeEnclosed) {
+    const minPocket = Math.max(40, Math.round(width * height * 2e-4));
+    const seen = new Uint8Array(width * height);
+    const stack = new Int32Array(width * height);
+    const candidate = (p) => !reached[p] && !seen[p] && dist(src, p * 4, bg) <= tolerance;
+    for (let start = 0; start < width * height; start++) {
+      if (!candidate(start))
+        continue;
+      const members = [];
+      let top = 0;
+      stack[top++] = start;
+      seen[start] = 1;
+      while (top > 0) {
+        const p = stack[--top];
+        members.push(p);
+        const x = p % width;
+        const y = (p - x) / width;
+        const next = [x > 0 ? p - 1 : -1, x < width - 1 ? p + 1 : -1, y > 0 ? p - width : -1, y < height - 1 ? p + width : -1];
+        for (const q of next) {
+          if (q >= 0 && candidate(q)) {
+            seen[q] = 1;
+            stack[top++] = q;
+          }
+        }
+      }
+      if (members.length < minPocket)
+        continue;
+      head = 0;
+      tail = 0;
+      for (const p of members) {
+        reached[p] = 1;
+        queue[tail++] = p;
+      }
+      while (head < tail) {
+        const p = queue[head++];
+        const x = p % width;
+        const y = (p - x) / width;
+        if (x > 0)
+          push(x - 1, y);
+        if (x < width - 1)
+          push(x + 1, y);
+        if (y > 0)
+          push(x, y - 1);
+        if (y < height - 1)
+          push(x, y + 1);
+      }
+    }
+  }
   let opaque = 0;
   let minX = width;
   let minY = height;
@@ -120462,6 +120510,19 @@ function downscale(img, maxSide) {
     }
   }
   return { width: w, height: h, data: out };
+}
+function padToSquare(img) {
+  if (img.width === img.height)
+    return img;
+  const side = Math.max(img.width, img.height);
+  const out = new Uint8Array(side * side * 4);
+  const left = Math.floor((side - img.width) / 2);
+  const top = Math.floor((side - img.height) / 2);
+  for (let y = 0; y < img.height; y++) {
+    const from = y * img.width * 4;
+    out.set(img.data.subarray(from, from + img.width * 4), ((top + y) * side + left) * 4);
+  }
+  return { width: side, height: side, data: out };
 }
 
 // dist/image-profiles.js
@@ -121034,13 +121095,22 @@ var pageSchema = external_exports.object({
   show_title: external_exports.boolean().optional(),
   title_level: external_exports.number().int().min(1).max(6).optional()
 }).strict();
+var pinSchema = external_exports.object({
+  scene: external_exports.string().min(1).optional(),
+  x: external_exports.number().min(0),
+  y: external_exports.number().min(0),
+  page: external_exports.string().min(1).optional(),
+  text: external_exports.string().min(1).max(100).optional(),
+  global: external_exports.boolean().optional()
+}).strict();
 var journalSchema = external_exports.object({
   action: external_exports.enum(["create", "update", "describe"]),
   journal: external_exports.string().min(1).optional(),
   name: external_exports.string().min(1).optional(),
   folder: external_exports.string().min(1).optional(),
   ownership: external_exports.enum(["none", "limited", "observer", "owner"]).optional(),
-  pages: external_exports.array(pageSchema).max(100).optional()
+  pages: external_exports.array(pageSchema).max(100).optional(),
+  pin: pinSchema.optional()
 }).strict();
 var JournalTools = class {
   foundryClient;
@@ -121053,7 +121123,7 @@ var JournalTools = class {
     return [
       {
         name: "manage-journals",
-        description: "Create, update or describe journals with exact pages (never deletes anything). create: needs name; optional folder (created if missing), ownership (who can see it: none = GM only (default), limited, observer, owner) and pages. update: needs journal (id or exact name); can rename, move to a folder, change ownership, and upsert pages: a page with an id or an exact existing name is changed, otherwise a new page is added at the end. describe: lists all journals, or one journal with its full page contents when journal is given. Text pages take HTML in content (headings, paragraphs, lists, tables). Image pages take src, a Foundry file path such as the one upload-file returns. In text you can write {{actor: Name}}, {{scene: Name}}, {{journal: Name}}, {{item: Name}} or {{rolltable: Name}} (or {{actor: Name | label}}) to insert a clickable Foundry link; unmatched names are reported as warnings. Scripts and event handlers are removed from the HTML.",
+        description: "Create, update or describe journals with exact pages (never deletes anything). create: needs name; optional folder (created if missing), ownership (who can see it: none = GM only (default), limited, observer, owner) and pages. update: needs journal (id or exact name); can rename, move to a folder, change ownership, and upsert pages: a page with an id or an exact existing name is changed, otherwise a new page is added at the end. describe: lists all journals, or one journal with its full page contents when journal is given. Text pages take HTML in content (headings, paragraphs, lists, tables). Image pages take src, a Foundry file path such as the one upload-file returns. pin {scene?, x, y, page?, text?, global?} (create or update) also puts a map pin for the journal on a scene in the same call (grid squares from the top-left; page opens that page; text is the label; global shows it to all players).\nIn text you can write {{actor: Name}}, {{scene: Name}}, {{journal: Name}}, {{item: Name}} or {{rolltable: Name}} (or {{actor: Name | label}}) to insert a clickable Foundry link; unmatched names are reported as warnings. Scripts and event handlers are removed from the HTML.",
         inputSchema: {
           type: "object",
           properties: {
@@ -121074,6 +121144,20 @@ var JournalTools = class {
               type: "string",
               enum: ["none", "limited", "observer", "owner"],
               description: "Default permission for players: none (GM only), limited, observer (can read), owner"
+            },
+            pin: {
+              type: "object",
+              description: "Also place a map pin for this journal on a scene",
+              properties: {
+                scene: { type: "string", description: "Scene id or exact name (default: the one being viewed)" },
+                x: { type: "number", description: "Grid squares from the left" },
+                y: { type: "number", description: "Grid squares from the top" },
+                page: { type: "string", description: "Page name or id the pin opens" },
+                text: { type: "string", description: "Pin label (default the journal name)" },
+                global: { type: "boolean", description: "Visible to all players" }
+              },
+              required: ["x", "y"],
+              additionalProperties: false
             },
             pages: {
               type: "array",
@@ -121115,14 +121199,42 @@ var JournalTools = class {
     if (parsed.action === "update" && !parsed.journal) {
       throw new Error("journal is required for update");
     }
+    if (parsed.pin && parsed.action === "describe")
+      throw new Error("pin works with create and update");
+    const { pin, ...forModule } = parsed;
     this.logger.info("Managing journals", {
       action: parsed.action,
       journal: parsed.journal ?? parsed.name
     });
     try {
-      const result = await this.foundryClient.query("foundry-mcp-bridge.manage-journals", parsed);
+      const result = await this.foundryClient.query("foundry-mcp-bridge.manage-journals", forModule);
       if (result?.success === false) {
         throw new Error(result.error || "Request was refused");
+      }
+      if (pin) {
+        const journalId = result?.journal?.id ?? parsed.journal;
+        try {
+          const placed = await this.foundryClient.query("foundry-mcp-bridge.manage-scene-objects", {
+            action: "place",
+            ...pin.scene ? { scene: pin.scene } : {},
+            objects: [
+              {
+                kind: "note",
+                x: pin.x,
+                y: pin.y,
+                journal: journalId,
+                ...pin.page ? { page: pin.page } : {},
+                ...pin.text ? { text: pin.text } : {},
+                ...pin.global !== void 0 ? { global: pin.global } : {}
+              }
+            ]
+          });
+          if (placed?.success === false)
+            throw new Error(placed.error || "refused");
+          return { ...result, pin: { ...placed?.created?.[0] ?? {}, scene: placed?.scene } };
+        } catch (error) {
+          throw new Error(`The journal was saved but its pin could not be placed: ${error instanceof Error ? error.message : "Unknown error"}`);
+        }
       }
       return result;
     } catch (error) {
@@ -122153,6 +122265,7 @@ var schema2 = external_exports.object({
   key: external_exports.enum(["magenta", "green", "blue"]).optional(),
   image_size: external_exports.number().int().min(256).max(2048).optional(),
   final_size: external_exports.number().int().min(32).max(2048).optional(),
+  keep_enclosed: external_exports.boolean().optional(),
   tolerance: external_exports.number().min(1).max(200).optional(),
   seed: external_exports.number().int().optional(),
   negative_prompt: external_exports.string().max(500).optional(),
@@ -122196,6 +122309,7 @@ var PropTools = class {
             image: { type: "string", description: "Existing picture on this computer to remove the background from, instead of generating" },
             key: { type: "string", enum: ["magenta", "green", "blue"], description: "Background colour to generate on (default magenta)" },
             image_size: { type: "number", description: "Size to generate at, a multiple of 32 (default 1024). MiniMax H3 draws badly below about 2 megapixels, so anything smaller is raised to that automatically; the prop is shrunk afterwards." },
+            keep_enclosed: { type: "boolean", description: "Keep background-coloured pockets that do not touch the edge (default false: the loop of a rope handle or the gap in a ring is made transparent too). Set true if the object really contains the key colour." },
             final_size: { type: "number", description: "Longest side in pixels of the finished prop picture (default 512; 32 to 2048). The object is generated large and shrunk to this." },
             tolerance: { type: "number", description: "How different from the background a pixel must be to stay (default 60)" },
             seed: { type: "number" },
@@ -122251,7 +122365,7 @@ var PropTools = class {
       steps.push(`generated (${generated.seconds ?? "?"} s)`);
     }
     const picture = await decodeImage(source);
-    const keyed = keyOutBackground({ width: picture.width, height: picture.height, data: picture.data }, { ...a.tolerance !== void 0 ? { tolerance: a.tolerance } : {} });
+    const keyed = keyOutBackground({ width: picture.width, height: picture.height, data: picture.data }, { ...a.tolerance !== void 0 ? { tolerance: a.tolerance } : {}, removeEnclosed: !a.keep_enclosed });
     steps.push(`background removed (was rgb ${keyed.background.join(",")}), cropped to ${keyed.width} x ${keyed.height}`);
     const finalSide = a.final_size ?? 512;
     const small = downscale({ width: keyed.width, height: keyed.height, data: keyed.data }, finalSide);
@@ -122445,6 +122559,405 @@ var AuditTools = class {
   }
 };
 
+// dist/tools/loot-tools.js
+init_zod();
+var itemRequest = external_exports.union([
+  external_exports.string().min(1).max(200),
+  external_exports.object({
+    name: external_exports.string().min(1).max(200),
+    quantity: external_exports.number().int().min(1).max(9999).optional(),
+    pack: external_exports.string().min(1).max(200).optional()
+  }).strict()
+]);
+var customItem = external_exports.object({
+  name: external_exports.string().min(1).max(200),
+  type: external_exports.string().min(1).max(40).optional(),
+  quantity: external_exports.number().int().min(1).max(9999).optional(),
+  price: external_exports.object({ value: external_exports.number().min(0), denomination: external_exports.enum(["pp", "gp", "ep", "sp", "cp"]).optional() }).strict().optional(),
+  description: external_exports.string().max(4e3).optional()
+}).strict();
+var currencySchema = external_exports.object({
+  pp: external_exports.number().int().min(0).optional(),
+  gp: external_exports.number().int().min(0).optional(),
+  ep: external_exports.number().int().min(0).optional(),
+  sp: external_exports.number().int().min(0).optional(),
+  cp: external_exports.number().int().min(0).optional()
+}).strict();
+var addSchema = external_exports.object({
+  actor: external_exports.string().min(1),
+  items: external_exports.array(itemRequest).min(1).max(100),
+  packs: external_exports.array(external_exports.string().min(1)).max(20).optional(),
+  stack: external_exports.boolean().optional()
+}).strict();
+var chestSchema = external_exports.object({
+  name: external_exports.string().min(1).max(100),
+  items: external_exports.array(itemRequest).min(1).max(100).optional(),
+  custom_items: external_exports.array(customItem).max(100).optional(),
+  currency: currencySchema.optional(),
+  ownership: external_exports.enum(["none", "limited", "observer", "owner"]).optional(),
+  packs: external_exports.array(external_exports.string().min(1)).max(20).optional(),
+  img: external_exports.string().min(1).max(400).optional(),
+  folder: external_exports.string().min(1).max(100).optional(),
+  type: external_exports.string().min(1).max(40).optional(),
+  scene: external_exports.string().min(1).optional(),
+  x: external_exports.number().min(0).optional(),
+  y: external_exports.number().min(0).optional(),
+  width: external_exports.number().min(0.5).max(20).optional(),
+  height: external_exports.number().min(0.5).max(20).optional(),
+  hidden: external_exports.boolean().optional()
+}).strict();
+var LootTools = class {
+  foundryClient;
+  logger;
+  constructor({ foundryClient, logger }) {
+    this.foundryClient = foundryClient;
+    this.logger = logger.child({ component: "LootTools" });
+  }
+  getToolDefinitions() {
+    const itemList = {
+      type: "array",
+      items: {
+        description: 'An item name ("Longsword") or {name, quantity?, pack?}',
+        anyOf: [
+          { type: "string" },
+          {
+            type: "object",
+            properties: { name: { type: "string" }, quantity: { type: "number" }, pack: { type: "string" } },
+            required: ["name"],
+            additionalProperties: false
+          }
+        ]
+      }
+    };
+    return [
+      {
+        name: "add-compendium-items",
+        description: 'Copy items from the compendium onto an actor by exact name: weapons, armour, potions, gear, loot, for an NPC, a player character or a chest. items: ["Longsword", {name:"Arrow", quantity:20}, {name:"Chest", pack:"dnd5e.items"}]. Without a pack it searches the item packs (the main system ones first) and only takes things that can be carried, not spells or features; name a pack to take anything from it. An item already on the actor stacks (its quantity goes up) unless stack is false. Reports what was added, stacked and not found. Use search-compendium to find exact names.',
+        inputSchema: {
+          type: "object",
+          properties: {
+            actor: { type: "string", description: "Actor id or name" },
+            items: itemList,
+            packs: { type: "array", items: { type: "string" }, description: "Pack ids to search, in order (default: all item packs)" },
+            stack: { type: "boolean", description: "Add to an existing stack of the same item (default true)" }
+          },
+          required: ["actor", "items"],
+          additionalProperties: false
+        }
+      },
+      {
+        name: "make-chest",
+        description: `Make a chest, hoard or stash of loot in one call: an actor (a group in D&D 5e) holding currency, compendium items and made-up items, with who may open it, and optionally its token on a scene. items: compendium items as in add-compendium-items (["Potion of Healing", {name:"Arrow", quantity:20}]); custom_items: things made up on the spot [{name, quantity?, type? (default loot), price?:{value, denomination}, description? (HTML)}]; currency: {pp?, gp?, ep?, sp?, cp?}. ownership says what players can do with it: none (they cannot see it), limited, observer (default: they can look inside), owner (they can take things). Give scene (default the one being viewed), x and y (grid squares, top-left corner of the token) to put its token on the map; without x and y only the actor is made. img is the chest picture (default a steel-bound chest from Foundry's icons; a prop made with make-prop works too). It lands in a Loot folder. Names not found in the compendium are listed, and the chest is still made.`,
+        inputSchema: {
+          type: "object",
+          properties: {
+            name: { type: "string", description: "Name of the chest or hoard" },
+            items: itemList,
+            custom_items: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  name: { type: "string" },
+                  type: { type: "string" },
+                  quantity: { type: "number" },
+                  price: { type: "object", properties: { value: { type: "number" }, denomination: { type: "string" } } },
+                  description: { type: "string" }
+                },
+                required: ["name"],
+                additionalProperties: false
+              }
+            },
+            currency: {
+              type: "object",
+              properties: { pp: { type: "number" }, gp: { type: "number" }, ep: { type: "number" }, sp: { type: "number" }, cp: { type: "number" } },
+              additionalProperties: false
+            },
+            ownership: { type: "string", enum: ["none", "limited", "observer", "owner"], description: "What players can do with it (default observer)" },
+            packs: { type: "array", items: { type: "string" }, description: "Pack ids to search for the items" },
+            img: { type: "string", description: "Picture for the chest and its token" },
+            folder: { type: "string", description: "Actor folder (default Loot)" },
+            type: { type: "string", description: "Actor type (default group)" },
+            scene: { type: "string", description: "Scene for the token (id or exact name; default the one being viewed)" },
+            x: { type: "number", description: "Token column in grid squares (with y places the token)" },
+            y: { type: "number", description: "Token row in grid squares" },
+            width: { type: "number", description: "Token width in squares (default 1)" },
+            height: { type: "number", description: "Token height in squares (default 1)" },
+            hidden: { type: "boolean", description: "Hide the token from players until revealed" }
+          },
+          required: ["name"],
+          additionalProperties: false
+        }
+      }
+    ];
+  }
+  async handleAddCompendiumItems(args) {
+    const a = addSchema.parse(args ?? {});
+    try {
+      const result = await this.foundryClient.query("foundry-mcp-bridge.add-compendium-items", a);
+      if (result?.success === false)
+        throw new Error(result.error || "The items could not be added");
+      return result;
+    } catch (error) {
+      this.logger.error("Failed to add compendium items", error);
+      throw new Error(`Failed to add compendium items: ${error instanceof Error ? error.message : "Unknown error"}`);
+    }
+  }
+  async handleMakeChest(args) {
+    const a = chestSchema.parse(args ?? {});
+    if (a.x === void 0 !== (a.y === void 0))
+      throw new Error("Give both x and y to place the token, or neither");
+    if (!a.items && !a.custom_items && !a.currency) {
+      this.logger.warn("make-chest called with no items, custom_items or currency");
+    }
+    const { scene, x, y, width, height, hidden, ...chest } = a;
+    try {
+      const made = await this.foundryClient.query("foundry-mcp-bridge.make-chest", chest);
+      if (made?.success === false)
+        throw new Error(made.error || "The chest could not be made");
+      const result = { ...made };
+      if (x !== void 0 && y !== void 0) {
+        try {
+          const placed = await this.foundryClient.query("foundry-mcp-bridge.manage-scene-objects", {
+            action: "place",
+            ...scene ? { scene } : {},
+            objects: [
+              {
+                kind: "token",
+                actor: made.actor.id,
+                x,
+                y,
+                name: a.name,
+                ...width !== void 0 ? { width } : {},
+                ...height !== void 0 ? { height } : {},
+                ...hidden !== void 0 ? { hidden } : {}
+              }
+            ]
+          });
+          if (placed?.success === false)
+            throw new Error(placed.error || "refused");
+          result.token = { ...placed?.created?.[0] ?? {}, scene: placed?.scene };
+          result.steps = [...result.steps ?? [], "token placed"];
+        } catch (error) {
+          throw new Error(`The chest "${made.actor.name}" was made (id ${made.actor.id}) but its token could not be placed: ${error instanceof Error ? error.message : "Unknown error"}`);
+        }
+      }
+      return result;
+    } catch (error) {
+      this.logger.error("Failed to make the chest", error);
+      throw new Error(error instanceof Error && /was made \(id/.test(error.message) ? error.message : `Failed to make the chest: ${error instanceof Error ? error.message : "Unknown error"}`);
+    }
+  }
+};
+
+// dist/tools/share-tools.js
+init_zod();
+var schema4 = external_exports.object({
+  image: external_exports.string().min(1).optional(),
+  title: external_exports.string().min(1).max(200).optional(),
+  journal: external_exports.string().min(1).optional(),
+  users: external_exports.array(external_exports.string().min(1)).max(20).optional(),
+  chat: external_exports.boolean().optional()
+}).strict().refine((a) => a.image === void 0 !== (a.journal === void 0), { message: "Give either image or journal (not both)" });
+var ShareTools = class {
+  foundryClient;
+  logger;
+  constructor({ foundryClient, logger }) {
+    this.foundryClient = foundryClient;
+    this.logger = logger.child({ component: "ShareTools" });
+  }
+  getToolDefinitions() {
+    return [
+      {
+        name: "share-with-players",
+        description: "Show something to the players. image: a Foundry file path (e.g. a handout or map from uploads) opens full-screen for every player, with an optional title. journal: a journal id or name opens for the players; players who cannot yet see it are given observer access first (users limits this to named players, default all). chat: true also posts it to the chat (the picture, or a link to the journal).",
+        inputSchema: {
+          type: "object",
+          properties: {
+            image: { type: "string", description: "Foundry file path of the picture to show" },
+            title: { type: "string", description: "Title shown with the picture" },
+            journal: { type: "string", description: "Journal id or name to show" },
+            users: { type: "array", maxItems: 20, items: { type: "string" }, description: "Player names or ids (journal only; default all players)" },
+            chat: { type: "boolean", description: "Also post to the chat" }
+          },
+          additionalProperties: false
+        }
+      }
+    ];
+  }
+  async handleShareWithPlayers(args) {
+    const a = schema4.parse(args ?? {});
+    this.logger.info("Sharing with players", { image: a.image, journal: a.journal });
+    const result = await this.foundryClient.query("foundry-mcp-bridge.share-with-players", a);
+    if (result?.success === false)
+      throw new Error(result.error || "Request was refused");
+    return result;
+  }
+};
+
+// dist/tools/actor-art-tools.js
+var import_fs6 = require("fs");
+var import_os4 = __toESM(require("os"), 1);
+var import_path5 = __toESM(require("path"), 1);
+var import_pngjs4 = __toESM(require_png(), 1);
+init_zod();
+var MAX_ACTORS = 2;
+var schema5 = external_exports.object({
+  actors: external_exports.array(external_exports.object({
+    actor: external_exports.string().min(1),
+    prompt: external_exports.string().min(3).max(1500).optional(),
+    portrait: external_exports.boolean().optional(),
+    token: external_exports.boolean().optional()
+  }).strict()).min(1).max(MAX_ACTORS),
+  style: external_exports.string().min(1).max(300).optional(),
+  portrait_size: external_exports.number().int().min(256).max(2048).optional(),
+  token_size: external_exports.number().int().min(64).max(1024).optional(),
+  update_placed: external_exports.boolean().optional(),
+  folder: external_exports.string().min(1).max(80).optional(),
+  seed: external_exports.number().int().min(0).optional()
+}).strict();
+function artSlug(text2) {
+  const slug2 = text2.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40);
+  return slug2 || "actor";
+}
+var ActorArtTools = class {
+  foundryClient;
+  logger;
+  generate;
+  upload;
+  folder = import_path5.default.join(import_os4.default.tmpdir(), "foundry-mcp-actor-art");
+  constructor({ foundryClient, logger, generate, upload }) {
+    this.foundryClient = foundryClient;
+    this.logger = logger.child({ component: "ActorArtTools" });
+    this.generate = generate;
+    this.upload = upload;
+  }
+  getToolDefinitions() {
+    return [
+      {
+        name: "make-actor-art",
+        description: `Give actors their pictures in one call: generates a portrait and a token (a head-and-shoulders picture with a transparent background, cropped square), uploads both to worlds/<world>/uploads/actors/<name>/, sets the actor's portrait and token picture, and swaps the picture on tokens of that actor already on scenes (update_placed, default true). actors: up to ${MAX_ACTORS} per call, each {actor (id or name), prompt (what they look like, e.g. "a scarred goblin boss in rusted plate armour, yellow eyes"; defaults to the actor name), portrait? (default true), token? (default true)}. style is added to every prompt (e.g. "dark fantasy oil painting"). portrait_size and token_size are the longest side in pixels of the finished pictures (defaults 1024 and 512); MiniMax H3 pictures are always generated large and shrunk. Takes about two minutes per actor. A failure on one actor does not stop the others; each result says what was done.`,
+        inputSchema: {
+          type: "object",
+          properties: {
+            actors: {
+              type: "array",
+              maxItems: MAX_ACTORS,
+              items: {
+                type: "object",
+                properties: {
+                  actor: { type: "string", description: "Actor id or name" },
+                  prompt: { type: "string", description: "What the character looks like" },
+                  portrait: { type: "boolean", description: "Make the portrait (default true)" },
+                  token: { type: "boolean", description: "Make the token (default true)" }
+                },
+                required: ["actor"],
+                additionalProperties: false
+              }
+            },
+            style: { type: "string", description: "Art style added to every prompt" },
+            portrait_size: { type: "number", description: "Longest side of the portrait in pixels (default 1024)" },
+            token_size: { type: "number", description: "Longest side of the token in pixels (default 512)" },
+            update_placed: { type: "boolean", description: "Also change tokens of these actors already on scenes (default true)" },
+            folder: { type: "string", description: "Folder below the world uploads (default actors)" },
+            seed: { type: "number", description: "Seed for the generation (same seed for every picture)" }
+          },
+          required: ["actors"],
+          additionalProperties: false
+        }
+      }
+    ];
+  }
+  async makeOne(entry, options) {
+    if (!this.generate || !this.upload)
+      throw new Error("Image generation and upload are not available here");
+    const slug2 = artSlug(entry.actor);
+    const look = entry.prompt ?? entry.actor;
+    const style = options.style ? `, ${options.style}` : "";
+    const steps = [];
+    const result = { actor: entry.actor };
+    const seed = options.seed !== void 0 ? { seed: options.seed } : {};
+    const where = `${options.folder}/${slug2}`;
+    if (entry.portrait !== false) {
+      const generated = await this.generate({
+        kind: "portrait",
+        name: `portrait-${slug2}`,
+        prompt: `${look}. Character portrait${style}`,
+        upload: false,
+        max_side: options.portraitSize,
+        ...seed
+      });
+      if (generated?.success === false || !generated?.local_path)
+        throw new Error(generated?.error || "The portrait could not be generated");
+      const uploaded = await this.upload({ file_path: generated.local_path, folder: where, filename: "portrait.png", overwrite: true });
+      if (uploaded?.success === false || !uploaded?.path)
+        throw new Error(uploaded?.error || "The portrait could not be uploaded");
+      result.portrait = uploaded.path;
+      steps.push(`portrait made (${generated.shrunk_to ?? generated.size})`);
+    }
+    if (entry.token !== false) {
+      const generated = await this.generate({
+        kind: "token",
+        name: `token-${slug2}`,
+        prompt: `${look}. Token art: a single character shown from the chest up, facing the viewer, centred with plenty of empty space all around and nothing touching the edges${style}. Isolated on a perfectly flat, uniform pure magenta (#FF00FF) background. No frame, no border, no text, no shadow on the background.`,
+        upload: false,
+        ...seed
+      });
+      if (generated?.success === false || !generated?.local_path)
+        throw new Error(generated?.error || "The token could not be generated");
+      const picture = await decodeImage(generated.local_path);
+      const keyed = keyOutBackground({ width: picture.width, height: picture.height, data: picture.data }, { removeEnclosed: true });
+      const square = downscale(padToSquare({ width: keyed.width, height: keyed.height, data: keyed.data }), options.tokenSize);
+      const png = new import_pngjs4.PNG({ width: square.width, height: square.height });
+      png.data = Buffer.from(square.data);
+      await import_fs6.promises.mkdir(this.folder, { recursive: true });
+      const local = import_path5.default.join(this.folder, `${slug2}-token-${Date.now().toString(36)}.png`);
+      await import_fs6.promises.writeFile(local, import_pngjs4.PNG.sync.write(png));
+      const uploaded = await this.upload({ file_path: local, folder: where, filename: "token.png", overwrite: true });
+      if (uploaded?.success === false || !uploaded?.path)
+        throw new Error(uploaded?.error || "The token could not be uploaded");
+      result.token = uploaded.path;
+      result.localToken = local;
+      steps.push(`token made (${square.width}x${square.height})`);
+    }
+    const applied = await this.foundryClient.query("foundry-mcp-bridge.set-actor-art", {
+      actor: entry.actor,
+      ...result.portrait ? { img: result.portrait } : {},
+      ...result.token ? { tokenImg: result.token } : {},
+      update_placed: options.updatePlaced
+    });
+    if (applied?.success === false)
+      throw new Error(applied.error || "The pictures could not be set on the actor");
+    result.actorName = applied?.actor?.name;
+    result.tokensUpdated = applied?.tokensUpdated ?? 0;
+    steps.push("actor updated");
+    result.steps = steps;
+    return result;
+  }
+  async handleMakeActorArt(args) {
+    const a = schema5.parse(args ?? {});
+    const options = {
+      style: a.style,
+      portraitSize: a.portrait_size ?? 1024,
+      tokenSize: a.token_size ?? 512,
+      updatePlaced: a.update_placed !== false,
+      folder: a.folder ?? "actors",
+      seed: a.seed
+    };
+    const results = [];
+    for (const entry of a.actors) {
+      try {
+        results.push({ success: true, ...await this.makeOne(entry, options) });
+      } catch (error) {
+        this.logger.error("Failed to make actor art", error);
+        results.push({ success: false, actor: entry.actor, error: error instanceof Error ? error.message : "Unknown error" });
+      }
+    }
+    const failed = results.filter((r) => !r.success).length;
+    return { success: failed < results.length, made: results.length - failed, failed, results };
+  }
+};
+
 // dist/tools/scene-sound-tools.js
 init_zod();
 var audioPath = external_exports.string().min(1).max(400).refine((p) => !/^[a-z]+:\/\//i.test(p), {
@@ -122470,7 +122983,7 @@ var musicSchema = external_exports.object({
   clear: external_exports.boolean().optional(),
   play: external_exports.boolean().optional()
 }).strict();
-var schema4 = external_exports.object({
+var schema6 = external_exports.object({
   scene: external_exports.string().min(1),
   action: external_exports.enum(["apply", "describe"]).optional(),
   music: musicSchema.optional(),
@@ -122478,8 +122991,8 @@ var schema4 = external_exports.object({
   replace_ambient: external_exports.boolean().optional(),
   clear_ambient: external_exports.boolean().optional()
 }).strict();
-function soundNameFromPath(path12) {
-  const file = path12.split("/").pop() ?? path12;
+function soundNameFromPath(path13) {
+  const file = path13.split("/").pop() ?? path13;
   const base = file.replace(/\.[^.]+$/, "");
   const name = base.replace(/[-_]+/g, " ").replace(/\s+/g, " ").trim();
   return name || "Sound";
@@ -122564,7 +123077,7 @@ var SceneSoundTools = class {
     };
   }
   async handleSetupSceneSound(args) {
-    const a = schema4.parse(args ?? {});
+    const a = schema6.parse(args ?? {});
     const action = a.action ?? "apply";
     if (action === "describe") {
       try {
@@ -122598,9 +123111,9 @@ var SceneSoundTools = class {
         let soundToStart = music.sound;
         if (music.files) {
           const repeat = music.repeat ?? music.files.length === 1;
-          const entry = (path12) => ({
-            path: path12,
-            name: soundNameFromPath(path12),
+          const entry = (path13) => ({
+            path: path13,
+            name: soundNameFromPath(path13),
             repeat,
             ...music.volume !== void 0 ? { volume: music.volume } : {}
           });
@@ -122660,8 +123173,8 @@ var SceneSoundTools = class {
 };
 
 // dist/tools/layout.js
-var import_fs7 = require("fs");
-var import_path6 = __toESM(require("path"), 1);
+var import_fs8 = require("fs");
+var import_path7 = __toESM(require("path"), 1);
 init_zod();
 
 // dist/tools/layout-utils.js
@@ -123784,9 +124297,9 @@ function alignToImage(layout, image, maxShift = 1.5) {
 }
 
 // dist/tools/layout-doc.js
-var import_fs6 = require("fs");
-var import_os4 = __toESM(require("os"), 1);
-var import_path5 = __toESM(require("path"), 1);
+var import_fs7 = require("fs");
+var import_os5 = __toESM(require("os"), 1);
+var import_path6 = __toESM(require("path"), 1);
 var MAX_DOC_SHAPES = 600;
 var MAX_HISTORY = 40;
 function slug(name) {
@@ -123796,13 +124309,13 @@ var LayoutStore = class {
   dir;
   cache = /* @__PURE__ */ new Map();
   constructor(dir) {
-    this.dir = dir ?? import_path5.default.join(import_os4.default.tmpdir(), "foundry-mcp-layouts");
+    this.dir = dir ?? import_path6.default.join(import_os5.default.tmpdir(), "foundry-mcp-layouts");
   }
   get folder() {
     return this.dir;
   }
   file(id2) {
-    return import_path5.default.join(this.dir, `${id2}.layout.json`);
+    return import_path6.default.join(this.dir, `${id2}.layout.json`);
   }
   async load(id2) {
     const key = slug(id2);
@@ -123810,7 +124323,7 @@ var LayoutStore = class {
     if (hit)
       return hit;
     try {
-      const doc = JSON.parse(await import_fs6.promises.readFile(this.file(key), "utf8"));
+      const doc = JSON.parse(await import_fs7.promises.readFile(this.file(key), "utf8"));
       this.cache.set(key, doc);
       return doc;
     } catch {
@@ -123818,13 +124331,13 @@ var LayoutStore = class {
     }
   }
   async save(doc) {
-    await import_fs6.promises.mkdir(this.dir, { recursive: true });
+    await import_fs7.promises.mkdir(this.dir, { recursive: true });
     this.cache.set(doc.id, doc);
-    await import_fs6.promises.writeFile(this.file(doc.id), JSON.stringify(doc));
+    await import_fs7.promises.writeFile(this.file(doc.id), JSON.stringify(doc));
   }
   async exists(id2) {
     try {
-      await import_fs6.promises.access(this.file(slug(id2)));
+      await import_fs7.promises.access(this.file(slug(id2)));
       return true;
     } catch {
       return false;
@@ -123832,7 +124345,7 @@ var LayoutStore = class {
   }
   async list() {
     try {
-      const files = (await import_fs6.promises.readdir(this.dir)).filter((f) => f.endsWith(".layout.json"));
+      const files = (await import_fs7.promises.readdir(this.dir)).filter((f) => f.endsWith(".layout.json"));
       const out = [];
       for (const f of files) {
         const doc = await this.load(f.replace(".layout.json", ""));
@@ -123846,7 +124359,7 @@ var LayoutStore = class {
   async remove(id2) {
     const key = slug(id2);
     this.cache.delete(key);
-    await import_fs6.promises.rm(this.file(key), { force: true });
+    await import_fs7.promises.rm(this.file(key), { force: true });
   }
 };
 function layoutOf(doc) {
@@ -124275,7 +124788,7 @@ var region = external_exports.object({
   width: external_exports.number().min(1),
   height: external_exports.number().min(1)
 }).strict();
-var schema5 = external_exports.object({
+var schema7 = external_exports.object({
   action: external_exports.enum(["new", "add", "update", "remove", "show", "render", "walls", "apply_walls", "check", "place", "lights", "align", "build", "portals", "set", "undo", "redo", "list", "delete"]),
   layout: external_exports.string().min(1).optional(),
   name: external_exports.string().min(1).max(60).optional(),
@@ -124458,7 +124971,7 @@ var LayoutTools = class {
     ];
   }
   async handleLayout(args) {
-    const a = schema5.parse(args ?? {});
+    const a = schema7.parse(args ?? {});
     switch (a.action) {
       case "list":
         return { success: true, layouts: await this.store.list(), folder: this.store.folder };
@@ -125046,21 +125559,21 @@ var LayoutTools = class {
     };
   }
   async writePicture(doc, kind, png) {
-    await import_fs7.promises.mkdir(this.store.folder, { recursive: true });
-    const file = import_path6.default.join(this.store.folder, `${doc.id}-${kind}-${Date.now()}.png`);
-    await import_fs7.promises.writeFile(file, png);
+    await import_fs8.promises.mkdir(this.store.folder, { recursive: true });
+    const file = import_path7.default.join(this.store.folder, `${doc.id}-${kind}-${Date.now()}.png`);
+    await import_fs8.promises.writeFile(file, png);
     await this.prune();
     return file;
   }
   async prune() {
     try {
-      const files = (await import_fs7.promises.readdir(this.store.folder)).filter((f) => f.endsWith(".png"));
+      const files = (await import_fs8.promises.readdir(this.store.folder)).filter((f) => f.endsWith(".png"));
       if (files.length <= KEEP_PICTURES)
         return;
-      const stats = await Promise.all(files.map(async (f) => ({ f, t: (await import_fs7.promises.stat(import_path6.default.join(this.store.folder, f))).mtimeMs })));
+      const stats = await Promise.all(files.map(async (f) => ({ f, t: (await import_fs8.promises.stat(import_path7.default.join(this.store.folder, f))).mtimeMs })));
       stats.sort((x, y) => x.t - y.t);
       for (const { f } of stats.slice(0, files.length - KEEP_PICTURES)) {
-        await import_fs7.promises.rm(import_path6.default.join(this.store.folder, f), { force: true });
+        await import_fs8.promises.rm(import_path7.default.join(this.store.folder, f), { force: true });
       }
     } catch {
     }
@@ -125183,11 +125696,11 @@ var InspectTools = class {
 var DISABLED_LEGACY_MAP_TOOLS = ["generate-map", "check-map-status", "cancel-map-job"];
 var CONTROL_HOST = "127.0.0.1";
 var CONTROL_PORT = 31414;
-var LOCK_FILE = path11.join(os5.tmpdir(), "foundry-mcp-backend.lock");
+var LOCK_FILE = path12.join(os6.tmpdir(), "foundry-mcp-backend.lock");
 function getBundledPythonPath() {
-  let installDir = path11.join(os5.homedir(), "AppData", "Local", "FoundryMCPServer");
+  let installDir = path12.join(os6.homedir(), "AppData", "Local", "FoundryMCPServer");
   const currentDir = process.cwd();
-  const execDir = path11.dirname(process.execPath);
+  const execDir = path12.dirname(process.execPath);
   if (currentDir.includes("FoundryMCPServer") || execDir.includes("FoundryMCPServer")) {
     const foundryMcpIndex = currentDir.indexOf("FoundryMCPServer");
     if (foundryMcpIndex !== -1) {
@@ -125199,30 +125712,30 @@ function getBundledPythonPath() {
       }
     }
   }
-  const nestedComfyUIPythonPath = path11.join(installDir, "ComfyUI", "ComfyUI", "python_embeded", "python.exe");
-  if (fs11.existsSync(nestedComfyUIPythonPath)) {
+  const nestedComfyUIPythonPath = path12.join(installDir, "ComfyUI", "ComfyUI", "python_embeded", "python.exe");
+  if (fs12.existsSync(nestedComfyUIPythonPath)) {
     return nestedComfyUIPythonPath;
   }
-  const portablePythonPath = path11.join(installDir, "ComfyUI", "python_embeded", "python.exe");
-  if (fs11.existsSync(portablePythonPath)) {
+  const portablePythonPath = path12.join(installDir, "ComfyUI", "python_embeded", "python.exe");
+  if (fs12.existsSync(portablePythonPath)) {
     return portablePythonPath;
   }
-  const bundledPythonPath = path11.join(installDir, "ComfyUI-env", "Scripts", "python.exe");
-  if (fs11.existsSync(bundledPythonPath)) {
+  const bundledPythonPath = path12.join(installDir, "ComfyUI-env", "Scripts", "python.exe");
+  if (fs12.existsSync(bundledPythonPath)) {
     return bundledPythonPath;
   }
   const fallbackPaths = [
-    path11.join(os5.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI", "ComfyUI", "python_embeded", "python.exe"),
-    path11.join(os5.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI-headless", "ComfyUI", "python_embeded", "python.exe"),
-    path11.join(os5.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI", "python_embeded", "python.exe"),
-    path11.join(os5.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI-headless", "python_embeded", "python.exe"),
-    path11.join(os5.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI-env", "Scripts", "python.exe"),
-    path11.join(process.cwd(), "..", "..", "ComfyUI-env", "Scripts", "python.exe"),
-    path11.join(__dirname, "..", "..", "..", "ComfyUI-env", "Scripts", "python.exe"),
-    path11.join(os5.homedir(), "AppData", "Local", "FoundryMCPServer", "Python", "python.exe")
+    path12.join(os6.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI", "ComfyUI", "python_embeded", "python.exe"),
+    path12.join(os6.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI-headless", "ComfyUI", "python_embeded", "python.exe"),
+    path12.join(os6.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI", "python_embeded", "python.exe"),
+    path12.join(os6.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI-headless", "python_embeded", "python.exe"),
+    path12.join(os6.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI-env", "Scripts", "python.exe"),
+    path12.join(process.cwd(), "..", "..", "ComfyUI-env", "Scripts", "python.exe"),
+    path12.join(__dirname, "..", "..", "..", "ComfyUI-env", "Scripts", "python.exe"),
+    path12.join(os6.homedir(), "AppData", "Local", "FoundryMCPServer", "Python", "python.exe")
   ];
   for (const fallbackPath of fallbackPaths) {
-    if (fs11.existsSync(fallbackPath)) {
+    if (fs12.existsSync(fallbackPath)) {
       return fallbackPath;
     }
   }
@@ -125247,39 +125760,39 @@ var lockFd = null;
 function acquireLock() {
   try {
     try {
-      lockFd = fs11.openSync(LOCK_FILE, "wx");
+      lockFd = fs12.openSync(LOCK_FILE, "wx");
     } catch (err) {
       if (err && err.code === "EEXIST") {
         try {
-          const lockData = fs11.readFileSync(LOCK_FILE, "utf8");
+          const lockData = fs12.readFileSync(LOCK_FILE, "utf8");
           const lockPid = parseInt(lockData.trim(), 10);
           try {
             process.kill(lockPid, 0);
             if (evaluateLockFile(lockPid, LOCK_FILE) === "orphaned") {
               console.error(`Removing orphaned backend lock for PID ${lockPid} (process is not node.exe or lock file is stale)`);
               try {
-                fs11.unlinkSync(LOCK_FILE);
+                fs12.unlinkSync(LOCK_FILE);
               } catch {
               }
-              lockFd = fs11.openSync(LOCK_FILE, "wx");
+              lockFd = fs12.openSync(LOCK_FILE, "wx");
             } else {
               return false;
             }
           } catch {
             console.error(`Removing stale backend lock for PID ${lockPid}`);
             try {
-              fs11.unlinkSync(LOCK_FILE);
+              fs12.unlinkSync(LOCK_FILE);
             } catch {
             }
-            lockFd = fs11.openSync(LOCK_FILE, "wx");
+            lockFd = fs12.openSync(LOCK_FILE, "wx");
           }
         } catch (readErr) {
           console.error("Corrupt backend lock file, removing:", readErr);
           try {
-            fs11.unlinkSync(LOCK_FILE);
+            fs12.unlinkSync(LOCK_FILE);
           } catch {
           }
-          lockFd = fs11.openSync(LOCK_FILE, "wx");
+          lockFd = fs12.openSync(LOCK_FILE, "wx");
         }
       } else {
         console.error("Failed to open backend lock file:", err);
@@ -125288,9 +125801,9 @@ function acquireLock() {
     }
     if (lockFd === null)
       return false;
-    fs11.writeFileSync(lockFd, String(process.pid));
+    fs12.writeFileSync(lockFd, String(process.pid));
     try {
-      fs11.fsyncSync(lockFd);
+      fs12.fsyncSync(lockFd);
     } catch {
     }
     console.error(`Acquired backend lock with PID ${process.pid}`);
@@ -125304,14 +125817,14 @@ function releaseLock() {
   try {
     if (lockFd !== null) {
       try {
-        fs11.closeSync(lockFd);
+        fs12.closeSync(lockFd);
       } catch {
       }
       lockFd = null;
     }
-    if (fs11.existsSync(LOCK_FILE)) {
+    if (fs12.existsSync(LOCK_FILE)) {
       try {
-        fs11.unlinkSync(LOCK_FILE);
+        fs12.unlinkSync(LOCK_FILE);
       } catch {
       }
     }
@@ -125320,20 +125833,20 @@ function releaseLock() {
   }
 }
 async function findComfyUIPath() {
-  const nestedComfyUIPath = path11.join(os5.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI", "ComfyUI");
-  if (fs11.existsSync(path11.join(nestedComfyUIPath, "main.py"))) {
+  const nestedComfyUIPath = path12.join(os6.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI", "ComfyUI");
+  if (fs12.existsSync(path12.join(nestedComfyUIPath, "main.py"))) {
     return nestedComfyUIPath;
   }
-  const nestedHeadlessPath = path11.join(os5.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI-headless", "ComfyUI");
-  if (fs11.existsSync(path11.join(nestedHeadlessPath, "main.py"))) {
+  const nestedHeadlessPath = path12.join(os6.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI-headless", "ComfyUI");
+  if (fs12.existsSync(path12.join(nestedHeadlessPath, "main.py"))) {
     return nestedHeadlessPath;
   }
-  const flatPath = path11.join(os5.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI");
-  if (fs11.existsSync(path11.join(flatPath, "main.py"))) {
+  const flatPath = path12.join(os6.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI");
+  if (fs12.existsSync(path12.join(flatPath, "main.py"))) {
     return flatPath;
   }
-  const legacyFlatPath = path11.join(os5.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI-headless");
-  if (fs11.existsSync(path11.join(legacyFlatPath, "main.py"))) {
+  const legacyFlatPath = path12.join(os6.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI-headless");
+  if (fs12.existsSync(path12.join(legacyFlatPath, "main.py"))) {
     return legacyFlatPath;
   }
   throw new Error("ComfyUI installation not found");
@@ -125373,7 +125886,7 @@ async function startComfyUIService(logger) {
     logger.info("Starting ComfyUI service...");
     const comfyUIPath = await findComfyUIPath();
     logger.info("ComfyUI found", { path: comfyUIPath });
-    logger.info("Starting ComfyUI process", { path: path11.join(comfyUIPath, "main.py") });
+    logger.info("Starting ComfyUI process", { path: path12.join(comfyUIPath, "main.py") });
     const pythonExe = getBundledPythonPath();
     logger.info("Using bundled Python", { pythonPath: pythonExe });
     comfyuiProcess = (0, import_child_process3.spawn)(pythonExe, [
@@ -125774,9 +126287,9 @@ async function processMapGenerationInBackend(jobId, jobQueue, comfyuiClient, log
 `);
     await fs22.appendFile(processDebugLog, `[${(/* @__PURE__ */ new Date()).toISOString()}] About to import fs/path/os for upload...
 `);
-    const fs12 = await import("fs").then((m) => m.promises);
-    const path12 = await import("path");
-    const os6 = await import("os");
+    const fs13 = await import("fs").then((m) => m.promises);
+    const path13 = await import("path");
+    const os7 = await import("os");
     await fs22.appendFile(processDebugLog, `[${(/* @__PURE__ */ new Date()).toISOString()}] Imports complete
 `);
     await fs22.appendFile(processDebugLog, `[${(/* @__PURE__ */ new Date()).toISOString()}] Creating filename and checking connection type...
@@ -125801,8 +126314,8 @@ async function processMapGenerationInBackend(jobId, jobQueue, comfyuiClient, log
     await fs22.appendFile(processDebugLog, `[${(/* @__PURE__ */ new Date()).toISOString()}] Using upload method for all connections
 `);
     const debugLog = async (msg) => {
-      const logPath = path12.join(os6.tmpdir(), "foundry-mcp-upload-debug.log");
-      await fs12.appendFile(logPath, `[${(/* @__PURE__ */ new Date()).toISOString()}] ${msg}
+      const logPath = path13.join(os7.tmpdir(), "foundry-mcp-upload-debug.log");
+      await fs13.appendFile(logPath, `[${(/* @__PURE__ */ new Date()).toISOString()}] ${msg}
 `);
     };
     await debugLog(`=== MAP GENERATION DEBUG START ===`);
@@ -125921,7 +126434,7 @@ async function startBackend() {
     format: config.logFormat,
     enableConsole: false,
     enableFile: true,
-    filePath: path11.join(os5.tmpdir(), "foundry-mcp-server", "mcp-server.log")
+    filePath: path12.join(os6.tmpdir(), "foundry-mcp-server", "mcp-server.log")
   });
   logger.info("Starting Foundry MCP Backend", {
     version: config.server.version,
@@ -125985,6 +126498,14 @@ async function startBackend() {
   });
   const fileBackupTools = new FileBackupTools({ foundryClient, logger });
   const auditTools = new AuditTools({ foundryClient, logger });
+  const lootTools = new LootTools({ foundryClient, logger });
+  const shareTools = new ShareTools({ foundryClient, logger });
+  const actorArtTools = new ActorArtTools({
+    foundryClient,
+    logger,
+    generate: (args) => imageGenerationTools.handleGenerateImage(args),
+    upload: (args) => uploadTools.handleUploadFile(args)
+  });
   const sceneSoundTools = new SceneSoundTools({ foundryClient, logger });
   const inspectTools = new InspectTools({ foundryClient, logger });
   const playlistTools = new PlaylistTools({ foundryClient, logger });
@@ -126039,11 +126560,11 @@ async function startBackend() {
   }
   globalThis.backendComfyUIHandlers = {
     handleMessage: async (message) => {
-      const fs12 = await import("fs").then((m) => m.promises);
-      const path12 = await import("path");
-      const os6 = await import("os");
-      const debugLog = path12.join(os6.tmpdir(), "backend-handler-debug.log");
-      await fs12.appendFile(debugLog, `[${(/* @__PURE__ */ new Date()).toISOString()}] handleMessage called - type: ${message?.type}, requestId: ${message?.requestId}
+      const fs13 = await import("fs").then((m) => m.promises);
+      const path13 = await import("path");
+      const os7 = await import("os");
+      const debugLog = path13.join(os7.tmpdir(), "backend-handler-debug.log");
+      await fs13.appendFile(debugLog, `[${(/* @__PURE__ */ new Date()).toISOString()}] handleMessage called - type: ${message?.type}, requestId: ${message?.requestId}
 `);
       logger.info("Handling ComfyUI message", {
         requestId: message.requestId,
@@ -126051,11 +126572,11 @@ async function startBackend() {
         hasData: !!message.data
       });
       try {
-        const fs13 = await import("fs").then((m) => m.promises);
-        const path13 = await import("path");
-        const os7 = await import("os");
-        const debugLog2 = path13.join(os7.tmpdir(), "backend-handler-debug.log");
-        await fs13.appendFile(debugLog2, `[${(/* @__PURE__ */ new Date()).toISOString()}] About to switch on message.type: "${message.type}"
+        const fs14 = await import("fs").then((m) => m.promises);
+        const path14 = await import("path");
+        const os8 = await import("os");
+        const debugLog2 = path14.join(os8.tmpdir(), "backend-handler-debug.log");
+        await fs14.appendFile(debugLog2, `[${(/* @__PURE__ */ new Date()).toISOString()}] About to switch on message.type: "${message.type}"
 `);
         let result;
         try {
@@ -126084,10 +126605,10 @@ async function startBackend() {
             }
             break;
           case "generate-map-request":
-            await fs13.appendFile(debugLog2, `[${(/* @__PURE__ */ new Date()).toISOString()}] Matched generate-map-request case, calling handler...
+            await fs14.appendFile(debugLog2, `[${(/* @__PURE__ */ new Date()).toISOString()}] Matched generate-map-request case, calling handler...
 `);
             result = await handleGenerateMapRequest(message, mapGenerationJobQueue, mapGenerationComfyUIClient, logger, foundryClient);
-            await fs13.appendFile(debugLog2, `[${(/* @__PURE__ */ new Date()).toISOString()}] Handler returned: ${JSON.stringify(result)}
+            await fs14.appendFile(debugLog2, `[${(/* @__PURE__ */ new Date()).toISOString()}] Handler returned: ${JSON.stringify(result)}
 `);
             break;
           case "check-map-status-request":
@@ -126156,6 +126677,9 @@ async function startBackend() {
     ...propTools.getToolDefinitions(),
     ...fileBackupTools.getToolDefinitions(),
     ...auditTools.getToolDefinitions(),
+    ...lootTools.getToolDefinitions(),
+    ...shareTools.getToolDefinitions(),
+    ...actorArtTools.getToolDefinitions(),
     ...sceneSoundTools.getToolDefinitions(),
     ...layoutTools.getToolDefinitions(),
     ...inspectTools.getToolDefinitions(),
@@ -126403,6 +126927,18 @@ async function startBackend() {
                   break;
                 case "manage-scene-backups":
                   result = await fileBackupTools.handleManageSceneBackups(args);
+                  break;
+                case "make-actor-art":
+                  result = await actorArtTools.handleMakeActorArt(args);
+                  break;
+                case "share-with-players":
+                  result = await shareTools.handleShareWithPlayers(args);
+                  break;
+                case "add-compendium-items":
+                  result = await lootTools.handleAddCompendiumItems(args);
+                  break;
+                case "make-chest":
+                  result = await lootTools.handleMakeChest(args);
                   break;
                 case "audit-world":
                   result = await auditTools.handleAuditWorld(args);
