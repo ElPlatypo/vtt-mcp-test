@@ -2147,6 +2147,217 @@ index 0000000..b892530
 +    });
 +  });
 +});
+diff --git a/packages/foundry-module/src/data-access.modules.test.ts b/packages/foundry-module/src/data-access.modules.test.ts
+new file mode 100644
+index 0000000..666579f
+--- /dev/null
++++ b/packages/foundry-module/src/data-access.modules.test.ts
+@@ -0,0 +1,205 @@
++/** manage-modules tests with Foundry stubbed. */
++import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
++import { FoundryDataAccess } from './data-access.js';
++
++function makeModule(id: string, extra: Record<string, any> = {}) {
++  return {
++    id,
++    title: extra.title ?? id,
++    version: '1.0.0',
++    type: 'module',
++    active: false,
++    description: '<p>About <b>it</b></p>',
++    authors: new Set([{ name: 'Someone' }]),
++    relationships: { requires: new Set(), conflicts: new Set(), recommends: new Set() },
++    compatibility: { minimum: '13', verified: '14' },
++    packs: new Set(),
++    ...extra,
++  };
++}
++
++function setup(allow = true) {
++  const added: unknown[] = [];
++  const tagger = makeModule('tagger', {
++    title: 'Tagger',
++    active: true,
++    relationships: { requires: new Set([{ id: 'libwrapper' }]), conflicts: new Set(), recommends: new Set() },
++    api: {
++      getByTag: vi.fn(async (tag: string) => [{ documentName: 'Token', id: 't1', uuid: 'Scene.s.Token.t1', name: tag }]),
++      tags: { add: vi.fn((...a: unknown[]) => added.push(a)) },
++      slow: () => new Promise(() => undefined),
++      count: 4,
++    },
++  });
++  const libwrapper = makeModule('libwrapper', { title: 'libWrapper' });
++  const sequencer = makeModule('sequencer', {
++    title: 'Sequencer',
++    relationships: { requires: new Set([{ id: 'socketlib' }]), conflicts: new Set(), recommends: new Set() },
++  });
++  const socketlib = makeModule('socketlib', { title: 'socketlib' });
++  const mine = makeModule('foundry-mcp-bridge-scenes', {
++    title: 'Foundry MCP Bridge (Scenes)',
++    active: true,
++    relationships: { requires: new Set(), conflicts: new Set([{ id: 'foundry-mcp-bridge' }]), recommends: new Set() },
++  });
++  const original = makeModule('foundry-mcp-bridge', {
++    title: 'Foundry MCP Bridge',
++    relationships: { requires: new Set(), conflicts: new Set([{ id: 'foundry-mcp-bridge-scenes' }]), recommends: new Set() },
++  });
++  const modules = new Map<string, any>([tagger, libwrapper, sequencer, socketlib, mine, original].map(m => [m.id, m]));
++
++  const values = new Map<string, unknown>([
++    ['tagger.autoTag', true],
++    ['tagger.mode', 'strict'],
++    ['core.moduleConfiguration', { tagger: true, 'foundry-mcp-bridge-scenes': true }],
++  ]);
++  const registry = new Map<string, any>([
++    ['tagger.autoTag', { namespace: 'tagger', key: 'autoTag', name: 'Auto tag', hint: 'Tags new things', scope: 'world', type: Boolean, default: false, config: true }],
++    ['tagger.mode', { namespace: 'tagger', key: 'mode', name: 'Mode', scope: 'client', type: String, default: 'loose', choices: { strict: 'Strict', loose: 'Loose' }, requiresReload: true }],
++    ['sequencer.volume', { namespace: 'sequencer', key: 'volume', scope: 'client', type: Number, default: 1 }],
++  ]);
++  const set = vi.fn(async (ns: string, key: string, value: unknown) => {
++    values.set(`${ns}.${key}`, value);
++  });
++
++  vi.stubGlobal('Hooks', { on: vi.fn(), callAll: vi.fn() });
++  vi.stubGlobal('game', {
++    ready: true,
++    world: { id: 'w', getFlag: vi.fn(() => []), setFlag: vi.fn() },
++    user: { id: 'gm', name: 'GM' },
++    modules,
++    i18n: { localize: (s: string) => s },
++    settings: {
++      settings: registry,
++      get: (ns: string, key: string) => (key === 'allowWriteOperations' ? allow : values.get(`${ns}.${key}`)),
++      set,
++    },
++  });
++  return { da: new FoundryDataAccess(), tagger, set, values, added };
++}
++
++describe('manageModules', () => {
++  beforeEach(() => vi.unstubAllGlobals());
++  afterEach(() => {
++    vi.useRealTimers();
++    vi.unstubAllGlobals();
++  });
++
++  it('lists modules, filtered and searched, sorted by title', async () => {
++    const { da } = setup();
++    const all = await da.manageModules({ action: 'list' });
++    expect(all).toMatchObject({ success: true, total: 6, active: 2 });
++    expect(all.modules.map((m: any) => m.title)).toEqual(['Foundry MCP Bridge', 'Foundry MCP Bridge (Scenes)', 'libWrapper', 'Sequencer', 'socketlib', 'Tagger']);
++    expect(all.modules.find((m: any) => m.id === 'tagger')).toMatchObject({ active: true, hasApi: true });
++    const inactive = await da.manageModules({ action: 'list', filter: 'inactive' });
++    expect(inactive.modules.map((m: any) => m.id).sort()).toEqual(['foundry-mcp-bridge', 'libwrapper', 'sequencer', 'socketlib']);
++    expect((await da.manageModules({ action: 'list', search: 'SEQ' })).modules.map((m: any) => m.id)).toEqual(['sequencer']);
++  });
++
++  it('describes a module with its relationships, settings and api', async () => {
++    const { da } = setup();
++    const r = await da.manageModules({ action: 'describe', module: 'tagger' });
++    expect(r.module).toMatchObject({ id: 'tagger', requires: ['libwrapper'], authors: ['Someone'], description: 'About it' });
++    expect(r.settings.map((s: any) => s.key).sort()).toEqual(['autoTag', 'mode']);
++    expect(r.settings.find((s: any) => s.key === 'autoTag')).toMatchObject({ scope: 'world', type: 'Boolean', default: false, current: true, hint: 'Tags new things' });
++    expect(r.settings.find((s: any) => s.key === 'mode').choices).toEqual({ strict: 'Strict', loose: 'Loose' });
++    const names = Object.fromEntries(r.api.map((a: any) => [a.name, a.kind]));
++    expect(names).toEqual({ count: 'value', getByTag: 'function', slow: 'function', tags: 'object' });
++  });
++
++  it('says a module that is not active has no api yet, and rejects unknown ids', async () => {
++    const { da } = setup();
++    const r = await da.manageModules({ action: 'describe', module: 'sequencer' });
++    expect(r.api).toBeNull();
++    expect(r.note).toContain('not active');
++    await expect(da.manageModules({ action: 'describe', module: 'ghost' })).rejects.toThrow('not installed');
++    await expect(da.manageModules({ action: 'describe' })).rejects.toThrow('module');
++  });
++
++  it('reads and changes settings', async () => {
++    const { da, set, values } = setup();
++    expect(await da.manageModules({ action: 'get_setting', module: 'tagger', key: 'mode' })).toMatchObject({ value: 'strict' });
++    const r = await da.manageModules({ action: 'set_setting', module: 'tagger', key: 'mode', value: 'loose' });
++    expect(set).toHaveBeenCalledWith('tagger', 'mode', 'loose');
++    expect(values.get('tagger.mode')).toBe('loose');
++    expect(r).toMatchObject({ before: 'strict', after: 'loose', scope: 'client', reloadRequired: true });
++    await expect(da.manageModules({ action: 'get_setting', module: 'tagger', key: 'nope' })).rejects.toThrow('no setting');
++    await expect(da.manageModules({ action: 'set_setting', module: 'tagger', key: 'nope', value: 1 })).rejects.toThrow('no setting');
++    await expect(da.manageModules({ action: 'set_setting', module: 'tagger', key: 'mode' })).rejects.toThrow('value');
++  });
++
++  it('calls api functions with arguments and returns plain JSON', async () => {
++    const { da, tagger, added } = setup();
++    const r = await da.manageModules({ action: 'call', module: 'tagger', path: 'getByTag', args: ['boss'] });
++    expect(tagger.api.getByTag).toHaveBeenCalledWith('boss');
++    expect(r).toMatchObject({ path: 'getByTag', returned: [{ documentName: 'Token', id: 't1', uuid: 'Scene.s.Token.t1', name: 'boss' }] });
++    await da.manageModules({ action: 'call', module: 'tagger', path: 'api.tags.add', args: ['t1', 'x'] });
++    expect(added).toEqual([['t1', 'x']]);
++  });
++
++  it('refuses calls it should not make', async () => {
++    const { da } = setup();
++    await expect(da.manageModules({ action: 'call', module: 'sequencer', path: 'play' })).rejects.toThrow('not active');
++    await expect(da.manageModules({ action: 'call', module: 'foundry-mcp-bridge-scenes', path: 'x' })).rejects.toThrow('no public API');
++    await expect(da.manageModules({ action: 'call', module: 'tagger', path: 'nope' })).rejects.toThrow('not a function');
++    await expect(da.manageModules({ action: 'call', module: 'tagger', path: 'getByTag.constructor' })).rejects.toThrow('not allowed');
++    await expect(da.manageModules({ action: 'call', module: 'tagger', path: 'count' })).rejects.toThrow('not a function');
++    await expect(da.manageModules({ action: 'call', module: 'tagger', path: 'getByTag', args: new Array(25).fill(1) })).rejects.toThrow('at most 20');
++  });
++
++  it('gives up on a call that never returns', async () => {
++    vi.useFakeTimers();
++    const { da } = setup();
++    const pending = da.manageModules({ action: 'call', module: 'tagger', path: 'slow' });
++    const caught = pending.catch(e => e);
++    await vi.advanceTimersByTimeAsync(31000);
++    expect(String(await caught)).toContain('longer than 30 seconds');
++  });
++
++  it('blocks writes when write operations are off', async () => {
++    const { da } = setup(false);
++    await expect(da.manageModules({ action: 'set_setting', module: 'tagger', key: 'mode', value: 'x' })).rejects.toThrow();
++    await expect(da.manageModules({ action: 'call', module: 'tagger', path: 'getByTag' })).rejects.toThrow();
++    await expect(da.manageModules({ action: 'set_active', modules: ['sequencer'], active: true, confirm: true })).rejects.toThrow();
++    expect((await da.manageModules({ action: 'list' })).success).toBe(true);
++  });
++
++  it('plans before it switches modules and only saves with confirm', async () => {
++    const { da, set } = setup();
++    const dry = await da.manageModules({ action: 'set_active', modules: ['sequencer'], active: true });
++    expect(dry).toMatchObject({ success: true, dryRun: true });
++    expect(dry.wouldChange.map((c: any) => c.id)).toEqual(['socketlib', 'sequencer']);
++    expect(set).not.toHaveBeenCalled();
++
++    const done = await da.manageModules({ action: 'set_active', modules: ['sequencer'], active: true, confirm: true });
++    expect(done.reloadRequired).toBe(true);
++    expect(set).toHaveBeenCalledWith('core', 'moduleConfiguration', {
++      tagger: true,
++      'foundry-mcp-bridge-scenes': true,
++      socketlib: true,
++      sequencer: true,
++    });
++  });
++
++  it('switches off a module and what depends on it, but never the connection', async () => {
++    const { da, set } = setup();
++    await da.manageModules({ action: 'set_active', modules: ['tagger'], active: false, confirm: true });
++    expect(set.mock.calls[0]![2]).toMatchObject({ tagger: false });
++    const own = await da.manageModules({ action: 'set_active', modules: ['foundry-mcp-bridge-scenes'], active: false, confirm: true });
++    expect(own.success).toBe(false);
++    expect(own.error).toContain('connection to this tool');
++  });
++
++  it('refuses a conflicting module and reports a no-op', async () => {
++    const { da, set } = setup();
++    const clash = await da.manageModules({ action: 'set_active', modules: ['foundry-mcp-bridge'], active: true, confirm: true });
++    expect(clash.success).toBe(false);
++    expect(clash.error).toContain('conflicts');
++    const same = await da.manageModules({ action: 'set_active', modules: ['tagger'], active: true, confirm: true });
++    expect(same).toMatchObject({ success: true, changed: [], unchanged: ['tagger'] });
++    expect(set).not.toHaveBeenCalled();
++    await expect(da.manageModules({ action: 'set_active', modules: [], active: true })).rejects.toThrow('modules');
++    await expect(da.manageModules({ action: 'set_active', modules: ['tagger'] })).rejects.toThrow('active');
++    await expect(da.manageModules({ action: 'explode' as any })).rejects.toThrow('Unknown action');
++  });
++});
 diff --git a/packages/foundry-module/src/data-access.play.test.ts b/packages/foundry-module/src/data-access.play.test.ts
 new file mode 100644
 index 0000000..fd1d7d0
@@ -3213,10 +3424,10 @@ index 0000000..313055c
 +  });
 +});
 diff --git a/packages/foundry-module/src/data-access.ts b/packages/foundry-module/src/data-access.ts
-index eecda7e..a5aacc4 100644
+index eecda7e..5ee54c0 100644
 --- a/packages/foundry-module/src/data-access.ts
 +++ b/packages/foundry-module/src/data-access.ts
-@@ -1,5 +1,73 @@
+@@ -1,5 +1,81 @@
  import { MODULE_ID, ERROR_MESSAGES, TOKEN_DISPOSITIONS } from './constants.js';
  import { permissionManager } from './permissions.js';
 +import {
@@ -3258,6 +3469,14 @@ index eecda7e..a5aacc4 100644
 +} from './preview-utils.js';
 +import { buildMacroData, buildTableResults } from './play-utils.js';
 +import {
++  describeApi,
++  planModuleToggle,
++  relationIds,
++  resolveApiFunction,
++  serializeValue,
++  type ModuleNode,
++} from './module-utils.js';
++import {
 +  buildHpPatch,
 +  buildPrototypeTokenPatch,
 +  prototypeTokenUpdate,
@@ -3290,7 +3509,7 @@ index eecda7e..a5aacc4 100644
  import { transactionManager } from './transaction-manager.js';
  
  // The same five characters foundry.utils.escapeHTML replaces in v14, kept local because
-@@ -4681,12 +4749,28 @@ export class FoundryDataAccess {
+@@ -4681,12 +4757,28 @@ export class FoundryDataAccess {
        type: 'random' | 'grid' | 'center' | 'coordinates';
        coordinates?: { x: number; y: number }[];
      };
@@ -3319,7 +3538,7 @@ index eecda7e..a5aacc4 100644
        // Validate inputs
        if (!packId || !itemId) {
          throw new Error('Both packId and itemId are required');
-@@ -4753,10 +4837,33 @@ export class FoundryDataAccess {
+@@ -4753,10 +4845,33 @@ export class FoundryDataAccess {
            }
  
            // Organize created actors in a folder - use "Foundry MCP Creatures" for generic monsters
@@ -3354,7 +3573,7 @@ index eecda7e..a5aacc4 100644
  
            // Create the actor
            const newActor = await Actor.create(actorData);
-@@ -6714,7 +6821,7 @@ export class FoundryDataAccess {
+@@ -6714,7 +6829,7 @@ export class FoundryDataAccess {
  
          // Send socket request to GM
          if (game.socket) {
@@ -3363,7 +3582,7 @@ index eecda7e..a5aacc4 100644
              type: 'requestMessageUpdate',
              buttonId,
              userId,
-@@ -7941,162 +8048,2480 @@ export class FoundryDataAccess {
+@@ -7941,162 +8056,2685 @@ export class FoundryDataAccess {
  
        return {
          success: true,
@@ -4333,6 +4552,211 @@ index eecda7e..a5aacc4 100644
 +      throw new Error(
 +        `Failed to ${options?.action ?? 'manage'} macro: ${error instanceof Error ? error.message : 'Unknown error'}`
 +      );
++    }
++  }
++
++  // ===== MODULES =====
++
++  /** Modules this tool runs in; never switched off from here. */
++  private static readonly OWN_MODULE_IDS = ['foundry-mcp-bridge-scenes', 'foundry-mcp-bridge'];
++
++  private moduleList(): any[] {
++    const collection = (game as any).modules;
++    return collection ? [...collection.values()] : [];
++  }
++
++  private findModule(id: string | undefined): any {
++    if (!id) throw new Error('module (id) is required');
++    const found = (game as any).modules?.get(id);
++    if (!found) throw new Error(`Module "${id}" is not installed (use list to see the ids)`);
++    return found;
++  }
++
++  private moduleNode(m: any): ModuleNode {
++    const rel = m.relationships ?? m.manifest?.relationships ?? {};
++    return {
++      id: m.id,
++      active: Boolean(m.active),
++      requires: relationIds(rel.requires),
++      conflicts: relationIds(rel.conflicts),
++      installed: true,
++    };
++  }
++
++  private moduleSummary(m: any, full: boolean): Record<string, any> {
++    const node = this.moduleNode(m);
++    const names = (value: any): string[] =>
++      value ? [...(value instanceof Set || Array.isArray(value) ? value : [])].map((x: any) => String(x?.name ?? x)) : [];
++    const out: Record<string, any> = {
++      id: m.id,
++      title: m.title,
++      version: m.version,
++      active: node.active,
++      type: m.type ?? 'module',
++      hasApi: Boolean(m.api),
++    };
++    if (full) {
++      out.description = typeof m.description === 'string' ? m.description.replace(/<[^>]+>/g, '').slice(0, 800) : undefined;
++      out.authors = names(m.authors);
++      out.requires = node.requires;
++      out.conflicts = node.conflicts;
++      out.recommends = relationIds((m.relationships ?? m.manifest?.relationships ?? {}).recommends);
++      out.compatibility = m.compatibility ? serializeValue(m.compatibility) : undefined;
++      out.packs = ((m.packs?.contents ?? (m.packs instanceof Set ? [...m.packs] : Array.isArray(m.packs) ? m.packs : [])) as any[]).map(p => String(p?.name ?? p?.id ?? p)).slice(0, 50);
++      out.url = m.url ?? undefined;
++    }
++    return out;
++  }
++
++  private moduleSettings(id: string): any[] {
++    const registry: Map<string, any> | undefined = (game as any).settings?.settings;
++    if (!registry) return [];
++    const out: any[] = [];
++    for (const [key, setting] of registry) {
++      if (setting?.namespace !== id && !String(key).startsWith(`${id}.`)) continue;
++      let current: unknown;
++      try {
++        current = serializeValue((game as any).settings.get(setting.namespace, setting.key));
++      } catch {
++        current = '[unreadable]';
++      }
++      out.push({
++        key: setting.key,
++        name: setting.name ? (game as any).i18n?.localize?.(setting.name) ?? setting.name : undefined,
++        hint: setting.hint ? String((game as any).i18n?.localize?.(setting.hint) ?? setting.hint).slice(0, 300) : undefined,
++        scope: setting.scope,
++        type: typeof setting.type === 'function' ? setting.type.name : String(setting.type ?? ''),
++        default: serializeValue(setting.default),
++        choices: setting.choices ? serializeValue(setting.choices) : undefined,
++        range: setting.range ? serializeValue(setting.range) : undefined,
++        current,
++      });
++    }
++    return out;
++  }
++
++  /**
++   * Look at the modules installed on this server and use them: list and describe them, read and
++   * change their settings, call functions of their public API, and switch them on or off (which
++   * takes effect after the page is reloaded).
++   */
++  async manageModules(options: {
++    action: 'list' | 'describe' | 'get_setting' | 'set_setting' | 'call' | 'set_active';
++    module?: string;
++    modules?: string[];
++    filter?: 'all' | 'active' | 'inactive';
++    search?: string;
++    key?: string;
++    value?: unknown;
++    path?: string;
++    args?: unknown[];
++    active?: boolean;
++    confirm?: boolean;
++    dry_run?: boolean;
++  }): Promise<any> {
++    this.validateFoundryState();
++
++    try {
++      const action = options.action;
++      const known = ['list', 'describe', 'get_setting', 'set_setting', 'call', 'set_active'];
++      if (!known.includes(action)) throw new Error(`Unknown action: ${String(action)} (${known.join(' | ')})`);
++
++      if (action === 'list') {
++        const filter = options.filter ?? 'all';
++        const search = options.search?.toLowerCase();
++        const items = this.moduleList()
++          .filter(m => filter === 'all' || (filter === 'active') === Boolean(m.active))
++          .filter(m => !search || `${m.id} ${m.title}`.toLowerCase().includes(search))
++          .map(m => this.moduleSummary(m, false))
++          .sort((a, b) => String(a.title).localeCompare(String(b.title)));
++        return {
++          success: true,
++          total: items.length,
++          active: items.filter(m => m.active).length,
++          modules: items,
++        };
++      }
++
++      if (action === 'describe') {
++        const m = this.findModule(options.module);
++        return {
++          success: true,
++          module: this.moduleSummary(m, true),
++          settings: this.moduleSettings(m.id),
++          api: m.active ? describeApi(m.api) : null,
++          ...(m.active ? {} : { note: 'The module is not active in this world, so it has no API loaded yet' }),
++        };
++      }
++
++      if (action === 'get_setting') {
++        const m = this.findModule(options.module);
++        if (!options.key) throw new Error('key is required');
++        const registered = (game as any).settings?.settings?.has(`${m.id}.${options.key}`);
++        if (!registered) throw new Error(`Module "${m.id}" has no setting "${options.key}" (describe lists them)`);
++        return { success: true, module: m.id, key: options.key, value: serializeValue((game as any).settings.get(m.id, options.key)) };
++      }
++
++      const gate = permissionManager.checkWritePermission('modifyWorld');
++      if (!gate.allowed) throw new Error(`${ERROR_MESSAGES.ACCESS_DENIED}: ${gate.reason}`);
++
++      if (action === 'set_setting') {
++        const m = this.findModule(options.module);
++        if (!options.key) throw new Error('key is required');
++        if (options.value === undefined) throw new Error('value is required');
++        const setting = (game as any).settings?.settings?.get(`${m.id}.${options.key}`);
++        if (!setting) throw new Error(`Module "${m.id}" has no setting "${options.key}" (describe lists them)`);
++        const before = serializeValue((game as any).settings.get(m.id, options.key));
++        await (game as any).settings.set(m.id, options.key, options.value);
++        const after = serializeValue((game as any).settings.get(m.id, options.key));
++        this.auditLog('manageModules:set_setting', { module: m.id, key: options.key }, 'success');
++        return { success: true, module: m.id, key: options.key, scope: setting.scope, before, after, ...(setting.requiresReload ? { reloadRequired: true } : {}) };
++      }
++
++      if (action === 'call') {
++        const m = this.findModule(options.module);
++        if (!m.active) throw new Error(`Module "${m.id}" is not active in this world; switch it on with set_active and reload first`);
++        if (!m.api) throw new Error(`Module "${m.id}" has no public API (describe shows what it offers)`);
++        const { fn, self, name } = resolveApiFunction(m.api, options.path);
++        const args = options.args ?? [];
++        if (!Array.isArray(args) || args.length > 20) throw new Error('args must be a list of at most 20 values');
++        const result = await Promise.race([
++          Promise.resolve(fn.apply(self, args)),
++          new Promise((_, reject) => setTimeout(() => reject(new Error('The call took longer than 30 seconds')), 30000)),
++        ]);
++        this.auditLog('manageModules:call', { module: m.id, path: name }, 'success');
++        return { success: true, module: m.id, path: name, returned: serializeValue(result) };
++      }
++
++      // set_active
++      if (!Array.isArray(options.modules) || options.modules.length === 0) throw new Error('modules (a list of ids) is required');
++      if (typeof options.active !== 'boolean') throw new Error('active (true or false) is required');
++      const all = this.moduleList();
++      const plan = planModuleToggle(all.map(m => this.moduleNode(m)), options.modules, options.active, FoundryDataAccess.OWN_MODULE_IDS);
++      if (!plan.ok) return { success: false, error: plan.problems.join('; '), plan };
++      if (plan.change.length === 0) return { success: true, changed: [], unchanged: plan.unchanged, note: 'Nothing to change' };
++      if (options.dry_run || options.confirm !== true) {
++        return {
++          success: true,
++          dryRun: true,
++          wouldChange: plan.change,
++          unchanged: plan.unchanged,
++          note: 'Nothing was changed. Pass confirm: true to apply it; the page must be reloaded afterwards.',
++        };
++      }
++      const config = { ...(((game as any).settings.get('core', 'moduleConfiguration') as Record<string, boolean>) ?? {}) };
++      for (const c of plan.change) config[c.id] = c.active;
++      await (game as any).settings.set('core', 'moduleConfiguration', config);
++      this.auditLog('manageModules:set_active', { changed: plan.change.map(c => `${c.id}=${c.active}`) }, 'success');
++      return {
++        success: true,
++        changed: plan.change,
++        unchanged: plan.unchanged,
++        reloadRequired: true,
++        note: 'Saved. The change takes effect when the Foundry page is reloaded (F5); the connection to this tool drops for a moment.',
++      };
++    } catch (error) {
++      this.auditLog(`manageModules:${options?.action}`, { module: options?.module }, 'failure', error instanceof Error ? error.message : 'Unknown error');
++      throw new Error(`Failed to ${options?.action ?? 'manage'} modules: ${error instanceof Error ? error.message : 'Unknown error'}`);
 +    }
 +  }
 +
@@ -5962,7 +6386,7 @@ index eecda7e..a5aacc4 100644
        );
      }
    }
-@@ -11274,7 +13699,10 @@ export class FoundryDataAccess {
+@@ -11274,7 +13912,10 @@ export class FoundryDataAccess {
        name: string;
        type: string;
        img?: string;
@@ -5973,7 +6397,7 @@ index eecda7e..a5aacc4 100644
      }>;
      folder?: string;
    }): Promise<{ created: Array<{ id: string; name: string; type: string }>; total: number }> {
-@@ -11286,6 +13714,19 @@ export class FoundryDataAccess {
+@@ -11286,6 +13927,19 @@ export class FoundryDataAccess {
      const docs = params.actors.map(a => {
        const doc: Record<string, any> = { name: a.name, type: a.type };
        if (a.img) doc.img = a.img;
@@ -5993,7 +6417,7 @@ index eecda7e..a5aacc4 100644
  
        // Merge system data, adding safe defaults for systems that require certain
        // fields to exist during data preparation (avoids non-fatal init errors).
-@@ -11471,7 +13912,16 @@ export class FoundryDataAccess {
+@@ -11471,7 +14125,16 @@ export class FoundryDataAccess {
     * Merges supplied fields into the actor (top-level keys overwrite).
     */
    async updateActors(
@@ -6011,7 +6435,7 @@ index eecda7e..a5aacc4 100644
    ): Promise<{ updated: Array<{ id: string; name: string }>; total: number }> {
      const updatedActors: Array<{ id: string; name: string }> = [];
  
-@@ -11482,6 +13932,7 @@ export class FoundryDataAccess {
+@@ -11482,6 +14145,7 @@ export class FoundryDataAccess {
        const patch: Record<string, any> = {};
        if (u.name !== undefined) patch.name = u.name;
        if (u.img !== undefined) patch.img = u.img;
@@ -6019,7 +6443,7 @@ index eecda7e..a5aacc4 100644
        if (u.system !== undefined) {
          // Build a single patch.system nested object so Foundry deep-merges everything
          // in one pass without flat-key vs nested-key conflicts.
-@@ -11504,6 +13955,19 @@ export class FoundryDataAccess {
+@@ -11504,6 +14168,19 @@ export class FoundryDataAccess {
          }
          patch.system = systemPatch;
        }
@@ -7969,6 +8393,417 @@ index 9024ead..26cc5c1 100644
        try {
          // Handle ChatMessage update requests (GM only)
          if (data.type === 'requestMessageUpdate' && data.buttonId && data.messageId) {
+diff --git a/packages/foundry-module/src/module-utils.test.ts b/packages/foundry-module/src/module-utils.test.ts
+new file mode 100644
+index 0000000..e2a71f8
+--- /dev/null
++++ b/packages/foundry-module/src/module-utils.test.ts
+@@ -0,0 +1,163 @@
++import { describe, expect, it } from 'vitest';
++import {
++  describeApi,
++  parseApiPath,
++  planModuleToggle,
++  relationIds,
++  resolveApiFunction,
++  serializeValue,
++  type ModuleNode,
++} from './module-utils.js';
++
++describe('parseApiPath', () => {
++  it('accepts plain and nested names, and drops a leading api.', () => {
++    expect(parseApiPath('getByTag')).toEqual(['getByTag']);
++    expect(parseApiPath('tags.add')).toEqual(['tags', 'add']);
++    expect(parseApiPath('api.tags.add')).toEqual(['tags', 'add']);
++  });
++  it('refuses anything that could reach outside the api', () => {
++    for (const bad of ['', ' ', 'a b', 'a..b', 'a.', '1a', 'a-b', 'a()', 'x.constructor', '__proto__.x', 'a.prototype.b', 'eval', 'a;b', 'a[0]']) {
++      expect(() => parseApiPath(bad)).toThrow();
++    }
++    expect(() => parseApiPath('a.b.c.d.e.f.g')).toThrow('at most');
++    expect(() => parseApiPath(42)).toThrow('required');
++  });
++});
++
++describe('resolveApiFunction', () => {
++  const api = { ping: function (this: any) { return this === api; }, tags: { add: (x: number) => x + 1, label: 'x' }, n: 3 };
++  it('finds a function and keeps its owner as this', () => {
++    const { fn, self, name } = resolveApiFunction(api, 'tags.add');
++    expect(name).toBe('tags.add');
++    expect(fn.call(self, 1)).toBe(2);
++    const ping = resolveApiFunction(api, 'ping');
++    expect(ping.fn.apply(ping.self, [])).toBe(true);
++  });
++  it('explains what went wrong', () => {
++    expect(() => resolveApiFunction(api, 'nope')).toThrow('not a function');
++    expect(() => resolveApiFunction(api, 'tags.label')).toThrow('not a function');
++    expect(() => resolveApiFunction(api, 'n.x')).toThrow('not an object');
++    expect(() => resolveApiFunction(api, 'ping.constructor')).toThrow('not allowed');
++  });
++});
++
++describe('serializeValue', () => {
++  it('passes JSON values through and names functions', () => {
++    expect(serializeValue({ a: 1, b: 'x', c: [true, null], f: function go() {} })).toEqual({ a: 1, b: 'x', c: [true, null], f: '[function go]' });
++    expect(serializeValue(undefined)).toBeNull();
++    expect(serializeValue(NaN)).toBe('NaN');
++  });
++  it('turns documents, canvas objects, maps and sets into plain data', () => {
++    const doc = { documentName: 'Token', id: 't1', uuid: 'Scene.s.Token.t1', name: 'Wolf', huge: new Array(1000).fill(1) };
++    expect(serializeValue(doc)).toEqual({ documentName: 'Token', id: 't1', uuid: 'Scene.s.Token.t1', name: 'Wolf' });
++    expect(serializeValue({ document: doc })).toEqual({ documentName: 'Token', id: 't1', uuid: 'Scene.s.Token.t1', name: 'Wolf' });
++    expect(serializeValue(new Map([['a', 1], ['b', 2]]))).toEqual([1, 2]);
++    expect(serializeValue(new Set([1, 2]))).toEqual([1, 2]);
++    expect(serializeValue({ contents: [1, 2, 3] })).toEqual([1, 2, 3]);
++    expect(serializeValue(new Date(0))).toBe('1970-01-01T00:00:00.000Z');
++  });
++  it('limits depth, length and cycles', () => {
++    const cyc: any = { name: 'c' };
++    cyc.self = cyc;
++    expect(serializeValue(cyc)).toEqual({ name: 'c', self: '[circular]' });
++    const deep = { a: { b: { c: { d: { e: 1 } } } } };
++    expect(JSON.stringify(serializeValue(deep))).toContain('[object]');
++    const list = serializeValue(new Array(150).fill(7)) as unknown[];
++    expect(list.length).toBe(101);
++    expect(list[100]).toBe('... 50 more');
++    expect((serializeValue('x'.repeat(5000)) as string).length).toBeLessThan(2100);
++  });
++  it('survives getters that throw', () => {
++    const bad = {};
++    Object.defineProperty(bad, 'boom', { enumerable: true, get() { throw new Error('no'); } });
++    expect(serializeValue(bad)).toEqual({ boom: '[unreadable]' });
++  });
++});
++
++describe('relationIds', () => {
++  it('reads sets, arrays and collections of ids or objects', () => {
++    expect(relationIds(new Set([{ id: 'a' }, { id: 'b' }]))).toEqual(['a', 'b']);
++    expect(relationIds(['a', { id: 'b' }, 5, {}])).toEqual(['a', 'b']);
++    expect(relationIds({ contents: [{ id: 'z' }] })).toEqual(['z']);
++    expect(relationIds(undefined)).toEqual([]);
++  });
++});
++
++describe('describeApi', () => {
++  it('lists functions, nested objects and values, including class methods, without private names', () => {
++    class Api {
++      value = 5;
++      tags = { add() {}, remove() {} };
++      _hidden = 1;
++      getByTag() {}
++    }
++    const described = describeApi(new Api())!;
++    const names = Object.fromEntries(described.map(d => [d.name, d]));
++    expect(names.getByTag?.kind).toBe('function');
++    expect(names.value?.kind).toBe('value');
++    expect(names.tags).toEqual({ name: 'tags', kind: 'object', members: ['add', 'remove'] });
++    expect(names._hidden).toBeUndefined();
++    expect(describeApi(null)).toBeNull();
++  });
++});
++
++const node = (id: string, active: boolean, requires: string[] = [], conflicts: string[] = []): ModuleNode => ({ id, active, requires, conflicts, installed: true });
++
++describe('planModuleToggle', () => {
++  const nodes = [
++    node('mine', true, [], ['original']),
++    node('original', false, [], ['mine']),
++    node('socketlib', false),
++    node('libwrapper', false),
++    node('sequencer', false, ['socketlib']),
++    node('jb2a', false, ['sequencer']),
++    node('tagger', false, ['libwrapper']),
++    node('active-lib', true),
++    node('needs-active-lib', true, ['active-lib']),
++  ];
++
++  it('switches on what is needed first, in order', () => {
++    const plan = planModuleToggle(nodes, ['jb2a'], true);
++    expect(plan.ok).toBe(true);
++    expect(plan.change.map(c => c.id)).toEqual(['socketlib', 'sequencer', 'jb2a']);
++    expect(plan.change[0]).toMatchObject({ active: true, reason: 'needed by sequencer' });
++    expect(plan.change[2]!.reason).toBe('requested');
++  });
++
++  it('reports modules already in the wanted state and does not repeat shared needs', () => {
++    const plan = planModuleToggle(nodes, ['active-lib', 'sequencer', 'jb2a'], true);
++    expect(plan.unchanged).toEqual(['active-lib']);
++    expect(plan.change.map(c => c.id)).toEqual(['socketlib', 'sequencer', 'jb2a']);
++  });
++
++  it('refuses a module that conflicts with an active one', () => {
++    const plan = planModuleToggle(nodes, ['original'], true);
++    expect(plan.ok).toBe(false);
++    expect(plan.problems[0]).toContain('conflicts with "mine"');
++  });
++
++  it('says when something is not installed', () => {
++    const plan = planModuleToggle(nodes, ['ghost'], true);
++    expect(plan.ok).toBe(false);
++    expect(plan.problems).toEqual(['"ghost" is not installed']);
++    const lib = planModuleToggle([node('x', false, ['missing-lib'])], ['x'], true);
++    expect(lib.problems).toContain('"missing-lib" is not installed');
++  });
++
++  it('switches off what depends on a module, and protects the connection', () => {
++    const plan = planModuleToggle(nodes, ['active-lib'], false);
++    expect(plan.change.map(c => c.id)).toEqual(['needs-active-lib', 'active-lib']);
++    expect(plan.change[0]).toMatchObject({ active: false, reason: 'needs active-lib' });
++    const own = planModuleToggle(nodes, ['mine'], false, ['mine']);
++    expect(own.ok).toBe(false);
++    expect(own.problems[0]).toContain('connection to this tool');
++    expect(planModuleToggle(nodes, ['socketlib'], false).unchanged).toEqual(['socketlib']);
++  });
++
++  it('copes with a requirement loop', () => {
++    const loop = [node('a', false, ['b']), node('b', false, ['a'])];
++    const plan = planModuleToggle(loop, ['a'], true);
++    expect(plan.ok).toBe(true);
++    expect(plan.change.map(c => c.id).sort()).toEqual(['a', 'b']);
++  });
++});
+diff --git a/packages/foundry-module/src/module-utils.ts b/packages/foundry-module/src/module-utils.ts
+new file mode 100644
+index 0000000..855e0cb
+--- /dev/null
++++ b/packages/foundry-module/src/module-utils.ts
+@@ -0,0 +1,236 @@
++/**
++ * Helpers for manage-modules: turning Foundry values into something JSON can carry, checking the
++ * path of a module API call, and planning which modules to switch on or off. Pure functions, so
++ * they can be tested without Foundry.
++ */
++
++const MAX_DEPTH = 4;
++const MAX_ITEMS = 100;
++const MAX_STRING = 2000;
++
++const BLOCKED_SEGMENTS = new Set(['__proto__', 'prototype', 'constructor', 'eval', '__defineGetter__', '__defineSetter__', '__lookupGetter__', '__lookupSetter__']);
++const SEGMENT = /^[A-Za-z_$][A-Za-z0-9_$]*$/;
++export const MAX_PATH_SEGMENTS = 6;
++
++/** Split and check a path such as "api.getByTag"; throws a readable error for anything unsafe. */
++export function parseApiPath(path: unknown): string[] {
++  if (typeof path !== 'string' || path.trim() === '') throw new Error('path is required (for example "getByTag")');
++  const parts = path.trim().replace(/^api\./, '').split('.');
++  if (parts.length > MAX_PATH_SEGMENTS) throw new Error(`path may have at most ${MAX_PATH_SEGMENTS} parts`);
++  for (const part of parts) {
++    if (!SEGMENT.test(part)) throw new Error(`"${part}" is not a valid name in the path`);
++    if (BLOCKED_SEGMENTS.has(part)) throw new Error(`"${part}" is not allowed in a path`);
++  }
++  return parts;
++}
++
++/** Walk a path below `root` and return the function and the object to call it on. */
++export function resolveApiFunction(root: any, path: unknown): { fn: (...args: any[]) => any; self: any; name: string } {
++  const parts = parseApiPath(path);
++  let self: any = root;
++  let value: any = root;
++  for (const part of parts) {
++    if (value === null || value === undefined || (typeof value !== 'object' && typeof value !== 'function')) {
++      throw new Error(`"${part}" cannot be looked up: the part before it is not an object`);
++    }
++    self = value;
++    value = value[part];
++  }
++  if (typeof value !== 'function') throw new Error(`"${parts.join('.')}" is not a function in the module API`);
++  return { fn: value, self, name: parts.join('.') };
++}
++
++function isDocument(value: any): boolean {
++  return Boolean(value) && typeof value === 'object' && typeof value.documentName === 'string' && 'id' in value;
++}
++
++/**
++ * Make a value safe to send as JSON: documents become {documentName, id, uuid, name}, maps and
++ * sets become lists, functions become their names, depth, length and cycles are limited.
++ */
++export function serializeValue(value: unknown, depth = 0, seen: WeakSet<object> = new WeakSet()): unknown {
++  if (value === null || value === undefined) return null;
++  const type = typeof value;
++  if (type === 'string') {
++    const s = value as string;
++    return s.length > MAX_STRING ? `${s.slice(0, MAX_STRING)}... (${s.length} characters)` : s;
++  }
++  if (type === 'number') return Number.isFinite(value as number) ? value : String(value);
++  if (type === 'boolean') return value;
++  if (type === 'bigint') return String(value);
++  if (type === 'symbol') return String(value);
++  if (type === 'function') return `[function ${(value as Function).name || 'anonymous'}]`;
++
++  const obj = value as any;
++  if (isDocument(obj)) {
++    return { documentName: obj.documentName, id: obj.id, uuid: obj.uuid ?? null, name: obj.name ?? null };
++  }
++  // A canvas object (token, tile, wall...) stands for its document.
++  if (obj.document && isDocument(obj.document)) return serializeValue(obj.document, depth, seen);
++  if (seen.has(obj)) return '[circular]';
++  if (depth >= MAX_DEPTH) return Array.isArray(obj) ? `[array of ${obj.length}]` : '[object]';
++  seen.add(obj);
++  try {
++    if (obj instanceof Date) return obj.toISOString();
++    if (obj instanceof Map || obj instanceof Set || (typeof obj.contents !== 'undefined' && Array.isArray(obj.contents))) {
++      const items: unknown[] = obj instanceof Map ? [...obj.values()] : obj instanceof Set ? [...obj] : obj.contents;
++      return limitList(items, depth, seen);
++    }
++    if (Array.isArray(obj)) return limitList(obj, depth, seen);
++    const out: Record<string, unknown> = {};
++    let count = 0;
++    for (const key of Object.keys(obj)) {
++      if (count++ >= MAX_ITEMS) {
++        out['...'] = `${Object.keys(obj).length - MAX_ITEMS} more keys`;
++        break;
++      }
++      let child: unknown;
++      try {
++        child = obj[key];
++      } catch {
++        child = '[unreadable]';
++      }
++      out[key] = serializeValue(child, depth + 1, seen);
++    }
++    return out;
++  } finally {
++    seen.delete(obj);
++  }
++}
++
++function limitList(items: unknown[], depth: number, seen: WeakSet<object>): unknown[] {
++  const out = items.slice(0, MAX_ITEMS).map(item => serializeValue(item, depth + 1, seen));
++  if (items.length > MAX_ITEMS) out.push(`... ${items.length - MAX_ITEMS} more`);
++  return out;
++}
++
++/** The ids in a relationship list (a Set, an array of ids or of {id} objects). */
++export function relationIds(value: any): string[] {
++  if (!value) return [];
++  const list: any[] = Array.isArray(value) ? value : value instanceof Set || value instanceof Map ? [...(value instanceof Map ? value.values() : value)] : Array.isArray(value.contents) ? value.contents : [];
++  return list
++    .map(item => (typeof item === 'string' ? item : item?.id))
++    .filter((id): id is string => typeof id === 'string' && id.length > 0);
++}
++
++/** Names of the entries in a module API: functions, nested objects (listed one level down) and plain values. */
++export function describeApi(api: any): Array<{ name: string; kind: 'function' | 'object' | 'value'; members?: string[] }> | null {
++  if (!api || (typeof api !== 'object' && typeof api !== 'function')) return null;
++  const out: Array<{ name: string; kind: 'function' | 'object' | 'value'; members?: string[] }> = [];
++  const keys = new Set<string>(Object.keys(api));
++  // Methods of a class instance live on the prototype.
++  let proto = Object.getPrototypeOf(api);
++  let guard = 0;
++  while (proto && proto !== Object.prototype && proto !== Function.prototype && guard++ < 4) {
++    for (const key of Object.getOwnPropertyNames(proto)) if (key !== 'constructor') keys.add(key);
++    proto = Object.getPrototypeOf(proto);
++  }
++  for (const name of [...keys].sort().slice(0, 200)) {
++    if (BLOCKED_SEGMENTS.has(name) || name.startsWith('_')) continue;
++    let value: any;
++    try {
++      value = api[name];
++    } catch {
++      continue;
++    }
++    if (typeof value === 'function') out.push({ name, kind: 'function' });
++    else if (value && typeof value === 'object') {
++      out.push({ name, kind: 'object', members: Object.keys(value).filter(k => !k.startsWith('_')).slice(0, 40) });
++    } else out.push({ name, kind: 'value' });
++  }
++  return out;
++}
++
++export interface ModuleNode {
++  id: string;
++  active: boolean;
++  /** Ids of modules it needs. */
++  requires: string[];
++  /** Ids of modules it cannot run next to. */
++  conflicts: string[];
++  /** Whether it is installed. Unknown ids that are required are reported as missing. */
++  installed?: boolean;
++}
++
++export interface TogglePlan {
++  ok: boolean;
++  /** Modules whose state changes, in the order to apply them. */
++  change: Array<{ id: string; active: boolean; reason: string }>;
++  /** Already in the wanted state. */
++  unchanged: string[];
++  problems: string[];
++}
++
++/**
++ * Work out what switching modules on or off involves. Switching on adds the modules they need
++ * (when installed) and refuses when something that conflicts is active. Switching off adds the
++ * active modules that depend on them.
++ */
++export function planModuleToggle(nodes: ModuleNode[], ids: string[], active: boolean, protectedIds: string[] = []): TogglePlan {
++  const byId = new Map(nodes.map(n => [n.id, n]));
++  const change: TogglePlan['change'] = [];
++  const unchanged: string[] = [];
++  const problems: string[] = [];
++  const queued = new Set<string>();
++  const state = new Map(nodes.map(n => [n.id, n.active]));
++
++  const enable = (id: string, reason: string, stack: string[]) => {
++    if (queued.has(id)) return;
++    const node = byId.get(id);
++    if (!node) {
++      problems.push(`"${id}" is not installed`);
++      return;
++    }
++    if (stack.includes(id)) return;
++    if (state.get(id)) {
++      if (stack.length === 0) unchanged.push(id);
++      return;
++    }
++    for (const need of node.requires) enable(need, `needed by ${id}`, [...stack, id]);
++    queued.add(id);
++    state.set(id, true);
++    change.push({ id, active: true, reason });
++  };
++
++  const disable = (id: string, reason: string) => {
++    if (queued.has(id)) return;
++    const node = byId.get(id);
++    if (!node) {
++      problems.push(`"${id}" is not installed`);
++      return;
++    }
++    if (protectedIds.includes(id)) {
++      problems.push(`"${id}" is the connection to this tool and cannot be switched off from here`);
++      return;
++    }
++    if (!state.get(id)) {
++      if (reason === 'requested') unchanged.push(id);
++      return;
++    }
++    for (const other of nodes) {
++      if (state.get(other.id) && other.requires.includes(id)) disable(other.id, `needs ${id}`);
++    }
++    queued.add(id);
++    state.set(id, false);
++    change.push({ id, active: false, reason });
++  };
++
++  for (const id of ids) {
++    if (active) enable(id, 'requested', []);
++    else disable(id, 'requested');
++  }
++
++  if (active) {
++    // Conflicts between what ends up active.
++    for (const { id } of change) {
++      const node = byId.get(id)!;
++      for (const other of nodes) {
++        const clash = node.conflicts.includes(other.id) || other.conflicts.includes(id);
++        if (clash && state.get(other.id) && other.id !== id) {
++          problems.push(`"${id}" conflicts with "${other.id}", which is active`);
++        }
++      }
++    }
++  }
++  return { ok: problems.length === 0, change, unchanged, problems };
++}
 diff --git a/packages/foundry-module/src/play-utils.test.ts b/packages/foundry-module/src/play-utils.test.ts
 new file mode 100644
 index 0000000..a9c8bf1
@@ -8872,7 +9707,7 @@ index 0000000..02df35b
 +  return view ? outSize : { width, height };
 +}
 diff --git a/packages/foundry-module/src/queries.ts b/packages/foundry-module/src/queries.ts
-index 9fe02ba..54635e5 100644
+index 9fe02ba..68b8ec7 100644
 --- a/packages/foundry-module/src/queries.ts
 +++ b/packages/foundry-module/src/queries.ts
 @@ -1,7 +1,8 @@
@@ -8894,7 +9729,7 @@ index 9fe02ba..54635e5 100644
  
      // Character/Actor queries
      CONFIG.queries[`${modulePrefix}.getCharacterInfo`] = this.handleGetCharacterInfo.bind(this);
-@@ -46,6 +47,18 @@ export class QueryHandlers {
+@@ -46,6 +47,19 @@ export class QueryHandlers {
      CONFIG.queries[`${modulePrefix}.list-scenes`] = this.handleListScenes.bind(this);
      CONFIG.queries[`${modulePrefix}.switch-scene`] = this.handleSwitchScene.bind(this);
      CONFIG.queries[`${modulePrefix}.update-scene-music`] = this.handleUpdateSceneMusic.bind(this);
@@ -8909,11 +9744,12 @@ index 9fe02ba..54635e5 100644
 +    CONFIG.queries[`${modulePrefix}.manage-world`] = this.handleManageWorld.bind(this);
 +    CONFIG.queries[`${modulePrefix}.manage-roll-tables`] = this.handleManageRollTables.bind(this);
 +    CONFIG.queries[`${modulePrefix}.manage-macros`] = this.handleManageMacros.bind(this);
++    CONFIG.queries[`${modulePrefix}.manage-modules`] = this.handleManageModules.bind(this);
 +    CONFIG.queries[`${modulePrefix}.inspect-document`] = this.handleInspectDocument.bind(this);
      CONFIG.queries[`${modulePrefix}.manage-playlists`] = this.handleManagePlaylists.bind(this);
      CONFIG.queries[`${modulePrefix}.control-playlist`] = this.handleControlPlaylist.bind(this);
  
-@@ -184,7 +197,7 @@ export class QueryHandlers {
+@@ -184,7 +198,7 @@ export class QueryHandlers {
     * Unregister all query handlers
     */
    unregisterHandlers(): void {
@@ -8922,7 +9758,7 @@ index 9fe02ba..54635e5 100644
      const keysToRemove = Object.keys(CONFIG.queries).filter(key => key.startsWith(modulePrefix));
  
      for (const key of keysToRemove) {
-@@ -477,7 +490,7 @@ export class QueryHandlers {
+@@ -477,7 +491,7 @@ export class QueryHandlers {
     * Get list of all registered query methods
     */
    getRegisteredMethods(): string[] {
@@ -8931,7 +9767,7 @@ index 9fe02ba..54635e5 100644
      return Object.keys(CONFIG.queries)
        .filter(key => key.startsWith(modulePrefix))
        .map(key => key.replace(`${modulePrefix}.`, ''));
-@@ -487,7 +500,7 @@ export class QueryHandlers {
+@@ -487,7 +501,7 @@ export class QueryHandlers {
     * Test if a specific query handler is registered
     */
    isMethodRegistered(method: string): boolean {
@@ -8940,7 +9776,7 @@ index 9fe02ba..54635e5 100644
      return queryKey in CONFIG.queries && typeof CONFIG.queries[queryKey] === 'function';
    }
  
-@@ -530,6 +543,9 @@ export class QueryHandlers {
+@@ -530,6 +544,9 @@ export class QueryHandlers {
        if (data.placement) {
          requestData.placement = data.placement;
        }
@@ -8950,7 +9786,7 @@ index 9fe02ba..54635e5 100644
  
        return await this.dataAccess.createActorFromCompendiumEntry(requestData);
      } catch (error) {
-@@ -1218,6 +1234,151 @@ export class QueryHandlers {
+@@ -1218,6 +1235,159 @@ export class QueryHandlers {
      }
    }
  
@@ -9006,6 +9842,14 @@ index 9fe02ba..54635e5 100644
 +      return { error: 'Access denied', success: false };
 +    }
 +    return await this.dataAccess.manageMacros(data ?? {});
++  }
++
++  private async handleManageModules(data: any): Promise<any> {
++    const gmCheck = this.validateGMAccess();
++    if (!gmCheck.allowed) {
++      return { error: 'Access denied', success: false };
++    }
++    return await this.dataAccess.manageModules(data ?? {});
 +  }
 +
 +  private async handleManageWorld(data: any): Promise<any> {
@@ -11623,10 +12467,10 @@ index 096f27b..903a94e 100644
      "@vitest/coverage-v8": "^3.2.4",
      "esbuild": "^0.19.0",
 diff --git a/packages/mcp-server/src/backend.ts b/packages/mcp-server/src/backend.ts
-index 8967e33..c54e77d 100644
+index 8967e33..f113cec 100644
 --- a/packages/mcp-server/src/backend.ts
 +++ b/packages/mcp-server/src/backend.ts
-@@ -48,6 +48,23 @@ import { DnD5eAddFeatureTool } from './tools/dnd5e/add-feature.js';
+@@ -48,6 +48,24 @@ import { DnD5eAddFeatureTool } from './tools/dnd5e/add-feature.js';
  import { DnD5eNpcTools } from './tools/dnd5e/npc.js';
  import { DnD5eFeaturesFromCompendiumTools } from './tools/dnd5e/features.js';
  import { ChatTools } from './tools/chat.js';
@@ -11645,12 +12489,13 @@ index 8967e33..c54e77d 100644
 +} from './comfyui-target.js';
 +import { SceneObjectTools } from './tools/scene-objects.js';
 +import { PlayTools } from './tools/play-tools.js';
++import { ModuleTools } from './tools/module-tools.js';
 +import { LayoutTools } from './tools/layout.js';
 +import { InspectTools } from './tools/inspect.js';
  
  const CONTROL_HOST = '127.0.0.1';
  
-@@ -174,6 +191,22 @@ let comfyuiProcess: ChildProcess | null = null;
+@@ -174,6 +192,22 @@ let comfyuiProcess: ChildProcess | null = null;
  
  let comfyuiStatus: 'stopped' | 'starting' | 'running' | 'error' = 'stopped';
  
@@ -11673,7 +12518,7 @@ index 8967e33..c54e77d 100644
  let lockFd: number | null = null;
  
  function acquireLock(): boolean {
-@@ -350,6 +383,18 @@ async function waitForComfyUIReady(timeoutMs: number = 60000): Promise<void> {
+@@ -350,6 +384,18 @@ async function waitForComfyUIReady(timeoutMs: number = 60000): Promise<void> {
  }
  
  async function startComfyUIService(logger: Logger): Promise<any> {
@@ -11692,7 +12537,7 @@ index 8967e33..c54e77d 100644
    if (comfyuiStatus === 'running') {
      return { status: 'already_running', message: 'ComfyUI service is already running' };
    }
-@@ -472,6 +517,14 @@ async function startComfyUIService(logger: Logger): Promise<any> {
+@@ -472,6 +518,14 @@ async function startComfyUIService(logger: Logger): Promise<any> {
  }
  
  async function stopComfyUIService(logger: Logger): Promise<any> {
@@ -11707,7 +12552,7 @@ index 8967e33..c54e77d 100644
    if (comfyuiStatus === 'stopped') {
      return { status: 'already_stopped', message: 'ComfyUI service is already stopped' };
    }
-@@ -510,7 +563,7 @@ async function checkComfyUIStatus(): Promise<any> {
+@@ -510,7 +564,7 @@ async function checkComfyUIStatus(): Promise<any> {
    // This handles both spawned processes and externally-started instances
  
    try {
@@ -11716,7 +12561,7 @@ index 8967e33..c54e77d 100644
        signal: AbortSignal.timeout(5000),
      });
  
-@@ -520,16 +573,23 @@ async function checkComfyUIStatus(): Promise<any> {
+@@ -520,16 +574,23 @@ async function checkComfyUIStatus(): Promise<any> {
        comfyuiStatus = 'error';
      }
    } catch (error) {
@@ -11742,7 +12587,7 @@ index 8967e33..c54e77d 100644
    };
  }
  
-@@ -1131,7 +1191,7 @@ async function processMapGenerationInBackend(
+@@ -1131,7 +1192,7 @@ async function processMapGenerationInBackend(
      );
  
      logger.error('Background map generation processing failed', { jobId, error });
@@ -11751,7 +12596,7 @@ index 8967e33..c54e77d 100644
  
      // Emit failure to Foundry module
      foundryClient.sendMessage({
-@@ -1195,6 +1255,33 @@ async function startBackend(): Promise<void> {
+@@ -1195,6 +1256,34 @@ async function startBackend(): Promise<void> {
    const compendiumTools = new CompendiumTools({ foundryClient, logger, systemRegistry });
  
    const sceneTools = new SceneTools({ foundryClient, logger });
@@ -11775,6 +12620,7 @@ index 8967e33..c54e77d 100644
 +  const journalTools = new JournalTools({ foundryClient, logger });
 +  const sceneObjectTools = new SceneObjectTools({ foundryClient, logger });
 +  const playTools = new PlayTools({ foundryClient, logger });
++  const moduleTools = new ModuleTools({ foundryClient, logger });
 +  const layoutTools = new LayoutTools({
 +    logger,
 +    foundryClient,
@@ -11785,7 +12631,7 @@ index 8967e33..c54e77d 100644
    const playlistTools = new PlaylistTools({ foundryClient, logger });
  
    const actorCreationTools = new ActorCreationTools({ foundryClient, logger });
-@@ -1301,6 +1388,13 @@ async function startBackend(): Promise<void> {
+@@ -1301,6 +1390,13 @@ async function startBackend(): Promise<void> {
  
          let result: any;
  
@@ -11799,7 +12645,7 @@ index 8967e33..c54e77d 100644
          switch (message.type) {
            case 'start-comfyui-service':
              result = await startComfyUIService(logger);
-@@ -1317,6 +1411,19 @@ async function startBackend(): Promise<void> {
+@@ -1317,6 +1413,19 @@ async function startBackend(): Promise<void> {
  
              break;
  
@@ -11819,7 +12665,7 @@ index 8967e33..c54e77d 100644
            // Map generation handlers (following existing tool pattern)
            case 'generate-map-request':
              await fs.appendFile(
-@@ -1429,6 +1536,14 @@ async function startBackend(): Promise<void> {
+@@ -1429,6 +1538,15 @@ async function startBackend(): Promise<void> {
  
      ...sceneTools.getToolDefinitions(),
  
@@ -11828,13 +12674,14 @@ index 8967e33..c54e77d 100644
 +    ...journalTools.getToolDefinitions(),
 +    ...sceneObjectTools.getToolDefinitions(),
 +    ...playTools.getToolDefinitions(),
++    ...moduleTools.getToolDefinitions(),
 +    ...layoutTools.getToolDefinitions(),
 +    ...inspectTools.getToolDefinitions(),
 +
      ...actorCreationTools.getToolDefinitions(),
      ...actorManagementTools.getToolDefinitions(),
      ...effectManagementTools.getToolDefinitions(),
-@@ -1456,7 +1571,11 @@ async function startBackend(): Promise<void> {
+@@ -1456,7 +1574,11 @@ async function startBackend(): Promise<void> {
  
      ...tokenManipulationTools.getToolDefinitions(),
  
@@ -11847,7 +12694,7 @@ index 8967e33..c54e77d 100644
  
      ...playlistTools.getToolDefinitions(),
    ];
-@@ -1764,19 +1883,11 @@ async function startBackend(): Promise<void> {
+@@ -1764,19 +1886,11 @@ async function startBackend(): Promise<void> {
                  // Map generation tools
  
                  case 'generate-map':
@@ -11870,7 +12717,7 @@ index 8967e33..c54e77d 100644
  
                  case 'list-scenes':
                    result = await mapGenerationTools.listScenes(args);
-@@ -1805,6 +1916,64 @@ async function startBackend(): Promise<void> {
+@@ -1805,6 +1919,68 @@ async function startBackend(): Promise<void> {
  
                    break;
  
@@ -11909,6 +12756,10 @@ index 8967e33..c54e77d 100644
 +
 +                case 'manage-macros':
 +                  result = await playTools.handleManageMacros(args);
++                  break;
++
++                case 'manage-modules':
++                  result = await moduleTools.handleManageModules(args);
 +                  break;
 +
 +                case 'manage-world':
@@ -18406,6 +19257,172 @@ index 0000000..24dc381
 +      }
 +    } catch {
 +      // cleanup is best effort
++    }
++  }
++}
+diff --git a/packages/mcp-server/src/tools/module-tools.test.ts b/packages/mcp-server/src/tools/module-tools.test.ts
+new file mode 100644
+index 0000000..928207e
+--- /dev/null
++++ b/packages/mcp-server/src/tools/module-tools.test.ts
+@@ -0,0 +1,58 @@
++import { describe, expect, it, vi } from 'vitest';
++import { ModuleTools } from './module-tools.js';
++
++function makeTools(queryImpl?: (method: string, data: any) => unknown) {
++  const query = vi.fn(queryImpl ?? (async () => ({ success: true })));
++  const logger: any = { info: vi.fn(), debug: vi.fn(), error: vi.fn(), warn: vi.fn(), child: () => logger };
++  return { tools: new ModuleTools({ foundryClient: { query } as any, logger }), query };
++}
++
++describe('manage-modules definition', () => {
++  it('is exposed with action required', () => {
++    const defs = makeTools().tools.getToolDefinitions();
++    expect(defs.map(d => d.name)).toEqual(['manage-modules']);
++    expect(defs[0]!.inputSchema.required).toEqual(['action']);
++  });
++});
++
++describe('handleManageModules', () => {
++  it('sends a valid request to the module', async () => {
++    const { tools, query } = makeTools(async () => ({ success: true, modules: [] }));
++    const r = await tools.handleManageModules({ action: 'list', filter: 'active' });
++    expect(r.success).toBe(true);
++    expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.manage-modules', { action: 'list', filter: 'active' });
++  });
++
++  it('checks the fields each action needs', async () => {
++    const { tools, query } = makeTools();
++    await expect(tools.handleManageModules({ action: 'describe' })).rejects.toThrow('describe needs module');
++    await expect(tools.handleManageModules({ action: 'get_setting', module: 'a' })).rejects.toThrow('needs key');
++    await expect(tools.handleManageModules({ action: 'set_setting', module: 'a', key: 'k' })).rejects.toThrow('needs value');
++    await expect(tools.handleManageModules({ action: 'call', module: 'a' })).rejects.toThrow('needs path');
++    await expect(tools.handleManageModules({ action: 'set_active', modules: ['a'] })).rejects.toThrow('needs active');
++    expect(query).not.toHaveBeenCalled();
++  });
++
++  it('accepts a setting value of false, 0 or null-like content', async () => {
++    const { tools, query } = makeTools();
++    await tools.handleManageModules({ action: 'set_setting', module: 'a', key: 'k', value: false });
++    await tools.handleManageModules({ action: 'set_setting', module: 'a', key: 'k', value: 0 });
++    expect(query).toHaveBeenCalledTimes(2);
++  });
++
++  it('rejects unknown fields and actions', async () => {
++    const { tools } = makeTools();
++    await expect(tools.handleManageModules({ action: 'list', bogus: 1 })).rejects.toThrow();
++    await expect(tools.handleManageModules({ action: 'explode' })).rejects.toThrow();
++    await expect(tools.handleManageModules({ action: 'call', module: 'a', path: 'f', args: new Array(21).fill(1) })).rejects.toThrow();
++  });
++
++  it('turns a refusal or failure into a readable error', async () => {
++    const refused = makeTools(async () => ({ success: false, error: 'conflicts with x' }));
++    await expect(refused.tools.handleManageModules({ action: 'list' })).rejects.toThrow('Failed to manage modules: conflicts with x');
++    const down = makeTools(async () => {
++      throw new Error('timeout');
++    });
++    await expect(down.tools.handleManageModules({ action: 'list' })).rejects.toThrow('timeout');
++  });
++});
+diff --git a/packages/mcp-server/src/tools/module-tools.ts b/packages/mcp-server/src/tools/module-tools.ts
+new file mode 100644
+index 0000000..fe5663b
+--- /dev/null
++++ b/packages/mcp-server/src/tools/module-tools.ts
+@@ -0,0 +1,96 @@
++import { z } from 'zod';
++import { FoundryClient } from '../foundry-client.js';
++import { Logger } from '../logger.js';
++
++export interface ModuleToolsOptions {
++  foundryClient: FoundryClient;
++  logger: Logger;
++}
++
++const id = z.string().min(1).max(100);
++
++const schema = z
++  .object({
++    action: z.enum(['list', 'describe', 'get_setting', 'set_setting', 'call', 'set_active']),
++    module: id.optional(),
++    modules: z.array(id).min(1).max(40).optional(),
++    filter: z.enum(['all', 'active', 'inactive']).optional(),
++    search: z.string().min(1).max(100).optional(),
++    key: z.string().min(1).max(200).optional(),
++    value: z.any().optional(),
++    path: z.string().min(1).max(200).optional(),
++    args: z.array(z.any()).max(20).optional(),
++    active: z.boolean().optional(),
++    confirm: z.boolean().optional(),
++    dry_run: z.boolean().optional(),
++  })
++  .strict();
++
++export class ModuleTools {
++  private foundryClient: FoundryClient;
++  private logger: Logger;
++
++  constructor({ foundryClient, logger }: ModuleToolsOptions) {
++    this.foundryClient = foundryClient;
++    this.logger = logger.child({ component: 'ModuleTools' });
++  }
++
++  getToolDefinitions() {
++    return [
++      {
++        name: 'manage-modules',
++        description:
++          'Look at the Foundry modules installed on the server and use them. ' +
++          'list {filter?: all|active|inactive, search?} shows installed modules (id, title, version, whether active, whether it has a public API). ' +
++          'describe {module} shows one module: description, what it requires and conflicts with, the settings it registers (key, name, hint, scope, type, default and current value) and, when active, its public API (function names, one level of nested objects). ' +
++          'get_setting {module, key} and set_setting {module, key, value} read and change a module setting (world settings change for everyone). ' +
++          'call {module, path, args?} runs a function of the module\'s public API (game.modules.get(id).api) and returns its result as JSON; path is like "getByTag" or "tags.add", args a list of values; documents in results come back as {documentName, id, uuid, name}. Only active modules that publish an api can be called, and nothing outside that api is reachable; read describe first for the real function names and see the module\'s own documentation for what the arguments mean. ' +
++          'set_active {modules, active, confirm?, dry_run?} switches modules on or off in this world: it adds the modules they require (switching on) or that depend on them (switching off), refuses conflicts, and without confirm: true only reports what it would change. Nothing takes effect until the Foundry page is reloaded (F5); the connection to this tool is never switched off. ' +
++          'Changing settings, calling APIs and switching modules are write operations, as with macros: what a module function does is up to that module. Needs the Foundry tab open in a browser.',
++        inputSchema: {
++          type: 'object',
++          properties: {
++            action: { type: 'string', enum: ['list', 'describe', 'get_setting', 'set_setting', 'call', 'set_active'] },
++            module: { type: 'string', description: 'describe / get_setting / set_setting / call: module id (see list)' },
++            modules: { type: 'array', items: { type: 'string' }, description: 'set_active: module ids' },
++            filter: { type: 'string', enum: ['all', 'active', 'inactive'], description: 'list: which modules (default all)' },
++            search: { type: 'string', description: 'list: only ids or titles containing this text' },
++            key: { type: 'string', description: 'get_setting / set_setting: the setting key as describe shows it' },
++            value: { description: 'set_setting: the new value (boolean, number, string, object)' },
++            path: { type: 'string', description: 'call: function name below the module api, e.g. "getByTag" or "tags.add"' },
++            args: { type: 'array', items: {}, description: 'call: arguments, in order (JSON values; use document ids or uuids, not objects, where the module accepts them)' },
++            active: { type: 'boolean', description: 'set_active: true to switch on, false to switch off' },
++            confirm: { type: 'boolean', description: 'set_active: must be true to apply the change' },
++            dry_run: { type: 'boolean', description: 'set_active: only report what would change' },
++          },
++          required: ['action'],
++          additionalProperties: false,
++        },
++      },
++    ];
++  }
++
++  async handleManageModules(args: any): Promise<any> {
++    const parsed = schema.parse(args ?? {});
++    const needs: Record<string, Array<keyof typeof parsed>> = {
++      describe: ['module'],
++      get_setting: ['module', 'key'],
++      set_setting: ['module', 'key'],
++      call: ['module', 'path'],
++      set_active: ['modules', 'active'],
++    };
++    for (const field of needs[parsed.action] ?? []) {
++      if (parsed[field] === undefined) throw new Error(`${parsed.action} needs ${String(field)}`);
++    }
++    if (parsed.action === 'set_setting' && !('value' in (args ?? {}))) throw new Error('set_setting needs value');
++
++    try {
++      const result = await this.foundryClient.query('foundry-mcp-bridge.manage-modules', parsed);
++      if (result?.success === false) throw new Error(result.error || 'Request was refused');
++      return result;
++    } catch (error) {
++      this.logger.error('Failed to manage modules', error);
++      throw new Error(`Failed to manage modules: ${error instanceof Error ? error.message : 'Unknown error'}`);
 +    }
 +  }
 +}
