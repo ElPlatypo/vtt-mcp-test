@@ -2849,10 +2849,10 @@ index 0000000..8e1aad5
 +});
 diff --git a/packages/foundry-module/src/data-access.combat.test.ts b/packages/foundry-module/src/data-access.combat.test.ts
 new file mode 100644
-index 0000000..fbf30c2
+index 0000000..8d9b842
 --- /dev/null
 +++ b/packages/foundry-module/src/data-access.combat.test.ts
-@@ -0,0 +1,223 @@
+@@ -0,0 +1,233 @@
 +/** combat control: start an encounter, initiative, turns, damage and healing. Foundry is stubbed. */
 +import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 +import { FoundryDataAccess } from './data-access.js';
@@ -2999,6 +2999,16 @@ index 0000000..fbf30c2
 +    expect(combat.startCombat).toHaveBeenCalled();
 +    expect(r).toMatchObject({ success: true, added: ['Goblin 1', 'Mira'], rolled: 2 });
 +    expect(r.combat.started).toBe(true);
++  });
++
++  it('unpauses a paused game when the combat starts, so players can act', async () => {
++    const { da } = setup();
++    const togglePause = vi.fn();
++    (globalThis as any).game.paused = true;
++    (globalThis as any).game.togglePause = togglePause;
++    const r = await da.controlCombat({ action: 'start' });
++    expect(togglePause).toHaveBeenCalledWith(false, true);
++    expect(r.unpaused).toBe(true);
 +  });
 +
 +  it('rolls each combatant its own initiative even when they share an actor', async () => {
@@ -5681,6 +5691,186 @@ index 0000000..524b20e
 +    expect(upload).not.toHaveBeenCalled();
 +  });
 +});
+diff --git a/packages/foundry-module/src/data-access.plutonium.test.ts b/packages/foundry-module/src/data-access.plutonium.test.ts
+new file mode 100644
+index 0000000..0d2ee5e
+--- /dev/null
++++ b/packages/foundry-module/src/data-access.plutonium.test.ts
+@@ -0,0 +1,174 @@
++/** Plutonium: 5etools text conversion, catalogue search/import and adventure reading. Foundry and Plutonium are stubbed. */
++import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
++import { FoundryDataAccess } from './data-access.js';
++import { adventureSections, cleanTags, entriesToText, findByName, pickHeading, searchSections } from './plutonium-utils.js';
++
++describe('plutonium utils', () => {
++  it('cleans 5etools tags to readable text', () => {
++    expect(cleanTags('A {@creature goblin|MM|goblin} with a {@item scimitar|phb} {@hit 4} deals {@damage 1d6} ({@dc 12}).')).toBe('A goblin with a scimitar +4 deals 1d6 (DC 12).');
++    expect(cleanTags('{@b bold {@i nested}}')).toBe('bold nested');
++  });
++  it('turns entries into text with headings, read-aloud boxes, lists and tables', () => {
++    const t = entriesToText({
++      type: 'section',
++      name: 'Goblin Arrows',
++      entries: [
++        'Intro text.',
++        { type: 'insetReadaloud', entries: ['You hear a twang.'] },
++        { type: 'entries', name: 'Cragmaw Hideout', entries: [{ type: 'list', items: ['one', { name: 'Two', entry: 'second' }] }, { type: 'table', caption: 'Loot', colLabels: ['d6', 'Item'], rows: [['1', 'Gold'], ['2', '{@item rope|phb}']] }] },
++      ],
++    });
++    expect(t).toContain('## Goblin Arrows');
++    expect(t).toContain('> Read aloud');
++    expect(t).toContain('You hear a twang.');
++    expect(t).toContain('### Cragmaw Hideout');
++    expect(t).toContain('- one');
++    expect(t).toContain('- Two: second');
++    expect(t).toContain('d6 | Item');
++    expect(t).toContain('2 | rope');
++  });
++  it('finds rows by name, exact first, with a source filter', () => {
++    const rows = [
++      { name: 'Goblin Boss', source: 'MM' },
++      { name: 'Goblin', source: 'MM' },
++      { name: 'Goblin', source: 'AWM' },
++      { name: 'Hobgoblin', source: 'MM' },
++    ];
++    expect(findByName(rows, 'goblin').map(r => `${r.name}:${r.source}`).slice(0, 3)).toEqual(['Goblin:MM', 'Goblin:AWM', 'Goblin Boss:MM']);
++    expect(findByName(rows, 'goblin', 'awm')).toEqual([{ name: 'Goblin', source: 'AWM' }]);
++    expect(findByName(rows, '')).toEqual([]);
++  });
++  it('splits an adventure, searches it and reads under a heading', () => {
++    const sections = adventureSections(
++      [
++        { type: 'section', name: 'Goblin Arrows', entries: [{ type: 'entries', name: 'Goblin Ambush', entries: ['Four goblins hide in the brush.'] }, { type: 'entries', name: 'Cragmaw Hideout', entries: ['A cave.'] }] },
++        { type: 'section', name: 'Phandalin', entries: ['A town of Redbrand ruffians.'] },
++      ],
++      [],
++    );
++    expect(sections[0]!.headers).toEqual(['Goblin Ambush', 'Cragmaw Hideout']);
++    expect(searchSections(sections, 'redbrand')[0]).toMatchObject({ index: 1, section: 'Phandalin' });
++    expect(searchSections(sections, 'goblins')[0]!.index).toBe(0);
++    const part = pickHeading(sections[0]!.text, 'goblin ambush')!;
++    expect(part).toContain('Four goblins hide');
++    expect(part).not.toContain('A cave');
++    expect(pickHeading(sections[0]!.text, 'nothing')).toBeNull();
++  });
++});
++
++function setup(active = true) {
++  const goblin = { name: 'Goblin', source: 'MM', cr: '1/4', type: { type: 'humanoid' } };
++  const boss = { name: 'Goblin Boss', source: 'MM', cr: '1', type: 'humanoid' };
++  const actors: any[] = [{ id: 'a0', name: 'Goblin Boss', uuid: 'Actor.a0' }];
++  const items: any[] = [];
++  const pImportEntry = vi.fn(async (ent: any) => {
++    actors.push({ id: 'a' + actors.length, name: ent.name, uuid: 'Actor.new', folder: { name: 'Creatures' } });
++  });
++  const pGetImporter = vi.fn(async () => ({ pImportEntry }));
++  const loadJSON = vi.fn(async () => ({ adventureData: [{ data: [{ type: 'section', name: 'Goblin Arrows', entries: [{ type: 'entries', name: 'Goblin Ambush', entries: ['Four goblins hide.'] }] }] }] }));
++  vi.stubGlobal('Hooks', { on: vi.fn(), callAll: vi.fn() });
++  vi.stubGlobal('DataUtil', { loadJSON });
++  vi.stubGlobal('game', {
++    ready: true,
++    world: { id: 'w', getFlag: vi.fn(() => []), setFlag: vi.fn() },
++    user: { id: 'gm', name: 'GM', isGM: true },
++    actors: { contents: actors },
++    items: { contents: items },
++    modules: {
++      get: () =>
++        active
++          ? {
++              active: true,
++              version: '2.19.8',
++              api: {
++                importer: { pGetImporter },
++                salphar: {
++                  Vetools: {
++                    pGetAllCreatures: async () => ({ monster: [goblin, boss] }),
++                    pGetAllSpells: async () => ({ spell: [{ name: 'Fireball', source: 'PHB', level: 3, school: 'V' }] }),
++                    pGetItems: async () => ({ item: [{ name: 'Rope', source: 'PHB', type: 'G' }] }),
++                    pGetAdventureIndex: async () => ({ adventure: [{ id: 'LMoP', name: 'Lost Mine of Phandelver', level: { start: 1, end: 5 }, _url: 'https://5e.tools/x.json', contents: [{ name: 'Goblin Arrows' }] }] }),
++                  },
++                },
++              },
++            }
++          : undefined,
++    },
++    settings: { get: (_m: string, key: string) => (key === 'allowWriteOperations' ? true : undefined) },
++  });
++  return { da: new FoundryDataAccess(), pImportEntry, pGetImporter, loadJSON, actors };
++}
++
++describe('lookupPlutonium', () => {
++  beforeEach(() => vi.unstubAllGlobals());
++  afterEach(() => vi.unstubAllGlobals());
++
++  it('reports status and refuses when Plutonium is off', async () => {
++    const on = setup(true);
++    expect((await on.da.lookupPlutonium({ action: 'status' })).plutonium).toEqual({ active: true, version: '2.19.8' });
++    const off = setup(false);
++    expect((await off.da.lookupPlutonium({ action: 'status' })).plutonium.active).toBe(false);
++    await expect(off.da.lookupPlutonium({ query: 'goblin' })).rejects.toThrow('not active');
++  });
++  it('searches creatures, spells and items and flags what is already in the world', async () => {
++    const { da } = setup();
++    const r = await da.lookupPlutonium({ kind: 'creature', query: 'goblin' });
++    expect(r.results.map((x: any) => x.name)).toEqual(['Goblin', 'Goblin Boss']);
++    expect(r.results[0]).toMatchObject({ source: 'MM', cr: '1/4', type: 'humanoid' });
++    expect(r.results[1].inWorld).toBe(true);
++    expect((await da.lookupPlutonium({ kind: 'spell', query: 'fireball' })).results[0]).toMatchObject({ level: 3 });
++    expect((await da.lookupPlutonium({ kind: 'item', query: 'rope' })).results[0].name).toBe('Rope');
++  });
++  it('imports by exact name through the importer and reports what was created', async () => {
++    const { da, pImportEntry, pGetImporter } = setup();
++    const r = await da.lookupPlutonium({ action: 'import', kind: 'creature', names: ['Goblin', 'Dragon'] });
++    expect(pGetImporter).toHaveBeenCalledWith({ prop: 'monster' });
++    expect(pImportEntry).toHaveBeenCalledTimes(1);
++    expect(r.results[0]).toMatchObject({ name: 'Goblin', source: 'MM', created: [{ name: 'Goblin', folder: 'Creatures' }] });
++    expect(r.results[1]).toMatchObject({ name: 'Dragon', error: 'not found' });
++  });
++  it('asks for names when importing', async () => {
++    const { da } = setup();
++    await expect(da.lookupPlutonium({ action: 'import' })).rejects.toThrow('needs names');
++    await expect(da.lookupPlutonium({ action: 'search' })).rejects.toThrow('needs a query');
++  });
++});
++
++describe('readAdventure', () => {
++  beforeEach(() => vi.unstubAllGlobals());
++  afterEach(() => vi.unstubAllGlobals());
++
++  it('lists adventures, outlines one, searches and reads a heading', async () => {
++    const { da, loadJSON } = setup();
++    expect((await da.readAdventure({ action: 'list', query: 'phandelver' })).adventures[0]).toMatchObject({ id: 'LMoP', level: '1-5' });
++    const outline = await da.readAdventure({});
++    expect(outline.sections[0]).toMatchObject({ name: 'Goblin Arrows', headings: ['Goblin Ambush'] });
++    expect((await da.readAdventure({ action: 'search', query: 'goblins hide' })).results[0]).toMatchObject({ section: 'Goblin Arrows' });
++    const read = await da.readAdventure({ action: 'read', section: 'goblin', heading: 'ambush' });
++    expect(read.text).toContain('Four goblins hide.');
++    expect(loadJSON).toHaveBeenCalledTimes(1);
++  });
++  it('fails clearly for an unknown adventure, section or heading', async () => {
++    const { da } = setup();
++    await expect(da.readAdventure({ adventure: 'ZZZ' })).rejects.toThrow('not found');
++    await expect(da.readAdventure({ action: 'read', section: 'nope' })).rejects.toThrow('needs section');
++    await expect(da.readAdventure({ action: 'read', section: 0, heading: 'zzz' })).rejects.toThrow('no heading');
++  });
++});
++
++describe('setPause', () => {
++  beforeEach(() => vi.unstubAllGlobals());
++  afterEach(() => vi.unstubAllGlobals());
++
++  it('reports, pauses and unpauses without redundant toggles', async () => {
++    const { da } = setup();
++    const toggle = vi.fn();
++    (globalThis as any).game.paused = true;
++    (globalThis as any).game.togglePause = toggle;
++    expect(await da.setPause({})).toEqual({ success: true, paused: true, changed: false });
++    expect(await da.setPause({ paused: true })).toMatchObject({ changed: false });
++    expect(toggle).not.toHaveBeenCalled();
++    expect(await da.setPause({ paused: false })).toEqual({ success: true, paused: false, changed: true });
++    expect(toggle).toHaveBeenCalledWith(false, true);
++  });
++});
 diff --git a/packages/foundry-module/src/data-access.read-image.test.ts b/packages/foundry-module/src/data-access.read-image.test.ts
 new file mode 100644
 index 0000000..a96ab8e
@@ -7249,10 +7439,10 @@ index 0000000..26e6aab
 +  });
 +});
 diff --git a/packages/foundry-module/src/data-access.ts b/packages/foundry-module/src/data-access.ts
-index eecda7e..0b9cea9 100644
+index eecda7e..6288c87 100644
 --- a/packages/foundry-module/src/data-access.ts
 +++ b/packages/foundry-module/src/data-access.ts
-@@ -1,6 +1,138 @@
+@@ -1,6 +1,139 @@
  import { MODULE_ID, ERROR_MESSAGES, TOKEN_DISPOSITIONS } from './constants.js';
  import { permissionManager } from './permissions.js';
 +import {
@@ -7388,10 +7578,11 @@ index eecda7e..0b9cea9 100644
 +import { performAttack, performCheck, type NamedActor } from './combat-actions.js';
 +import { partyRow, pickActors, pickClass, splitXp } from './party-utils.js';
 +import { clipText, htmlToText, searchPages, type RulePage } from './rules-utils.js';
++import { adventureSections, creatureCr, creatureType, findByName, pickHeading, searchSections, type AdventureSection } from './plutonium-utils.js';
  
  // The same five characters foundry.utils.escapeHTML replaces in v14, kept local because
  // that helper isn't confirmed in v13, this module's minimum.
-@@ -1714,6 +1846,52 @@ const DND5E_SIZE: Record<string, string> = {
+@@ -1714,6 +1847,71 @@ const DND5E_SIZE: Record<string, string> = {
    gargantuan: 'gargantuan',
  };
  
@@ -7419,6 +7610,25 @@ index eecda7e..0b9cea9 100644
 +  consume?: boolean;
 +}
 +
++export interface PlutoniumRequest {
++  action?: 'status' | 'search' | 'import';
++  kind?: 'creature' | 'spell' | 'item';
++  query?: string;
++  source?: string;
++  limit?: number;
++  names?: string[];
++}
++
++export interface AdventureRequest {
++  action?: 'list' | 'outline' | 'search' | 'read';
++  adventure?: string;
++  query?: string;
++  section?: string | number;
++  heading?: string;
++  limit?: number;
++  max_chars?: number;
++}
++
 +export interface RulesRequest {
 +  action?: 'search' | 'read' | 'sources';
 +  query?: string;
@@ -7444,7 +7654,7 @@ index eecda7e..0b9cea9 100644
  export class FoundryDataAccess {
    private moduleId: string = MODULE_ID;
    private persistentIndex: PersistentCreatureIndex = new PersistentCreatureIndex();
-@@ -4681,12 +4859,28 @@ export class FoundryDataAccess {
+@@ -4681,12 +4879,28 @@ export class FoundryDataAccess {
        type: 'random' | 'grid' | 'center' | 'coordinates';
        coordinates?: { x: number; y: number }[];
      };
@@ -7473,7 +7683,7 @@ index eecda7e..0b9cea9 100644
        // Validate inputs
        if (!packId || !itemId) {
          throw new Error('Both packId and itemId are required');
-@@ -4753,10 +4947,33 @@ export class FoundryDataAccess {
+@@ -4753,10 +4967,33 @@ export class FoundryDataAccess {
            }
  
            // Organize created actors in a folder - use "Foundry MCP Creatures" for generic monsters
@@ -7508,7 +7718,7 @@ index eecda7e..0b9cea9 100644
  
            // Create the actor
            const newActor = await Actor.create(actorData);
-@@ -6714,7 +6931,7 @@ export class FoundryDataAccess {
+@@ -6714,7 +6951,7 @@ export class FoundryDataAccess {
  
          // Send socket request to GM
          if (game.socket) {
@@ -7517,7 +7727,7 @@ index eecda7e..0b9cea9 100644
              type: 'requestMessageUpdate',
              buttonId,
              userId,
-@@ -8101,198 +8318,4473 @@ export class FoundryDataAccess {
+@@ -8101,198 +8338,4678 @@ export class FoundryDataAccess {
      }
    }
  
@@ -8061,10 +8271,6 @@ index eecda7e..0b9cea9 100644
    }
  
 -  /**
--   * Playback control. Supports playlist-level play/stop/cycle-mode and
--   * per-sound play/stop, all through the client Playlist API so the server
--   * and every connected client stay in sync.
--   */
 +  // ===== WORLD HOUSEKEEPING (FOLDERS, MOVE, RENAME, DELETE) =====
 +
 +  private worldCollection(type: string): any {
@@ -8982,6 +9188,12 @@ index eecda7e..0b9cea9 100644
 +          if (rollWhich !== 'none') out.rolled = await rollFor(rollWhich);
 +          if (action === 'start' && data.begin !== false && !combat.started) await combat.startCombat();
 +          if (action === 'start') {
++            // a paused game blocks every player action, so a combat that starts is never paused
++            const g2 = game as any;
++            if (data.begin !== false && g2.paused && typeof g2.togglePause === 'function') {
++              g2.togglePause(false, true);
++              out.unpaused = true;
++            }
 +            const note = this.showCombatTracker(combat, scene);
 +            if (note) out.note = note;
 +          }
@@ -9149,6 +9361,205 @@ index eecda7e..0b9cea9 100644
 +      return { ...out, combat: compactCombat(combat) };
 +    } catch (error) {
 +      throw new Error(`Failed to run the combat: ${error instanceof Error ? error.message : 'Unknown error'}`);
++    }
++  }
++
++  // ===== PAUSE =====
++
++  /** Pause or unpause the game for everyone, or just report the state when paused is not given. */
++  async setPause(data: { paused?: boolean }): Promise<any> {
++    this.validateFoundryState();
++    const g = game as any;
++    const before = !!g.paused;
++    if (typeof data?.paused === 'boolean') {
++      const gate = permissionManager.checkWritePermission('modifyScene', {});
++      if (!gate.allowed) throw new Error(`${ERROR_MESSAGES.ACCESS_DENIED}: ${gate.reason}`);
++      if (data.paused !== before) g.togglePause(data.paused, true);
++    }
++    const now = typeof data?.paused === 'boolean' ? data.paused : before;
++    return { success: true, paused: now, changed: now !== before };
++  }
++
++  // ===== PLUTONIUM (5etools data) =====
++
++  private catalogCache = new Map<string, any[]>();
++  private adventureCache = new Map<string, AdventureSection[]>();
++
++  private plutoniumApi(): any {
++    const mod = (game as any).modules?.get('plutonium');
++    if (!mod?.active || !mod.api) throw new Error('Plutonium is not active in this world: enable it (and libWrapper) first');
++    return mod.api;
++  }
++
++  private static CATALOGS: Record<string, { prop: string; loader: string; key: string; collection: string }> = {
++    creature: { prop: 'monster', loader: 'pGetAllCreatures', key: 'monster', collection: 'actors' },
++    spell: { prop: 'spell', loader: 'pGetAllSpells', key: 'spell', collection: 'items' },
++    item: { prop: 'item', loader: 'pGetItems', key: 'item', collection: 'items' },
++  };
++
++  private async catalogRows(kind: string): Promise<any[]> {
++    const cat = FoundryDataAccess.CATALOGS[kind];
++    if (!cat) throw new Error('kind must be creature, spell or item');
++    const cached = this.catalogCache.get(kind);
++    if (cached) return cached;
++    const data = await this.plutoniumApi().salphar.Vetools[cat.loader]();
++    const rows: any[] = (Array.isArray(data) ? data : data?.[cat.key]) ?? [];
++    this.catalogCache.set(kind, rows);
++    return rows;
++  }
++
++  private catalogLine(kind: string, r: any, inWorld: Set<string>): Record<string, any> {
++    const base: Record<string, any> = { name: r.name, source: r.source };
++    if (kind === 'creature') Object.assign(base, { cr: creatureCr(r), type: creatureType(r) });
++    else if (kind === 'spell') Object.assign(base, { level: r.level, school: r.school });
++    else Object.assign(base, { type: r.type ?? r.typeAlt, rarity: r.rarity });
++    if (inWorld.has(String(r.name).toLowerCase())) base.inWorld = true;
++    return base;
++  }
++
++  /**
++   * Search and import from the 5etools catalogue through Plutonium, so monsters, spells and items
++   * come in fully converted (actions, traits, spells, art), including sources the SRD compendiums lack.
++   */
++  async lookupPlutonium(data: PlutoniumRequest): Promise<any> {
++    this.validateFoundryState();
++    const action = data?.action ?? 'search';
++    if (!['status', 'search', 'import'].includes(action)) throw new Error('action must be status, search or import');
++    if (action === 'import') {
++      const gate = permissionManager.checkWritePermission('modifyScene', {});
++      if (!gate.allowed) throw new Error(`${ERROR_MESSAGES.ACCESS_DENIED}: ${gate.reason}`);
++    }
++    try {
++      const mod = (game as any).modules?.get('plutonium');
++      if (action === 'status') {
++        return { success: true, plutonium: { active: !!mod?.active, version: mod?.version ?? null }, kinds: Object.keys(FoundryDataAccess.CATALOGS) };
++      }
++      const api = this.plutoniumApi();
++      const kind = data.kind ?? 'creature';
++      const cat = FoundryDataAccess.CATALOGS[kind];
++      if (!cat) throw new Error('kind must be creature, spell or item');
++      const rows = await this.catalogRows(kind);
++      const g = game as any;
++      const existing = (): any[] => ((g[cat.collection]?.contents || [...(g[cat.collection] || [])]) as any[]);
++
++      if (action === 'search') {
++        const q = String(data.query ?? '').trim();
++        if (!q) throw new Error('search needs a query');
++        const have = new Set(existing().map(d => String(d.name).toLowerCase()));
++        const found = findByName(rows, q, data.source, Math.max(1, Math.min(25, Number(data.limit ?? 10))));
++        return {
++          success: true,
++          kind,
++          query: q,
++          results: found.map(r => this.catalogLine(kind, r, have)),
++          ...(found.length === 0 ? { note: 'No match. Try fewer or different words, or a source filter such as MM.' } : {}),
++        };
++      }
++
++      const wanted = (data.names?.length ? data.names : data.query ? [data.query] : []).slice(0, 20);
++      if (wanted.length === 0) throw new Error('import needs names (or query)');
++      const importer = await api.importer.pGetImporter({ prop: cat.prop });
++      const results: Array<Record<string, any>> = [];
++      for (const spec of wanted) {
++        const [rawName, rawSource] = String(spec).split('|');
++        const name = rawName!.trim();
++        const source = (rawSource ?? data.source)?.trim();
++        const exact = findByName(rows, name, source, 25).filter(r => String(r.name).toLowerCase() === name.toLowerCase());
++        const pick = exact[0];
++        if (!pick) {
++          results.push({ name, error: 'not found', similar: findByName(rows, name, source, 5).map(r => `${r.name} [${r.source}]`) });
++          continue;
++        }
++        const before = new Set(existing().map(d => d.id));
++        try {
++          await importer.pImportEntry(pick, {});
++        } catch (error) {
++          results.push({ name, source: pick.source, error: error instanceof Error ? error.message : String(error) });
++          continue;
++        }
++        const made = existing().filter(d => !before.has(d.id));
++        results.push({
++          name: pick.name,
++          source: pick.source,
++          ...(exact.length > 1 ? { otherSources: exact.slice(1).map(r => r.source) } : {}),
++          created: made.map(d => ({ id: d.id, name: d.name, uuid: d.uuid, folder: d.folder?.name ?? null })),
++          ...(made.length === 0 ? { note: 'Nothing new was created: it may already exist in the world.' } : {}),
++        });
++      }
++      return { success: true, kind, results };
++    } catch (error) {
++      throw new Error(`Plutonium request failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
++    }
++  }
++
++  private async adventureIndex(): Promise<any[]> {
++    const idx = await this.plutoniumApi().salphar.Vetools.pGetAdventureIndex();
++    return (Array.isArray(idx) ? idx : idx?.adventure) ?? [];
++  }
++
++  /** An adventure from 5etools: its outline, a text search, or a section read, so scenes can be run from the book. */
++  async readAdventure(data: AdventureRequest): Promise<any> {
++    this.validateFoundryState();
++    const action = data?.action ?? 'outline';
++    if (!['list', 'outline', 'search', 'read'].includes(action)) throw new Error('action must be list, outline, search or read');
++    try {
++      const index = await this.adventureIndex();
++      if (action === 'list') {
++        const q = String(data.query ?? '').toLowerCase();
++        const rows = index.filter(a => !q || `${a.name} ${a.id}`.toLowerCase().includes(q));
++        return { success: true, adventures: rows.slice(0, 60).map(a => ({ id: a.id, name: a.name, level: a.level ? `${a.level.start}-${a.level.end}` : undefined })), total: rows.length };
++      }
++      const id = String(data.adventure ?? 'LMoP');
++      const entry = index.find(a => String(a.id).toLowerCase() === id.toLowerCase());
++      if (!entry) throw new Error(`adventure "${id}" not found: use action list`);
++      let sections = this.adventureCache.get(entry.id);
++      if (!sections) {
++        const loader = (globalThis as any).DataUtil?.loadJSON;
++        if (!loader || !entry._url) throw new Error('the adventure data cannot be loaded here');
++        const json = await (globalThis as any).DataUtil.loadJSON(entry._url);
++        const body = json?.adventureData?.[0]?.data ?? json?.data ?? [];
++        sections = adventureSections(body, entry.contents);
++        this.adventureCache.set(entry.id, sections);
++      }
++
++      if (action === 'outline') {
++        return {
++          success: true,
++          adventure: { id: entry.id, name: entry.name },
++          sections: sections.map(sec => ({ index: sec.index, name: sec.name, chars: sec.text.length, headings: sec.headers.slice(0, 40) })),
++          note: 'Read a part with action read {section: index or name, heading?}.',
++        };
++      }
++      if (action === 'search') {
++        const q = String(data.query ?? '').trim();
++        if (!q) throw new Error('search needs a query');
++        return { success: true, adventure: entry.id, query: q, results: searchSections(sections, q, Math.max(1, Math.min(10, Number(data.limit ?? 6)))) };
++      }
++
++      const key = data.section;
++      const sec =
++        typeof key === 'number' || /^\d+$/.test(String(key ?? ''))
++          ? sections[Number(key)]
++          : sections.find(s => s.name.toLowerCase() === String(key ?? '').toLowerCase()) ?? sections.find(s => s.name.toLowerCase().includes(String(key ?? '').toLowerCase()));
++      if (!sec) throw new Error('read needs section (an index or name from the outline)');
++      let text = sec.text;
++      if (data.heading) {
++        const part = pickHeading(text, String(data.heading));
++        if (!part) throw new Error(`no heading containing "${data.heading}" in ${sec.name}: see the outline headings`);
++        text = part;
++      }
++      const maxChars = Math.max(500, Math.min(15000, Number(data.max_chars ?? 6000)));
++      const clipped = clipText(text, maxChars);
++      return {
++        success: true,
++        adventure: entry.id,
++        section: sec.name,
++        ...(data.heading ? { heading: data.heading } : {}),
++        text: clipped.text,
++        ...(clipped.truncated ? { truncated: true, remainingChars: clipped.remaining, note: 'Use heading to read one part, or a larger max_chars (up to 15000).' } : {}),
++      };
++    } catch (error) {
++      throw new Error(`Adventure lookup failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
 +    }
 +  }
 +
@@ -12052,10 +12463,10 @@ index eecda7e..0b9cea9 100644
 +  }
 +
 +  /**
-+   * Playback control. Supports playlist-level play/stop/cycle-mode and
-+   * per-sound play/stop, all through the client Playlist API so the server
-+   * and every connected client stay in sync.
-+   */
+    * Playback control. Supports playlist-level play/stop/cycle-mode and
+    * per-sound play/stop, all through the client Playlist API so the server
+    * and every connected client stay in sync.
+    */
    async controlPlaylist(options: {
 -    playlist: string;
 -    command: 'play' | 'stop' | 'cycle-mode' | 'play-sound' | 'stop-sound';
@@ -12143,7 +12554,7 @@ index eecda7e..0b9cea9 100644
          case 'play':
            await pl.playAll();
            return { success: true, action: 'play', playlist: info };
-@@ -8304,20 +12796,48 @@ export class FoundryDataAccess {
+@@ -8304,20 +13021,48 @@ export class FoundryDataAccess {
            return { success: true, action: 'cycle-mode', playlist: info, mode: pl.mode as number };
          case 'play-sound':
          case 'stop-sound': {
@@ -12198,7 +12609,7 @@ index eecda7e..0b9cea9 100644
        }
      } catch (error) {
        throw new Error(
-@@ -8468,6 +12988,21 @@ export class FoundryDataAccess {
+@@ -8468,6 +13213,21 @@ export class FoundryDataAccess {
      }
    }
  
@@ -12220,7 +12631,7 @@ index eecda7e..0b9cea9 100644
    /**
     * Move a token to a new position on the scene
     */
-@@ -8476,6 +13011,12 @@ export class FoundryDataAccess {
+@@ -8476,6 +13236,12 @@ export class FoundryDataAccess {
      x: number;
      y: number;
      animate?: boolean;
@@ -12233,7 +12644,7 @@ index eecda7e..0b9cea9 100644
    }): Promise<any> {
      this.validateFoundryState();
  
-@@ -8489,24 +13030,57 @@ export class FoundryDataAccess {
+@@ -8489,24 +13255,57 @@ export class FoundryDataAccess {
      }
  
      try {
@@ -12304,7 +12715,7 @@ index eecda7e..0b9cea9 100644
  
        this.auditLog('moveToken', data, 'success');
  
-@@ -8514,8 +13088,12 @@ export class FoundryDataAccess {
+@@ -8514,8 +13313,12 @@ export class FoundryDataAccess {
          success: true,
          tokenId: token.id,
          tokenName: token.name,
@@ -12318,7 +12729,7 @@ index eecda7e..0b9cea9 100644
        };
      } catch (error) {
        this.auditLog(
-@@ -8530,10 +13108,56 @@ export class FoundryDataAccess {
+@@ -8530,10 +13333,56 @@ export class FoundryDataAccess {
      }
    }
  
@@ -12376,7 +12787,7 @@ index eecda7e..0b9cea9 100644
      this.validateFoundryState();
  
      // Use permission system
-@@ -8546,20 +13170,19 @@ export class FoundryDataAccess {
+@@ -8546,20 +13395,19 @@ export class FoundryDataAccess {
      }
  
      try {
@@ -12403,7 +12814,7 @@ index eecda7e..0b9cea9 100644
  
        // Apply updates
        await token.update(cleanUpdates);
-@@ -8651,18 +13274,15 @@ export class FoundryDataAccess {
+@@ -8651,18 +13499,15 @@ export class FoundryDataAccess {
    /**
     * Get detailed information about a token
     */
@@ -12426,7 +12837,7 @@ index eecda7e..0b9cea9 100644
        }
  
        // Return flat structure that matches MCP server expectations
-@@ -11274,7 +15894,10 @@ export class FoundryDataAccess {
+@@ -11274,7 +16119,10 @@ export class FoundryDataAccess {
        name: string;
        type: string;
        img?: string;
@@ -12437,7 +12848,7 @@ index eecda7e..0b9cea9 100644
      }>;
      folder?: string;
    }): Promise<{ created: Array<{ id: string; name: string; type: string }>; total: number }> {
-@@ -11286,6 +15909,19 @@ export class FoundryDataAccess {
+@@ -11286,6 +16134,19 @@ export class FoundryDataAccess {
      const docs = params.actors.map(a => {
        const doc: Record<string, any> = { name: a.name, type: a.type };
        if (a.img) doc.img = a.img;
@@ -12457,7 +12868,7 @@ index eecda7e..0b9cea9 100644
  
        // Merge system data, adding safe defaults for systems that require certain
        // fields to exist during data preparation (avoids non-fatal init errors).
-@@ -11471,7 +16107,16 @@ export class FoundryDataAccess {
+@@ -11471,7 +16332,16 @@ export class FoundryDataAccess {
     * Merges supplied fields into the actor (top-level keys overwrite).
     */
    async updateActors(
@@ -12475,7 +12886,7 @@ index eecda7e..0b9cea9 100644
    ): Promise<{ updated: Array<{ id: string; name: string }>; total: number }> {
      const updatedActors: Array<{ id: string; name: string }> = [];
  
-@@ -11482,6 +16127,7 @@ export class FoundryDataAccess {
+@@ -11482,6 +16352,7 @@ export class FoundryDataAccess {
        const patch: Record<string, any> = {};
        if (u.name !== undefined) patch.name = u.name;
        if (u.img !== undefined) patch.img = u.img;
@@ -12483,7 +12894,7 @@ index eecda7e..0b9cea9 100644
        if (u.system !== undefined) {
          // Build a single patch.system nested object so Foundry deep-merges everything
          // in one pass without flat-key vs nested-key conflicts.
-@@ -11504,6 +16150,19 @@ export class FoundryDataAccess {
+@@ -11504,6 +16375,19 @@ export class FoundryDataAccess {
          }
          patch.system = systemPatch;
        }
@@ -15969,6 +16380,249 @@ index 0000000..66661f2
 +    ...(spec.img ? { img: spec.img } : {}),
 +  };
 +}
+diff --git a/packages/foundry-module/src/plutonium-utils.ts b/packages/foundry-module/src/plutonium-utils.ts
+new file mode 100644
+index 0000000..97f8610
+--- /dev/null
++++ b/packages/foundry-module/src/plutonium-utils.ts
+@@ -0,0 +1,237 @@
++/**
++ * Plutonium (5etools) data: turning 5etools entries into plain text, finding catalogue rows by name,
++ * and splitting an adventure into sections that can be searched and read.
++ */
++
++/** "{@creature goblin|MM|goblins}" -> "goblins"; "{@dc 13}" -> "DC 13"; "{@damage 1d6}" -> "1d6". */
++export function cleanTags(text: string): string {
++  let s = String(text ?? '');
++  for (let i = 0; i < 4 && s.includes('{@'); i++) {
++    s = s.replace(/\{@(\w+)(?: ([^{}]*))?\}/g, (_m, tag: string, body: string = '') => {
++      const parts = body.split('|');
++      switch (tag) {
++        case 'dc':
++          return `DC ${parts[0]}`;
++        case 'hit':
++          return `${Number(parts[0]) >= 0 ? '+' : ''}${parts[0]}`;
++        case 'h':
++          return 'Hit: ';
++        case 'atk':
++          return /m/.test(parts[0] ?? '') ? 'Melee attack:' : 'Ranged attack:';
++        case 'recharge':
++          return parts[0] ? `(Recharge ${parts[0]}-6)` : '(Recharge 6)';
++        case 'dice':
++        case 'damage':
++        case 'scaledice':
++        case 'scaledamage':
++        case 'chance':
++        case 'd20':
++          return parts[0] ?? '';
++        default:
++          // display text is the third part when given, else the name
++          return (parts[2] || parts[0] || '').trim();
++      }
++    });
++  }
++  return s;
++}
++
++type Entry = string | number | { [k: string]: any };
++
++/** 5etools entries (strings and typed objects) as plain text, headings as "## ". */
++export function entriesToText(entries: Entry | Entry[] | undefined, depth = 2): string {
++  const out: string[] = [];
++  const walk = (e: Entry | undefined, d: number): void => {
++    if (e === undefined || e === null) return;
++    if (typeof e === 'string' || typeof e === 'number') {
++      out.push(cleanTags(String(e)));
++      return;
++    }
++    if (Array.isArray(e)) {
++      for (const x of e) walk(x, d);
++      return;
++    }
++    const type = e.type;
++    if (type === 'image' || type === 'gallery' || type === 'hexColsOdd' || type === 'square' || type === 'none') {
++      if (Array.isArray(e.images)) return;
++      if (type === 'image') return;
++    }
++    if (type === 'list') {
++      for (const it of e.items ?? []) {
++        if (typeof it === 'string') out.push('- ' + cleanTags(it));
++        else if (it?.name && (it.entry || it.entries)) out.push(`- ${cleanTags(it.name)}: ${entriesToText(it.entry ?? it.entries, d)}`);
++        else {
++          const t = entriesToText(it, d);
++          if (t) out.push('- ' + t);
++        }
++      }
++      return;
++    }
++    if (type === 'table') {
++      if (e.caption) out.push(`**${cleanTags(e.caption)}**`);
++      if (Array.isArray(e.colLabels)) out.push(e.colLabels.map((c: string) => cleanTags(c)).join(' | '));
++      for (const row of e.rows ?? []) {
++        const cells = (Array.isArray(row) ? row : row?.row ?? []) as Entry[];
++        out.push(cells.map(c => entriesToText(c as any, d).replace(/\n+/g, ' ')).join(' | '));
++      }
++      return;
++    }
++    if (type === 'quote') {
++      walk(e.entries, d);
++      if (e.by) out.push(`- ${cleanTags(e.by)}`);
++      return;
++    }
++    if (type === 'statblock' || type === 'statblockInline') {
++      const sb = e.data?.name ?? e.tag ?? '';
++      out.push(`[stat block: ${cleanTags(String(e.name ?? sb))}${e.source ? ' (' + e.source + ')' : ''}]`);
++      return;
++    }
++    if (type === 'item') {
++      out.push(`- ${cleanTags(e.name ?? '')}: ${entriesToText(e.entry ?? e.entries, d)}`.trimEnd());
++      return;
++    }
++    // section, entries, inset, insetReadaloud, and anything else with nested entries
++    const label = e.name ? cleanTags(String(e.name)) : '';
++    const boxed = type === 'insetReadaloud' ? 'Read aloud' : type === 'inset' ? 'Sidebar' : '';
++    if (label || boxed) {
++      const head = type === 'inset' || type === 'insetReadaloud' ? `> ${boxed}${label ? ': ' + label : ''}` : `${'#'.repeat(Math.min(5, d))} ${label}`;
++      out.push(head);
++    }
++    if (e.entries) walk(e.entries, type === 'section' || type === 'entries' ? d + 1 : d);
++    else if (e.entry) walk(e.entry, d);
++  };
++  walk(entries as Entry, depth);
++  return out
++    .join('\n')
++    .replace(/\n{3,}/g, '\n\n')
++    .trim();
++}
++
++export interface CatalogRow {
++  name: string;
++  source: string;
++  [k: string]: any;
++}
++
++const norm = (s: string): string => s.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
++
++/** Rows whose name matches the query, exact first, then prefix, then contains; optional source filter. */
++export function findByName<T extends CatalogRow>(rows: T[], query: string, source?: string, limit = 10): T[] {
++  const q = norm(query);
++  if (!q) return [];
++  const src = source?.toLowerCase();
++  const scored: Array<{ r: T; s: number }> = [];
++  for (const r of rows) {
++    if (src && String(r.source).toLowerCase() !== src) continue;
++    const n = norm(r.name);
++    let s = 0;
++    if (n === q) s = 100;
++    else if (n.startsWith(q)) s = 60;
++    else if (n.split(' ').some(w => w === q)) s = 50;
++    else if (n.includes(q)) s = 30;
++    else if (q.split(' ').every(w => n.includes(w))) s = 20;
++    if (s) scored.push({ r, s: s - (isSrdSource(r.source) ? 0 : 1) });
++  }
++  return scored
++    .sort((a, b) => b.s - a.s || a.r.name.length - b.r.name.length || a.r.name.localeCompare(b.r.name))
++    .slice(0, Math.max(1, limit))
++    .map(x => x.r);
++}
++
++/** The core books, which rank above third-party sources when names tie. */
++export function isSrdSource(source: string): boolean {
++  return ['MM', 'PHB', 'DMG', 'XGE', 'TCE', 'MPMM', 'VGM', 'MTF', 'VRGR', 'XMM', 'XPHB', 'XDMG', 'LMoP'].includes(String(source));
++}
++
++export function creatureCr(m: any): string {
++  const cr = m?.cr;
++  return cr === undefined ? '?' : typeof cr === 'object' ? String(cr.cr) : String(cr);
++}
++
++export function creatureType(m: any): string {
++  const t = m?.type;
++  return typeof t === 'string' ? t : t?.type ?? '';
++}
++
++export interface AdventureSection {
++  index: number;
++  name: string;
++  /** the headings inside the section, for finding a place */
++  headers: string[];
++  text: string;
++}
++
++/** An adventure's top-level sections, named from the index entry when the data has no name. */
++export function adventureSections(data: any[], contents: any[] = []): AdventureSection[] {
++  return (data ?? []).map((sec, index) => {
++    const headers: string[] = [];
++    const collect = (e: any): void => {
++      if (!e || typeof e !== 'object') return;
++      if (Array.isArray(e)) return e.forEach(collect);
++      if (e.type === 'entries' && e.name) headers.push(cleanTags(String(e.name)));
++      if (e.entries) collect(e.entries);
++    };
++    collect(sec?.entries);
++    return {
++      index,
++      name: cleanTags(String(sec?.name ?? contents[index]?.name ?? `Section ${index + 1}`)),
++      headers,
++      text: entriesToText(sec, 2),
++    };
++  });
++}
++
++/** Sections that mention the query, best first, with a snippet around the first hit. */
++export function searchSections(sections: AdventureSection[], query: string, limit = 6): Array<{ index: number; section: string; snippet: string; matches: number }> {
++  const terms = [...new Set((query.toLowerCase().match(/[a-z0-9']+/g) ?? []).filter(w => w.length > 1))];
++  if (terms.length === 0) return [];
++  const hits: Array<{ index: number; section: string; snippet: string; matches: number; score: number }> = [];
++  for (const sec of sections) {
++    const lower = sec.text.toLowerCase();
++    let matches = 0;
++    let first = -1;
++    let found = 0;
++    for (const t of terms) {
++      let i = -1;
++      let n = 0;
++      while ((i = lower.indexOf(t, i + 1)) >= 0) {
++        n++;
++        if (first < 0 || i < first) first = i;
++      }
++      if (n) found++;
++      matches += n;
++    }
++    if (found < Math.ceil(terms.length / 2)) continue;
++    const score = found * 50 + Math.min(matches, 30) + (terms.some(t => sec.name.toLowerCase().includes(t)) ? 40 : 0);
++    const start = Math.max(0, first - 90);
++    hits.push({ index: sec.index, section: sec.name, matches, score, snippet: (start > 0 ? '... ' : '') + sec.text.slice(start, start + 260).replace(/\s+/g, ' ').trim() + ' ...' });
++  }
++  return hits
++    .sort((a, b) => b.score - a.score)
++    .slice(0, limit)
++    .map(({ score: _s, ...h }) => h);
++}
++
++/**
++ * Cut a section down to the part under one heading when `heading` is given (case-insensitive contains),
++ * from that heading to the next heading of the same or higher level.
++ */
++export function pickHeading(text: string, heading: string): string | null {
++  const lines = text.split('\n');
++  const want = heading.toLowerCase();
++  let start = -1;
++  let level = 0;
++  for (let i = 0; i < lines.length; i++) {
++    const m = /^(#{1,6}) (.*)$/.exec(lines[i]!);
++    if (!m) continue;
++    if (start < 0) {
++      if (m[2]!.toLowerCase().includes(want)) {
++        start = i;
++        level = m[1]!.length;
++      }
++    } else if (m[1]!.length <= level) {
++      return lines.slice(start, i).join('\n').trim();
++    }
++  }
++  return start < 0 ? null : lines.slice(start).join('\n').trim();
++}
 diff --git a/packages/foundry-module/src/preview-utils.layers.test.ts b/packages/foundry-module/src/preview-utils.layers.test.ts
 new file mode 100644
 index 0000000..71ecf07
@@ -16872,7 +17526,7 @@ index 0000000..557e34d
 +  return view ? outSize : { width, height };
 +}
 diff --git a/packages/foundry-module/src/queries.ts b/packages/foundry-module/src/queries.ts
-index 9fe02ba..ddcebb2 100644
+index 9fe02ba..aa0408a 100644
 --- a/packages/foundry-module/src/queries.ts
 +++ b/packages/foundry-module/src/queries.ts
 @@ -1,7 +1,8 @@
@@ -16894,7 +17548,7 @@ index 9fe02ba..ddcebb2 100644
  
      // Character/Actor queries
      CONFIG.queries[`${modulePrefix}.getCharacterInfo`] = this.handleGetCharacterInfo.bind(this);
-@@ -46,6 +47,33 @@ export class QueryHandlers {
+@@ -46,6 +47,36 @@ export class QueryHandlers {
      CONFIG.queries[`${modulePrefix}.list-scenes`] = this.handleListScenes.bind(this);
      CONFIG.queries[`${modulePrefix}.switch-scene`] = this.handleSwitchScene.bind(this);
      CONFIG.queries[`${modulePrefix}.update-scene-music`] = this.handleUpdateSceneMusic.bind(this);
@@ -16922,13 +17576,16 @@ index 9fe02ba..ddcebb2 100644
 +    CONFIG.queries[`${modulePrefix}.combat`] = this.handleCombat.bind(this);
 +    CONFIG.queries[`${modulePrefix}.party`] = this.handleParty.bind(this);
 +    CONFIG.queries[`${modulePrefix}.rules`] = this.handleRules.bind(this);
++    CONFIG.queries[`${modulePrefix}.pause`] = this.handlePause.bind(this);
++    CONFIG.queries[`${modulePrefix}.plutonium`] = this.handlePlutonium.bind(this);
++    CONFIG.queries[`${modulePrefix}.adventure`] = this.handleAdventure.bind(this);
 +    CONFIG.queries[`${modulePrefix}.annotations`] = this.handleAnnotations.bind(this);
 +    CONFIG.queries[`${modulePrefix}.read-image-file`] = this.handleReadImageFile.bind(this);
 +    CONFIG.queries[`${modulePrefix}.inspect-document`] = this.handleInspectDocument.bind(this);
      CONFIG.queries[`${modulePrefix}.manage-playlists`] = this.handleManagePlaylists.bind(this);
      CONFIG.queries[`${modulePrefix}.control-playlist`] = this.handleControlPlaylist.bind(this);
  
-@@ -184,7 +212,7 @@ export class QueryHandlers {
+@@ -184,7 +215,7 @@ export class QueryHandlers {
     * Unregister all query handlers
     */
    unregisterHandlers(): void {
@@ -16937,7 +17594,7 @@ index 9fe02ba..ddcebb2 100644
      const keysToRemove = Object.keys(CONFIG.queries).filter(key => key.startsWith(modulePrefix));
  
      for (const key of keysToRemove) {
-@@ -477,7 +505,7 @@ export class QueryHandlers {
+@@ -477,7 +508,7 @@ export class QueryHandlers {
     * Get list of all registered query methods
     */
    getRegisteredMethods(): string[] {
@@ -16946,7 +17603,7 @@ index 9fe02ba..ddcebb2 100644
      return Object.keys(CONFIG.queries)
        .filter(key => key.startsWith(modulePrefix))
        .map(key => key.replace(`${modulePrefix}.`, ''));
-@@ -487,7 +515,7 @@ export class QueryHandlers {
+@@ -487,7 +518,7 @@ export class QueryHandlers {
     * Test if a specific query handler is registered
     */
    isMethodRegistered(method: string): boolean {
@@ -16955,7 +17612,7 @@ index 9fe02ba..ddcebb2 100644
      return queryKey in CONFIG.queries && typeof CONFIG.queries[queryKey] === 'function';
    }
  
-@@ -530,6 +558,9 @@ export class QueryHandlers {
+@@ -530,6 +561,9 @@ export class QueryHandlers {
        if (data.placement) {
          requestData.placement = data.placement;
        }
@@ -16965,7 +17622,7 @@ index 9fe02ba..ddcebb2 100644
  
        return await this.dataAccess.createActorFromCompendiumEntry(requestData);
      } catch (error) {
-@@ -1218,6 +1249,275 @@ export class QueryHandlers {
+@@ -1218,6 +1252,299 @@ export class QueryHandlers {
      }
    }
  
@@ -17073,6 +17730,30 @@ index 9fe02ba..ddcebb2 100644
 +    if (action === 'resolve') return await this.dataAccess.resolveAnnotations(data ?? {});
 +    if (action === 'clear') return await this.dataAccess.clearAnnotations(data ?? {});
 +    return { error: 'Unknown action: ' + String(action) + ' (list | resolve | clear)', success: false };
++  }
++
++  private async handlePlutonium(data: any): Promise<any> {
++    const gmCheck = this.validateGMAccess();
++    if (!gmCheck.allowed) {
++      return { error: 'Access denied', success: false };
++    }
++    return await this.dataAccess.lookupPlutonium(data ?? {});
++  }
++
++  private async handleAdventure(data: any): Promise<any> {
++    const gmCheck = this.validateGMAccess();
++    if (!gmCheck.allowed) {
++      return { error: 'Access denied', success: false };
++    }
++    return await this.dataAccess.readAdventure(data ?? {});
++  }
++
++  private async handlePause(data: any): Promise<any> {
++    const gmCheck = this.validateGMAccess();
++    if (!gmCheck.allowed) {
++      return { error: 'Access denied', success: false };
++    }
++    return await this.dataAccess.setPause(data ?? {});
 +  }
 +
 +  private async handleRules(data: any): Promise<any> {
@@ -17241,7 +17922,7 @@ index 9fe02ba..ddcebb2 100644
    private async handleManagePlaylists(data: any): Promise<any> {
      try {
        const gmCheck = this.validateGMAccess();
-@@ -1241,8 +1541,11 @@ export class QueryHandlers {
+@@ -1241,8 +1568,11 @@ export class QueryHandlers {
        if (!gmCheck.allowed) {
          return { error: 'Access denied', success: false };
        }
@@ -17255,7 +17936,7 @@ index 9fe02ba..ddcebb2 100644
        }
        return await this.dataAccess.controlPlaylist(data);
      } catch (error) {
-@@ -1547,7 +1850,9 @@ export class QueryHandlers {
+@@ -1547,7 +1877,9 @@ export class QueryHandlers {
     */
    private async handleUpdateToken(data: {
      tokenId: string;
@@ -17266,7 +17947,7 @@ index 9fe02ba..ddcebb2 100644
    }): Promise<any> {
      try {
        // SECURITY: Silent GM validation
-@@ -1561,8 +1866,8 @@ export class QueryHandlers {
+@@ -1561,8 +1893,8 @@ export class QueryHandlers {
        if (!data.tokenId) {
          throw new Error('tokenId is required');
        }
@@ -20709,10 +21390,10 @@ index 096f27b..903a94e 100644
      "@vitest/coverage-v8": "^3.2.4",
      "esbuild": "^0.19.0",
 diff --git a/packages/mcp-server/src/backend.ts b/packages/mcp-server/src/backend.ts
-index 8967e33..900efa9 100644
+index 8967e33..70b2ce5 100644
 --- a/packages/mcp-server/src/backend.ts
 +++ b/packages/mcp-server/src/backend.ts
-@@ -48,6 +48,39 @@ import { DnD5eAddFeatureTool } from './tools/dnd5e/add-feature.js';
+@@ -48,6 +48,41 @@ import { DnD5eAddFeatureTool } from './tools/dnd5e/add-feature.js';
  import { DnD5eNpcTools } from './tools/dnd5e/npc.js';
  import { DnD5eFeaturesFromCompendiumTools } from './tools/dnd5e/features.js';
  import { ChatTools } from './tools/chat.js';
@@ -20742,6 +21423,8 @@ index 8967e33..900efa9 100644
 +import { RevealTools } from './tools/reveal-tools.js';
 +import { CombatTools } from './tools/combat-tools.js';
 +import { RulesTools } from './tools/rules-tools.js';
++import { PauseTools } from './tools/pause-tools.js';
++import { PlutoniumTools } from './tools/plutonium-tools.js';
 +import { PartyTools } from './tools/party-tools.js';
 +import { AnnotationTools } from './tools/annotation-tools.js';
 +import { ImageEditTools } from './tools/image-edit-tools.js';
@@ -20752,7 +21435,7 @@ index 8967e33..900efa9 100644
  
  const CONTROL_HOST = '127.0.0.1';
  
-@@ -174,6 +207,22 @@ let comfyuiProcess: ChildProcess | null = null;
+@@ -174,6 +209,22 @@ let comfyuiProcess: ChildProcess | null = null;
  
  let comfyuiStatus: 'stopped' | 'starting' | 'running' | 'error' = 'stopped';
  
@@ -20775,7 +21458,7 @@ index 8967e33..900efa9 100644
  let lockFd: number | null = null;
  
  function acquireLock(): boolean {
-@@ -350,6 +399,18 @@ async function waitForComfyUIReady(timeoutMs: number = 60000): Promise<void> {
+@@ -350,6 +401,18 @@ async function waitForComfyUIReady(timeoutMs: number = 60000): Promise<void> {
  }
  
  async function startComfyUIService(logger: Logger): Promise<any> {
@@ -20794,7 +21477,7 @@ index 8967e33..900efa9 100644
    if (comfyuiStatus === 'running') {
      return { status: 'already_running', message: 'ComfyUI service is already running' };
    }
-@@ -472,6 +533,14 @@ async function startComfyUIService(logger: Logger): Promise<any> {
+@@ -472,6 +535,14 @@ async function startComfyUIService(logger: Logger): Promise<any> {
  }
  
  async function stopComfyUIService(logger: Logger): Promise<any> {
@@ -20809,7 +21492,7 @@ index 8967e33..900efa9 100644
    if (comfyuiStatus === 'stopped') {
      return { status: 'already_stopped', message: 'ComfyUI service is already stopped' };
    }
-@@ -510,7 +579,7 @@ async function checkComfyUIStatus(): Promise<any> {
+@@ -510,7 +581,7 @@ async function checkComfyUIStatus(): Promise<any> {
    // This handles both spawned processes and externally-started instances
  
    try {
@@ -20818,7 +21501,7 @@ index 8967e33..900efa9 100644
        signal: AbortSignal.timeout(5000),
      });
  
-@@ -520,16 +589,23 @@ async function checkComfyUIStatus(): Promise<any> {
+@@ -520,16 +591,23 @@ async function checkComfyUIStatus(): Promise<any> {
        comfyuiStatus = 'error';
      }
    } catch (error) {
@@ -20844,7 +21527,7 @@ index 8967e33..900efa9 100644
    };
  }
  
-@@ -1131,7 +1207,7 @@ async function processMapGenerationInBackend(
+@@ -1131,7 +1209,7 @@ async function processMapGenerationInBackend(
      );
  
      logger.error('Background map generation processing failed', { jobId, error });
@@ -20853,7 +21536,7 @@ index 8967e33..900efa9 100644
  
      // Emit failure to Foundry module
      foundryClient.sendMessage({
-@@ -1195,6 +1271,64 @@ async function startBackend(): Promise<void> {
+@@ -1195,6 +1273,66 @@ async function startBackend(): Promise<void> {
    const compendiumTools = new CompendiumTools({ foundryClient, logger, systemRegistry });
  
    const sceneTools = new SceneTools({ foundryClient, logger });
@@ -20899,6 +21582,8 @@ index 8967e33..900efa9 100644
 +  const revealTools = new RevealTools({ foundryClient, logger });
 +  const combatTools = new CombatTools({ foundryClient, logger });
 +  const rulesTools = new RulesTools({ foundryClient, logger });
++  const pauseTools = new PauseTools({ foundryClient, logger });
++  const plutoniumTools = new PlutoniumTools({ foundryClient, logger });
 +  const partyTools = new PartyTools({ foundryClient, logger });
 +  const annotationTools = new AnnotationTools({ foundryClient, logger });
 +  const imageEditTools = new ImageEditTools({
@@ -20918,7 +21603,7 @@ index 8967e33..900efa9 100644
    const playlistTools = new PlaylistTools({ foundryClient, logger });
  
    const actorCreationTools = new ActorCreationTools({ foundryClient, logger });
-@@ -1301,6 +1435,13 @@ async function startBackend(): Promise<void> {
+@@ -1301,6 +1439,13 @@ async function startBackend(): Promise<void> {
  
          let result: any;
  
@@ -20932,7 +21617,7 @@ index 8967e33..900efa9 100644
          switch (message.type) {
            case 'start-comfyui-service':
              result = await startComfyUIService(logger);
-@@ -1317,6 +1458,19 @@ async function startBackend(): Promise<void> {
+@@ -1317,6 +1462,19 @@ async function startBackend(): Promise<void> {
  
              break;
  
@@ -20952,7 +21637,7 @@ index 8967e33..900efa9 100644
            // Map generation handlers (following existing tool pattern)
            case 'generate-map-request':
              await fs.appendFile(
-@@ -1429,6 +1583,30 @@ async function startBackend(): Promise<void> {
+@@ -1429,6 +1587,32 @@ async function startBackend(): Promise<void> {
  
      ...sceneTools.getToolDefinitions(),
  
@@ -20972,6 +21657,8 @@ index 8967e33..900efa9 100644
 +    ...revealTools.getToolDefinitions(),
 +    ...combatTools.getToolDefinitions(),
 +    ...rulesTools.getToolDefinitions(),
++    ...pauseTools.getToolDefinitions(),
++    ...plutoniumTools.getToolDefinitions(),
 +    ...partyTools.getToolDefinitions(),
 +    ...annotationTools.getToolDefinitions(),
 +    ...imageEditTools.getToolDefinitions(),
@@ -20983,7 +21670,7 @@ index 8967e33..900efa9 100644
      ...actorCreationTools.getToolDefinitions(),
      ...actorManagementTools.getToolDefinitions(),
      ...effectManagementTools.getToolDefinitions(),
-@@ -1456,7 +1634,11 @@ async function startBackend(): Promise<void> {
+@@ -1456,7 +1640,11 @@ async function startBackend(): Promise<void> {
  
      ...tokenManipulationTools.getToolDefinitions(),
  
@@ -20996,7 +21683,7 @@ index 8967e33..900efa9 100644
  
      ...playlistTools.getToolDefinitions(),
    ];
-@@ -1764,19 +1946,11 @@ async function startBackend(): Promise<void> {
+@@ -1764,19 +1952,11 @@ async function startBackend(): Promise<void> {
                  // Map generation tools
  
                  case 'generate-map':
@@ -21019,7 +21706,7 @@ index 8967e33..900efa9 100644
  
                  case 'list-scenes':
                    result = await mapGenerationTools.listScenes(args);
-@@ -1805,6 +1979,136 @@ async function startBackend(): Promise<void> {
+@@ -1805,6 +1985,148 @@ async function startBackend(): Promise<void> {
  
                    break;
  
@@ -21090,6 +21777,18 @@ index 8967e33..900efa9 100644
 +
 +                case 'party':
 +                  result = await partyTools.handleParty(args);
++                  break;
++
++                case 'plutonium':
++                  result = await plutoniumTools.handlePlutonium(args);
++                  break;
++
++                case 'adventure':
++                  result = await plutoniumTools.handleAdventure(args);
++                  break;
++
++                case 'pause':
++                  result = await pauseTools.handlePause(args);
 +                  break;
 +
 +                case 'rules':
@@ -23088,9 +23787,18 @@ index 0000000..f34cab2
 +  }
 +}
 diff --git a/packages/mcp-server/src/tools/actor-creation.ts b/packages/mcp-server/src/tools/actor-creation.ts
-index 252f3c3..2f42cd4 100644
+index 252f3c3..8e34d4d 100644
 --- a/packages/mcp-server/src/tools/actor-creation.ts
 +++ b/packages/mcp-server/src/tools/actor-creation.ts
+@@ -27,7 +27,7 @@ export class ActorCreationTools {
+       {
+         name: 'create-actor-from-compendium',
+         description:
+-          'Create one or more actors from a specific compendium entry with custom names. Use search-compendium first to find the exact creature you want, then use this tool with the packId and itemId from the search results.',
++          'Create one or more actors from a specific compendium entry with custom names. Use search-compendium first to find the exact creature you want, then use this tool with the packId and itemId from the search results. If the creature is not in a compendium, or Plutonium is active, use the plutonium tool (action import) instead: it imports from the full 5etools catalogue.',
+         inputSchema: {
+           type: 'object',
+           properties: {
 @@ -54,6 +54,22 @@ export class ActorCreationTools {
                minimum: 1,
                maximum: 10,
@@ -24074,6 +24782,19 @@ index 0000000..922cb3f
 +    return result;
 +  }
 +}
+diff --git a/packages/mcp-server/src/tools/compendium.ts b/packages/mcp-server/src/tools/compendium.ts
+index 4a2846c..49c680a 100644
+--- a/packages/mcp-server/src/tools/compendium.ts
++++ b/packages/mcp-server/src/tools/compendium.ts
+@@ -56,7 +56,7 @@ export class CompendiumTools {
+       {
+         name: 'search-compendium',
+         description:
+-          'Search through compendium packs by name. IMPORTANT LIMITATIONS: (1) Text search only matches entity NAMES - descriptions and traits are NOT searchable. (2) Filters use name heuristics only (not actual system data) and only work on Actor packs - challengeRating and creatureType filters search for keywords like "ancient", "legendary", "humanoid", etc. in entity names. For accurate filtering by level/CR, traits, or rarity, use list-creatures-by-criteria instead. For best results, use broad name-based searches (e.g., "dragon", "knight") and inspect individual items with get-compendium-item.',
++          'Search through compendium packs by name. IMPORTANT LIMITATIONS: (1) Text search only matches entity NAMES - descriptions and traits are NOT searchable. (2) Filters use name heuristics only (not actual system data) and only work on Actor packs - challengeRating and creatureType filters search for keywords like "ancient", "legendary", "humanoid", etc. in entity names. For accurate filtering by level/CR, traits, or rarity, use list-creatures-by-criteria instead. For best results, use broad name-based searches (e.g., "dragon", "knight") and inspect individual items with get-compendium-item. When Plutonium is active, prefer the plutonium tool for monsters, spells and items: it searches every official book (not only what the compendiums hold) and imports fully converted actors.',
+         inputSchema: {
+           type: 'object',
+           properties: {
 diff --git a/packages/mcp-server/src/tools/file-backup-tools.test.ts b/packages/mcp-server/src/tools/file-backup-tools.test.ts
 new file mode 100644
 index 0000000..e96bd2f
@@ -31040,6 +31761,83 @@ index 0000000..32e73e6
 +    return result;
 +  }
 +}
+diff --git a/packages/mcp-server/src/tools/pause-tools.test.ts b/packages/mcp-server/src/tools/pause-tools.test.ts
+new file mode 100644
+index 0000000..d559515
+--- /dev/null
++++ b/packages/mcp-server/src/tools/pause-tools.test.ts
+@@ -0,0 +1,22 @@
++import { describe, expect, it, vi } from 'vitest';
++import { PauseTools } from './pause-tools.js';
++
++function make(response: any = { success: true }) {
++  const query = vi.fn(async () => response);
++  const logger: any = { info: vi.fn(), debug: vi.fn(), error: vi.fn(), warn: vi.fn(), child: () => logger };
++  return { tools: new PauseTools({ foundryClient: { query } as any, logger }), query };
++}
++
++describe('pause tool', () => {
++  it('is exposed and sends the request', async () => {
++    const { tools, query } = make({ success: true, paused: false });
++    expect(tools.getToolDefinitions()[0]!.name).toBe('pause');
++    await tools.handlePause({ paused: false });
++    expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.pause', { paused: false });
++  });
++  it('rejects bad input and refused requests', async () => {
++    const { tools } = make();
++    await expect(tools.handlePause({ paused: 'yes' })).rejects.toThrow();
++    await expect(make({ success: false, error: 'Access denied' }).tools.handlePause({})).rejects.toThrow('Access denied');
++  });
++});
+diff --git a/packages/mcp-server/src/tools/pause-tools.ts b/packages/mcp-server/src/tools/pause-tools.ts
+new file mode 100644
+index 0000000..37e6aea
+--- /dev/null
++++ b/packages/mcp-server/src/tools/pause-tools.ts
+@@ -0,0 +1,43 @@
++import { z } from 'zod';
++import { FoundryClient } from '../foundry-client.js';
++import { Logger } from '../logger.js';
++
++export interface PauseToolsOptions {
++  foundryClient: FoundryClient;
++  logger: Logger;
++}
++
++const schema = z.object({ paused: z.boolean().optional() }).strict();
++
++export class PauseTools {
++  private foundryClient: FoundryClient;
++  private logger: Logger;
++
++  constructor({ foundryClient, logger }: PauseToolsOptions) {
++    this.foundryClient = foundryClient;
++    this.logger = logger.child({ component: 'PauseTools' });
++  }
++
++  getToolDefinitions() {
++    return [
++      {
++        name: 'pause',
++        description:
++          'Pause or unpause the game for everyone. A paused game stops players from moving or rolling, so unpause before asking a player to act. paused: true pauses, false unpauses; leave it out to just read the current state. Returns the state it is now in. Needs the Foundry GM tab open.',
++        inputSchema: {
++          type: 'object',
++          properties: { paused: { type: 'boolean', description: 'true to pause, false to unpause; omit to only report' } },
++          additionalProperties: false,
++        },
++      },
++    ];
++  }
++
++  async handlePause(args: unknown): Promise<any> {
++    const a = schema.parse(args ?? {});
++    this.logger.info('Pause request', { paused: a.paused });
++    const result = await this.foundryClient.query('foundry-mcp-bridge.pause', a);
++    if (result?.success === false) throw new Error(result.error || 'Request was refused');
++    return result;
++  }
++}
 diff --git a/packages/mcp-server/src/tools/play-tools.test.ts b/packages/mcp-server/src/tools/play-tools.test.ts
 new file mode 100644
 index 0000000..69fdacc
@@ -31461,6 +32259,157 @@ index 7bc0280..9f7d39f 100644
  
      this.logger.info('Controlling playlist', {
        playlist: parsed.playlist,
+diff --git a/packages/mcp-server/src/tools/plutonium-tools.test.ts b/packages/mcp-server/src/tools/plutonium-tools.test.ts
+new file mode 100644
+index 0000000..d5bb0c9
+--- /dev/null
++++ b/packages/mcp-server/src/tools/plutonium-tools.test.ts
+@@ -0,0 +1,35 @@
++import { describe, expect, it, vi } from 'vitest';
++import { PlutoniumTools } from './plutonium-tools.js';
++
++function make(response: any = { success: true }) {
++  const query = vi.fn(async () => response);
++  const logger: any = { info: vi.fn(), debug: vi.fn(), error: vi.fn(), warn: vi.fn(), child: () => logger };
++  return { tools: new PlutoniumTools({ foundryClient: { query } as any, logger }), query };
++}
++
++describe('plutonium and adventure tools', () => {
++  it('exposes both tools', () => {
++    const defs = make().tools.getToolDefinitions();
++    expect(defs.map(d => d.name)).toEqual(['plutonium', 'adventure']);
++    expect(defs[0]!.description).toContain('before the SRD compendiums');
++    expect(defs[1]!.description).toContain('LMoP');
++  });
++  it('sends plutonium requests to Foundry', async () => {
++    const { tools, query } = make({ success: true, results: [] });
++    await tools.handlePlutonium({ action: 'import', kind: 'creature', names: ['Goblin Boss'] });
++    expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.plutonium', { action: 'import', kind: 'creature', names: ['Goblin Boss'] }, 120000);
++  });
++  it('sends adventure requests to Foundry', async () => {
++    const { tools, query } = make({ success: true });
++    await tools.handleAdventure({ action: 'read', section: 1, heading: 'Goblin Ambush' });
++    expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.adventure', { action: 'read', section: 1, heading: 'Goblin Ambush' }, 60000);
++  });
++  it('rejects bad input and refused requests', async () => {
++    const { tools } = make();
++    await expect(tools.handlePlutonium({ kind: 'dragon' })).rejects.toThrow();
++    await expect(tools.handlePlutonium({ action: 'import', names: [] })).rejects.toThrow();
++    await expect(tools.handleAdventure({ action: 'dig' })).rejects.toThrow();
++    const refused = make({ success: false, error: 'Access denied' });
++    await expect(refused.tools.handleAdventure({})).rejects.toThrow('Access denied');
++  });
++});
+diff --git a/packages/mcp-server/src/tools/plutonium-tools.ts b/packages/mcp-server/src/tools/plutonium-tools.ts
+new file mode 100644
+index 0000000..2ef7086
+--- /dev/null
++++ b/packages/mcp-server/src/tools/plutonium-tools.ts
+@@ -0,0 +1,104 @@
++import { z } from 'zod';
++import { FoundryClient } from '../foundry-client.js';
++import { Logger } from '../logger.js';
++
++export interface PlutoniumToolsOptions {
++  foundryClient: FoundryClient;
++  logger: Logger;
++}
++
++const plutoniumSchema = z
++  .object({
++    action: z.enum(['status', 'search', 'import']).optional(),
++    kind: z.enum(['creature', 'spell', 'item']).optional(),
++    query: z.string().min(1).max(120).optional(),
++    source: z.string().min(1).max(20).optional(),
++    limit: z.number().int().min(1).max(25).optional(),
++    names: z.array(z.string().min(1).max(120)).min(1).max(20).optional(),
++  })
++  .strict();
++
++const adventureSchema = z
++  .object({
++    action: z.enum(['list', 'outline', 'search', 'read']).optional(),
++    adventure: z.string().min(1).max(40).optional(),
++    query: z.string().min(1).max(200).optional(),
++    section: z.union([z.string().min(1).max(120), z.number().int().min(0).max(200)]).optional(),
++    heading: z.string().min(1).max(120).optional(),
++    limit: z.number().int().min(1).max(10).optional(),
++    max_chars: z.number().int().min(500).max(15000).optional(),
++  })
++  .strict();
++
++export class PlutoniumTools {
++  private foundryClient: FoundryClient;
++  private logger: Logger;
++
++  constructor({ foundryClient, logger }: PlutoniumToolsOptions) {
++    this.foundryClient = foundryClient;
++    this.logger = logger.child({ component: 'PlutoniumTools' });
++  }
++
++  getToolDefinitions() {
++    return [
++      {
++        name: 'plutonium',
++        description:
++          'Search and import monsters, spells and items from the 5etools catalogue through the Plutonium module (it must be active in the world). ' +
++          'It covers every official book and many third-party ones, so use it before the SRD compendiums when a creature, spell or item is not found there, and to import fully converted actors (actions, traits, spells, art) in one call. ' +
++          'search {kind: creature|spell|item (default creature), query, source?, limit?} lists matches (name, source, cr/level/type; inWorld:true when one with that name already exists); ' +
++          'import {kind, names: ["Goblin Boss", "Nothic|MM"]} imports each by exact name (add |SOURCE to pick a book) and returns what was created with ids and uuids; status says whether Plutonium is active. ' +
++          'Imported actors land in the world\'s folders as Plutonium is configured; place them on a scene afterwards with the usual token tools. Needs the Foundry GM tab open and not minimized.',
++        inputSchema: {
++          type: 'object',
++          properties: {
++            action: { type: 'string', enum: ['status', 'search', 'import'], description: 'search (default), import or status' },
++            kind: { type: 'string', enum: ['creature', 'spell', 'item'], description: 'what to search or import (default creature)' },
++            query: { type: 'string', description: 'search: the name or part of it' },
++            source: { type: 'string', description: 'only this book, e.g. MM, PHB, LMoP' },
++            limit: { type: 'number', description: 'search: how many results (default 10, max 25)' },
++            names: { type: 'array', items: { type: 'string' }, description: 'import: exact names, each optionally "Name|SOURCE" (max 20)' },
++          },
++          additionalProperties: false,
++        },
++      },
++      {
++        name: 'adventure',
++        description:
++          'Read a published adventure from the 5etools data through Plutonium (for example Lost Mine of Phandelver, id LMoP), so scenes are run from the book and not from memory. ' +
++          'list {query?} finds adventures; outline {adventure?(LMoP)} shows its sections with the headings inside them; search {query} finds the sections that mention something (a place, an NPC, an item); ' +
++          'read {section: index or name, heading?, max_chars?(6000)} returns the text (read-aloud boxes marked "> Read aloud", tables and lists kept), use heading to read just one part such as "Goblin Ambush" or "3. Kennel". ' +
++          'Prefer search then read with a heading to keep it short. The text is the published adventure: it may include spoilers for the GM only; never read boxed text or secrets to players unless the scene calls for it.',
++        inputSchema: {
++          type: 'object',
++          properties: {
++            action: { type: 'string', enum: ['list', 'outline', 'search', 'read'], description: 'outline (default), list, search or read' },
++            adventure: { type: 'string', description: 'adventure id (default LMoP)' },
++            query: { type: 'string', description: 'search / list: key words' },
++            section: { type: ['string', 'number'], description: 'read: the section index or name from the outline' },
++            heading: { type: 'string', description: 'read: only the part under this heading' },
++            limit: { type: 'number', description: 'search: how many sections (default 6, max 10)' },
++            max_chars: { type: 'number', description: 'read: cut at about this many characters (default 6000, max 15000)' },
++          },
++          additionalProperties: false,
++        },
++      },
++    ];
++  }
++
++  async handlePlutonium(args: unknown): Promise<any> {
++    const a = plutoniumSchema.parse(args ?? {});
++    this.logger.info('Plutonium request', { action: a.action ?? 'search', kind: a.kind });
++    const result = await this.foundryClient.query('foundry-mcp-bridge.plutonium', a, 120000);
++    if (result?.success === false) throw new Error(result.error || 'Request was refused');
++    return result;
++  }
++
++  async handleAdventure(args: unknown): Promise<any> {
++    const a = adventureSchema.parse(args ?? {});
++    this.logger.info('Adventure request', { action: a.action ?? 'outline' });
++    const result = await this.foundryClient.query('foundry-mcp-bridge.adventure', a, 60000);
++    if (result?.success === false) throw new Error(result.error || 'Request was refused');
++    return result;
++  }
++}
 diff --git a/packages/mcp-server/src/tools/polish.test.ts b/packages/mcp-server/src/tools/polish.test.ts
 new file mode 100644
 index 0000000..44ae426
