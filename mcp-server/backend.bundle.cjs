@@ -445,8 +445,8 @@ var init_parseUtil = __esm({
     init_errors();
     init_en();
     makeIssue = (params) => {
-      const { data, path: path13, errorMaps, issueData } = params;
-      const fullPath = [...path13, ...issueData.path || []];
+      const { data, path: path14, errorMaps, issueData } = params;
+      const fullPath = [...path14, ...issueData.path || []];
       const fullIssue = {
         ...issueData,
         path: fullPath
@@ -647,30 +647,30 @@ function floatSafeRemainder(val, step) {
   const stepInt = Number.parseInt(step.toFixed(decCount).replace(".", ""));
   return valInt % stepInt / 10 ** decCount;
 }
-function deepPartialify(schema12) {
-  if (schema12 instanceof ZodObject) {
+function deepPartialify(schema13) {
+  if (schema13 instanceof ZodObject) {
     const newShape = {};
-    for (const key in schema12.shape) {
-      const fieldSchema = schema12.shape[key];
+    for (const key in schema13.shape) {
+      const fieldSchema = schema13.shape[key];
       newShape[key] = ZodOptional.create(deepPartialify(fieldSchema));
     }
     return new ZodObject({
-      ...schema12._def,
+      ...schema13._def,
       shape: () => newShape
     });
-  } else if (schema12 instanceof ZodArray) {
+  } else if (schema13 instanceof ZodArray) {
     return new ZodArray({
-      ...schema12._def,
-      type: deepPartialify(schema12.element)
+      ...schema13._def,
+      type: deepPartialify(schema13.element)
     });
-  } else if (schema12 instanceof ZodOptional) {
-    return ZodOptional.create(deepPartialify(schema12.unwrap()));
-  } else if (schema12 instanceof ZodNullable) {
-    return ZodNullable.create(deepPartialify(schema12.unwrap()));
-  } else if (schema12 instanceof ZodTuple) {
-    return ZodTuple.create(schema12.items.map((item) => deepPartialify(item)));
+  } else if (schema13 instanceof ZodOptional) {
+    return ZodOptional.create(deepPartialify(schema13.unwrap()));
+  } else if (schema13 instanceof ZodNullable) {
+    return ZodNullable.create(deepPartialify(schema13.unwrap()));
+  } else if (schema13 instanceof ZodTuple) {
+    return ZodTuple.create(schema13.items.map((item) => deepPartialify(item)));
   } else {
-    return schema12;
+    return schema13;
   }
 }
 function mergeValues(a, b) {
@@ -754,11 +754,11 @@ var init_types = __esm({
     init_parseUtil();
     init_util();
     ParseInputLazyPath = class {
-      constructor(parent, value, path13, key) {
+      constructor(parent, value, path14, key) {
         this._cachedPath = [];
         this.parent = parent;
         this.data = value;
-        this._path = path13;
+        this._path = path14;
         this._key = key;
       }
       get path() {
@@ -2397,9 +2397,9 @@ var init_types = __esm({
         return this.min(1, message);
       }
     };
-    ZodArray.create = (schema12, params) => {
+    ZodArray.create = (schema13, params) => {
       return new ZodArray({
-        type: schema12,
+        type: schema13,
         minLength: null,
         maxLength: null,
         exactLength: null,
@@ -2620,8 +2620,8 @@ var init_types = __esm({
       //   }) as any;
       //   return merged;
       // }
-      setKey(key, schema12) {
-        return this.augment({ [key]: schema12 });
+      setKey(key, schema13) {
+        return this.augment({ [key]: schema13 });
       }
       // merge<Incoming extends AnyZodObject>(
       //   merging: Incoming
@@ -3029,10 +3029,10 @@ var init_types = __esm({
           status.dirty();
         }
         const items2 = [...ctx.data].map((item, itemIndex) => {
-          const schema12 = this._def.items[itemIndex] || this._def.rest;
-          if (!schema12)
+          const schema13 = this._def.items[itemIndex] || this._def.rest;
+          if (!schema13)
             return null;
-          return schema12._parse(new ParseInputLazyPath(ctx, item, ctx.path, itemIndex));
+          return schema13._parse(new ParseInputLazyPath(ctx, item, ctx.path, itemIndex));
         }).filter((x) => !!x);
         if (ctx.common.async) {
           return Promise.all(items2).then((results) => {
@@ -3539,9 +3539,9 @@ var init_types = __esm({
         }));
       }
     };
-    ZodPromise.create = (schema12, params) => {
+    ZodPromise.create = (schema13, params) => {
       return new ZodPromise({
-        type: schema12,
+        type: schema13,
         typeName: ZodFirstPartyTypeKind.ZodPromise,
         ...processCreateParams(params)
       });
@@ -3669,17 +3669,17 @@ var init_types = __esm({
         util.assertNever(effect);
       }
     };
-    ZodEffects.create = (schema12, effect, params) => {
+    ZodEffects.create = (schema13, effect, params) => {
       return new ZodEffects({
-        schema: schema12,
+        schema: schema13,
         typeName: ZodFirstPartyTypeKind.ZodEffects,
         effect,
         ...processCreateParams(params)
       });
     };
-    ZodEffects.createWithPreprocess = (preprocess, schema12, params) => {
+    ZodEffects.createWithPreprocess = (preprocess, schema13, params) => {
       return new ZodEffects({
-        schema: schema12,
+        schema: schema13,
         effect: { type: "preprocess", transform: preprocess },
         typeName: ZodFirstPartyTypeKind.ZodEffects,
         ...processCreateParams(params)
@@ -4210,9 +4210,9 @@ var require_package = __commonJS({
 // ../../node_modules/dotenv/lib/main.js
 var require_main = __commonJS({
   "../../node_modules/dotenv/lib/main.js"(exports2, module2) {
-    var fs13 = require("fs");
-    var path13 = require("path");
-    var os7 = require("os");
+    var fs14 = require("fs");
+    var path14 = require("path");
+    var os8 = require("os");
     var crypto7 = require("crypto");
     var packageJson = require_package();
     var version2 = packageJson.version;
@@ -4319,7 +4319,7 @@ var require_main = __commonJS({
       if (options && options.path && options.path.length > 0) {
         if (Array.isArray(options.path)) {
           for (const filepath of options.path) {
-            if (fs13.existsSync(filepath)) {
+            if (fs14.existsSync(filepath)) {
               possibleVaultPath = filepath.endsWith(".vault") ? filepath : `${filepath}.vault`;
             }
           }
@@ -4327,15 +4327,15 @@ var require_main = __commonJS({
           possibleVaultPath = options.path.endsWith(".vault") ? options.path : `${options.path}.vault`;
         }
       } else {
-        possibleVaultPath = path13.resolve(process.cwd(), ".env.vault");
+        possibleVaultPath = path14.resolve(process.cwd(), ".env.vault");
       }
-      if (fs13.existsSync(possibleVaultPath)) {
+      if (fs14.existsSync(possibleVaultPath)) {
         return possibleVaultPath;
       }
       return null;
     }
     function _resolveHome(envPath) {
-      return envPath[0] === "~" ? path13.join(os7.homedir(), envPath.slice(1)) : envPath;
+      return envPath[0] === "~" ? path14.join(os8.homedir(), envPath.slice(1)) : envPath;
     }
     function _configVault(options) {
       const debug = Boolean(options && options.debug);
@@ -4352,7 +4352,7 @@ var require_main = __commonJS({
       return { parsed };
     }
     function configDotenv(options) {
-      const dotenvPath = path13.resolve(process.cwd(), ".env");
+      const dotenvPath = path14.resolve(process.cwd(), ".env");
       let encoding = "utf8";
       const debug = Boolean(options && options.debug);
       const quiet = options && "quiet" in options ? options.quiet : true;
@@ -4376,13 +4376,13 @@ var require_main = __commonJS({
       }
       let lastError;
       const parsedAll = {};
-      for (const path14 of optionPaths) {
+      for (const path15 of optionPaths) {
         try {
-          const parsed = DotenvModule.parse(fs13.readFileSync(path14, { encoding }));
+          const parsed = DotenvModule.parse(fs14.readFileSync(path15, { encoding }));
           DotenvModule.populate(parsedAll, parsed, options);
         } catch (e) {
           if (debug) {
-            _debug(`Failed to load ${path14} ${e.message}`);
+            _debug(`Failed to load ${path15} ${e.message}`);
           }
           lastError = e;
         }
@@ -4397,7 +4397,7 @@ var require_main = __commonJS({
         const shortPaths = [];
         for (const filePath of optionPaths) {
           try {
-            const relative = path13.relative(process.cwd(), filePath);
+            const relative = path14.relative(process.cwd(), filePath);
             shortPaths.push(relative);
           } catch (e) {
             if (debug) {
@@ -4659,7 +4659,7 @@ var require_has_flag = __commonJS({
 var require_supports_colors = __commonJS({
   "../../node_modules/@colors/colors/lib/system/supports-colors.js"(exports2, module2) {
     "use strict";
-    var os7 = require("os");
+    var os8 = require("os");
     var hasFlag = require_has_flag();
     var env = process.env;
     var forceColor = void 0;
@@ -4697,7 +4697,7 @@ var require_supports_colors = __commonJS({
       }
       var min = forceColor ? 1 : 0;
       if (process.platform === "win32") {
-        var osRelease = os7.release().split(".");
+        var osRelease = os8.release().split(".");
         if (Number(process.versions.node.split(".")[0]) >= 8 && Number(osRelease[0]) >= 10 && Number(osRelease[2]) >= 10586) {
           return Number(osRelease[2]) >= 14931 ? 3 : 2;
         }
@@ -10115,7 +10115,7 @@ var require_winston_transport = __commonJS({
 var require_console = __commonJS({
   "../../node_modules/winston/lib/winston/transports/console.js"(exports2, module2) {
     "use strict";
-    var os7 = require("os");
+    var os8 = require("os");
     var { LEVEL, MESSAGE } = require_triple_beam();
     var TransportStream = require_winston_transport();
     module2.exports = class Console extends TransportStream {
@@ -10129,7 +10129,7 @@ var require_console = __commonJS({
         this.name = options.name || "console";
         this.stderrLevels = this._stringArrayToSet(options.stderrLevels);
         this.consoleWarnLevels = this._stringArrayToSet(options.consoleWarnLevels);
-        this.eol = typeof options.eol === "string" ? options.eol : os7.EOL;
+        this.eol = typeof options.eol === "string" ? options.eol : os8.EOL;
         this.forceConsole = options.forceConsole || false;
         this._consoleLog = console.log.bind(console);
         this._consoleWarn = console.warn.bind(console);
@@ -12421,15 +12421,15 @@ var require_route = __commonJS({
       };
     }
     function wrapConversion(toModel, graph) {
-      var path13 = [graph[toModel].parent, toModel];
+      var path14 = [graph[toModel].parent, toModel];
       var fn = conversions[graph[toModel].parent][toModel];
       var cur = graph[toModel].parent;
       while (graph[cur].parent) {
-        path13.unshift(graph[cur].parent);
+        path14.unshift(graph[cur].parent);
         fn = link(conversions[graph[cur].parent][cur], fn);
         cur = graph[cur].parent;
       }
-      fn.conversion = path13;
+      fn.conversion = path14;
       return fn;
     }
     module2.exports = function(fromModel) {
@@ -13086,7 +13086,7 @@ var require_node2 = __commonJS({
 var require_tail_file = __commonJS({
   "../../node_modules/winston/lib/winston/tail-file.js"(exports2, module2) {
     "use strict";
-    var fs13 = require("fs");
+    var fs14 = require("fs");
     var { StringDecoder } = require("string_decoder");
     var { Stream } = require_readable();
     function noop2() {
@@ -13107,7 +13107,7 @@ var require_tail_file = __commonJS({
         stream4.emit("end");
         stream4.emit("close");
       };
-      fs13.open(options.file, "a+", "0644", (err, fd) => {
+      fs14.open(options.file, "a+", "0644", (err, fd) => {
         if (err) {
           if (!iter) {
             stream4.emit("error", err);
@@ -13119,10 +13119,10 @@ var require_tail_file = __commonJS({
         }
         (function read() {
           if (stream4.destroyed) {
-            fs13.close(fd, noop2);
+            fs14.close(fd, noop2);
             return;
           }
-          return fs13.read(fd, buffer, 0, buffer.length, pos, (error, bytes) => {
+          return fs14.read(fd, buffer, 0, buffer.length, pos, (error, bytes) => {
             if (error) {
               if (!iter) {
                 stream4.emit("error", error);
@@ -13181,15 +13181,15 @@ var require_tail_file = __commonJS({
 var require_file = __commonJS({
   "../../node_modules/winston/lib/winston/transports/file.js"(exports2, module2) {
     "use strict";
-    var fs13 = require("fs");
-    var path13 = require("path");
+    var fs14 = require("fs");
+    var path14 = require("path");
     var asyncSeries = require_series();
     var zlib3 = require("zlib");
     var { MESSAGE } = require_triple_beam();
     var { Stream, PassThrough } = require_readable();
     var TransportStream = require_winston_transport();
     var debug = require_node2()("winston:file");
-    var os7 = require("os");
+    var os8 = require("os");
     var tailFile = require_tail_file();
     module2.exports = class File extends TransportStream {
       /**
@@ -13212,14 +13212,14 @@ var require_file = __commonJS({
         this._onError = this._onError.bind(this);
         if (options.filename || options.dirname) {
           throwIf("filename or dirname", "stream");
-          this._basename = this.filename = options.filename ? path13.basename(options.filename) : "winston.log";
-          this.dirname = options.dirname || path13.dirname(options.filename);
+          this._basename = this.filename = options.filename ? path14.basename(options.filename) : "winston.log";
+          this.dirname = options.dirname || path14.dirname(options.filename);
           this.options = options.options || { flags: "a" };
         } else if (options.stream) {
           console.warn("options.stream will be removed in winston@4. Use winston.transports.Stream");
           throwIf("stream", "filename", "maxsize");
           this._dest = this._stream.pipe(this._setupStream(options.stream));
-          this.dirname = path13.dirname(this._dest.path);
+          this.dirname = path14.dirname(this._dest.path);
         } else {
           throw new Error("Cannot log to file without filename or stream.");
         }
@@ -13227,7 +13227,7 @@ var require_file = __commonJS({
         this.rotationFormat = options.rotationFormat || false;
         this.zippedArchive = options.zippedArchive || false;
         this.maxFiles = options.maxFiles || null;
-        this.eol = typeof options.eol === "string" ? options.eol : os7.EOL;
+        this.eol = typeof options.eol === "string" ? options.eol : os8.EOL;
         this.tailable = options.tailable || false;
         this.lazy = options.lazy || false;
         this._size = 0;
@@ -13362,11 +13362,11 @@ var require_file = __commonJS({
           options = {};
         }
         options = normalizeQuery(options);
-        const file = path13.join(this.dirname, this.filename);
+        const file = path14.join(this.dirname, this.filename);
         let buff = "";
         let results = [];
         let row2 = 0;
-        const stream4 = fs13.createReadStream(file, {
+        const stream4 = fs14.createReadStream(file, {
           encoding: "utf8"
         });
         stream4.on("error", (err) => {
@@ -13468,7 +13468,7 @@ var require_file = __commonJS({
        * TODO: Refactor me.
        */
       stream(options = {}) {
-        const file = path13.join(this.dirname, this.filename);
+        const file = path14.join(this.dirname, this.filename);
         const stream4 = new Stream();
         const tail = {
           file,
@@ -13520,8 +13520,8 @@ var require_file = __commonJS({
        */
       stat(callback) {
         const target2 = this._getFile();
-        const fullpath = path13.join(this.dirname, target2);
-        fs13.stat(fullpath, (err, stat) => {
+        const fullpath = path14.join(this.dirname, target2);
+        fs14.stat(fullpath, (err, stat) => {
           if (err && err.code === "ENOENT") {
             debug("ENOENT\xA0ok", fullpath);
             this.filename = target2;
@@ -13624,9 +13624,9 @@ var require_file = __commonJS({
        * @returns {WritableStream} Stream that writes to disk for the active file.
        */
       _createStream(source) {
-        const fullpath = path13.join(this.dirname, this.filename);
+        const fullpath = path14.join(this.dirname, this.filename);
         debug("create stream start", fullpath, this.options);
-        const dest = fs13.createWriteStream(fullpath, this.options).on("error", (err) => debug(err)).on("close", () => debug("close", dest.path, dest.bytesWritten)).on("open", () => {
+        const dest = fs14.createWriteStream(fullpath, this.options).on("error", (err) => debug(err)).on("close", () => debug("close", dest.path, dest.bytesWritten)).on("open", () => {
           debug("file open ok", fullpath);
           this.emit("open", fullpath);
           source.pipe(dest);
@@ -13649,16 +13649,16 @@ var require_file = __commonJS({
        */
       _incFile(callback) {
         debug("_incFile", this.filename);
-        const ext = path13.extname(this._basename);
-        const basename2 = path13.basename(this._basename, ext);
+        const ext = path14.extname(this._basename);
+        const basename2 = path14.basename(this._basename, ext);
         const tasks = [];
         if (this.zippedArchive) {
           tasks.push(
             function(cb) {
               const num3 = this._created > 0 && !this.tailable ? this._created : "";
               this._compressFile(
-                path13.join(this.dirname, `${basename2}${num3}${ext}`),
-                path13.join(this.dirname, `${basename2}${num3}${ext}.gz`),
+                path14.join(this.dirname, `${basename2}${num3}${ext}`),
+                path14.join(this.dirname, `${basename2}${num3}${ext}.gz`),
                 cb
               );
             }.bind(this)
@@ -13683,8 +13683,8 @@ var require_file = __commonJS({
        * @private
        */
       _getFile() {
-        const ext = path13.extname(this._basename);
-        const basename2 = path13.basename(this._basename, ext);
+        const ext = path14.extname(this._basename);
+        const basename2 = path14.basename(this._basename, ext);
         const isRotation = this.rotationFormat ? this.rotationFormat() : this._created;
         return !this.tailable && this._created ? `${basename2}${isRotation}${ext}` : `${basename2}${ext}`;
       }
@@ -13704,8 +13704,8 @@ var require_file = __commonJS({
         const isOldest = oldest !== 0 ? oldest : "";
         const isZipped = this.zippedArchive ? ".gz" : "";
         const filePath = `${basename2}${isOldest}${ext}${isZipped}`;
-        const target2 = path13.join(this.dirname, filePath);
-        fs13.unlink(target2, callback);
+        const target2 = path14.join(this.dirname, filePath);
+        fs14.unlink(target2, callback);
       }
       /**
        * Roll files forward based on integer, up to maxFiles. e.g. if base if
@@ -13727,20 +13727,20 @@ var require_file = __commonJS({
         for (let x = this.maxFiles - 1; x > 1; x--) {
           tasks.push(function(i, cb) {
             let fileName = `${basename2}${i - 1}${ext}${isZipped}`;
-            const tmppath = path13.join(this.dirname, fileName);
-            fs13.exists(tmppath, (exists) => {
+            const tmppath = path14.join(this.dirname, fileName);
+            fs14.exists(tmppath, (exists) => {
               if (!exists) {
                 return cb(null);
               }
               fileName = `${basename2}${i}${ext}${isZipped}`;
-              fs13.rename(tmppath, path13.join(this.dirname, fileName), cb);
+              fs14.rename(tmppath, path14.join(this.dirname, fileName), cb);
             });
           }.bind(this, x));
         }
         asyncSeries(tasks, () => {
-          fs13.rename(
-            path13.join(this.dirname, `${basename2}${ext}${isZipped}`),
-            path13.join(this.dirname, `${basename2}1${ext}${isZipped}`),
+          fs14.rename(
+            path14.join(this.dirname, `${basename2}${ext}${isZipped}`),
+            path14.join(this.dirname, `${basename2}1${ext}${isZipped}`),
             callback
           );
         });
@@ -13754,22 +13754,22 @@ var require_file = __commonJS({
        * @private
        */
       _compressFile(src, dest, callback) {
-        fs13.access(src, fs13.F_OK, (err) => {
+        fs14.access(src, fs14.F_OK, (err) => {
           if (err) {
             return callback();
           }
           var gzip = zlib3.createGzip();
-          var inp = fs13.createReadStream(src);
-          var out = fs13.createWriteStream(dest);
+          var inp = fs14.createReadStream(src);
+          var out = fs14.createWriteStream(dest);
           out.on("finish", () => {
-            fs13.unlink(src, callback);
+            fs14.unlink(src, callback);
           });
           inp.pipe(gzip).pipe(out);
         });
       }
       _createLogDirIfNotExist(dirPath) {
-        if (!fs13.existsSync(dirPath)) {
-          fs13.mkdirSync(dirPath, { recursive: true });
+        if (!fs14.existsSync(dirPath)) {
+          fs14.mkdirSync(dirPath, { recursive: true });
         }
       }
     };
@@ -13853,9 +13853,9 @@ var require_http = __commonJS({
         };
         const auth = options.params.auth || null;
         delete options.params.auth;
-        const path13 = options.params.path || null;
+        const path14 = options.params.path || null;
         delete options.params.path;
-        this._request(options, auth, path13, (err, res, body) => {
+        this._request(options, auth, path14, (err, res, body) => {
           if (res && res.statusCode !== 200) {
             err = new Error(`Invalid HTTP Status Code: ${res.statusCode}`);
           }
@@ -13883,12 +13883,12 @@ var require_http = __commonJS({
           method: "stream",
           params: options
         };
-        const path13 = options.params.path || null;
+        const path14 = options.params.path || null;
         delete options.params.path;
         const auth = options.params.auth || null;
         delete options.params.auth;
         let buff = "";
-        const req = this._request(options, auth, path13);
+        const req = this._request(options, auth, path14);
         stream4.destroy = () => req.destroy();
         req.on("data", (data) => {
           data = (buff + data).split(/\n+/);
@@ -13914,14 +13914,14 @@ var require_http = __commonJS({
        * @param {string} path - request path
        * @param {function} callback - Continuation to respond to when complete.
        */
-      _request(options, auth, path13, callback) {
+      _request(options, auth, path14, callback) {
         options = options || {};
         auth = auth || this.auth;
-        path13 = path13 || this.path || "";
+        path14 = path14 || this.path || "";
         if (this.batch) {
-          this._doBatch(options, callback, auth, path13);
+          this._doBatch(options, callback, auth, path14);
         } else {
-          this._doRequest(options, callback, auth, path13);
+          this._doRequest(options, callback, auth, path14);
         }
       }
       /**
@@ -13931,18 +13931,18 @@ var require_http = __commonJS({
        * @param {Object?} auth - authentication options
        * @param {string} path - request path
        */
-      _doBatch(options, callback, auth, path13) {
+      _doBatch(options, callback, auth, path14) {
         this.batchOptions.push(options);
         if (this.batchOptions.length === 1) {
           const me = this;
           this.batchCallback = callback;
           this.batchTimeoutID = setTimeout(function() {
             me.batchTimeoutID = -1;
-            me._doBatchRequest(me.batchCallback, auth, path13);
+            me._doBatchRequest(me.batchCallback, auth, path14);
           }, this.batchInterval);
         }
         if (this.batchOptions.length === this.batchCount) {
-          this._doBatchRequest(this.batchCallback, auth, path13);
+          this._doBatchRequest(this.batchCallback, auth, path14);
         }
       }
       /**
@@ -13951,14 +13951,14 @@ var require_http = __commonJS({
        * @param {Object?} auth - authentication options
        * @param {string} path - request path
        */
-      _doBatchRequest(callback, auth, path13) {
+      _doBatchRequest(callback, auth, path14) {
         if (this.batchTimeoutID > 0) {
           clearTimeout(this.batchTimeoutID);
           this.batchTimeoutID = -1;
         }
         const batchOptionsCopy = this.batchOptions.slice();
         this.batchOptions = [];
-        this._doRequest(batchOptionsCopy, callback, auth, path13);
+        this._doRequest(batchOptionsCopy, callback, auth, path14);
       }
       /**
        * Make a request to a winstond server or any http server which can
@@ -13968,7 +13968,7 @@ var require_http = __commonJS({
        * @param {Object?} auth - authentication options
        * @param {string} path - request path
        */
-      _doRequest(options, callback, auth, path13) {
+      _doRequest(options, callback, auth, path14) {
         const headers = Object.assign({}, this.headers);
         if (auth && auth.bearer) {
           headers.Authorization = `Bearer ${auth.bearer}`;
@@ -13978,7 +13978,7 @@ var require_http = __commonJS({
           method: "POST",
           host: this.host,
           port: this.port,
-          path: `/${path13.replace(/^\//, "")}`,
+          path: `/${path14.replace(/^\//, "")}`,
           headers,
           auth: auth && auth.username && auth.password ? `${auth.username}:${auth.password}` : "",
           agent: this.agent
@@ -14013,7 +14013,7 @@ var require_stream2 = __commonJS({
     "use strict";
     var isStream2 = require_is_stream();
     var { MESSAGE } = require_triple_beam();
-    var os7 = require("os");
+    var os8 = require("os");
     var TransportStream = require_winston_transport();
     module2.exports = class Stream extends TransportStream {
       /**
@@ -14029,7 +14029,7 @@ var require_stream2 = __commonJS({
         this._stream = options.stream;
         this._stream.setMaxListeners(Infinity);
         this.isObjectMode = options.stream._writableState.objectMode;
-        this.eol = typeof options.eol === "string" ? options.eol : os7.EOL;
+        this.eol = typeof options.eol === "string" ? options.eol : os8.EOL;
       }
       /**
        * Core logging method exposed to Winston.
@@ -14415,7 +14415,7 @@ var require_exception_stream = __commonJS({
 var require_exception_handler = __commonJS({
   "../../node_modules/winston/lib/winston/exception-handler.js"(exports2, module2) {
     "use strict";
-    var os7 = require("os");
+    var os8 = require("os");
     var asyncForEach = require_forEach();
     var debug = require_node2()("winston:exception");
     var once = require_one_time();
@@ -14510,8 +14510,8 @@ var require_exception_handler = __commonJS({
        */
       getOsInfo() {
         return {
-          loadavg: os7.loadavg(),
-          uptime: os7.uptime()
+          loadavg: os8.loadavg(),
+          uptime: os8.uptime()
         };
       }
       /**
@@ -14653,7 +14653,7 @@ var require_rejection_stream = __commonJS({
 var require_rejection_handler = __commonJS({
   "../../node_modules/winston/lib/winston/rejection-handler.js"(exports2, module2) {
     "use strict";
-    var os7 = require("os");
+    var os8 = require("os");
     var asyncForEach = require_forEach();
     var debug = require_node2()("winston:rejection");
     var once = require_one_time();
@@ -14750,8 +14750,8 @@ var require_rejection_handler = __commonJS({
        */
       getOsInfo() {
         return {
-          loadavg: os7.loadavg(),
-          uptime: os7.uptime()
+          loadavg: os8.loadavg(),
+          uptime: os8.uptime()
         };
       }
       /**
@@ -22439,7 +22439,7 @@ var require_has_flag2 = __commonJS({
 var require_supports_color = __commonJS({
   "../../node_modules/supports-color/index.js"(exports2, module2) {
     "use strict";
-    var os7 = require("os");
+    var os8 = require("os");
     var tty = require("tty");
     var hasFlag = require_has_flag2();
     var { env } = process;
@@ -22487,7 +22487,7 @@ var require_supports_color = __commonJS({
         return min;
       }
       if (process.platform === "win32") {
-        const osRelease = os7.release().split(".");
+        const osRelease = os8.release().split(".");
         if (Number(osRelease[0]) >= 10 && Number(osRelease[2]) >= 10586) {
           return Number(osRelease[2]) >= 14931 ? 3 : 2;
         }
@@ -22975,7 +22975,7 @@ var require_ip = __commonJS({
   "../../node_modules/ip/lib/ip.js"(exports2) {
     var ip = exports2;
     var { Buffer: Buffer2 } = require("buffer");
-    var os7 = require("os");
+    var os8 = require("os");
     ip.toBuffer = function(ip2, buff, offset) {
       offset = ~~offset;
       var result;
@@ -23248,7 +23248,7 @@ var require_ip = __commonJS({
       return family === "ipv4" ? "127.0.0.1" : "fe80::1";
     };
     ip.address = function(name, family) {
-      var interfaces = os7.networkInterfaces();
+      var interfaces = os8.networkInterfaces();
       family = _normalizeFamily(family);
       if (name && name !== "private" && name !== "public") {
         var res = interfaces[name].filter((details) => {
@@ -28182,8 +28182,8 @@ var require_depacketizer = __commonJS({
     var __1 = require_src4();
     var codec_1 = require_codec();
     var helper_1 = require_helper2();
-    var path13 = `werift-rtp : packages/rtp/src/processor/depacketizer.ts`;
-    var log = (0, debug_1.default)(path13);
+    var path14 = `werift-rtp : packages/rtp/src/processor/depacketizer.ts`;
+    var log = (0, debug_1.default)(path14);
     var DepacketizeBase = class {
       constructor(codec, options = {}) {
         Object.defineProperty(this, "codec", {
@@ -30812,14 +30812,14 @@ var require_webmCallback = __commonJS({
       }
     };
     exports2.WebmCallback = WebmCallback;
-    var saveToFileSystem = (path13) => async (value) => {
+    var saveToFileSystem = (path14) => async (value) => {
       if (value.saveToFile) {
-        await (0, promises_1.appendFile)(path13, value.saveToFile);
+        await (0, promises_1.appendFile)(path14, value.saveToFile);
       } else if (value.eol) {
         const { durationElement } = value.eol;
-        const handler = await (0, promises_1.open)(path13, "r+");
+        const handler = await (0, promises_1.open)(path14, "r+");
         await handler.write(durationElement, 0, durationElement.length, webm_1.DurationPosition);
-        const meta = await (0, promises_1.stat)(path13);
+        const meta = await (0, promises_1.stat)(path14);
         const resize = (0, webm_1.replaceSegmentSize)(meta.size);
         await handler.write(resize, 0, resize.length, webm_1.SegmentSizePosition);
         await handler.close();
@@ -35384,12 +35384,12 @@ var require_writer = __commonJS({
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.MediaWriter = void 0;
     var MediaWriter = class {
-      constructor(path13, options) {
+      constructor(path14, options) {
         Object.defineProperty(this, "path", {
           enumerable: true,
           configurable: true,
           writable: true,
-          value: path13
+          value: path14
         });
         Object.defineProperty(this, "options", {
           enumerable: true,
@@ -35529,7 +35529,7 @@ var require_recorder = __commonJS({
     exports2.MediaRecorder = void 0;
     var webm_1 = require_webm3();
     var MediaRecorder = class {
-      constructor(tracks, path13, options = {}) {
+      constructor(tracks, path14, options = {}) {
         Object.defineProperty(this, "tracks", {
           enumerable: true,
           configurable: true,
@@ -35540,7 +35540,7 @@ var require_recorder = __commonJS({
           enumerable: true,
           configurable: true,
           writable: true,
-          value: path13
+          value: path14
         });
         Object.defineProperty(this, "options", {
           enumerable: true,
@@ -35560,11 +35560,11 @@ var require_recorder = __commonJS({
           writable: true,
           value: void 0
         });
-        this.ext = path13.split(".").slice(-1)[0];
+        this.ext = path14.split(".").slice(-1)[0];
         this.writer = (() => {
           switch (this.ext) {
             case "webm":
-              return new webm_1.WebmFactory(path13, options);
+              return new webm_1.WebmFactory(path14, options);
             default:
               throw new Error();
           }
@@ -35597,18 +35597,18 @@ var require_userMedia = __commonJS({
     var src_1 = require_src();
     var src_2 = require_src4();
     var track_1 = require_track();
-    var getUserMedia = async (path13, loop) => {
+    var getUserMedia = async (path14, loop) => {
       const audioPort = await (0, src_1.randomPort)();
       const videoPort = await (0, src_1.randomPort)();
-      if (path13.endsWith(".mp4")) {
-        return new MediaPlayerMp4(audioPort, videoPort, path13, loop);
+      if (path14.endsWith(".mp4")) {
+        return new MediaPlayerMp4(audioPort, videoPort, path14, loop);
       } else {
-        return new MediaPlayerWebm(audioPort, videoPort, path13, loop);
+        return new MediaPlayerWebm(audioPort, videoPort, path14, loop);
       }
     };
     exports2.getUserMedia = getUserMedia;
     var MediaPlayerMp4 = class {
-      constructor(videoPort, audioPort, path13, loop) {
+      constructor(videoPort, audioPort, path14, loop) {
         Object.defineProperty(this, "videoPort", {
           enumerable: true,
           configurable: true,
@@ -35625,7 +35625,7 @@ var require_userMedia = __commonJS({
           enumerable: true,
           configurable: true,
           writable: true,
-          value: path13
+          value: path14
         });
         Object.defineProperty(this, "loop", {
           enumerable: true,
@@ -35711,7 +35711,7 @@ var require_userMedia = __commonJS({
     };
     exports2.MediaPlayerMp4 = MediaPlayerMp4;
     var MediaPlayerWebm = class {
-      constructor(videoPort, audioPort, path13, loop) {
+      constructor(videoPort, audioPort, path14, loop) {
         Object.defineProperty(this, "videoPort", {
           enumerable: true,
           configurable: true,
@@ -35728,7 +35728,7 @@ var require_userMedia = __commonJS({
           enumerable: true,
           configurable: true,
           writable: true,
-          value: path13
+          value: path14
         });
         Object.defineProperty(this, "loop", {
           enumerable: true,
@@ -42097,13 +42097,13 @@ function __disposeResources(env) {
   }
   return next();
 }
-function __rewriteRelativeImportExtension(path13, preserveJsx) {
-  if (typeof path13 === "string" && /^\.\.?\//.test(path13)) {
-    return path13.replace(/\.(tsx)$|((?:\.d)?)((?:\.[^./]+?)?)\.([cm]?)ts$/i, function(m, tsx, d, ext, cm) {
+function __rewriteRelativeImportExtension(path14, preserveJsx) {
+  if (typeof path14 === "string" && /^\.\.?\//.test(path14)) {
+    return path14.replace(/\.(tsx)$|((?:\.d)?)((?:\.[^./]+?)?)\.([cm]?)ts$/i, function(m, tsx, d, ext, cm) {
       return tsx ? preserveJsx ? ".jsx" : ".js" : d && (!ext || !cm) ? m : d + ext + "." + cm.toLowerCase() + "js";
     });
   }
-  return path13;
+  return path14;
 }
 var extendStatics, __assign, __createBinding, __setModuleDefault, ownKeys, _SuppressedError, tslib_es6_default;
 var init_tslib_es6 = __esm({
@@ -45790,11 +45790,11 @@ var require_converters = __commonJS({
         if (value === null) {
           return new asn1js.Null();
         }
-        const schema12 = asn1js.fromBER(value);
-        if (schema12.result.error) {
-          throw new Error(schema12.result.error);
+        const schema13 = asn1js.fromBER(value);
+        if (schema13.result.error) {
+          throw new Error(schema13.result.error);
         }
-        return schema12.result;
+        return schema13.result;
       }
     };
     exports2.AsnIntegerConverter = {
@@ -45984,35 +45984,35 @@ var require_schema = __commonJS({
         return this.items.has(target2);
       }
       get(target2, checkSchema = false) {
-        const schema12 = this.items.get(target2);
-        if (!schema12) {
+        const schema13 = this.items.get(target2);
+        if (!schema13) {
           throw new Error(`Cannot get schema for '${target2.prototype.constructor.name}' target`);
         }
-        if (checkSchema && !schema12.schema) {
+        if (checkSchema && !schema13.schema) {
           throw new Error(`Schema '${target2.prototype.constructor.name}' doesn't contain ASN.1 schema. Call 'AsnSchemaStorage.cache'.`);
         }
-        return schema12;
+        return schema13;
       }
       cache(target2) {
-        const schema12 = this.get(target2);
-        if (!schema12.schema) {
-          schema12.schema = this.create(target2, true);
+        const schema13 = this.get(target2);
+        if (!schema13.schema) {
+          schema13.schema = this.create(target2, true);
         }
       }
       createDefault(target2) {
-        const schema12 = { type: enums_1.AsnTypeTypes.Sequence, items: {} };
+        const schema13 = { type: enums_1.AsnTypeTypes.Sequence, items: {} };
         const parentSchema = this.findParentSchema(target2);
         if (parentSchema) {
-          Object.assign(schema12, parentSchema);
-          schema12.items = Object.assign({}, schema12.items, parentSchema.items);
+          Object.assign(schema13, parentSchema);
+          schema13.items = Object.assign({}, schema13.items, parentSchema.items);
         }
-        return schema12;
+        return schema13;
       }
       create(target2, useNames) {
-        const schema12 = this.items.get(target2) || this.createDefault(target2);
+        const schema13 = this.items.get(target2) || this.createDefault(target2);
         const asn1Value = [];
-        for (const key in schema12.items) {
-          const item = schema12.items[key];
+        for (const key in schema13.items) {
+          const item = schema13.items[key];
           const name = useNames ? key : "";
           let asn1Item;
           if (typeof item.type === "number") {
@@ -46074,7 +46074,7 @@ var require_schema = __commonJS({
             asn1Value.push(asn1Item);
           }
         }
-        switch (schema12.type) {
+        switch (schema13.type) {
           case enums_1.AsnTypeTypes.Sequence:
             return new asn1js.Sequence({ value: asn1Value, name: "" });
           case enums_1.AsnTypeTypes.Set:
@@ -46085,15 +46085,15 @@ var require_schema = __commonJS({
             throw new Error(`Unsupported ASN1 type in use`);
         }
       }
-      set(target2, schema12) {
-        this.items.set(target2, schema12);
+      set(target2, schema13) {
+        this.items.set(target2, schema13);
         return this;
       }
       findParentSchema(target2) {
         const parent = Object.getPrototypeOf(target2);
         if (parent) {
-          const schema12 = this.items.get(parent);
-          return schema12 || this.findParentSchema(parent);
+          const schema13 = this.items.get(parent);
+          return schema13 || this.findParentSchema(parent);
         }
         return null;
       }
@@ -46123,14 +46123,14 @@ var require_decorators = __commonJS({
     var enums_1 = require_enums();
     var storage_1 = require_storage();
     var AsnType = (options) => (target2) => {
-      let schema12;
+      let schema13;
       if (!storage_1.schemaStorage.has(target2)) {
-        schema12 = storage_1.schemaStorage.createDefault(target2);
-        storage_1.schemaStorage.set(target2, schema12);
+        schema13 = storage_1.schemaStorage.createDefault(target2);
+        storage_1.schemaStorage.set(target2, schema13);
       } else {
-        schema12 = storage_1.schemaStorage.get(target2);
+        schema13 = storage_1.schemaStorage.get(target2);
       }
-      Object.assign(schema12, options);
+      Object.assign(schema13, options);
     };
     exports2.AsnType = AsnType;
     var AsnChoiceType = () => (0, exports2.AsnType)({ type: enums_1.AsnTypeTypes.Choice });
@@ -46140,12 +46140,12 @@ var require_decorators = __commonJS({
     var AsnSequenceType = (options) => (0, exports2.AsnType)({ type: enums_1.AsnTypeTypes.Sequence, ...options });
     exports2.AsnSequenceType = AsnSequenceType;
     var AsnProp = (options) => (target2, propertyKey) => {
-      let schema12;
+      let schema13;
       if (!storage_1.schemaStorage.has(target2.constructor)) {
-        schema12 = storage_1.schemaStorage.createDefault(target2.constructor);
-        storage_1.schemaStorage.set(target2.constructor, schema12);
+        schema13 = storage_1.schemaStorage.createDefault(target2.constructor);
+        storage_1.schemaStorage.set(target2.constructor, schema13);
       } else {
-        schema12 = storage_1.schemaStorage.get(target2.constructor);
+        schema13 = storage_1.schemaStorage.get(target2.constructor);
       }
       const copyOptions = Object.assign({}, options);
       if (typeof copyOptions.type === "number" && !copyOptions.converter) {
@@ -46156,7 +46156,7 @@ var require_decorators = __commonJS({
         copyOptions.converter = defaultConverter;
       }
       copyOptions.raw = options.raw;
-      schema12.items[propertyKey] = copyOptions;
+      schema13.items[propertyKey] = copyOptions;
     };
     exports2.AsnProp = AsnProp;
   }
@@ -46215,26 +46215,26 @@ var require_parser = __commonJS({
             const value = new target2();
             return value.fromASN(asn1Schema);
           }
-          const schema12 = storage_1.schemaStorage.get(target2);
+          const schema13 = storage_1.schemaStorage.get(target2);
           storage_1.schemaStorage.cache(target2);
-          let targetSchema2 = schema12.schema;
-          const choiceResult = this.handleChoiceTypes(asn1Schema, schema12, target2, targetSchema2);
+          let targetSchema2 = schema13.schema;
+          const choiceResult = this.handleChoiceTypes(asn1Schema, schema13, target2, targetSchema2);
           if (choiceResult === null || choiceResult === void 0 ? void 0 : choiceResult.result) {
             return choiceResult.result;
           }
           if (choiceResult === null || choiceResult === void 0 ? void 0 : choiceResult.targetSchema) {
             targetSchema2 = choiceResult.targetSchema;
           }
-          const sequenceResult = this.handleSequenceTypes(asn1Schema, schema12, target2, targetSchema2);
+          const sequenceResult = this.handleSequenceTypes(asn1Schema, schema13, target2, targetSchema2);
           if (sequenceResult && "isManualMapping" in sequenceResult) {
             return sequenceResult.result;
           }
           const asn1ComparedSchema = sequenceResult;
           const res = new target2();
           if ((0, helper_1.isTypeOfArray)(target2)) {
-            return this.handleArrayTypes(asn1Schema, schema12, target2);
+            return this.handleArrayTypes(asn1Schema, schema13, target2);
           }
-          this.processSchemaItems(schema12, asn1ComparedSchema, res);
+          this.processSchemaItems(schema13, asn1ComparedSchema, res);
           return res;
         } catch (error) {
           if (error instanceof errors_1.AsnSchemaValidationError) {
@@ -46243,10 +46243,10 @@ var require_parser = __commonJS({
           throw error;
         }
       }
-      static handleChoiceTypes(asn1Schema, schema12, target2, targetSchema2) {
-        if (asn1Schema.constructor === asn1js.Constructed && schema12.type === enums_1.AsnTypeTypes.Choice && asn1Schema.idBlock.tagClass === 3) {
-          for (const key in schema12.items) {
-            const schemaItem = schema12.items[key];
+      static handleChoiceTypes(asn1Schema, schema13, target2, targetSchema2) {
+        if (asn1Schema.constructor === asn1js.Constructed && schema13.type === enums_1.AsnTypeTypes.Choice && asn1Schema.idBlock.tagClass === 3) {
+          for (const key in schema13.items) {
+            const schemaItem = schema13.items[key];
             if (schemaItem.context === asn1Schema.idBlock.tagNumber && schemaItem.implicit) {
               if (typeof schemaItem.type === "function" && storage_1.schemaStorage.has(schemaItem.type)) {
                 const fieldSchema = storage_1.schemaStorage.get(schemaItem.type);
@@ -46263,29 +46263,29 @@ var require_parser = __commonJS({
               }
             }
           }
-        } else if (asn1Schema.constructor === asn1js.Constructed && schema12.type !== enums_1.AsnTypeTypes.Choice) {
+        } else if (asn1Schema.constructor === asn1js.Constructed && schema13.type !== enums_1.AsnTypeTypes.Choice) {
           const newTargetSchema = new asn1js.Constructed({
             idBlock: {
               tagClass: 3,
               tagNumber: asn1Schema.idBlock.tagNumber
             },
-            value: schema12.schema.valueBlock.value
+            value: schema13.schema.valueBlock.value
           });
-          for (const key in schema12.items) {
+          for (const key in schema13.items) {
             delete asn1Schema[key];
           }
           return { targetSchema: newTargetSchema };
         }
         return null;
       }
-      static handleSequenceTypes(asn1Schema, schema12, target2, targetSchema2) {
-        if (schema12.type === enums_1.AsnTypeTypes.Sequence) {
-          const optionalChoiceFields = Object.keys(schema12.items).filter((key) => {
-            const item = schema12.items[key];
+      static handleSequenceTypes(asn1Schema, schema13, target2, targetSchema2) {
+        if (schema13.type === enums_1.AsnTypeTypes.Sequence) {
+          const optionalChoiceFields = Object.keys(schema13.items).filter((key) => {
+            const item = schema13.items[key];
             return item.optional && typeof item.type === "function" && storage_1.schemaStorage.has(item.type) && storage_1.schemaStorage.get(item.type).type === enums_1.AsnTypeTypes.Choice;
           });
           if (optionalChoiceFields.length > 0 && "value" in asn1Schema.valueBlock && Array.isArray(asn1Schema.valueBlock.value) && target2.name === "CertReqMsg") {
-            return this.handleManualMapping(asn1Schema, schema12, target2);
+            return this.handleManualMapping(asn1Schema, schema13, target2);
           }
           const asn1ComparedSchema = asn1js.compareSchema({}, asn1Schema, targetSchema2);
           if (!asn1ComparedSchema.verified) {
@@ -46300,14 +46300,14 @@ var require_parser = __commonJS({
           return asn1ComparedSchema;
         }
       }
-      static handleManualMapping(asn1Schema, schema12, target2) {
+      static handleManualMapping(asn1Schema, schema13, target2) {
         const res = new target2();
         const asn1Elements = asn1Schema.valueBlock.value;
-        const schemaKeys = Object.keys(schema12.items);
+        const schemaKeys = Object.keys(schema13.items);
         let asn1Index = 0;
         for (let i = 0; i < schemaKeys.length; i++) {
           const key = schemaKeys[i];
-          const schemaItem = schema12.items[key];
+          const schemaItem = schema13.items[key];
           if (asn1Index >= asn1Elements.length)
             break;
           if (schemaItem.repeated) {
@@ -46378,11 +46378,11 @@ var require_parser = __commonJS({
           throw err;
         }
       }
-      static handleArrayTypes(asn1Schema, schema12, target2) {
+      static handleArrayTypes(asn1Schema, schema13, target2) {
         if (!("value" in asn1Schema.valueBlock && Array.isArray(asn1Schema.valueBlock.value))) {
           throw new Error(`Cannot get items from the ASN.1 parsed value. ASN.1 object is not constructed.`);
         }
-        const itemType = schema12.itemType;
+        const itemType = schema13.itemType;
         if (typeof itemType === "number") {
           const converter = converters.defaultConverter(itemType);
           if (!converter) {
@@ -46393,13 +46393,13 @@ var require_parser = __commonJS({
           return target2.from(asn1Schema.valueBlock.value, (element) => this.fromASN(element, itemType));
         }
       }
-      static processSchemaItems(schema12, asn1ComparedSchema, res) {
-        for (const key in schema12.items) {
+      static processSchemaItems(schema13, asn1ComparedSchema, res) {
+        for (const key in schema13.items) {
           const asn1SchemaValue = asn1ComparedSchema.result[key];
           if (!asn1SchemaValue) {
             continue;
           }
-          const schemaItem = schema12.items[key];
+          const schemaItem = schema13.items[key];
           const schemaItemType = schemaItem.type;
           let parsedValue;
           if (typeof schemaItemType === "number" || (0, helper_1.isConvertible)(schemaItemType)) {
@@ -46495,14 +46495,14 @@ var require_parser = __commonJS({
       }
       static handleImplicitTagging(asn1SchemaValue, schemaItem, schemaItemType) {
         if (schemaItem.implicit && typeof schemaItem.context === "number") {
-          const schema12 = storage_1.schemaStorage.get(schemaItemType);
-          if (schema12.type === enums_1.AsnTypeTypes.Sequence) {
+          const schema13 = storage_1.schemaStorage.get(schemaItemType);
+          if (schema13.type === enums_1.AsnTypeTypes.Sequence) {
             const newSeq = new asn1js.Sequence();
             if ("value" in asn1SchemaValue.valueBlock && Array.isArray(asn1SchemaValue.valueBlock.value) && "value" in newSeq.valueBlock) {
               newSeq.valueBlock.value = asn1SchemaValue.valueBlock.value;
               return newSeq;
             }
-          } else if (schema12.type === enums_1.AsnTypeTypes.Set) {
+          } else if (schema13.type === enums_1.AsnTypeTypes.Set) {
             const newSet = new asn1js.Set();
             if ("value" in asn1SchemaValue.valueBlock && Array.isArray(asn1SchemaValue.valueBlock.value) && "value" in newSet.valueBlock) {
               newSet.valueBlock.value = asn1SchemaValue.valueBlock.value;
@@ -46543,25 +46543,25 @@ var require_serializer = __commonJS({
           throw new TypeError("Parameter 1 should be type of Object.");
         }
         const target2 = obj.constructor;
-        const schema12 = storage_1.schemaStorage.get(target2);
+        const schema13 = storage_1.schemaStorage.get(target2);
         storage_1.schemaStorage.cache(target2);
         let asn1Value = [];
-        if (schema12.itemType) {
+        if (schema13.itemType) {
           if (!Array.isArray(obj)) {
             throw new TypeError("Parameter 1 should be type of Array.");
           }
-          if (typeof schema12.itemType === "number") {
-            const converter = converters.defaultConverter(schema12.itemType);
+          if (typeof schema13.itemType === "number") {
+            const converter = converters.defaultConverter(schema13.itemType);
             if (!converter) {
               throw new Error(`Cannot get default converter for array item of ${target2.name} ASN1 schema`);
             }
             asn1Value = obj.map((o) => converter.toASN(o));
           } else {
-            asn1Value = obj.map((o) => this.toAsnItem({ type: schema12.itemType }, "[]", target2, o));
+            asn1Value = obj.map((o) => this.toAsnItem({ type: schema13.itemType }, "[]", target2, o));
           }
         } else {
-          for (const key in schema12.items) {
-            const schemaItem = schema12.items[key];
+          for (const key in schema13.items) {
+            const schemaItem = schema13.items[key];
             const objProp = obj[key];
             if (objProp === void 0 || schemaItem.defaultValue === objProp || typeof schemaItem.defaultValue === "object" && typeof objProp === "object" && (0, helper_1.isArrayEqual)(this.serialize(schemaItem.defaultValue), this.serialize(objProp))) {
               continue;
@@ -46608,7 +46608,7 @@ var require_serializer = __commonJS({
           }
         }
         let asnSchema;
-        switch (schema12.type) {
+        switch (schema13.type) {
           case enums_1.AsnTypeTypes.Sequence:
             asnSchema = new asn1js.Sequence({ value: asn1Value });
             break;
@@ -46775,14 +46775,14 @@ var require_build5 = __commonJS({
       }
     };
     var TransformError = class extends JsonError {
-      constructor(schema12, message, innerError) {
+      constructor(schema13, message, innerError) {
         super(message, innerError);
-        this.schema = schema12;
+        this.schema = schema13;
       }
     };
     var ParserError = class extends TransformError {
-      constructor(schema12, message, innerError) {
-        super(schema12, `JSON doesn't match to '${schema12.target.name}' schema. ${message}`, innerError);
+      constructor(schema13, message, innerError) {
+        super(schema13, `JSON doesn't match to '${schema13.target.name}' schema. ${message}`, innerError);
       }
     };
     var ValidationError = class extends JsonError {
@@ -46794,8 +46794,8 @@ var require_build5 = __commonJS({
       }
     };
     var KeyError = class extends ParserError {
-      constructor(schema12, keys, errors = {}) {
-        super(schema12, "Some keys doesn't match to schema");
+      constructor(schema13, keys, errors = {}) {
+        super(schema13, "Some keys doesn't match to schema");
         this.keys = keys;
         this.errors = errors;
       }
@@ -46841,34 +46841,34 @@ var require_build5 = __commonJS({
         return this.items.has(target2) || !!this.findParentSchema(target2);
       }
       get(target2) {
-        const schema12 = this.items.get(target2) || this.findParentSchema(target2);
-        if (!schema12) {
+        const schema13 = this.items.get(target2) || this.findParentSchema(target2);
+        if (!schema13) {
           throw new Error("Cannot get schema for current target");
         }
-        return schema12;
+        return schema13;
       }
       create(target2) {
-        const schema12 = { names: {} };
+        const schema13 = { names: {} };
         const parentSchema = this.findParentSchema(target2);
         if (parentSchema) {
-          Object.assign(schema12, parentSchema);
-          schema12.names = {};
+          Object.assign(schema13, parentSchema);
+          schema13.names = {};
           for (const name in parentSchema.names) {
-            schema12.names[name] = Object.assign({}, parentSchema.names[name]);
+            schema13.names[name] = Object.assign({}, parentSchema.names[name]);
           }
         }
-        schema12.target = target2;
-        return schema12;
+        schema13.target = target2;
+        return schema13;
       }
-      set(target2, schema12) {
-        this.items.set(target2, schema12);
+      set(target2, schema13) {
+        this.items.set(target2, schema13);
         return this;
       }
       findParentSchema(target2) {
         const parent = target2.__proto__;
         if (parent) {
-          const schema12 = this.items.get(parent);
-          return schema12 || this.findParentSchema(parent);
+          const schema13 = this.items.get(parent);
+          return schema13 || this.findParentSchema(parent);
         }
         return null;
       }
@@ -46977,8 +46977,8 @@ var require_build5 = __commonJS({
           }
         }
       }
-      static getSchemaByName(schema12, name = DEFAULT_SCHEMA) {
-        return { ...schema12.names[DEFAULT_SCHEMA], ...schema12.names[name] };
+      static getSchemaByName(schema13, name = DEFAULT_SCHEMA) {
+        return { ...schema13.names[DEFAULT_SCHEMA], ...schema13.names[name] };
       }
     };
     var JsonSerializer = class extends JsonTransform {
@@ -47004,9 +47004,9 @@ var require_build5 = __commonJS({
           }
           targetSchema2 = targetSchema2 || obj.constructor;
           if (schemaStorage.has(targetSchema2)) {
-            const schema12 = schemaStorage.get(targetSchema2);
+            const schema13 = schemaStorage.get(targetSchema2);
             res = {};
-            const namedSchema = this.getSchemaByName(schema12, schemaName);
+            const namedSchema = this.getSchemaByName(schema13, schemaName);
             for (const key in namedSchema) {
               try {
                 const item = namedSchema[key];
@@ -47042,7 +47042,7 @@ var require_build5 = __commonJS({
                 if (e instanceof SerializerError) {
                   throw e;
                 } else {
-                  throw new SerializerError(schema12.target.name, `Property '${key}' is wrong. ${e.message}`, e);
+                  throw new SerializerError(schema13.target.name, `Property '${key}' is wrong. ${e.message}`, e);
                 }
               }
             }
@@ -47070,11 +47070,11 @@ var require_build5 = __commonJS({
         if (isConvertible(obj)) {
           return obj.fromJSON(target2);
         }
-        const schema12 = schemaStorage.get(targetSchema2);
-        const namedSchema = this.getSchemaByName(schema12, schemaName);
+        const schema13 = schemaStorage.get(targetSchema2);
+        const namedSchema = this.getSchemaByName(schema13, schemaName);
         const keyErrors = {};
         if (options.strictProperty && !Array.isArray(target2)) {
-          _JsonParser.checkStrictProperty(target2, namedSchema, schema12);
+          _JsonParser.checkStrictProperty(target2, namedSchema, schema13);
         }
         for (const key in namedSchema) {
           try {
@@ -47085,7 +47085,7 @@ var require_build5 = __commonJS({
               continue;
             }
             if (!item.optional && value === void 0) {
-              throw new ParserError(schema12, `Property '${name}' is required.`);
+              throw new ParserError(schema13, `Property '${name}' is required.`);
             }
             this.checkTypes(value, item);
             this.checkValues(value, item);
@@ -47113,7 +47113,7 @@ var require_build5 = __commonJS({
             }
           } catch (e) {
             if (!(e instanceof ParserError)) {
-              e = new ParserError(schema12, `Property '${key}' is wrong. ${e.message}`, e);
+              e = new ParserError(schema13, `Property '${key}' is wrong. ${e.message}`, e);
             }
             if (options.strictAllKeys) {
               keyErrors[key] = e;
@@ -47124,11 +47124,11 @@ var require_build5 = __commonJS({
         }
         const keys = Object.keys(keyErrors);
         if (keys.length) {
-          throw new KeyError(schema12, keys, keyErrors);
+          throw new KeyError(schema13, keys, keyErrors);
         }
         return obj;
       }
-      static checkStrictProperty(target2, namedSchema, schema12) {
+      static checkStrictProperty(target2, namedSchema, schema13) {
         const jsonProps = Object.keys(target2);
         const schemaProps = Object.keys(namedSchema);
         const keys = [];
@@ -47138,7 +47138,7 @@ var require_build5 = __commonJS({
           }
         }
         if (keys.length) {
-          throw new KeyError(schema12, keys);
+          throw new KeyError(schema13, keys);
         }
       }
     };
@@ -47167,15 +47167,15 @@ var require_build5 = __commonJS({
     }
     var JsonProp = (options = {}) => (target2, propertyKey) => {
       const errorMessage = `Cannot set type for ${propertyKey} property of ${target2.constructor.name} schema`;
-      let schema12;
+      let schema13;
       if (!schemaStorage.has(target2.constructor)) {
-        schema12 = schemaStorage.create(target2.constructor);
-        schemaStorage.set(target2.constructor, schema12);
+        schema13 = schemaStorage.create(target2.constructor);
+        schemaStorage.set(target2.constructor, schema13);
       } else {
-        schema12 = schemaStorage.get(target2.constructor);
-        if (schema12.target !== target2.constructor) {
-          schema12 = schemaStorage.create(target2.constructor);
-          schemaStorage.set(target2.constructor, schema12);
+        schema13 = schemaStorage.get(target2.constructor);
+        if (schema13.target !== target2.constructor) {
+          schema13 = schemaStorage.create(target2.constructor);
+          schemaStorage.set(target2.constructor, schema13);
         }
       }
       const defaultSchema = {
@@ -47196,10 +47196,10 @@ var require_build5 = __commonJS({
         schemaNames = [options.schema || DEFAULT_SCHEMA];
       }
       for (const schemaName of schemaNames) {
-        if (!schema12.names[schemaName]) {
-          schema12.names[schemaName] = {};
+        if (!schema13.names[schemaName]) {
+          schema13.names[schemaName] = {};
         }
-        const namedSchema = schema12.names[schemaName];
+        const namedSchema = schema13.names[schemaName];
         namedSchema[propertyKey] = copyOptions;
       }
     };
@@ -57288,14 +57288,14 @@ var require_dependency_container = __commonJS({
           provider = providerOrConstructor;
         }
         if (providers_1.isTokenProvider(provider)) {
-          const path13 = [token];
+          const path14 = [token];
           let tokenProvider = provider;
           while (tokenProvider != null) {
             const currentToken = tokenProvider.useToken;
-            if (path13.includes(currentToken)) {
-              throw new Error(`Token registration cycle detected! ${[...path13, currentToken].join(" -> ")}`);
+            if (path14.includes(currentToken)) {
+              throw new Error(`Token registration cycle detected! ${[...path14, currentToken].join(" -> ")}`);
             }
-            path13.push(currentToken);
+            path14.push(currentToken);
             const registration = this._registry.get(currentToken);
             if (registration && providers_1.isTokenProvider(registration.provider)) {
               tokenProvider = registration.provider;
@@ -62900,8 +62900,8 @@ var require_decode = __commonJS({
       }
       return decodeSchema(rstream, typeOrSchema, meta);
     }
-    function decodeSchema(rstream, schema12, meta) {
-      assertSchema(schema12);
+    function decodeSchema(rstream, schema13, meta) {
+      assertSchema(schema13);
       const node = /* @__PURE__ */ Object.create(null);
       if (meta.node === void 0) {
         meta.node = node;
@@ -62909,10 +62909,10 @@ var require_decode = __commonJS({
       } else {
         meta.current = node;
       }
-      const keys = Object.keys(schema12);
+      const keys = Object.keys(schema13);
       for (let i = 0; i < keys.length; i += 1) {
         const key = keys[i];
-        const type = schema12[key];
+        const type = schema13[key];
         if (!isDecodeType(type)) {
           node[key] = decodeSchema(rstream, type, meta);
           meta.current = node;
@@ -62927,8 +62927,8 @@ var require_decode = __commonJS({
       }
       return node;
     }
-    function assertSchema(schema12) {
-      if (!isUserType(schema12)) {
+    function assertSchema(schema13) {
+      if (!isUserType(schema13)) {
         throw new TypeError("Argument #2 should be a plain object.");
       }
     }
@@ -62970,18 +62970,18 @@ var require_encode = __commonJS({
         encodeSchema(object, wstream, typeOrSchema, context);
       }
     }
-    function encodeSchema(object, wstream, schema12, context) {
-      assertSchema(schema12);
+    function encodeSchema(object, wstream, schema13, context) {
+      assertSchema(schema13);
       if (context.node === void 0) {
         context.node = object;
         context.current = object;
       } else {
         context.current = object;
       }
-      const keys = Object.keys(schema12);
+      const keys = Object.keys(schema13);
       for (let i = 0; i < keys.length; i += 1) {
         const key = keys[i];
-        const type = schema12[key];
+        const type = schema13[key];
         const value = object[key];
         if (!isEncodeType(type)) {
           encodeSchema(value, wstream, type, context);
@@ -62992,8 +62992,8 @@ var require_encode = __commonJS({
         context[symbols.bytes] += type.encode.bytes;
       }
     }
-    function assertSchema(schema12) {
-      if (!isUserType(schema12)) {
+    function assertSchema(schema13) {
+      if (!isUserType(schema13)) {
         throw new TypeError("Argument `schema` should be a plain object.");
       }
     }
@@ -63011,9 +63011,9 @@ var require_encoding_length = __commonJS({
       encodingLength,
       encodingLengthCommon
     };
-    function encodingLength(obj, schema12) {
+    function encodingLength(obj, schema13) {
       const context = new Metadata();
-      encodingLengthCommon(obj, schema12, context);
+      encodingLengthCommon(obj, schema13, context);
       Metadata.clean(context);
       return context.bytes;
     }
@@ -63024,8 +63024,8 @@ var require_encoding_length = __commonJS({
         encodingLengthSchema(item, typeOrSchema, context);
       }
     }
-    function encodingLengthSchema(item, schema12, context) {
-      if (!isUserType(schema12)) {
+    function encodingLengthSchema(item, schema13, context) {
+      if (!isUserType(schema13)) {
         throw new TypeError("Argument `schema` should be a plain object.");
       }
       if (context.node === void 0) {
@@ -63034,10 +63034,10 @@ var require_encoding_length = __commonJS({
       } else {
         context.current = item;
       }
-      const keys = Object.keys(schema12);
+      const keys = Object.keys(schema13);
       for (let i = 0; i < keys.length; i += 1) {
         const key = keys[i];
-        const type = schema12[key];
+        const type = schema13[key];
         const value = item[key];
         if (!isType(type)) {
           encodingLengthSchema(value, type, context);
@@ -63890,27 +63890,27 @@ var require_src5 = __commonJS({
       types[type] = numbers[type];
     }
     var kschema = Symbol("schema");
-    function createEncodeStream(schema12) {
+    function createEncodeStream(schema13) {
       const stream4 = new BinaryStream({
         readableObjectMode: false,
         writableObjectMode: true,
         transform: transformEncode
       });
-      stream4[kschema] = schema12;
+      stream4[kschema] = schema13;
       return stream4;
     }
     function createDecodeStream(bufOrSchema) {
-      let schema12 = null;
+      let schema13 = null;
       const isBuffer2 = Buffer.isBuffer(bufOrSchema);
       if (!isBuffer2) {
-        schema12 = bufOrSchema;
+        schema13 = bufOrSchema;
       }
       const stream4 = new BinaryStream({
         transform: transformDecode,
         readableObjectMode: true,
         writableObjectMode: false
       });
-      stream4[kschema] = schema12;
+      stream4[kschema] = schema13;
       if (isBuffer2) {
         stream4.append(bufOrSchema);
       }
@@ -87650,7 +87650,7 @@ var require_png = __commonJS({
     var Parser = require_parser_async();
     var Packer = require_packer_async();
     var PNGSync = require_png_sync();
-    var PNG5 = exports2.PNG = function(options) {
+    var PNG6 = exports2.PNG = function(options) {
       Stream.call(this);
       options = options || {};
       this.width = options.width | 0;
@@ -87679,9 +87679,9 @@ var require_png = __commonJS({
       this._parser.on("close", this._handleClose.bind(this));
       this._packer.on("error", this.emit.bind(this, "error"));
     };
-    util4.inherits(PNG5, Stream);
-    PNG5.sync = PNGSync;
-    PNG5.prototype.pack = function() {
+    util4.inherits(PNG6, Stream);
+    PNG6.sync = PNGSync;
+    PNG6.prototype.pack = function() {
       if (!this.data || !this.data.length) {
         this.emit("error", "No data provided");
         return this;
@@ -87693,7 +87693,7 @@ var require_png = __commonJS({
       );
       return this;
     };
-    PNG5.prototype.parse = function(data, callback) {
+    PNG6.prototype.parse = function(data, callback) {
       if (callback) {
         let onParsed, onError;
         onParsed = function(parsedData) {
@@ -87711,27 +87711,27 @@ var require_png = __commonJS({
       this.end(data);
       return this;
     };
-    PNG5.prototype.write = function(data) {
+    PNG6.prototype.write = function(data) {
       this._parser.write(data);
       return true;
     };
-    PNG5.prototype.end = function(data) {
+    PNG6.prototype.end = function(data) {
       this._parser.end(data);
     };
-    PNG5.prototype._metadata = function(metadata) {
+    PNG6.prototype._metadata = function(metadata) {
       this.width = metadata.width;
       this.height = metadata.height;
       this.emit("metadata", metadata);
     };
-    PNG5.prototype._gamma = function(gamma) {
+    PNG6.prototype._gamma = function(gamma) {
       this.gamma = gamma;
     };
-    PNG5.prototype._handleClose = function() {
+    PNG6.prototype._handleClose = function() {
       if (!this._parser.writable && !this._packer.readable) {
         this.emit("close");
       }
     };
-    PNG5.bitblt = function(src, dst, srcX, srcY, width, height, deltaX, deltaY) {
+    PNG6.bitblt = function(src, dst, srcX, srcY, width, height, deltaX, deltaY) {
       srcX |= 0;
       srcY |= 0;
       width |= 0;
@@ -87753,11 +87753,11 @@ var require_png = __commonJS({
         );
       }
     };
-    PNG5.prototype.bitblt = function(dst, srcX, srcY, width, height, deltaX, deltaY) {
-      PNG5.bitblt(this, dst, srcX, srcY, width, height, deltaX, deltaY);
+    PNG6.prototype.bitblt = function(dst, srcX, srcY, width, height, deltaX, deltaY) {
+      PNG6.bitblt(this, dst, srcX, srcY, width, height, deltaX, deltaY);
       return this;
     };
-    PNG5.adjustGamma = function(src) {
+    PNG6.adjustGamma = function(src) {
       if (src.gamma) {
         for (let y = 0; y < src.height; y++) {
           for (let x = 0; x < src.width; x++) {
@@ -87772,8 +87772,8 @@ var require_png = __commonJS({
         src.gamma = 0;
       }
     };
-    PNG5.prototype.adjustGamma = function() {
-      PNG5.adjustGamma(this);
+    PNG6.prototype.adjustGamma = function() {
+      PNG6.adjustGamma(this);
     };
   }
 });
@@ -89423,9 +89423,9 @@ var require_decoder = __commonJS({
         return a < 0 ? 0 : a > 255 ? 255 : a;
       }
       constructor.prototype = {
-        load: function load(path13) {
+        load: function load(path14) {
           var xhr = new XMLHttpRequest();
-          xhr.open("GET", path13, true);
+          xhr.open("GET", path14, true);
           xhr.responseType = "arraybuffer";
           xhr.onload = function() {
             var data = new Uint8Array(xhr.response || xhr.mozResponseArrayBuffer);
@@ -102643,11 +102643,11 @@ var require_mime_types = __commonJS({
       }
       return exts[0];
     }
-    function lookup(path13) {
-      if (!path13 || typeof path13 !== "string") {
+    function lookup(path14) {
+      if (!path14 || typeof path14 !== "string") {
         return false;
       }
-      var extension2 = extname("x." + path13).toLowerCase().substr(1);
+      var extension2 = extname("x." + path14).toLowerCase().substr(1);
       if (!extension2) {
         return false;
       }
@@ -103752,11 +103752,11 @@ var require_form_data = __commonJS({
     "use strict";
     var CombinedStream = require_combined_stream();
     var util4 = require("util");
-    var path13 = require("path");
+    var path14 = require("path");
     var http2 = require("http");
     var https2 = require("https");
     var parseUrl = require("url").parse;
-    var fs13 = require("fs");
+    var fs14 = require("fs");
     var Stream = require("stream").Stream;
     var crypto7 = require("crypto");
     var mime = require_mime_types();
@@ -103823,7 +103823,7 @@ var require_form_data = __commonJS({
         if (value.end != void 0 && value.end != Infinity && value.start != void 0) {
           callback(null, value.end + 1 - (value.start ? value.start : 0));
         } else {
-          fs13.stat(value.path, function(err, stat) {
+          fs14.stat(value.path, function(err, stat) {
             if (err) {
               callback(err);
               return;
@@ -103880,11 +103880,11 @@ var require_form_data = __commonJS({
     FormData3.prototype._getContentDisposition = function(value, options) {
       var filename;
       if (typeof options.filepath === "string") {
-        filename = path13.normalize(options.filepath).replace(/\\/g, "/");
+        filename = path14.normalize(options.filepath).replace(/\\/g, "/");
       } else if (options.filename || value && (value.name || value.path)) {
-        filename = path13.basename(options.filename || value && (value.name || value.path));
+        filename = path14.basename(options.filename || value && (value.name || value.path));
       } else if (value && value.readable && hasOwn(value, "httpVersion")) {
-        filename = path13.basename(value.client._httpMessage.path || "");
+        filename = path14.basename(value.client._httpMessage.path || "");
       }
       if (filename) {
         return 'filename="' + filename + '"';
@@ -104081,10 +104081,10 @@ function isVisitable(thing) {
 function removeBrackets(key) {
   return utils_default.endsWith(key, "[]") ? key.slice(0, -2) : key;
 }
-function renderKey(path13, key, dots) {
-  if (!path13)
+function renderKey(path14, key, dots) {
+  if (!path14)
     return key;
-  return path13.concat(key).map(function each(token, i) {
+  return path14.concat(key).map(function each(token, i) {
     token = removeBrackets(token);
     return !dots && i ? "[" + token + "]" : token;
   }).join(dots ? "." : "");
@@ -104130,9 +104130,9 @@ function toFormData(obj, formData, options) {
     }
     return value;
   }
-  function defaultVisitor(value, key, path13) {
+  function defaultVisitor(value, key, path14) {
     let arr = value;
-    if (value && !path13 && typeof value === "object") {
+    if (value && !path14 && typeof value === "object") {
       if (utils_default.endsWith(key, "{}")) {
         key = metaTokens ? key : key.slice(0, -2);
         value = JSON.stringify(value);
@@ -104151,7 +104151,7 @@ function toFormData(obj, formData, options) {
     if (isVisitable(value)) {
       return true;
     }
-    formData.append(renderKey(path13, key, dots), convertValue(value));
+    formData.append(renderKey(path14, key, dots), convertValue(value));
     return false;
   }
   const stack = [];
@@ -104160,11 +104160,11 @@ function toFormData(obj, formData, options) {
     convertValue,
     isVisitable
   });
-  function build(value, path13) {
+  function build(value, path14) {
     if (utils_default.isUndefined(value))
       return;
     if (stack.indexOf(value) !== -1) {
-      throw Error("Circular reference detected in " + path13.join("."));
+      throw Error("Circular reference detected in " + path14.join("."));
     }
     stack.push(value);
     utils_default.forEach(value, function each(el, key) {
@@ -104172,11 +104172,11 @@ function toFormData(obj, formData, options) {
         formData,
         el,
         utils_default.isString(key) ? key.trim() : key,
-        path13,
+        path14,
         exposedHelpers
       );
       if (result === true) {
-        build(el, path13 ? path13.concat(key) : [key]);
+        build(el, path14 ? path14.concat(key) : [key]);
       }
     });
     stack.pop();
@@ -104450,7 +104450,7 @@ var init_platform2 = __esm({
 // ../../node_modules/axios/lib/helpers/toURLEncodedForm.js
 function toURLEncodedForm(data, options) {
   return toFormData_default(data, new platform_default.classes.URLSearchParams(), {
-    visitor: function(value, key, path13, helpers) {
+    visitor: function(value, key, path14, helpers) {
       if (platform_default.isNode && utils_default.isBuffer(value)) {
         this.append(key, value.toString("base64"));
         return false;
@@ -104488,12 +104488,12 @@ function arrayToObject(arr) {
   return obj;
 }
 function formDataToJSON(formData) {
-  function buildPath(path13, value, target2, index) {
-    let name = path13[index++];
+  function buildPath(path14, value, target2, index) {
+    let name = path14[index++];
     if (name === "__proto__")
       return true;
     const isNumericKey = Number.isFinite(+name);
-    const isLast = index >= path13.length;
+    const isLast = index >= path14.length;
     name = !name && utils_default.isArray(target2) ? target2.length : name;
     if (isLast) {
       if (utils_default.hasOwnProp(target2, name)) {
@@ -104506,7 +104506,7 @@ function formDataToJSON(formData) {
     if (!target2[name] || !utils_default.isObject(target2[name])) {
       target2[name] = [];
     }
-    const result = buildPath(path13, value, target2[name], index);
+    const result = buildPath(path14, value, target2[name], index);
     if (result && utils_default.isArray(target2[name])) {
       target2[name] = arrayToObject(target2[name]);
     }
@@ -106461,9 +106461,9 @@ var init_http = __esm({
           auth = urlUsername + ":" + urlPassword;
         }
         auth && headers.delete("authorization");
-        let path13;
+        let path14;
         try {
-          path13 = buildURL(
+          path14 = buildURL(
             parsed.pathname + parsed.search,
             config2.params,
             config2.paramsSerializer
@@ -106481,7 +106481,7 @@ var init_http = __esm({
           false
         );
         const options = {
-          path: path13,
+          path: path14,
           method,
           headers: headers.toJSON(),
           agents: { http: config2.httpAgent, https: config2.httpsAgent },
@@ -106726,10 +106726,10 @@ var init_cookies = __esm({
     cookies_default = platform_default.hasStandardBrowserEnv ? (
       // Standard browser envs support document.cookie
       {
-        write(name, value, expires, path13, domain, secure) {
+        write(name, value, expires, path14, domain, secure) {
           const cookie = [name + "=" + encodeURIComponent(value)];
           utils_default.isNumber(expires) && cookie.push("expires=" + new Date(expires).toGMTString());
-          utils_default.isString(path13) && cookie.push("path=" + path13);
+          utils_default.isString(path14) && cookie.push("path=" + path14);
           utils_default.isString(domain) && cookie.push("domain=" + domain);
           secure === true && cookie.push("secure");
           document.cookie = cookie.join("; ");
@@ -107512,7 +107512,7 @@ var init_dispatchRequest = __esm({
 });
 
 // ../../node_modules/axios/lib/helpers/validator.js
-function assertOptions(options, schema12, allowUnknown) {
+function assertOptions(options, schema13, allowUnknown) {
   if (typeof options !== "object") {
     throw new AxiosError_default("options must be an object", AxiosError_default.ERR_BAD_OPTION_VALUE);
   }
@@ -107520,7 +107520,7 @@ function assertOptions(options, schema12, allowUnknown) {
   let i = keys.length;
   while (i-- > 0) {
     const opt = keys[i];
-    const validator = schema12[opt];
+    const validator = schema13[opt];
     if (validator) {
       const value = options[opt];
       const result = value === void 0 || validator(value, opt, options);
@@ -108143,8 +108143,8 @@ var init_comfyui_models = __esm({
 // dist/utils/comfyui-paths.js
 function isValidComfyUIPath(dirPath) {
   try {
-    const mainPyPath = path10.join(dirPath, "main.py");
-    return fs11.existsSync(mainPyPath) && fs11.statSync(mainPyPath).isFile();
+    const mainPyPath = path11.join(dirPath, "main.py");
+    return fs12.existsSync(mainPyPath) && fs12.statSync(mainPyPath).isFile();
   } catch (error) {
     return false;
   }
@@ -108187,13 +108187,13 @@ function getDefaultPythonCommand(installPath) {
     return "python/python.exe";
   } else if (isMac()) {
     if (installPath) {
-      const venvPython = path10.join(installPath, "venv", "bin", "python");
-      if (fs11.existsSync(venvPython)) {
+      const venvPython = path11.join(installPath, "venv", "bin", "python");
+      if (fs12.existsSync(venvPython)) {
         return venvPython;
       }
     }
     const systemPython311 = "/Library/Frameworks/Python.framework/Versions/3.11/bin/python3";
-    if (fs11.existsSync(systemPython311)) {
+    if (fs12.existsSync(systemPython311)) {
       return systemPython311;
     }
     return "python3";
@@ -108201,12 +108201,12 @@ function getDefaultPythonCommand(installPath) {
     return "python3";
   }
 }
-var fs11, path10;
+var fs12, path11;
 var init_comfyui_paths = __esm({
   "dist/utils/comfyui-paths.js"() {
     "use strict";
-    fs11 = __toESM(require("fs"), 1);
-    path10 = __toESM(require("path"), 1);
+    fs12 = __toESM(require("fs"), 1);
+    path11 = __toESM(require("path"), 1);
     init_platform();
   }
 });
@@ -108216,13 +108216,13 @@ var comfyui_client_exports = {};
 __export(comfyui_client_exports, {
   ComfyUIClient: () => ComfyUIClient
 });
-var import_child_process2, fss, path11, SIZE_MAPPING, ComfyUIClient;
+var import_child_process2, fss, path12, SIZE_MAPPING, ComfyUIClient;
 var init_comfyui_client = __esm({
   "dist/comfyui-client.js"() {
     "use strict";
     import_child_process2 = require("child_process");
     fss = __toESM(require("fs"), 1);
-    path11 = __toESM(require("path"), 1);
+    path12 = __toESM(require("path"), 1);
     init_axios2();
     init_wrapper();
     init_comfyui_errors();
@@ -108349,7 +108349,7 @@ var init_comfyui_client = __esm({
         this.progressCallbacks.delete(promptId);
       }
       getDefaultInstallPath() {
-        return path11.join(getAppDataDir(), "foundry-mcp-server", "ComfyUI-headless");
+        return path12.join(getAppDataDir(), "foundry-mcp-server", "ComfyUI-headless");
       }
       async checkInstallation() {
         if (!this.config.installPath) {
@@ -108422,8 +108422,8 @@ var init_comfyui_client = __esm({
           pythonCommand: this.config.pythonCommand,
           port: this.config.port
         });
-        const mainPyPath = path11.join(this.config.installPath, "main.py");
-        const logPath = path11.join(getAppDataDir(), "comfyui.log");
+        const mainPyPath = path12.join(this.config.installPath, "main.py");
+        const logPath = path12.join(getAppDataDir(), "comfyui.log");
         this.logStream = fss.createWriteStream(logPath, { flags: "a" });
         const spawnOptions = getHiddenProcessSpawnOptions();
         this.process = (0, import_child_process2.spawn)(this.config.pythonCommand, [
@@ -108849,9 +108849,9 @@ var init_comfyui_client = __esm({
 });
 
 // dist/backend.js
-var fs12 = __toESM(require("fs"), 1);
-var os6 = __toESM(require("os"), 1);
-var path12 = __toESM(require("path"), 1);
+var fs13 = __toESM(require("fs"), 1);
+var os7 = __toESM(require("os"), 1);
+var path13 = __toESM(require("path"), 1);
 var net = __toESM(require("net"), 1);
 var import_child_process3 = require("child_process");
 
@@ -109928,11 +109928,11 @@ var SystemPaths = {
     legendaryActions: null
   }
 };
-function extractSystemValue(data, path13) {
-  if (!path13 || !data) {
+function extractSystemValue(data, path14) {
+  if (!path14 || !data) {
     return void 0;
   }
-  const parts = path13.split(".");
+  const parts = path14.split(".");
   let value = data;
   for (const part of parts) {
     if (value === void 0 || value === null) {
@@ -110239,10 +110239,10 @@ var CharacterTools = class {
     ];
   }
   async handleGetCharacter(args) {
-    const schema12 = external_exports.object({
+    const schema13 = external_exports.object({
       identifier: external_exports.string().min(1, "Character identifier cannot be empty")
     });
-    const { identifier } = schema12.parse(args);
+    const { identifier } = schema13.parse(args);
     this.logger.info("Getting character information", { identifier });
     try {
       const characterData = await this.foundryClient.query("foundry-mcp-bridge.getCharacterInfo", {
@@ -110259,11 +110259,11 @@ var CharacterTools = class {
     }
   }
   async handleGetCharacterEntity(args) {
-    const schema12 = external_exports.object({
+    const schema13 = external_exports.object({
       characterIdentifier: external_exports.string().min(1, "Character identifier cannot be empty"),
       entityIdentifier: external_exports.string().min(1, "Entity identifier cannot be empty")
     });
-    const { characterIdentifier, entityIdentifier } = schema12.parse(args);
+    const { characterIdentifier, entityIdentifier } = schema13.parse(args);
     this.logger.info("Getting character entity", { characterIdentifier, entityIdentifier });
     try {
       const result = await this.foundryClient.query("foundry-mcp-bridge.getCharacterEntity", {
@@ -110328,10 +110328,10 @@ var CharacterTools = class {
     }
   }
   async handleListCharacters(args) {
-    const schema12 = external_exports.object({
+    const schema13 = external_exports.object({
       type: external_exports.string().optional()
     });
-    const { type } = schema12.parse(args);
+    const { type } = schema13.parse(args);
     this.logger.info("Listing characters", { type });
     try {
       const actors = await this.foundryClient.query("foundry-mcp-bridge.listActors", { type });
@@ -110352,7 +110352,7 @@ var CharacterTools = class {
     }
   }
   async handleUseItem(args) {
-    const schema12 = external_exports.object({
+    const schema13 = external_exports.object({
       actorIdentifier: external_exports.string().min(1, "Actor identifier cannot be empty"),
       itemIdentifier: external_exports.string().min(1, "Item identifier cannot be empty"),
       targets: external_exports.array(external_exports.string()).optional(),
@@ -110360,7 +110360,7 @@ var CharacterTools = class {
       spellLevel: external_exports.number().optional(),
       skipDialog: external_exports.boolean().optional()
     });
-    const { actorIdentifier, itemIdentifier, targets, consume, spellLevel, skipDialog } = schema12.parse(args);
+    const { actorIdentifier, itemIdentifier, targets, consume, spellLevel, skipDialog } = schema13.parse(args);
     this.logger.info("Using item", {
       actorIdentifier,
       itemIdentifier,
@@ -110399,11 +110399,11 @@ var CharacterTools = class {
       img: external_exports.string().optional(),
       system: external_exports.record(external_exports.any()).optional()
     });
-    const schema12 = external_exports.object({
+    const schema13 = external_exports.object({
       actorIdentifier: external_exports.string().min(1, "Actor identifier cannot be empty"),
       items: external_exports.array(itemSchema2).min(1, "At least one item is required")
     });
-    const { actorIdentifier, items: items2 } = schema12.parse(args);
+    const { actorIdentifier, items: items2 } = schema13.parse(args);
     this.logger.info("Adding items to actor", {
       actorIdentifier,
       count: items2.length,
@@ -110432,10 +110432,10 @@ var CharacterTools = class {
       system: external_exports.record(external_exports.any()).optional(),
       folder: external_exports.string().optional()
     });
-    const schema12 = external_exports.object({
+    const schema13 = external_exports.object({
       updates: external_exports.array(updateEntrySchema).min(1, "At least one update entry is required")
     });
-    const { updates } = schema12.parse(args);
+    const { updates } = schema13.parse(args);
     this.logger.info("Updating world items", {
       count: updates.length,
       ids: updates.map((u) => u.id)
@@ -110452,12 +110452,12 @@ var CharacterTools = class {
     }
   }
   async handleListWorldItems(args) {
-    const schema12 = external_exports.object({
+    const schema13 = external_exports.object({
       type: external_exports.string().optional(),
       folder: external_exports.string().optional(),
       nameFilter: external_exports.string().optional()
     });
-    const { type, folder, nameFilter } = schema12.parse(args);
+    const { type, folder, nameFilter } = schema13.parse(args);
     this.logger.info("Listing world items", {
       type: type ?? null,
       folder: folder ?? null,
@@ -110500,11 +110500,11 @@ var CharacterTools = class {
       effects: external_exports.array(external_exports.record(external_exports.any())).optional(),
       flags: external_exports.record(external_exports.any()).optional()
     });
-    const schema12 = external_exports.object({
+    const schema13 = external_exports.object({
       items: external_exports.array(itemSchema2).min(1, "At least one item is required"),
       folder: external_exports.string().optional()
     });
-    const { items: items2, folder } = schema12.parse(args);
+    const { items: items2, folder } = schema13.parse(args);
     this.logger.info("Creating world items", {
       count: items2.length,
       folder: folder ?? null,
@@ -110555,7 +110555,7 @@ var CharacterTools = class {
     }
   }
   async handleRemoveActorItems(args) {
-    const schema12 = external_exports.object({
+    const schema13 = external_exports.object({
       actorIdentifier: external_exports.string().min(1, "Actor identifier cannot be empty"),
       itemIds: external_exports.array(external_exports.string().min(1)).optional(),
       itemNames: external_exports.array(external_exports.string().min(1)).optional(),
@@ -110563,7 +110563,7 @@ var CharacterTools = class {
     }).refine((v) => (v.itemIds?.length ?? 0) + (v.itemNames?.length ?? 0) > 0, {
       message: "Provide itemIds and/or itemNames identifying the items to remove"
     });
-    const { actorIdentifier, itemIds, itemNames, type } = schema12.parse(args);
+    const { actorIdentifier, itemIds, itemNames, type } = schema13.parse(args);
     this.logger.info("Removing items from actor", {
       actorIdentifier,
       ids: itemIds?.length ?? 0,
@@ -110595,14 +110595,14 @@ var CharacterTools = class {
     }
   }
   async handleSearchCharacterItems(args) {
-    const schema12 = external_exports.object({
+    const schema13 = external_exports.object({
       characterIdentifier: external_exports.string().min(1, "Character identifier cannot be empty"),
       query: external_exports.string().optional(),
       type: external_exports.string().optional(),
       category: external_exports.string().optional(),
       limit: external_exports.number().optional()
     });
-    const { characterIdentifier, query, type, category, limit } = schema12.parse(args);
+    const { characterIdentifier, query, type, category, limit } = schema13.parse(args);
     this.logger.info("Searching character items", {
       characterIdentifier,
       query,
@@ -111345,7 +111345,7 @@ var CompendiumTools = class {
   }
   async handleSearchCompendium(args) {
     const gameSystem = await this.getGameSystem();
-    const schema12 = external_exports.object({
+    const schema13 = external_exports.object({
       query: external_exports.string().min(2, "Search query must be at least 2 characters"),
       packType: external_exports.string().optional(),
       filters: GenericFiltersSchema.optional(),
@@ -111353,14 +111353,14 @@ var CompendiumTools = class {
     });
     let parsedArgs;
     try {
-      parsedArgs = schema12.parse(args);
+      parsedArgs = schema13.parse(args);
     } catch (zodError) {
       if (typeof args === "string") {
-        parsedArgs = schema12.parse({ query: args });
+        parsedArgs = schema13.parse({ query: args });
       } else if (args && typeof args.query === "undefined" && typeof args === "object") {
         const firstKey = Object.keys(args)[0];
         if (firstKey && typeof args[firstKey] === "string") {
-          parsedArgs = schema12.parse({ query: args[firstKey] });
+          parsedArgs = schema13.parse({ query: args[firstKey] });
         } else {
           throw zodError;
         }
@@ -111407,12 +111407,12 @@ var CompendiumTools = class {
     }
   }
   async handleGetCompendiumItem(args) {
-    const schema12 = external_exports.object({
+    const schema13 = external_exports.object({
       packId: external_exports.string().min(1, "Pack ID cannot be empty"),
       itemId: external_exports.string().min(1, "Item ID cannot be empty"),
       compact: external_exports.boolean().default(false)
     });
-    const { packId, itemId, compact } = schema12.parse(args);
+    const { packId, itemId, compact } = schema13.parse(args);
     try {
       const item = await this.foundryClient.query("foundry-mcp-bridge.getCompendiumDocumentFull", {
         packId,
@@ -111462,7 +111462,7 @@ var CompendiumTools = class {
   }
   async handleListCreaturesByCriteria(args) {
     const gameSystem = await this.getGameSystem();
-    const schema12 = external_exports.object({
+    const schema13 = external_exports.object({
       // D&D 5e: challengeRating
       challengeRating: external_exports.union([
         external_exports.object({
@@ -111592,7 +111592,7 @@ var CompendiumTools = class {
     });
     let params;
     try {
-      params = schema12.parse(args);
+      params = schema13.parse(args);
       this.logger.debug("Parsed creature criteria parameters successfully", params);
     } catch (parseError) {
       this.logger.error("Failed to parse creature criteria parameters", { args, parseError });
@@ -111642,10 +111642,10 @@ var CompendiumTools = class {
     }
   }
   async handleListCompendiumPacks(args) {
-    const schema12 = external_exports.object({
+    const schema13 = external_exports.object({
       type: external_exports.string().optional()
     });
-    const { type } = schema12.parse(args);
+    const { type } = schema13.parse(args);
     this.logger.info("Listing compendium packs", { type });
     try {
       const packs = await this.foundryClient.query("foundry-mcp-bridge.getAvailablePacks");
@@ -112364,11 +112364,11 @@ var SceneTools = class {
     ];
   }
   async handleGetCurrentScene(args) {
-    const schema12 = external_exports.object({
+    const schema13 = external_exports.object({
       includeTokens: external_exports.boolean().default(true),
       includeHidden: external_exports.boolean().default(false)
     });
-    const { includeTokens, includeHidden } = schema12.parse(args);
+    const { includeTokens, includeHidden } = schema13.parse(args);
     this.logger.info("Getting current scene information", { includeTokens, includeHidden });
     try {
       const sceneData = await this.foundryClient.query("foundry-mcp-bridge.getActiveScene");
@@ -112398,12 +112398,12 @@ var SceneTools = class {
     }
   }
   async handleUpdateSceneMusic(args) {
-    const schema12 = external_exports.object({
+    const schema13 = external_exports.object({
       scene_identifier: external_exports.string().min(1),
       playlist: external_exports.string().nullable().optional(),
       playlist_sound: external_exports.string().nullable().optional()
     });
-    const parsed = schema12.parse(withSceneAlias(args));
+    const parsed = schema13.parse(withSceneAlias(args));
     this.logger.info("Updating scene music", { scene_identifier: parsed.scene_identifier });
     try {
       const result = await this.foundryClient.query("foundry-mcp-bridge.update-scene-music", parsed);
@@ -112415,7 +112415,7 @@ var SceneTools = class {
     }
   }
   async handleManageScenes(args) {
-    const schema12 = external_exports.object({
+    const schema13 = external_exports.object({
       action: external_exports.enum(["create", "update", "describe"]),
       scene_identifier: external_exports.string().min(1).optional(),
       name: external_exports.string().min(1).optional(),
@@ -112446,7 +112446,7 @@ var SceneTools = class {
       }).strict().optional(),
       activate: external_exports.boolean().optional()
     }).strict();
-    const parsed = schema12.parse(withSceneAlias(args, true));
+    const parsed = schema13.parse(withSceneAlias(args, true));
     if (parsed.action === "create" && !parsed.name) {
       throw new Error("name is required for create");
     }
@@ -112734,7 +112734,7 @@ var PlaylistTools = class {
     ];
   }
   async handleManagePlaylists(args) {
-    const schema12 = external_exports.object({
+    const schema13 = external_exports.object({
       action: external_exports.enum(["create", "update", "delete", "describe"]),
       playlist: external_exports.string().nullable().optional(),
       name: external_exports.string().optional(),
@@ -112749,7 +112749,7 @@ var PlaylistTools = class {
       remove_sounds: external_exports.array(external_exports.string().min(1)).max(100).optional(),
       updates: external_exports.record(external_exports.any()).optional()
     });
-    const parsed = schema12.parse(args);
+    const parsed = schema13.parse(args);
     this.logger.info("Managing playlists", { action: parsed.action, playlist: parsed.playlist });
     try {
       const result = await this.foundryClient.query("foundry-mcp-bridge.manage-playlists", parsed);
@@ -112760,13 +112760,13 @@ var PlaylistTools = class {
     }
   }
   async handleControlPlaylist(args) {
-    const schema12 = external_exports.object({
+    const schema13 = external_exports.object({
       playlist: external_exports.string().min(1).optional(),
       command: external_exports.enum(COMMANDS),
       sound: external_exports.string().optional(),
       volume: external_exports.number().min(0).max(1).optional()
     });
-    const parsed = schema12.parse(args);
+    const parsed = schema13.parse(args);
     if (!parsed.playlist && parsed.command !== "now-playing" && parsed.command !== "stop-all") {
       throw new Error(`command ${parsed.command} requires "playlist"`);
     }
@@ -113129,7 +113129,7 @@ var ActorCreationTools = class {
    * Handle actor creation from specific compendium entry
    */
   async handleCreateActorFromCompendium(args) {
-    const schema12 = external_exports.object({
+    const schema13 = external_exports.object({
       packId: external_exports.string().min(1, "Pack ID cannot be empty"),
       itemId: external_exports.string().min(1, "Item ID cannot be empty"),
       names: external_exports.array(external_exports.string().min(1)).min(1, "At least one name is required"),
@@ -113148,7 +113148,7 @@ var ActorCreationTools = class {
         })).optional()
       }).optional()
     });
-    const { packId, itemId, names, quantity, addToScene, placement, folder, hp, token, img, tokenImg } = schema12.parse(args);
+    const { packId, itemId, names, quantity, addToScene, placement, folder, hp, token, img, tokenImg } = schema13.parse(args);
     const finalQuantity = quantity || names.length;
     this.logger.info("Creating actors from specific compendium entry", {
       packId,
@@ -113194,11 +113194,11 @@ var ActorCreationTools = class {
    * Handle getting full compendium entry data
    */
   async handleGetCompendiumEntryFull(args) {
-    const schema12 = external_exports.object({
+    const schema13 = external_exports.object({
       packId: external_exports.string().min(1, "Pack ID cannot be empty"),
       entryId: external_exports.string().min(1, "Entry ID cannot be empty")
     });
-    const { packId, entryId } = schema12.parse(args);
+    const { packId, entryId } = schema13.parse(args);
     this.logger.info("Getting full compendium entry", { packId, entryId });
     try {
       const fullEntry = await this.foundryClient.query("foundry-mcp-bridge.getCompendiumDocumentFull", {
@@ -113488,12 +113488,12 @@ var ActorManagementTools = class {
   }
   // ── place ─────────────────────────────────────────────────────────────────
   async handlePlace(args) {
-    const schema12 = external_exports.object({
+    const schema13 = external_exports.object({
       actorIds: external_exports.array(external_exports.string().min(1)).min(1),
       placement: external_exports.enum(["random", "grid", "center"]).default("random"),
       hidden: external_exports.boolean().default(false)
     });
-    const { actorIds, placement, hidden } = schema12.parse(args);
+    const { actorIds, placement, hidden } = schema13.parse(args);
     this.logger.info("Placing existing actors on scene", {
       count: actorIds.length,
       placement,
@@ -113514,7 +113514,7 @@ var ActorManagementTools = class {
   }
   // ── create ────────────────────────────────────────────────────────────────
   async handleCreate(args) {
-    const schema12 = external_exports.object({
+    const schema13 = external_exports.object({
       actors: external_exports.array(external_exports.object({
         name: external_exports.string().min(1),
         type: external_exports.string().min(1),
@@ -113526,7 +113526,7 @@ var ActorManagementTools = class {
       })).min(1),
       folder: external_exports.string().optional()
     });
-    const { actors, folder } = schema12.parse(args);
+    const { actors, folder } = schema13.parse(args);
     this.logger.info("Creating actors", {
       count: actors.length,
       types: actors.map((a) => a.type)
@@ -113541,7 +113541,7 @@ var ActorManagementTools = class {
   }
   // ── update ────────────────────────────────────────────────────────────────
   async handleUpdate(args) {
-    const schema12 = external_exports.object({
+    const schema13 = external_exports.object({
       updates: external_exports.array(external_exports.object({
         id: external_exports.string().min(1),
         name: external_exports.string().optional(),
@@ -113553,7 +113553,7 @@ var ActorManagementTools = class {
         folder: external_exports.string().min(1).optional()
       })).min(1)
     });
-    const { updates } = schema12.parse(args);
+    const { updates } = schema13.parse(args);
     this.logger.info("Updating actors", { count: updates.length });
     const adapter2 = await this.getAdapter();
     const normalizedUpdates = adapter2?.normalizePayload ? updates.map((u) => u.system !== void 0 ? { ...u, system: adapter2.normalizePayload(u.system) } : u) : updates;
@@ -113564,17 +113564,17 @@ var ActorManagementTools = class {
   }
   // ── delete ────────────────────────────────────────────────────────────────
   async handleDelete(args) {
-    const schema12 = external_exports.object({
+    const schema13 = external_exports.object({
       ids: external_exports.array(external_exports.string().min(1)).min(1)
     });
-    const { ids } = schema12.parse(args);
+    const { ids } = schema13.parse(args);
     this.logger.info("Deleting actors", { count: ids.length });
     const result = await this.foundryClient.query("foundry-mcp-bridge.deleteActors", { ids });
     return result;
   }
   // ── update-items ────────────────────────────────────────────────────────────
   async handleUpdateItems(args) {
-    const schema12 = external_exports.object({
+    const schema13 = external_exports.object({
       actorIdentifier: external_exports.string().min(1),
       itemUpdates: external_exports.array(external_exports.object({
         id: external_exports.string().min(1),
@@ -113592,7 +113592,7 @@ var ActorManagementTools = class {
         }
       })).min(1)
     });
-    const { actorIdentifier, itemUpdates } = schema12.parse(args);
+    const { actorIdentifier, itemUpdates } = schema13.parse(args);
     this.logger.info("Updating actor embedded items", {
       actorIdentifier,
       count: itemUpdates.length
@@ -113605,11 +113605,11 @@ var ActorManagementTools = class {
   }
   // ── delete-items ────────────────────────────────────────────────────────────
   async handleDeleteItems(args) {
-    const schema12 = external_exports.object({
+    const schema13 = external_exports.object({
       actorIdentifier: external_exports.string().min(1),
       itemIds: external_exports.array(external_exports.string().min(1)).min(1)
     });
-    const { actorIdentifier, itemIds } = schema12.parse(args);
+    const { actorIdentifier, itemIds } = schema13.parse(args);
     this.logger.info("Deleting actor embedded items", {
       actorIdentifier,
       count: itemIds.length
@@ -114962,7 +114962,7 @@ var DiceRollTools = class {
     ];
   }
   async handleRequestPlayerRolls(args) {
-    const schema12 = external_exports.object({
+    const schema13 = external_exports.object({
       rollType: external_exports.enum(["ability", "skill", "save", "attack", "initiative", "custom"]),
       rollTarget: external_exports.string(),
       targetPlayer: external_exports.string(),
@@ -114972,7 +114972,7 @@ var DiceRollTools = class {
       flavor: external_exports.string().default("")
     });
     try {
-      const params = schema12.parse(args);
+      const params = schema13.parse(args);
       if (typeof params.isPublic !== "boolean") {
         return 'Please specify whether you want this to be a PUBLIC roll (visible to all players) or PRIVATE roll (visible only to the target player and GM). You must provide either "true" for public or "false" for private.';
       }
@@ -116778,7 +116778,7 @@ var TokenManipulationTools = class {
     ];
   }
   async handleMoveToken(args) {
-    const schema12 = external_exports.object({
+    const schema13 = external_exports.object({
       tokenId: external_exports.string(),
       x: external_exports.number(),
       y: external_exports.number(),
@@ -116786,7 +116786,7 @@ var TokenManipulationTools = class {
       scene: external_exports.string().min(1).optional(),
       units: external_exports.enum(["pixels", "squares"]).optional()
     });
-    const { tokenId, x, y, animate, scene, units } = schema12.parse(args);
+    const { tokenId, x, y, animate, scene, units } = schema13.parse(args);
     this.logger.info("Moving token", { tokenId, x, y, animate });
     try {
       const result = await this.foundryClient.query("foundry-mcp-bridge.move-token", {
@@ -116812,7 +116812,7 @@ var TokenManipulationTools = class {
     }
   }
   async handleUpdateToken(args) {
-    const schema12 = external_exports.object({
+    const schema13 = external_exports.object({
       tokenId: external_exports.string(),
       scene: external_exports.string().min(1).optional(),
       options: external_exports.record(external_exports.any()).optional(),
@@ -116829,7 +116829,7 @@ var TokenManipulationTools = class {
         lockRotation: external_exports.boolean().optional()
       }).default({})
     });
-    const { tokenId, updates, options, scene } = schema12.parse(args);
+    const { tokenId, updates, options, scene } = schema13.parse(args);
     if (Object.keys(updates).length === 0 && !options)
       throw new Error("Give updates or options");
     this.logger.info("Updating token", { tokenId, updates });
@@ -116853,10 +116853,10 @@ var TokenManipulationTools = class {
     }
   }
   async handleDeleteTokens(args) {
-    const schema12 = external_exports.object({
+    const schema13 = external_exports.object({
       tokenIds: external_exports.array(external_exports.string()).min(1)
     });
-    const { tokenIds } = schema12.parse(args);
+    const { tokenIds } = schema13.parse(args);
     this.logger.info("Deleting tokens", { count: tokenIds.length, tokenIds });
     try {
       const result = await this.foundryClient.query("foundry-mcp-bridge.delete-tokens", {
@@ -116878,11 +116878,11 @@ var TokenManipulationTools = class {
     }
   }
   async handleGetTokenDetails(args) {
-    const schema12 = external_exports.object({
+    const schema13 = external_exports.object({
       tokenId: external_exports.string(),
       scene: external_exports.string().min(1).optional()
     });
-    const { tokenId, scene } = schema12.parse(args);
+    const { tokenId, scene } = schema13.parse(args);
     this.logger.info("Getting token details", { tokenId });
     try {
       const tokenData = await this.foundryClient.query("foundry-mcp-bridge.get-token-details", {
@@ -116945,12 +116945,12 @@ var TokenManipulationTools = class {
     }
   }
   async handleToggleTokenCondition(args) {
-    const schema12 = external_exports.object({
+    const schema13 = external_exports.object({
       tokenId: external_exports.string(),
       conditionId: external_exports.string(),
       active: external_exports.boolean().optional()
     });
-    const { tokenId, conditionId, active } = schema12.parse(args);
+    const { tokenId, conditionId, active } = schema13.parse(args);
     this.logger.info("Toggling token condition", { tokenId, conditionId, active });
     try {
       const result = await this.foundryClient.query("foundry-mcp-bridge.toggle-token-condition", {
@@ -117107,7 +117107,7 @@ var DSA5CharacterCreator = class {
    * Handle DSA5 character creation from archetype
    */
   async handleCreateCharacterFromArchetype(args) {
-    const schema12 = external_exports.object({
+    const schema13 = external_exports.object({
       archetypePackId: external_exports.string().min(1, "Archetype pack ID cannot be empty"),
       archetypeId: external_exports.string().min(1, "Archetype ID cannot be empty"),
       characterName: external_exports.string().min(1, "Character name cannot be empty"),
@@ -117125,7 +117125,7 @@ var DSA5CharacterCreator = class {
       }).optional(),
       addToWorld: external_exports.boolean().default(true)
     });
-    const { archetypePackId, archetypeId, characterName, customization, addToWorld } = schema12.parse(args);
+    const { archetypePackId, archetypeId, characterName, customization, addToWorld } = schema13.parse(args);
     this.logger.info("Creating DSA5 character from archetype", {
       archetypePackId,
       archetypeId,
@@ -117165,12 +117165,12 @@ var DSA5CharacterCreator = class {
    * Handle listing DSA5 archetypes
    */
   async handleListArchetypes(args) {
-    const schema12 = external_exports.object({
+    const schema13 = external_exports.object({
       packId: external_exports.string().optional(),
       filterBySpecies: external_exports.string().optional(),
       filterByProfession: external_exports.string().optional()
     });
-    const { packId, filterBySpecies, filterByProfession } = schema12.parse(args);
+    const { packId, filterBySpecies, filterByProfession } = schema13.parse(args);
     this.logger.info("Listing DSA5 archetypes", { packId, filterBySpecies, filterByProfession });
     try {
       const packs = await this.foundryClient.query("foundry-mcp-bridge.getAvailablePacks");
@@ -117370,8 +117370,8 @@ var getByKeys = (source, keys) => {
   }
   return void 0;
 };
-var getNested = (source, path13) => {
-  const parts = path13.split(".");
+var getNested = (source, path14) => {
+  const parts = path14.split(".");
   let current = source;
   for (const part of parts) {
     if (!isRecord(current) || !(part in current))
@@ -118221,7 +118221,7 @@ var DSA5JsonActorImporter = class {
     ];
   }
   async handleImportActorFromJson(args) {
-    const schema12 = external_exports.object({
+    const schema13 = external_exports.object({
       jsonPayload: external_exports.union([external_exports.string(), external_exports.record(external_exports.unknown())]).optional(),
       filePath: external_exports.string().optional(),
       strategy: external_exports.enum(["auto", "custom_dsa5", "optolith_like", "raw_foundry", "darkaid"]).default("auto"),
@@ -118233,7 +118233,7 @@ var DSA5JsonActorImporter = class {
     }).refine((value) => Boolean(value.jsonPayload) || Boolean(value.filePath), {
       message: "Either jsonPayload or filePath is required."
     });
-    const { jsonPayload, filePath, strategy, resolveItems, addToScene, updateExisting, existingActorIdentifier, strict } = schema12.parse(args);
+    const { jsonPayload, filePath, strategy, resolveItems, addToScene, updateExisting, existingActorIdentifier, strict } = schema13.parse(args);
     try {
       await this.assertDsa5World();
       const payload = await extractPayload(jsonPayload, filePath);
@@ -118786,7 +118786,7 @@ var DnD5eAddFeatureTool = class {
   // passive
   // ---------------------------------------------------------------------------
   async handlePassive(args) {
-    const schema12 = external_exports.object({
+    const schema13 = external_exports.object({
       featureType: external_exports.literal("passive"),
       actorIdentifier: external_exports.string().min(1, "actorIdentifier cannot be empty"),
       featureName: external_exports.string().min(1, "featureName cannot be empty"),
@@ -118796,7 +118796,7 @@ var DnD5eAddFeatureTool = class {
       sourceBook: external_exports.string().default(""),
       sourcePage: external_exports.string().default("")
     });
-    const parsed = schema12.parse(args);
+    const parsed = schema13.parse(args);
     this.logger.info("Adding passive feature to D&D 5e actor", {
       actorIdentifier: parsed.actorIdentifier,
       featureName: parsed.featureName
@@ -118838,7 +118838,7 @@ ${details}`
   // save
   // ---------------------------------------------------------------------------
   async handleSave(args) {
-    const schema12 = external_exports.object({
+    const schema13 = external_exports.object({
       featureType: external_exports.literal("save"),
       actorIdentifier: external_exports.string().min(1, "actorIdentifier cannot be empty"),
       featureName: external_exports.string().min(1, "featureName cannot be empty"),
@@ -118862,7 +118862,7 @@ ${details}`
         });
       }
     });
-    const parsed = schema12.parse(args);
+    const parsed = schema13.parse(args);
     this.logger.info("Adding save feature to D&D 5e actor", {
       actorIdentifier: parsed.actorIdentifier,
       featureName: parsed.featureName,
@@ -118912,7 +118912,7 @@ ${details}`
   // attack
   // ---------------------------------------------------------------------------
   async handleAttack(args) {
-    const schema12 = external_exports.object({
+    const schema13 = external_exports.object({
       featureType: external_exports.literal("attack"),
       actorIdentifier: external_exports.string().min(1, "actorIdentifier cannot be empty"),
       featureName: external_exports.string().min(1, "featureName cannot be empty"),
@@ -118949,7 +118949,7 @@ ${details}`
         });
       }
     });
-    const parsed = schema12.parse(args);
+    const parsed = schema13.parse(args);
     const effectiveAbility = parsed.abilityModifier ?? (parsed.attackType === "melee" ? "str" : "dex");
     const warnings = [];
     for (const part of parsed.damageParts) {
@@ -119023,7 +119023,7 @@ ${details}${warningSection}`
   // attack-with-save
   // ---------------------------------------------------------------------------
   async handleAttackWithSave(args) {
-    const schema12 = external_exports.object({
+    const schema13 = external_exports.object({
       featureType: external_exports.literal("attack-with-save"),
       actorIdentifier: external_exports.string().min(1, "actorIdentifier cannot be empty"),
       featureName: external_exports.string().min(1, "featureName cannot be empty"),
@@ -119064,7 +119064,7 @@ ${details}${warningSection}`
         });
       }
     });
-    const parsed = schema12.parse(args);
+    const parsed = schema13.parse(args);
     const effectiveAbility = parsed.abilityModifier ?? (parsed.attackType === "melee" ? "str" : "dex");
     const warnings = [];
     for (const part of [...parsed.damageParts, ...parsed.saveDamageParts]) {
@@ -119133,7 +119133,7 @@ ${details}${warningSection}`
   // aura
   // ---------------------------------------------------------------------------
   async handleAura(args) {
-    const schema12 = external_exports.object({
+    const schema13 = external_exports.object({
       featureType: external_exports.literal("aura"),
       actorIdentifier: external_exports.string().min(1, "actorIdentifier cannot be empty"),
       featureName: external_exports.string().min(1, "featureName cannot be empty"),
@@ -119149,7 +119149,7 @@ ${details}${warningSection}`
       sourceBook: external_exports.string().default(""),
       sourcePage: external_exports.string().default("")
     });
-    const parsed = schema12.parse(args);
+    const parsed = schema13.parse(args);
     const warnings = [];
     for (const part of parsed.damageParts) {
       if (!DAMAGE_CANONICAL.has(part.type)) {
@@ -119210,7 +119210,7 @@ ${details}${warningSection}`
   // spellcasting
   // ---------------------------------------------------------------------------
   async handleSpellcasting(args) {
-    const schema12 = external_exports.object({
+    const schema13 = external_exports.object({
       featureType: external_exports.literal("spellcasting"),
       actorIdentifier: external_exports.string().min(1, "actorIdentifier cannot be empty"),
       spellcastingClass: external_exports.enum([
@@ -119228,7 +119228,7 @@ ${details}${warningSection}`
       spellcastingAbility: external_exports.enum(["str", "dex", "con", "int", "wis", "cha"]).optional(),
       sourceRules: external_exports.enum(["2014", "2024"]).default("2014")
     });
-    const parsed = schema12.parse(args);
+    const parsed = schema13.parse(args);
     const effectiveAbility = parsed.spellcastingAbility ?? CLASS_DEFAULT_ABILITY[parsed.spellcastingClass];
     this.logger.info("Setting actor spellcasting", {
       actorIdentifier: parsed.actorIdentifier,
@@ -119280,13 +119280,13 @@ ${details}${warningSection}`
   // spells
   // ---------------------------------------------------------------------------
   async handleSpells(args) {
-    const schema12 = external_exports.object({
+    const schema13 = external_exports.object({
       featureType: external_exports.literal("spells"),
       actorIdentifier: external_exports.string().min(1, "actorIdentifier cannot be empty"),
       spellNames: external_exports.array(external_exports.string().min(1)).min(1).max(50),
       compendiumPacks: external_exports.array(external_exports.string().min(1)).default(["dnd5e.spells"])
     });
-    const parsed = schema12.parse(args);
+    const parsed = schema13.parse(args);
     this.logger.info("Adding spells to D&D 5e actor", {
       actorIdentifier: parsed.actorIdentifier,
       spellCount: parsed.spellNames.length,
@@ -119719,7 +119719,7 @@ var DnD5eNpcTools = class {
     ];
   }
   async handleCreateNpc(args) {
-    const schema12 = external_exports.object({
+    const schema13 = external_exports.object({
       // Identity
       name: external_exports.string().min(1, "name cannot be empty"),
       creatureType: external_exports.enum([
@@ -119821,7 +119821,7 @@ var DnD5eNpcTools = class {
         });
       }
     });
-    const parsed = schema12.parse(args);
+    const parsed = schema13.parse(args);
     const warnings = [];
     const allDamageValues = [
       ...parsed.damageImmunities.map((v) => ({ field: "damageImmunities", value: v })),
@@ -119936,12 +119936,12 @@ var DnD5eFeaturesFromCompendiumTools = class {
     ];
   }
   async handleAddFeaturesFromCompendium(args) {
-    const schema12 = external_exports.object({
+    const schema13 = external_exports.object({
       actorIdentifier: external_exports.string().min(1, "actorIdentifier cannot be empty"),
       featureNames: external_exports.array(external_exports.string().min(1)).min(1).max(50),
       compendiumPacks: external_exports.array(external_exports.string().min(1)).default(["dnd5e.monsterfeatures", "dnd5e.classfeatures"])
     });
-    const parsed = schema12.parse(args);
+    const parsed = schema13.parse(args);
     this.logger.info("Adding features to D&D 5e actor from compendium", {
       actorIdentifier: parsed.actorIdentifier,
       featureCount: parsed.featureNames.length,
@@ -120083,7 +120083,7 @@ var ChatTools = class {
     ];
   }
   async handleCreateChatMessage(args) {
-    const schema12 = external_exports.object({
+    const schema13 = external_exports.object({
       actorIdentifier: external_exports.string().optional(),
       tokenId: external_exports.string().optional(),
       content: external_exports.string().min(1),
@@ -120093,7 +120093,7 @@ var ChatTools = class {
     }).refine((v) => v.actorIdentifier || v.tokenId, {
       message: "Either actorIdentifier or tokenId is required"
     });
-    const parsed = schema12.parse(args);
+    const parsed = schema13.parse(args);
     this.logger.info("Creating chat message", {
       speaker: parsed.tokenId ?? parsed.actorIdentifier,
       whispered: !!parsed.whisperTo?.length
@@ -120187,13 +120187,13 @@ var UploadTools = class {
     ];
   }
   async handleUploadFile(args) {
-    const schema12 = external_exports.object({
+    const schema13 = external_exports.object({
       file_path: external_exports.string().min(1),
       folder: external_exports.string().optional(),
       filename: external_exports.string().min(1).optional(),
       overwrite: external_exports.boolean().optional()
     }).strict();
-    const parsed = schema12.parse(args);
+    const parsed = schema13.parse(args);
     if (!import_path.default.isAbsolute(parsed.file_path)) {
       throw new Error("file_path must be an absolute path");
     }
@@ -120467,9 +120467,11 @@ function keyOutBackground(img, options = {}) {
       const b = out[i + 2];
       const excess = Math.min(r, b) - g;
       if (excess > 25) {
-        const cut = excess * 0.85;
-        out[i] = Math.round(r - cut);
-        out[i + 2] = Math.round(b - cut);
+        const t = Math.min(1, (excess - 25) / 60) * 0.9;
+        const grey = (r + g + b) / 3;
+        out[i] = Math.round(r + (grey - r) * t);
+        out[i + 1] = Math.round(g + (grey - g) * t);
+        out[i + 2] = Math.round(b + (grey - b) * t);
       }
     }
   }
@@ -121288,14 +121290,14 @@ init_zod();
 var MAX_SQUARES = 120;
 var TOKEN_CHARS = "123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
 function inPoly(x, y, pts) {
-  let inside = false;
+  let inside2 = false;
   for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
     const [xi, yi] = pts[i];
     const [xj, yj] = pts[j];
     if (yi > y !== yj > y && x < (xj - xi) * (y - yi) / (yj - yi) + xi)
-      inside = !inside;
+      inside2 = !inside2;
   }
-  return inside;
+  return inside2;
 }
 function regionChar(kinds) {
   const k = kinds.join(" ").toLowerCase();
@@ -123247,14 +123249,441 @@ var AnnotationTools = class {
   }
 };
 
-// dist/tools/actor-art-tools.js
+// dist/tools/image-edit-tools.js
 var import_fs6 = require("fs");
 var import_os4 = __toESM(require("os"), 1);
 var import_path5 = __toESM(require("path"), 1);
 var import_pngjs4 = __toESM(require_png(), 1);
 init_zod();
+
+// dist/tools/image-edit-utils.js
+function areaToPixels(area, image, squares) {
+  const units = area.units ?? (squares ? "squares" : "percent");
+  if (!!area.rect === !!area.polygon)
+    throw new Error("Give the area as either rect [x, y, width, height] or polygon [[x, y], ...]");
+  const pts = area.rect ? [[area.rect[0], area.rect[1]], [area.rect[0] + area.rect[2], area.rect[1]], [area.rect[0] + area.rect[2], area.rect[1] + area.rect[3]], [area.rect[0], area.rect[1] + area.rect[3]]] : area.polygon;
+  if (pts.length < 3)
+    throw new Error("A polygon needs at least three points");
+  const mapped = pts.map(([x, y]) => {
+    if (units === "pixels")
+      return [x, y];
+    if (units === "percent")
+      return [x / 100 * image.width, y / 100 * image.height];
+    if (!squares)
+      throw new Error("Squares only work for a scene image; use percent or pixels");
+    return [x * squares.perSquareX, y * squares.perSquareY];
+  });
+  const clamped = mapped.map(([x, y]) => [Math.max(0, Math.min(image.width, x)), Math.max(0, Math.min(image.height, y))]);
+  const bounds = polygonBox(clamped);
+  if (bounds.width < 8 || bounds.height < 8)
+    throw new Error("The area is too small (or outside the picture)");
+  return clamped;
+}
+function polygonBox(points2) {
+  const xs = points2.map((p) => p[0]);
+  const ys = points2.map((p) => p[1]);
+  const x = Math.min(...xs);
+  const y = Math.min(...ys);
+  return { x, y, width: Math.max(...xs) - x, height: Math.max(...ys) - y };
+}
+function inside(poly, x, y) {
+  let r = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const [xi, yi] = poly[i];
+    const [xj, yj] = poly[j];
+    if (yi > y !== yj > y && x < (xj - xi) * (y - yi) / (yj - yi) + xi)
+      r = !r;
+  }
+  return r;
+}
+function edgeDistance(poly, x, y) {
+  let best = Infinity;
+  for (let i = 0; i < poly.length; i++) {
+    const [ax, ay] = poly[i];
+    const [bx, by] = poly[(i + 1) % poly.length];
+    const dx = bx - ax;
+    const dy = by - ay;
+    const l2 = dx * dx + dy * dy;
+    const t = l2 ? Math.max(0, Math.min(1, ((x - ax) * dx + (y - ay) * dy) / l2)) : 0;
+    best = Math.min(best, Math.hypot(x - (ax + t * dx), y - (ay + t * dy)));
+  }
+  return best;
+}
+function drawOutline(image, poly, width) {
+  const out = { width: image.width, height: image.height, data: new Uint8Array(image.data) };
+  const half = Math.floor(width / 2);
+  const put = (x, y) => {
+    if (x < 0 || y < 0 || x >= out.width || y >= out.height)
+      return;
+    const i = (y * out.width + x) * 4;
+    out.data[i] = 255;
+    out.data[i + 1] = 0;
+    out.data[i + 2] = 0;
+    out.data[i + 3] = 255;
+  };
+  for (let k = 0; k < poly.length; k++) {
+    const [x1, y1] = poly[k];
+    const [x2, y2] = poly[(k + 1) % poly.length];
+    const steps = Math.max(1, Math.ceil(Math.hypot(x2 - x1, y2 - y1)));
+    for (let s = 0; s <= steps; s++) {
+      const x = Math.round(x1 + (x2 - x1) * s / steps);
+      const y = Math.round(y1 + (y2 - y1) * s / steps);
+      for (let dx = -half; dx <= half; dx++)
+        for (let dy = -half; dy <= half; dy++)
+          put(x + dx, y + dy);
+    }
+  }
+  return out;
+}
+function resizeBilinear(src, outW, outH) {
+  if (src.width === outW && src.height === outH)
+    return src;
+  const out = new Uint8Array(outW * outH * 4);
+  for (let y = 0; y < outH; y++) {
+    const fy = (y + 0.5) * src.height / outH - 0.5;
+    const y0 = Math.max(0, Math.floor(fy));
+    const y1 = Math.min(src.height - 1, y0 + 1);
+    const ty = Math.min(1, Math.max(0, fy - y0));
+    for (let x = 0; x < outW; x++) {
+      const fx = (x + 0.5) * src.width / outW - 0.5;
+      const x0 = Math.max(0, Math.floor(fx));
+      const x1 = Math.min(src.width - 1, x0 + 1);
+      const tx = Math.min(1, Math.max(0, fx - x0));
+      for (let c = 0; c < 4; c++) {
+        const a = src.data[(y0 * src.width + x0) * 4 + c];
+        const b = src.data[(y0 * src.width + x1) * 4 + c];
+        const d = src.data[(y1 * src.width + x0) * 4 + c];
+        const e = src.data[(y1 * src.width + x1) * 4 + c];
+        out[(y * outW + x) * 4 + c] = Math.round((a * (1 - tx) + b * tx) * (1 - ty) + (d * (1 - tx) + e * tx) * ty);
+      }
+    }
+  }
+  return { width: outW, height: outH, data: out };
+}
+function compositeArea(original, edited, poly, feather) {
+  const gen = resizeBilinear(edited, original.width, original.height);
+  const out = { width: original.width, height: original.height, data: new Uint8Array(original.data) };
+  const box = polygonBox(poly);
+  const x0 = Math.max(0, Math.floor(box.x));
+  const y0 = Math.max(0, Math.floor(box.y));
+  const x1 = Math.min(original.width - 1, Math.ceil(box.x + box.width));
+  const y1 = Math.min(original.height - 1, Math.ceil(box.y + box.height));
+  let areaPixels = 0;
+  for (let y = y0; y <= y1; y++) {
+    for (let x = x0; x <= x1; x++) {
+      if (!inside(poly, x + 0.5, y + 0.5))
+        continue;
+      const a = feather > 0 ? Math.min(1, edgeDistance(poly, x + 0.5, y + 0.5) / feather) : 1;
+      const i = (y * original.width + x) * 4;
+      for (let c = 0; c < 3; c++)
+        out.data[i + c] = Math.round(original.data[i + c] * (1 - a) + gen.data[i + c] * a);
+      areaPixels++;
+    }
+  }
+  return { image: out, areaPixels };
+}
+function cropBox(image, box) {
+  const x0 = Math.max(0, Math.floor(box.x));
+  const y0 = Math.max(0, Math.floor(box.y));
+  const x1 = Math.min(image.width, Math.ceil(box.x + box.width));
+  const y1 = Math.min(image.height, Math.ceil(box.y + box.height));
+  const w = Math.max(1, x1 - x0);
+  const h = Math.max(1, y1 - y0);
+  const out = new Uint8Array(w * h * 4);
+  for (let y = 0; y < h; y++) {
+    const from = ((y0 + y) * image.width + x0) * 4;
+    out.set(image.data.subarray(from, from + w * 4), y * w * 4);
+  }
+  return { width: w, height: h, data: out };
+}
+function beforeAfter(before, after, poly, maxWidth = 1500) {
+  const box = polygonBox(poly);
+  const margin = Math.max(box.width, box.height) * 0.12;
+  const around = { x: box.x - margin, y: box.y - margin, width: box.width + margin * 2, height: box.height + margin * 2 };
+  const a = cropBox(before, around);
+  const b = cropBox(after, around);
+  const gap = Math.max(4, Math.round(a.width * 0.02));
+  const width = a.width * 2 + gap;
+  const out = new Uint8Array(width * a.height * 4).fill(255);
+  for (let y = 0; y < a.height; y++) {
+    out.set(a.data.subarray(y * a.width * 4, (y + 1) * a.width * 4), y * width * 4);
+    out.set(b.data.subarray(y * b.width * 4, (y + 1) * b.width * 4), (y * width + a.width + gap) * 4);
+  }
+  const sheet = { width, height: a.height, data: out };
+  if (width <= maxWidth)
+    return sheet;
+  const scale = maxWidth / width;
+  return resizeBilinear(sheet, maxWidth, Math.max(1, Math.round(a.height * scale)));
+}
+function generationSize(image, maxSide = 2048) {
+  const scale = Math.min(1, maxSide / Math.max(image.width, image.height));
+  const round16 = (v) => Math.max(256, Math.min(maxSide, Math.round(v * scale / 16) * 16));
+  return { width: round16(image.width), height: round16(image.height) };
+}
+function buildEditPrompt(change) {
+  const what = change.trim().replace(/[.\s]+$/, "");
+  return `Edit <Picture 1> and keep the whole picture exactly as it is (same layout, art style, colours, lighting and framing) with one change inside the area marked by the red outline: ${what}. Remove the red outline completely and paint what is underneath it in the original style. Everything outside the marked area stays unchanged.`;
+}
+
+// dist/tools/image-edit-tools.js
+var KINDS2 = ["map", "portrait", "token", "handout"];
+var areaSchema = external_exports.object({
+  rect: external_exports.tuple([external_exports.number(), external_exports.number(), external_exports.number(), external_exports.number()]).optional(),
+  polygon: external_exports.array(external_exports.tuple([external_exports.number(), external_exports.number()])).min(3).max(200).optional(),
+  units: external_exports.enum(["squares", "percent", "pixels"]).optional()
+}).strict();
+var schema9 = external_exports.discriminatedUnion("action", [
+  external_exports.object({
+    action: external_exports.literal("edit"),
+    annotation: external_exports.string().min(1).optional(),
+    scene: external_exports.string().min(1).optional(),
+    image: external_exports.string().min(1).optional(),
+    area: areaSchema.optional(),
+    prompt: external_exports.string().min(3).max(1500).optional(),
+    kind: external_exports.enum(KINDS2).optional(),
+    feather: external_exports.number().min(0).max(200).optional(),
+    outline_width: external_exports.number().int().min(1).max(30).optional(),
+    seed: external_exports.number().int().min(0).optional()
+  }).strict(),
+  external_exports.object({
+    action: external_exports.literal("commit"),
+    result: external_exports.string().min(1),
+    apply: external_exports.enum(["scene", "file"]).optional(),
+    folder: external_exports.string().min(1).max(120).optional(),
+    filename: external_exports.string().min(1).max(120).optional(),
+    backup: external_exports.boolean().optional(),
+    resolve_note: external_exports.boolean().optional(),
+    reply: external_exports.string().max(2e3).optional()
+  }).strict()
+]);
+var UNIQUE = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+var ImageEditTools = class {
+  foundryClient;
+  logger;
+  generate;
+  upload;
+  pending = /* @__PURE__ */ new Map();
+  folder = import_path5.default.join(import_os4.default.tmpdir(), "foundry-mcp-edits");
+  constructor({ foundryClient, logger, generate, upload }) {
+    this.foundryClient = foundryClient;
+    this.logger = logger.child({ component: "ImageEditTools" });
+    this.generate = generate;
+    this.upload = upload;
+  }
+  getToolDefinitions() {
+    const areaProps = {
+      rect: { type: "array", items: { type: "number" }, minItems: 4, maxItems: 4, description: "[x, y, width, height]" },
+      polygon: { type: "array", items: { type: "array", items: { type: "number" }, minItems: 2, maxItems: 2 }, description: "[[x, y], ...] at least three corners" },
+      units: { type: "string", enum: ["squares", "percent", "pixels"], description: "squares (grid squares from the top-left of the map; scenes and notes, the default there), percent (0 to 100 of the picture; the default for other pictures) or pixels" }
+    };
+    return [
+      {
+        name: "edit-image-area",
+        description: 'Change one part of a picture (a map, a character, an item) with MiniMax H3 without touching the rest: the area is outlined in red on the whole picture, H3 redraws what is inside following your instruction and removes the outline, and ONLY the area is pasted back into the original (everything outside stays pixel-identical). action edit: say what to change in prompt (e.g. "add a wooden door in the middle of the stone wall and a short dirt passage joining the two rooms"; describe the result, not the edit steps) and where: annotation (the id of a "Notes for Claude" note: its area and text are used; prompt is optional and replaces the note text), or scene (a scene id or name: its map is edited; give area in grid squares), or image (a Foundry file path or an absolute path on this computer; give area as percent or pixels). area is {rect: [x, y, width, height]} or {polygon: [[x, y], ...]}; keep it a little larger than the change. Takes about two to three minutes. The result is NOT applied: it returns result (an id), a local picture path, and preview (before and after side by side): look at the preview, and edit again with a different prompt, area or seed if it is not right. action commit: result (the id from edit) uploads the picture and, for a scene, makes a backup copy of the scene (backup:false to skip) and sets the new picture as its map; the note is marked done (resolve_note:false to skip; reply is the message the GM sees). apply file only uploads and returns the Foundry path (use it for portraits, tokens and items). Walls, doors and lights are not changed: adjust them afterwards with the other scene tools.',
+        inputSchema: {
+          type: "object",
+          properties: {
+            action: { type: "string", enum: ["edit", "commit"] },
+            annotation: { type: "string", description: "edit: id of a note (annotations tool)" },
+            scene: { type: "string", description: "edit: scene id or exact name; its map is edited" },
+            image: { type: "string", description: "edit: Foundry file path (e.g. worlds/<world>/uploads/...) or absolute local path of a png or jpg" },
+            area: { type: "object", properties: areaProps, additionalProperties: false, description: "edit: where to change (not needed with annotation)" },
+            prompt: { type: "string", description: "edit: what the area should look like afterwards" },
+            kind: { type: "string", enum: [...KINDS2], description: "edit: image profile (default map)" },
+            feather: { type: "number", description: "edit: blend width in pixels at the edge of the area (default about 0.7% of the picture width)" },
+            outline_width: { type: "number", description: "edit: red outline thickness in pixels" },
+            seed: { type: "number", description: "edit: repeat or vary a result" },
+            result: { type: "string", description: "commit: the result id from edit" },
+            apply: { type: "string", enum: ["scene", "file"], description: "commit: scene (default for scene and note edits) or file" },
+            folder: { type: "string", description: "commit: folder below the world uploads (default: next to the original)" },
+            filename: { type: "string", description: "commit: file name (default: original name plus -edit)" },
+            backup: { type: "boolean", description: "commit: back the scene up first (default true)" },
+            resolve_note: { type: "boolean", description: "commit: mark the note done (default true)" },
+            reply: { type: "string", description: "commit: message shown with the note" }
+          },
+          required: ["action"],
+          additionalProperties: false
+        }
+      }
+    ];
+  }
+  async query(method, data, timeout) {
+    const result = await this.foundryClient.query(`foundry-mcp-bridge.${method}`, data, timeout);
+    if (result?.success === false)
+      throw new Error(result.error || "Request was refused");
+    return result;
+  }
+  async savePng(image, name) {
+    await import_fs6.promises.mkdir(this.folder, { recursive: true });
+    const png = new import_pngjs4.PNG({ width: image.width, height: image.height });
+    png.data = Buffer.from(image.data);
+    const file = import_path5.default.join(this.folder, name);
+    await import_fs6.promises.writeFile(file, import_pngjs4.PNG.sync.write(png));
+    return file;
+  }
+  /** Read a Foundry image or a local file into pixels. */
+  async load(source) {
+    if (import_path5.default.isAbsolute(source)) {
+      const d = await decodeImage(source);
+      return { image: { width: d.width, height: d.height, data: d.data } };
+    }
+    const file = await this.query("read-image-file", { path: source }, 6e4);
+    await import_fs6.promises.mkdir(this.folder, { recursive: true });
+    const ext = (source.split(".").pop() ?? "png").toLowerCase();
+    const temp = import_path5.default.join(this.folder, `source-${UNIQUE()}.${ext}`);
+    await import_fs6.promises.writeFile(temp, Buffer.from(file.imageData, "base64"));
+    try {
+      const d = await decodeImage(temp);
+      return { image: { width: d.width, height: d.height, data: d.data }, foundryPath: source };
+    } catch {
+      throw new Error("Only PNG and JPEG pictures can be edited (this one is another format, for example WebP)");
+    }
+  }
+  async edit(a) {
+    if (!this.generate)
+      throw new Error("Image generation is not available here");
+    const sources = [a.annotation, a.scene, a.image].filter(Boolean).length;
+    if (sources !== 1)
+      throw new Error("Give exactly one of annotation, scene or image");
+    let sceneInfo;
+    let areaDef = a.area;
+    let change = a.prompt;
+    let annotation;
+    let sourcePath = a.image;
+    if (a.annotation) {
+      const list = await this.query("annotations", { action: "list", status: "all" });
+      const note = (list.notes ?? []).find((n) => n.id === a.annotation);
+      if (!note)
+        throw new Error(`Note not found: ${a.annotation}`);
+      if (!note.area)
+        throw new Error("That note points at an object, not an area; give scene and area yourself");
+      areaDef = { polygon: note.area.points, units: "squares" };
+      change = change ?? note.prompt;
+      annotation = note.id;
+      sourcePath = void 0;
+      sceneInfo = await this.sceneDetails(note.scene.id);
+    } else if (a.scene) {
+      sceneInfo = await this.sceneDetails(a.scene);
+    }
+    if (!areaDef)
+      throw new Error("Give the area to change (rect or polygon)");
+    if (!change)
+      throw new Error("Say what to change (prompt)");
+    if (sceneInfo && !sceneInfo.background)
+      throw new Error("That scene has no map image");
+    const { image: original, foundryPath } = await this.load(sceneInfo ? sceneInfo.background : sourcePath);
+    const squares = sceneInfo ? { perSquareX: original.width / sceneInfo.columns, perSquareY: original.height / sceneInfo.rows } : void 0;
+    const poly = areaToPixels(areaDef, original, squares);
+    const outlineWidth = a.outline_width ?? Math.max(3, Math.round(Math.max(original.width, original.height) / 400));
+    const outlined = drawOutline(original, poly, outlineWidth);
+    const id2 = UNIQUE();
+    const refFile = await this.savePng(outlined, `ref-${id2}.png`);
+    const size = generationSize(original);
+    const generated = await this.generate({
+      kind: a.kind ?? "map",
+      name: `area-edit-${id2}`,
+      prompt: buildEditPrompt(change),
+      reference_images: [refFile],
+      width: size.width,
+      height: size.height,
+      upload: false,
+      ...a.seed !== void 0 ? { seed: a.seed } : {}
+    });
+    if (generated?.success === false || !generated?.local_path)
+      throw new Error(generated?.error || "The picture could not be generated");
+    const edited = await decodeImage(generated.local_path);
+    const feather = a.feather ?? Math.max(4, Math.round(original.width * 7e-3));
+    const { image: composite, areaPixels } = compositeArea(original, { width: edited.width, height: edited.height, data: edited.data }, poly, feather);
+    const compositeFile = await this.savePng(composite, `edit-${id2}.png`);
+    const previewFile = await this.savePng(beforeAfter(original, composite, poly), `preview-${id2}.png`);
+    this.pending.set(id2, {
+      id: id2,
+      composite: compositeFile,
+      source: {
+        type: sceneInfo ? "scene" : "image",
+        ...sceneInfo ? { scene: { id: sceneInfo.id, name: sceneInfo.name } } : {},
+        ...foundryPath ?? void 0 ? { foundryPath } : {},
+        ...annotation ? { annotation } : {}
+      }
+    });
+    for (const old of [...this.pending.keys()].slice(0, -20))
+      this.pending.delete(old);
+    return {
+      success: true,
+      result: id2,
+      picture: compositeFile,
+      preview: previewFile,
+      generated: generated.local_path,
+      size: `${original.width}x${original.height}`,
+      areaPixels,
+      ...a.seed !== void 0 ? { seed: a.seed } : generated.seed !== void 0 ? { seed: generated.seed } : {},
+      ...sceneInfo ? { scene: { id: sceneInfo.id, name: sceneInfo.name } } : {},
+      ...annotation ? { annotation } : {},
+      next: "Open preview (before | after of the area). If it is right, commit with this result; otherwise edit again with another prompt, area or seed."
+    };
+  }
+  async sceneDetails(identifier) {
+    const described = await this.query("manage-scenes", { action: "describe", scene_identifier: identifier });
+    const s = described.scene;
+    if (!s)
+      throw new Error(`Scene not found: "${identifier}"`);
+    const size = Number(s.grid?.size) || 100;
+    return { id: s.id, name: s.name, background: s.background ?? "", columns: Math.max(1, Math.round(Number(s.width) / size)), rows: Math.max(1, Math.round(Number(s.height) / size)) };
+  }
+  async commit(a) {
+    if (!this.upload)
+      throw new Error("Upload is not available here");
+    const p = this.pending.get(a.result);
+    if (!p)
+      throw new Error(`Unknown result "${a.result}"; run edit first (results are forgotten when the server restarts)`);
+    const apply = a.apply ?? (p.source.type === "scene" ? "scene" : "file");
+    if (apply === "scene" && !p.source.scene)
+      throw new Error("This edit did not come from a scene; use apply file");
+    const original = p.source.foundryPath ?? p.source.scene?.name ?? "image";
+    const stem = import_path5.default.basename(original).replace(/\.[^.]+$/, "").replace(/[^A-Za-z0-9_-]+/g, "-").slice(0, 60) || "image";
+    const fromUploads = /^worlds\/[^/]+\/uploads\/(.+)\/[^/]+$/.exec(p.source.foundryPath ?? "");
+    const folder = a.folder ?? fromUploads?.[1] ?? "edits";
+    const filename = a.filename ?? `${stem.replace(/-edit-[a-z0-9]+$/, "")}-edit-${UNIQUE()}.png`;
+    let backup;
+    if (apply === "scene" && a.backup !== false) {
+      backup = await this.query("manage-scene-backups", { action: "backup", scene: p.source.scene.id, label: "before area edit" });
+    }
+    const uploaded = await this.upload({ file_path: p.composite, folder, filename });
+    if (uploaded?.success === false || !uploaded?.path)
+      throw new Error(uploaded?.error || "The picture could not be uploaded");
+    const out = { success: true, path: uploaded.path };
+    if (apply === "scene") {
+      await this.query("manage-scenes", { action: "update", scene_identifier: p.source.scene.id, background: uploaded.path });
+      out.scene = p.source.scene;
+      out.backup = backup?.backup ?? backup?.scene ?? (backup ? "made" : "skipped");
+    }
+    if (p.source.annotation && a.resolve_note !== false) {
+      await this.query("annotations", {
+        action: "resolve",
+        ids: [p.source.annotation],
+        status: "done",
+        reply: a.reply ?? (apply === "scene" ? "Redrew the area on the map as requested." : "Redrew the area as requested.")
+      });
+      out.noteResolved = p.source.annotation;
+    }
+    this.pending.delete(a.result);
+    return out;
+  }
+  async handle(args) {
+    const a = schema9.parse(args ?? {});
+    this.logger.info("Edit image area", { action: a.action });
+    return a.action === "edit" ? this.edit(a) : this.commit(a);
+  }
+};
+
+// dist/tools/actor-art-tools.js
+var import_fs7 = require("fs");
+var import_os5 = __toESM(require("os"), 1);
+var import_path6 = __toESM(require("path"), 1);
+var import_pngjs5 = __toESM(require_png(), 1);
+init_zod();
 var MAX_ACTORS = 2;
-var schema9 = external_exports.object({
+var schema10 = external_exports.object({
   actors: external_exports.array(external_exports.object({
     actor: external_exports.string().min(1),
     prompt: external_exports.string().min(3).max(1500).optional(),
@@ -123277,7 +123706,7 @@ var ActorArtTools = class {
   logger;
   generate;
   upload;
-  folder = import_path5.default.join(import_os4.default.tmpdir(), "foundry-mcp-actor-art");
+  folder = import_path6.default.join(import_os5.default.tmpdir(), "foundry-mcp-actor-art");
   constructor({ foundryClient, logger, generate, upload }) {
     this.foundryClient = foundryClient;
     this.logger = logger.child({ component: "ActorArtTools" });
@@ -123360,11 +123789,11 @@ var ActorArtTools = class {
       const picture = await decodeImage(generated.local_path);
       const keyed = keyOutBackground({ width: picture.width, height: picture.height, data: picture.data }, { removeEnclosed: true });
       const square = downscale(padToSquare({ width: keyed.width, height: keyed.height, data: keyed.data }), options.tokenSize);
-      const png = new import_pngjs4.PNG({ width: square.width, height: square.height });
+      const png = new import_pngjs5.PNG({ width: square.width, height: square.height });
       png.data = Buffer.from(square.data);
-      await import_fs6.promises.mkdir(this.folder, { recursive: true });
-      const local = import_path5.default.join(this.folder, `${slug2}-token-${Date.now().toString(36)}.png`);
-      await import_fs6.promises.writeFile(local, import_pngjs4.PNG.sync.write(png));
+      await import_fs7.promises.mkdir(this.folder, { recursive: true });
+      const local = import_path6.default.join(this.folder, `${slug2}-token-${Date.now().toString(36)}.png`);
+      await import_fs7.promises.writeFile(local, import_pngjs5.PNG.sync.write(png));
       const uploaded = await this.upload({ file_path: local, folder: where, filename: "token.png", overwrite: true });
       if (uploaded?.success === false || !uploaded?.path)
         throw new Error(uploaded?.error || "The token could not be uploaded");
@@ -123387,7 +123816,7 @@ var ActorArtTools = class {
     return result;
   }
   async handleMakeActorArt(args) {
-    const a = schema9.parse(args ?? {});
+    const a = schema10.parse(args ?? {});
     const options = {
       style: a.style,
       portraitSize: a.portrait_size ?? 1024,
@@ -123435,7 +123864,7 @@ var musicSchema = external_exports.object({
   clear: external_exports.boolean().optional(),
   play: external_exports.boolean().optional()
 }).strict();
-var schema10 = external_exports.object({
+var schema11 = external_exports.object({
   scene: external_exports.string().min(1),
   action: external_exports.enum(["apply", "describe"]).optional(),
   music: musicSchema.optional(),
@@ -123443,8 +123872,8 @@ var schema10 = external_exports.object({
   replace_ambient: external_exports.boolean().optional(),
   clear_ambient: external_exports.boolean().optional()
 }).strict();
-function soundNameFromPath(path13) {
-  const file = path13.split("/").pop() ?? path13;
+function soundNameFromPath(path14) {
+  const file = path14.split("/").pop() ?? path14;
   const base = file.replace(/\.[^.]+$/, "");
   const name = base.replace(/[-_]+/g, " ").replace(/\s+/g, " ").trim();
   return name || "Sound";
@@ -123529,7 +123958,7 @@ var SceneSoundTools = class {
     };
   }
   async handleSetupSceneSound(args) {
-    const a = schema10.parse(args ?? {});
+    const a = schema11.parse(args ?? {});
     const action = a.action ?? "apply";
     if (action === "describe") {
       try {
@@ -123563,9 +123992,9 @@ var SceneSoundTools = class {
         let soundToStart = music.sound;
         if (music.files) {
           const repeat = music.repeat ?? music.files.length === 1;
-          const entry = (path13) => ({
-            path: path13,
-            name: soundNameFromPath(path13),
+          const entry = (path14) => ({
+            path: path14,
+            name: soundNameFromPath(path14),
             repeat,
             ...music.volume !== void 0 ? { volume: music.volume } : {}
           });
@@ -123625,8 +124054,8 @@ var SceneSoundTools = class {
 };
 
 // dist/tools/layout.js
-var import_fs8 = require("fs");
-var import_path7 = __toESM(require("path"), 1);
+var import_fs9 = require("fs");
+var import_path8 = __toESM(require("path"), 1);
 init_zod();
 
 // dist/tools/layout-utils.js
@@ -123945,23 +124374,23 @@ var CELL = 2;
 function wallsFromLayout(layout) {
   const w = layout.columns * CELL;
   const h = layout.rows * CELL;
-  const inside = new Uint8Array(w * h);
+  const inside2 = new Uint8Array(w * h);
   const isWall = new Set(layout.wallFills);
   if (isWall.has(layout.background))
-    inside.fill(1);
+    inside2.fill(1);
   for (const shape of layout.shapes) {
     if (shape.shape === "door")
       continue;
     const value = isWall.has(shape.fill ?? "floor") ? 1 : 0;
     for (const poly of shapePolygons(shape, CELL)) {
-      scanPolygon(poly, w, h, (y, x0, x1) => inside.fill(value, y * w + x0, y * w + x1 + 1));
+      scanPolygon(poly, w, h, (y, x0, x1) => inside2.fill(value, y * w + x0, y * w + x1 + 1));
     }
   }
   const edges = /* @__PURE__ */ new Set();
-  const at = (x, y) => x < 0 || y < 0 || x >= w || y >= h ? 0 : inside[y * w + x];
+  const at = (x, y) => x < 0 || y < 0 || x >= w || y >= h ? 0 : inside2[y * w + x];
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
-      if (!inside[y * w + x])
+      if (!inside2[y * w + x])
         continue;
       if (!at(x, y - 1))
         edges.add(`h,${x},${y}`);
@@ -124236,25 +124665,25 @@ function doorPortals(shapes) {
       }
     }
     let outside;
-    let inside;
+    let inside2;
     const cell = (v) => Math.floor(v) + 0.5;
     if (side === "n")
-      [outside, inside] = [[along(x), Math.round(y) - 0.5], [along(x), Math.round(y) + 0.5]];
+      [outside, inside2] = [[along(x), Math.round(y) - 0.5], [along(x), Math.round(y) + 0.5]];
     else if (side === "s")
-      [outside, inside] = [[along(x), Math.round(y) + 0.5], [along(x), Math.round(y) - 0.5]];
+      [outside, inside2] = [[along(x), Math.round(y) + 0.5], [along(x), Math.round(y) - 0.5]];
     else if (side === "w")
-      [outside, inside] = [[Math.round(x) - 0.5, along(y)], [Math.round(x) + 0.5, along(y)]];
+      [outside, inside2] = [[Math.round(x) - 0.5, along(y)], [Math.round(x) + 0.5, along(y)]];
     else if (side === "e")
-      [outside, inside] = [[Math.round(x) + 0.5, along(y)], [Math.round(x) - 0.5, along(y)]];
+      [outside, inside2] = [[Math.round(x) + 0.5, along(y)], [Math.round(x) - 0.5, along(y)]];
     else if (horizontal)
-      [outside, inside] = [[along(x), Math.round(y) - 0.5], [along(x), Math.round(y) + 0.5]];
+      [outside, inside2] = [[along(x), Math.round(y) - 0.5], [along(x), Math.round(y) + 0.5]];
     else
-      [outside, inside] = [[Math.round(x) - 0.5, along(y)], [Math.round(x) + 0.5, along(y)]];
+      [outside, inside2] = [[Math.round(x) - 0.5, along(y)], [Math.round(x) + 0.5, along(y)]];
     portals.push({
       door: s.id ?? null,
       centre,
       outside,
-      inside,
+      inside: inside2,
       building: owner?.id ?? null,
       buildingLabel: owner?.label ?? null,
       secret: !!s.secret,
@@ -124510,7 +124939,7 @@ function resolveShape(layout, ref) {
   }
   return { shape: pool[0].s, index: pool[0].i };
 }
-function edgeDistance(r) {
+function edgeDistance2(r) {
   const { columns, rows } = r;
   const dist2 = new Uint8Array(columns * rows);
   const standCell = (c, row2) => isStandAt(r, c + 0.5, row2 + 0.5);
@@ -124557,7 +124986,7 @@ function edgeDistance(r) {
 function pickSpots(layout, r, shapeIndex, count, options = {}) {
   const fw = Math.max(1, Math.round(options.width ?? 1));
   const fh = Math.max(1, Math.round(options.height ?? 1));
-  const dist2 = edgeDistance(r);
+  const dist2 = edgeDistance2(r);
   const taken = options.taken ?? /* @__PURE__ */ new Set();
   const candidates = [];
   for (let row2 = 0; row2 + fh <= r.rows; row2++) {
@@ -124749,9 +125178,9 @@ function alignToImage(layout, image, maxShift = 1.5) {
 }
 
 // dist/tools/layout-doc.js
-var import_fs7 = require("fs");
-var import_os5 = __toESM(require("os"), 1);
-var import_path6 = __toESM(require("path"), 1);
+var import_fs8 = require("fs");
+var import_os6 = __toESM(require("os"), 1);
+var import_path7 = __toESM(require("path"), 1);
 var MAX_DOC_SHAPES = 600;
 var MAX_HISTORY = 40;
 function slug(name) {
@@ -124761,13 +125190,13 @@ var LayoutStore = class {
   dir;
   cache = /* @__PURE__ */ new Map();
   constructor(dir) {
-    this.dir = dir ?? import_path6.default.join(import_os5.default.tmpdir(), "foundry-mcp-layouts");
+    this.dir = dir ?? import_path7.default.join(import_os6.default.tmpdir(), "foundry-mcp-layouts");
   }
   get folder() {
     return this.dir;
   }
   file(id2) {
-    return import_path6.default.join(this.dir, `${id2}.layout.json`);
+    return import_path7.default.join(this.dir, `${id2}.layout.json`);
   }
   async load(id2) {
     const key = slug(id2);
@@ -124775,7 +125204,7 @@ var LayoutStore = class {
     if (hit)
       return hit;
     try {
-      const doc = JSON.parse(await import_fs7.promises.readFile(this.file(key), "utf8"));
+      const doc = JSON.parse(await import_fs8.promises.readFile(this.file(key), "utf8"));
       this.cache.set(key, doc);
       return doc;
     } catch {
@@ -124783,13 +125212,13 @@ var LayoutStore = class {
     }
   }
   async save(doc) {
-    await import_fs7.promises.mkdir(this.dir, { recursive: true });
+    await import_fs8.promises.mkdir(this.dir, { recursive: true });
     this.cache.set(doc.id, doc);
-    await import_fs7.promises.writeFile(this.file(doc.id), JSON.stringify(doc));
+    await import_fs8.promises.writeFile(this.file(doc.id), JSON.stringify(doc));
   }
   async exists(id2) {
     try {
-      await import_fs7.promises.access(this.file(slug(id2)));
+      await import_fs8.promises.access(this.file(slug(id2)));
       return true;
     } catch {
       return false;
@@ -124797,7 +125226,7 @@ var LayoutStore = class {
   }
   async list() {
     try {
-      const files = (await import_fs7.promises.readdir(this.dir)).filter((f) => f.endsWith(".layout.json"));
+      const files = (await import_fs8.promises.readdir(this.dir)).filter((f) => f.endsWith(".layout.json"));
       const out = [];
       for (const f of files) {
         const doc = await this.load(f.replace(".layout.json", ""));
@@ -124811,7 +125240,7 @@ var LayoutStore = class {
   async remove(id2) {
     const key = slug(id2);
     this.cache.delete(key);
-    await import_fs7.promises.rm(this.file(key), { force: true });
+    await import_fs8.promises.rm(this.file(key), { force: true });
   }
 };
 function layoutOf(doc) {
@@ -125142,10 +125571,10 @@ async function renderPreview(doc, opts = {}) {
       for (let x = 0; x < width; x++) {
         const rx = Math.floor(ox + (x + 0.5) * per);
         const o = (y * width + x) * 3;
-        const inside = rx >= 0 && ry >= 0 && rx < ref.width && ry < ref.height;
-        const r = inside ? ref.data[(ry * ref.width + rx) * 4] : 255;
-        const g = inside ? ref.data[(ry * ref.width + rx) * 4 + 1] : 255;
-        const b = inside ? ref.data[(ry * ref.width + rx) * 4 + 2] : 255;
+        const inside2 = rx >= 0 && ry >= 0 && rx < ref.width && ry < ref.height;
+        const r = inside2 ? ref.data[(ry * ref.width + rx) * 4] : 255;
+        const g = inside2 ? ref.data[(ry * ref.width + rx) * 4 + 1] : 255;
+        const b = inside2 ? ref.data[(ry * ref.width + rx) * 4 + 2] : 255;
         const isBg = img.rgb[o] === bg[0] && img.rgb[o + 1] === bg[1] && img.rgb[o + 2] === bg[2];
         const a = isBg || opts.hide_shapes ? 0 : 0.5;
         img.rgb[o] = Math.round(r * (1 - a) + img.rgb[o] * a);
@@ -125240,7 +125669,7 @@ var region = external_exports.object({
   width: external_exports.number().min(1),
   height: external_exports.number().min(1)
 }).strict();
-var schema11 = external_exports.object({
+var schema12 = external_exports.object({
   action: external_exports.enum(["new", "add", "update", "remove", "show", "render", "walls", "apply_walls", "check", "place", "lights", "align", "build", "portals", "set", "undo", "redo", "list", "delete"]),
   layout: external_exports.string().min(1).optional(),
   name: external_exports.string().min(1).max(60).optional(),
@@ -125423,7 +125852,7 @@ var LayoutTools = class {
     ];
   }
   async handleLayout(args) {
-    const a = schema11.parse(args ?? {});
+    const a = schema12.parse(args ?? {});
     switch (a.action) {
       case "list":
         return { success: true, layouts: await this.store.list(), folder: this.store.folder };
@@ -126011,21 +126440,21 @@ var LayoutTools = class {
     };
   }
   async writePicture(doc, kind, png) {
-    await import_fs8.promises.mkdir(this.store.folder, { recursive: true });
-    const file = import_path7.default.join(this.store.folder, `${doc.id}-${kind}-${Date.now()}.png`);
-    await import_fs8.promises.writeFile(file, png);
+    await import_fs9.promises.mkdir(this.store.folder, { recursive: true });
+    const file = import_path8.default.join(this.store.folder, `${doc.id}-${kind}-${Date.now()}.png`);
+    await import_fs9.promises.writeFile(file, png);
     await this.prune();
     return file;
   }
   async prune() {
     try {
-      const files = (await import_fs8.promises.readdir(this.store.folder)).filter((f) => f.endsWith(".png"));
+      const files = (await import_fs9.promises.readdir(this.store.folder)).filter((f) => f.endsWith(".png"));
       if (files.length <= KEEP_PICTURES)
         return;
-      const stats = await Promise.all(files.map(async (f) => ({ f, t: (await import_fs8.promises.stat(import_path7.default.join(this.store.folder, f))).mtimeMs })));
+      const stats = await Promise.all(files.map(async (f) => ({ f, t: (await import_fs9.promises.stat(import_path8.default.join(this.store.folder, f))).mtimeMs })));
       stats.sort((x, y) => x.t - y.t);
       for (const { f } of stats.slice(0, files.length - KEEP_PICTURES)) {
-        await import_fs8.promises.rm(import_path7.default.join(this.store.folder, f), { force: true });
+        await import_fs9.promises.rm(import_path8.default.join(this.store.folder, f), { force: true });
       }
     } catch {
     }
@@ -126148,11 +126577,11 @@ var InspectTools = class {
 var DISABLED_LEGACY_MAP_TOOLS = ["generate-map", "check-map-status", "cancel-map-job"];
 var CONTROL_HOST = "127.0.0.1";
 var CONTROL_PORT = 31414;
-var LOCK_FILE = path12.join(os6.tmpdir(), "foundry-mcp-backend.lock");
+var LOCK_FILE = path13.join(os7.tmpdir(), "foundry-mcp-backend.lock");
 function getBundledPythonPath() {
-  let installDir = path12.join(os6.homedir(), "AppData", "Local", "FoundryMCPServer");
+  let installDir = path13.join(os7.homedir(), "AppData", "Local", "FoundryMCPServer");
   const currentDir = process.cwd();
-  const execDir = path12.dirname(process.execPath);
+  const execDir = path13.dirname(process.execPath);
   if (currentDir.includes("FoundryMCPServer") || execDir.includes("FoundryMCPServer")) {
     const foundryMcpIndex = currentDir.indexOf("FoundryMCPServer");
     if (foundryMcpIndex !== -1) {
@@ -126164,30 +126593,30 @@ function getBundledPythonPath() {
       }
     }
   }
-  const nestedComfyUIPythonPath = path12.join(installDir, "ComfyUI", "ComfyUI", "python_embeded", "python.exe");
-  if (fs12.existsSync(nestedComfyUIPythonPath)) {
+  const nestedComfyUIPythonPath = path13.join(installDir, "ComfyUI", "ComfyUI", "python_embeded", "python.exe");
+  if (fs13.existsSync(nestedComfyUIPythonPath)) {
     return nestedComfyUIPythonPath;
   }
-  const portablePythonPath = path12.join(installDir, "ComfyUI", "python_embeded", "python.exe");
-  if (fs12.existsSync(portablePythonPath)) {
+  const portablePythonPath = path13.join(installDir, "ComfyUI", "python_embeded", "python.exe");
+  if (fs13.existsSync(portablePythonPath)) {
     return portablePythonPath;
   }
-  const bundledPythonPath = path12.join(installDir, "ComfyUI-env", "Scripts", "python.exe");
-  if (fs12.existsSync(bundledPythonPath)) {
+  const bundledPythonPath = path13.join(installDir, "ComfyUI-env", "Scripts", "python.exe");
+  if (fs13.existsSync(bundledPythonPath)) {
     return bundledPythonPath;
   }
   const fallbackPaths = [
-    path12.join(os6.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI", "ComfyUI", "python_embeded", "python.exe"),
-    path12.join(os6.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI-headless", "ComfyUI", "python_embeded", "python.exe"),
-    path12.join(os6.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI", "python_embeded", "python.exe"),
-    path12.join(os6.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI-headless", "python_embeded", "python.exe"),
-    path12.join(os6.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI-env", "Scripts", "python.exe"),
-    path12.join(process.cwd(), "..", "..", "ComfyUI-env", "Scripts", "python.exe"),
-    path12.join(__dirname, "..", "..", "..", "ComfyUI-env", "Scripts", "python.exe"),
-    path12.join(os6.homedir(), "AppData", "Local", "FoundryMCPServer", "Python", "python.exe")
+    path13.join(os7.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI", "ComfyUI", "python_embeded", "python.exe"),
+    path13.join(os7.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI-headless", "ComfyUI", "python_embeded", "python.exe"),
+    path13.join(os7.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI", "python_embeded", "python.exe"),
+    path13.join(os7.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI-headless", "python_embeded", "python.exe"),
+    path13.join(os7.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI-env", "Scripts", "python.exe"),
+    path13.join(process.cwd(), "..", "..", "ComfyUI-env", "Scripts", "python.exe"),
+    path13.join(__dirname, "..", "..", "..", "ComfyUI-env", "Scripts", "python.exe"),
+    path13.join(os7.homedir(), "AppData", "Local", "FoundryMCPServer", "Python", "python.exe")
   ];
   for (const fallbackPath of fallbackPaths) {
-    if (fs12.existsSync(fallbackPath)) {
+    if (fs13.existsSync(fallbackPath)) {
       return fallbackPath;
     }
   }
@@ -126212,39 +126641,39 @@ var lockFd = null;
 function acquireLock() {
   try {
     try {
-      lockFd = fs12.openSync(LOCK_FILE, "wx");
+      lockFd = fs13.openSync(LOCK_FILE, "wx");
     } catch (err) {
       if (err && err.code === "EEXIST") {
         try {
-          const lockData = fs12.readFileSync(LOCK_FILE, "utf8");
+          const lockData = fs13.readFileSync(LOCK_FILE, "utf8");
           const lockPid = parseInt(lockData.trim(), 10);
           try {
             process.kill(lockPid, 0);
             if (evaluateLockFile(lockPid, LOCK_FILE) === "orphaned") {
               console.error(`Removing orphaned backend lock for PID ${lockPid} (process is not node.exe or lock file is stale)`);
               try {
-                fs12.unlinkSync(LOCK_FILE);
+                fs13.unlinkSync(LOCK_FILE);
               } catch {
               }
-              lockFd = fs12.openSync(LOCK_FILE, "wx");
+              lockFd = fs13.openSync(LOCK_FILE, "wx");
             } else {
               return false;
             }
           } catch {
             console.error(`Removing stale backend lock for PID ${lockPid}`);
             try {
-              fs12.unlinkSync(LOCK_FILE);
+              fs13.unlinkSync(LOCK_FILE);
             } catch {
             }
-            lockFd = fs12.openSync(LOCK_FILE, "wx");
+            lockFd = fs13.openSync(LOCK_FILE, "wx");
           }
         } catch (readErr) {
           console.error("Corrupt backend lock file, removing:", readErr);
           try {
-            fs12.unlinkSync(LOCK_FILE);
+            fs13.unlinkSync(LOCK_FILE);
           } catch {
           }
-          lockFd = fs12.openSync(LOCK_FILE, "wx");
+          lockFd = fs13.openSync(LOCK_FILE, "wx");
         }
       } else {
         console.error("Failed to open backend lock file:", err);
@@ -126253,9 +126682,9 @@ function acquireLock() {
     }
     if (lockFd === null)
       return false;
-    fs12.writeFileSync(lockFd, String(process.pid));
+    fs13.writeFileSync(lockFd, String(process.pid));
     try {
-      fs12.fsyncSync(lockFd);
+      fs13.fsyncSync(lockFd);
     } catch {
     }
     console.error(`Acquired backend lock with PID ${process.pid}`);
@@ -126269,14 +126698,14 @@ function releaseLock() {
   try {
     if (lockFd !== null) {
       try {
-        fs12.closeSync(lockFd);
+        fs13.closeSync(lockFd);
       } catch {
       }
       lockFd = null;
     }
-    if (fs12.existsSync(LOCK_FILE)) {
+    if (fs13.existsSync(LOCK_FILE)) {
       try {
-        fs12.unlinkSync(LOCK_FILE);
+        fs13.unlinkSync(LOCK_FILE);
       } catch {
       }
     }
@@ -126285,20 +126714,20 @@ function releaseLock() {
   }
 }
 async function findComfyUIPath() {
-  const nestedComfyUIPath = path12.join(os6.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI", "ComfyUI");
-  if (fs12.existsSync(path12.join(nestedComfyUIPath, "main.py"))) {
+  const nestedComfyUIPath = path13.join(os7.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI", "ComfyUI");
+  if (fs13.existsSync(path13.join(nestedComfyUIPath, "main.py"))) {
     return nestedComfyUIPath;
   }
-  const nestedHeadlessPath = path12.join(os6.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI-headless", "ComfyUI");
-  if (fs12.existsSync(path12.join(nestedHeadlessPath, "main.py"))) {
+  const nestedHeadlessPath = path13.join(os7.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI-headless", "ComfyUI");
+  if (fs13.existsSync(path13.join(nestedHeadlessPath, "main.py"))) {
     return nestedHeadlessPath;
   }
-  const flatPath = path12.join(os6.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI");
-  if (fs12.existsSync(path12.join(flatPath, "main.py"))) {
+  const flatPath = path13.join(os7.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI");
+  if (fs13.existsSync(path13.join(flatPath, "main.py"))) {
     return flatPath;
   }
-  const legacyFlatPath = path12.join(os6.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI-headless");
-  if (fs12.existsSync(path12.join(legacyFlatPath, "main.py"))) {
+  const legacyFlatPath = path13.join(os7.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI-headless");
+  if (fs13.existsSync(path13.join(legacyFlatPath, "main.py"))) {
     return legacyFlatPath;
   }
   throw new Error("ComfyUI installation not found");
@@ -126338,7 +126767,7 @@ async function startComfyUIService(logger) {
     logger.info("Starting ComfyUI service...");
     const comfyUIPath = await findComfyUIPath();
     logger.info("ComfyUI found", { path: comfyUIPath });
-    logger.info("Starting ComfyUI process", { path: path12.join(comfyUIPath, "main.py") });
+    logger.info("Starting ComfyUI process", { path: path13.join(comfyUIPath, "main.py") });
     const pythonExe = getBundledPythonPath();
     logger.info("Using bundled Python", { pythonPath: pythonExe });
     comfyuiProcess = (0, import_child_process3.spawn)(pythonExe, [
@@ -126739,9 +127168,9 @@ async function processMapGenerationInBackend(jobId, jobQueue, comfyuiClient, log
 `);
     await fs22.appendFile(processDebugLog, `[${(/* @__PURE__ */ new Date()).toISOString()}] About to import fs/path/os for upload...
 `);
-    const fs13 = await import("fs").then((m) => m.promises);
-    const path13 = await import("path");
-    const os7 = await import("os");
+    const fs14 = await import("fs").then((m) => m.promises);
+    const path14 = await import("path");
+    const os8 = await import("os");
     await fs22.appendFile(processDebugLog, `[${(/* @__PURE__ */ new Date()).toISOString()}] Imports complete
 `);
     await fs22.appendFile(processDebugLog, `[${(/* @__PURE__ */ new Date()).toISOString()}] Creating filename and checking connection type...
@@ -126766,8 +127195,8 @@ async function processMapGenerationInBackend(jobId, jobQueue, comfyuiClient, log
     await fs22.appendFile(processDebugLog, `[${(/* @__PURE__ */ new Date()).toISOString()}] Using upload method for all connections
 `);
     const debugLog = async (msg) => {
-      const logPath = path13.join(os7.tmpdir(), "foundry-mcp-upload-debug.log");
-      await fs13.appendFile(logPath, `[${(/* @__PURE__ */ new Date()).toISOString()}] ${msg}
+      const logPath = path14.join(os8.tmpdir(), "foundry-mcp-upload-debug.log");
+      await fs14.appendFile(logPath, `[${(/* @__PURE__ */ new Date()).toISOString()}] ${msg}
 `);
     };
     await debugLog(`=== MAP GENERATION DEBUG START ===`);
@@ -126886,7 +127315,7 @@ async function startBackend() {
     format: config.logFormat,
     enableConsole: false,
     enableFile: true,
-    filePath: path12.join(os6.tmpdir(), "foundry-mcp-server", "mcp-server.log")
+    filePath: path13.join(os7.tmpdir(), "foundry-mcp-server", "mcp-server.log")
   });
   logger.info("Starting Foundry MCP Backend", {
     version: config.server.version,
@@ -126956,6 +127385,12 @@ async function startBackend() {
   const tableTools = new TableTools({ foundryClient, logger });
   const revealTools = new RevealTools({ foundryClient, logger });
   const annotationTools = new AnnotationTools({ foundryClient, logger });
+  const imageEditTools = new ImageEditTools({
+    foundryClient,
+    logger,
+    generate: (args) => imageGenerationTools.handleGenerateImage(args),
+    upload: (args) => uploadTools.handleUploadFile(args)
+  });
   const actorArtTools = new ActorArtTools({
     foundryClient,
     logger,
@@ -127016,11 +127451,11 @@ async function startBackend() {
   }
   globalThis.backendComfyUIHandlers = {
     handleMessage: async (message) => {
-      const fs13 = await import("fs").then((m) => m.promises);
-      const path13 = await import("path");
-      const os7 = await import("os");
-      const debugLog = path13.join(os7.tmpdir(), "backend-handler-debug.log");
-      await fs13.appendFile(debugLog, `[${(/* @__PURE__ */ new Date()).toISOString()}] handleMessage called - type: ${message?.type}, requestId: ${message?.requestId}
+      const fs14 = await import("fs").then((m) => m.promises);
+      const path14 = await import("path");
+      const os8 = await import("os");
+      const debugLog = path14.join(os8.tmpdir(), "backend-handler-debug.log");
+      await fs14.appendFile(debugLog, `[${(/* @__PURE__ */ new Date()).toISOString()}] handleMessage called - type: ${message?.type}, requestId: ${message?.requestId}
 `);
       logger.info("Handling ComfyUI message", {
         requestId: message.requestId,
@@ -127028,11 +127463,11 @@ async function startBackend() {
         hasData: !!message.data
       });
       try {
-        const fs14 = await import("fs").then((m) => m.promises);
-        const path14 = await import("path");
-        const os8 = await import("os");
-        const debugLog2 = path14.join(os8.tmpdir(), "backend-handler-debug.log");
-        await fs14.appendFile(debugLog2, `[${(/* @__PURE__ */ new Date()).toISOString()}] About to switch on message.type: "${message.type}"
+        const fs15 = await import("fs").then((m) => m.promises);
+        const path15 = await import("path");
+        const os9 = await import("os");
+        const debugLog2 = path15.join(os9.tmpdir(), "backend-handler-debug.log");
+        await fs15.appendFile(debugLog2, `[${(/* @__PURE__ */ new Date()).toISOString()}] About to switch on message.type: "${message.type}"
 `);
         let result;
         try {
@@ -127061,10 +127496,10 @@ async function startBackend() {
             }
             break;
           case "generate-map-request":
-            await fs14.appendFile(debugLog2, `[${(/* @__PURE__ */ new Date()).toISOString()}] Matched generate-map-request case, calling handler...
+            await fs15.appendFile(debugLog2, `[${(/* @__PURE__ */ new Date()).toISOString()}] Matched generate-map-request case, calling handler...
 `);
             result = await handleGenerateMapRequest(message, mapGenerationJobQueue, mapGenerationComfyUIClient, logger, foundryClient);
-            await fs14.appendFile(debugLog2, `[${(/* @__PURE__ */ new Date()).toISOString()}] Handler returned: ${JSON.stringify(result)}
+            await fs15.appendFile(debugLog2, `[${(/* @__PURE__ */ new Date()).toISOString()}] Handler returned: ${JSON.stringify(result)}
 `);
             break;
           case "check-map-status-request":
@@ -127139,6 +127574,7 @@ async function startBackend() {
     ...tableTools.getToolDefinitions(),
     ...revealTools.getToolDefinitions(),
     ...annotationTools.getToolDefinitions(),
+    ...imageEditTools.getToolDefinitions(),
     ...actorArtTools.getToolDefinitions(),
     ...sceneSoundTools.getToolDefinitions(),
     ...layoutTools.getToolDefinitions(),
@@ -127390,6 +127826,9 @@ async function startBackend() {
                   break;
                 case "make-actor-art":
                   result = await actorArtTools.handleMakeActorArt(args);
+                  break;
+                case "edit-image-area":
+                  result = await imageEditTools.handle(args);
                   break;
                 case "annotations":
                   result = await annotationTools.handle(args);

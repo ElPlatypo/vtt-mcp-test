@@ -4888,6 +4888,50 @@ index 0000000..524b20e
 +    expect(upload).not.toHaveBeenCalled();
 +  });
 +});
+diff --git a/packages/foundry-module/src/data-access.read-image.test.ts b/packages/foundry-module/src/data-access.read-image.test.ts
+new file mode 100644
+index 0000000..a96ab8e
+--- /dev/null
++++ b/packages/foundry-module/src/data-access.read-image.test.ts
+@@ -0,0 +1,38 @@
++/** read-image-file: the bytes of an image in the Foundry files, as base64. Foundry and fetch are stubbed. */
++import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
++import { FoundryDataAccess } from './data-access.js';
++
++function setup(response: { ok: boolean; status?: number; bytes?: Uint8Array }) {
++  vi.stubGlobal('Hooks', { on: vi.fn(), callAll: vi.fn() });
++  vi.stubGlobal('game', { ready: true, world: { id: 'w', getFlag: vi.fn(() => []), setFlag: vi.fn() }, user: { id: 'gm', name: 'GM' } });
++  vi.stubGlobal('foundry', { utils: { getRoute: (p: string) => `/${p}` } });
++  const fetchMock = vi.fn(async () => ({ ok: response.ok, status: response.status ?? 200, arrayBuffer: async () => (response.bytes ?? new Uint8Array()).buffer }));
++  vi.stubGlobal('fetch', fetchMock);
++  return { da: new FoundryDataAccess(), fetchMock };
++}
++
++describe('readImageFile', () => {
++  beforeEach(() => vi.unstubAllGlobals());
++  afterEach(() => vi.unstubAllGlobals());
++
++  it('returns the file as base64 with its type', async () => {
++    const bytes = new Uint8Array([137, 80, 78, 71, 1, 2, 3]);
++    const { da, fetchMock } = setup({ ok: true, bytes });
++    const r = await da.readImageFile({ path: 'worlds/w/uploads/maps/hall.png' });
++    expect(fetchMock).toHaveBeenCalledWith('/worlds/w/uploads/maps/hall.png');
++    expect(r).toMatchObject({ success: true, mimeType: 'image/png', size: 7, imageData: btoa(String.fromCharCode(...bytes)) });
++  });
++  it('refuses paths that are not Foundry image files', async () => {
++    const { da, fetchMock } = setup({ ok: true, bytes: new Uint8Array([1]) });
++    await expect(da.readImageFile({ path: '' })).rejects.toThrow('path is required');
++    await expect(da.readImageFile({ path: 'https://x.com/a.png' })).rejects.toThrow('path in the Foundry files');
++    await expect(da.readImageFile({ path: 'worlds/../secret.png' })).rejects.toThrow('path in the Foundry files');
++    await expect(da.readImageFile({ path: '/etc/a.png' })).rejects.toThrow('path in the Foundry files');
++    await expect(da.readImageFile({ path: 'worlds/w/data.json' })).rejects.toThrow('Only png');
++    expect(fetchMock).not.toHaveBeenCalled();
++  });
++  it('reports a missing file', async () => {
++    const { da } = setup({ ok: false, status: 404 });
++    await expect(da.readImageFile({ path: 'worlds/w/nope.png' })).rejects.toThrow('HTTP 404');
++  });
++});
 diff --git a/packages/foundry-module/src/data-access.regions.test.ts b/packages/foundry-module/src/data-access.regions.test.ts
 new file mode 100644
 index 0000000..0cc8cfa
@@ -6304,7 +6348,7 @@ index 0000000..26e6aab
 +  });
 +});
 diff --git a/packages/foundry-module/src/data-access.ts b/packages/foundry-module/src/data-access.ts
-index eecda7e..06d0f6a 100644
+index eecda7e..a6b7393 100644
 --- a/packages/foundry-module/src/data-access.ts
 +++ b/packages/foundry-module/src/data-access.ts
 @@ -1,5 +1,133 @@
@@ -6514,7 +6558,7 @@ index eecda7e..06d0f6a 100644
              type: 'requestMessageUpdate',
              buttonId,
              userId,
-@@ -8101,198 +8268,3949 @@ export class FoundryDataAccess {
+@@ -8101,198 +8268,3974 @@ export class FoundryDataAccess {
      }
    }
  
@@ -7630,6 +7674,31 @@ index eecda7e..06d0f6a 100644
 +      };
 +    } catch (error) {
 +      throw new Error(`Failed to set actor art: ${error instanceof Error ? error.message : 'Unknown error'}`);
++    }
++  }
++
++  // ===== READING AN IMAGE FILE =====
++
++  /** The bytes of an image in the Foundry files (a scene map, a token), as base64, for editing it. */
++  async readImageFile(data: { path: string }): Promise<any> {
++    this.validateFoundryState();
++    try {
++      const path = typeof data?.path === 'string' ? data.path.trim() : '';
++      if (!path) throw new Error('path is required');
++      if (/^[a-z]+:\/\//i.test(path) || path.includes('..') || path.startsWith('/')) throw new Error('path must be a path in the Foundry files');
++      const ext = (path.split('?')[0]!.split('.').pop() ?? '').toLowerCase();
++      const types: Record<string, string> = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp', gif: 'image/gif' };
++      if (!types[ext]) throw new Error('Only png, jpg, webp and gif images can be read');
++      const route = (globalThis as any).foundry?.utils?.getRoute?.(path) ?? `/${path}`;
++      const response = await fetch(route);
++      if (!response.ok) throw new Error(`The file could not be read (HTTP ${response.status})`);
++      const bytes = new Uint8Array(await response.arrayBuffer());
++      if (bytes.length > 30 * 1024 * 1024) throw new Error('The image is larger than 30 MB');
++      let binary = '';
++      for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
++      return { success: true, path, mimeType: types[ext], size: bytes.length, imageData: btoa(binary) };
++    } catch (error) {
++      throw new Error(`Failed to read the image: ${error instanceof Error ? error.message : 'Unknown error'}`);
 +    }
 +  }
 +
@@ -10622,7 +10691,7 @@ index eecda7e..06d0f6a 100644
          case 'play':
            await pl.playAll();
            return { success: true, action: 'play', playlist: info };
-@@ -8304,20 +12222,48 @@ export class FoundryDataAccess {
+@@ -8304,20 +12247,48 @@ export class FoundryDataAccess {
            return { success: true, action: 'cycle-mode', playlist: info, mode: pl.mode as number };
          case 'play-sound':
          case 'stop-sound': {
@@ -10677,7 +10746,7 @@ index eecda7e..06d0f6a 100644
        }
      } catch (error) {
        throw new Error(
-@@ -8468,6 +12414,21 @@ export class FoundryDataAccess {
+@@ -8468,6 +12439,21 @@ export class FoundryDataAccess {
      }
    }
  
@@ -10699,7 +10768,7 @@ index eecda7e..06d0f6a 100644
    /**
     * Move a token to a new position on the scene
     */
-@@ -8476,6 +12437,8 @@ export class FoundryDataAccess {
+@@ -8476,6 +12462,8 @@ export class FoundryDataAccess {
      x: number;
      y: number;
      animate?: boolean;
@@ -10708,7 +10777,7 @@ index eecda7e..06d0f6a 100644
    }): Promise<any> {
      this.validateFoundryState();
  
-@@ -8489,21 +12452,33 @@ export class FoundryDataAccess {
+@@ -8489,21 +12477,33 @@ export class FoundryDataAccess {
      }
  
      try {
@@ -10749,7 +10818,7 @@ index eecda7e..06d0f6a 100644
          },
          { animate: data.animate !== false }
        );
-@@ -8514,7 +12489,9 @@ export class FoundryDataAccess {
+@@ -8514,7 +12514,9 @@ export class FoundryDataAccess {
          success: true,
          tokenId: token.id,
          tokenName: token.name,
@@ -10760,7 +10829,7 @@ index eecda7e..06d0f6a 100644
          animated: data.animate !== false,
        };
      } catch (error) {
-@@ -8533,7 +12510,13 @@ export class FoundryDataAccess {
+@@ -8533,7 +12535,13 @@ export class FoundryDataAccess {
    /**
     * Update token properties
     */
@@ -10775,7 +10844,7 @@ index eecda7e..06d0f6a 100644
      this.validateFoundryState();
  
      // Use permission system
-@@ -8546,20 +12529,19 @@ export class FoundryDataAccess {
+@@ -8546,20 +12554,19 @@ export class FoundryDataAccess {
      }
  
      try {
@@ -10802,7 +10871,7 @@ index eecda7e..06d0f6a 100644
  
        // Apply updates
        await token.update(cleanUpdates);
-@@ -8651,18 +12633,15 @@ export class FoundryDataAccess {
+@@ -8651,18 +12658,15 @@ export class FoundryDataAccess {
    /**
     * Get detailed information about a token
     */
@@ -10825,7 +10894,7 @@ index eecda7e..06d0f6a 100644
        }
  
        // Return flat structure that matches MCP server expectations
-@@ -11274,7 +15253,10 @@ export class FoundryDataAccess {
+@@ -11274,7 +15278,10 @@ export class FoundryDataAccess {
        name: string;
        type: string;
        img?: string;
@@ -10836,7 +10905,7 @@ index eecda7e..06d0f6a 100644
      }>;
      folder?: string;
    }): Promise<{ created: Array<{ id: string; name: string; type: string }>; total: number }> {
-@@ -11286,6 +15268,19 @@ export class FoundryDataAccess {
+@@ -11286,6 +15293,19 @@ export class FoundryDataAccess {
      const docs = params.actors.map(a => {
        const doc: Record<string, any> = { name: a.name, type: a.type };
        if (a.img) doc.img = a.img;
@@ -10856,7 +10925,7 @@ index eecda7e..06d0f6a 100644
  
        // Merge system data, adding safe defaults for systems that require certain
        // fields to exist during data preparation (avoids non-fatal init errors).
-@@ -11471,7 +15466,16 @@ export class FoundryDataAccess {
+@@ -11471,7 +15491,16 @@ export class FoundryDataAccess {
     * Merges supplied fields into the actor (top-level keys overwrite).
     */
    async updateActors(
@@ -10874,7 +10943,7 @@ index eecda7e..06d0f6a 100644
    ): Promise<{ updated: Array<{ id: string; name: string }>; total: number }> {
      const updatedActors: Array<{ id: string; name: string }> = [];
  
-@@ -11482,6 +15486,7 @@ export class FoundryDataAccess {
+@@ -11482,6 +15511,7 @@ export class FoundryDataAccess {
        const patch: Record<string, any> = {};
        if (u.name !== undefined) patch.name = u.name;
        if (u.img !== undefined) patch.img = u.img;
@@ -10882,7 +10951,7 @@ index eecda7e..06d0f6a 100644
        if (u.system !== undefined) {
          // Build a single patch.system nested object so Foundry deep-merges everything
          // in one pass without flat-key vs nested-key conflicts.
-@@ -11504,6 +15509,19 @@ export class FoundryDataAccess {
+@@ -11504,6 +15534,19 @@ export class FoundryDataAccess {
          }
          patch.system = systemPatch;
        }
@@ -15044,7 +15113,7 @@ index 0000000..542d273
 +  return view ? outSize : { width, height };
 +}
 diff --git a/packages/foundry-module/src/queries.ts b/packages/foundry-module/src/queries.ts
-index 9fe02ba..b3ea9f7 100644
+index 9fe02ba..0642dff 100644
 --- a/packages/foundry-module/src/queries.ts
 +++ b/packages/foundry-module/src/queries.ts
 @@ -1,7 +1,8 @@
@@ -15066,7 +15135,7 @@ index 9fe02ba..b3ea9f7 100644
  
      // Character/Actor queries
      CONFIG.queries[`${modulePrefix}.getCharacterInfo`] = this.handleGetCharacterInfo.bind(this);
-@@ -46,6 +47,29 @@ export class QueryHandlers {
+@@ -46,6 +47,30 @@ export class QueryHandlers {
      CONFIG.queries[`${modulePrefix}.list-scenes`] = this.handleListScenes.bind(this);
      CONFIG.queries[`${modulePrefix}.switch-scene`] = this.handleSwitchScene.bind(this);
      CONFIG.queries[`${modulePrefix}.update-scene-music`] = this.handleUpdateSceneMusic.bind(this);
@@ -15092,11 +15161,12 @@ index 9fe02ba..b3ea9f7 100644
 +    CONFIG.queries[`${modulePrefix}.read-table`] = this.handleReadTable.bind(this);
 +    CONFIG.queries[`${modulePrefix}.reveal`] = this.handleReveal.bind(this);
 +    CONFIG.queries[`${modulePrefix}.annotations`] = this.handleAnnotations.bind(this);
++    CONFIG.queries[`${modulePrefix}.read-image-file`] = this.handleReadImageFile.bind(this);
 +    CONFIG.queries[`${modulePrefix}.inspect-document`] = this.handleInspectDocument.bind(this);
      CONFIG.queries[`${modulePrefix}.manage-playlists`] = this.handleManagePlaylists.bind(this);
      CONFIG.queries[`${modulePrefix}.control-playlist`] = this.handleControlPlaylist.bind(this);
  
-@@ -184,7 +208,7 @@ export class QueryHandlers {
+@@ -184,7 +209,7 @@ export class QueryHandlers {
     * Unregister all query handlers
     */
    unregisterHandlers(): void {
@@ -15105,7 +15175,7 @@ index 9fe02ba..b3ea9f7 100644
      const keysToRemove = Object.keys(CONFIG.queries).filter(key => key.startsWith(modulePrefix));
  
      for (const key of keysToRemove) {
-@@ -477,7 +501,7 @@ export class QueryHandlers {
+@@ -477,7 +502,7 @@ export class QueryHandlers {
     * Get list of all registered query methods
     */
    getRegisteredMethods(): string[] {
@@ -15114,7 +15184,7 @@ index 9fe02ba..b3ea9f7 100644
      return Object.keys(CONFIG.queries)
        .filter(key => key.startsWith(modulePrefix))
        .map(key => key.replace(`${modulePrefix}.`, ''));
-@@ -487,7 +511,7 @@ export class QueryHandlers {
+@@ -487,7 +512,7 @@ export class QueryHandlers {
     * Test if a specific query handler is registered
     */
    isMethodRegistered(method: string): boolean {
@@ -15123,7 +15193,7 @@ index 9fe02ba..b3ea9f7 100644
      return queryKey in CONFIG.queries && typeof CONFIG.queries[queryKey] === 'function';
    }
  
-@@ -530,6 +554,9 @@ export class QueryHandlers {
+@@ -530,6 +555,9 @@ export class QueryHandlers {
        if (data.placement) {
          requestData.placement = data.placement;
        }
@@ -15133,7 +15203,7 @@ index 9fe02ba..b3ea9f7 100644
  
        return await this.dataAccess.createActorFromCompendiumEntry(requestData);
      } catch (error) {
-@@ -1218,6 +1245,243 @@ export class QueryHandlers {
+@@ -1218,6 +1246,251 @@ export class QueryHandlers {
      }
    }
  
@@ -15221,6 +15291,14 @@ index 9fe02ba..b3ea9f7 100644
 +      return { error: 'Access denied', success: false };
 +    }
 +    return await this.dataAccess.setActorArt(data ?? {});
++  }
++
++  private async handleReadImageFile(data: any): Promise<any> {
++    const gmCheck = this.validateGMAccess();
++    if (!gmCheck.allowed) {
++      return { error: 'Access denied', success: false };
++    }
++    return await this.dataAccess.readImageFile(data ?? {});
 +  }
 +
 +  private async handleAnnotations(data: any): Promise<any> {
@@ -15377,7 +15455,7 @@ index 9fe02ba..b3ea9f7 100644
    private async handleManagePlaylists(data: any): Promise<any> {
      try {
        const gmCheck = this.validateGMAccess();
-@@ -1241,8 +1505,11 @@ export class QueryHandlers {
+@@ -1241,8 +1514,11 @@ export class QueryHandlers {
        if (!gmCheck.allowed) {
          return { error: 'Access denied', success: false };
        }
@@ -15391,7 +15469,7 @@ index 9fe02ba..b3ea9f7 100644
        }
        return await this.dataAccess.controlPlaylist(data);
      } catch (error) {
-@@ -1547,7 +1814,9 @@ export class QueryHandlers {
+@@ -1547,7 +1823,9 @@ export class QueryHandlers {
     */
    private async handleUpdateToken(data: {
      tokenId: string;
@@ -15402,7 +15480,7 @@ index 9fe02ba..b3ea9f7 100644
    }): Promise<any> {
      try {
        // SECURITY: Silent GM validation
-@@ -1561,8 +1830,8 @@ export class QueryHandlers {
+@@ -1561,8 +1839,8 @@ export class QueryHandlers {
        if (!data.tokenId) {
          throw new Error('tokenId is required');
        }
@@ -18717,10 +18795,10 @@ index 096f27b..903a94e 100644
      "@vitest/coverage-v8": "^3.2.4",
      "esbuild": "^0.19.0",
 diff --git a/packages/mcp-server/src/backend.ts b/packages/mcp-server/src/backend.ts
-index 8967e33..a7aeba2 100644
+index 8967e33..691e1b5 100644
 --- a/packages/mcp-server/src/backend.ts
 +++ b/packages/mcp-server/src/backend.ts
-@@ -48,6 +48,35 @@ import { DnD5eAddFeatureTool } from './tools/dnd5e/add-feature.js';
+@@ -48,6 +48,36 @@ import { DnD5eAddFeatureTool } from './tools/dnd5e/add-feature.js';
  import { DnD5eNpcTools } from './tools/dnd5e/npc.js';
  import { DnD5eFeaturesFromCompendiumTools } from './tools/dnd5e/features.js';
  import { ChatTools } from './tools/chat.js';
@@ -18749,6 +18827,7 @@ index 8967e33..a7aeba2 100644
 +import { TableTools } from './tools/table-tools.js';
 +import { RevealTools } from './tools/reveal-tools.js';
 +import { AnnotationTools } from './tools/annotation-tools.js';
++import { ImageEditTools } from './tools/image-edit-tools.js';
 +import { ActorArtTools } from './tools/actor-art-tools.js';
 +import { SceneSoundTools } from './tools/scene-sound-tools.js';
 +import { LayoutTools } from './tools/layout.js';
@@ -18756,7 +18835,7 @@ index 8967e33..a7aeba2 100644
  
  const CONTROL_HOST = '127.0.0.1';
  
-@@ -174,6 +203,22 @@ let comfyuiProcess: ChildProcess | null = null;
+@@ -174,6 +204,22 @@ let comfyuiProcess: ChildProcess | null = null;
  
  let comfyuiStatus: 'stopped' | 'starting' | 'running' | 'error' = 'stopped';
  
@@ -18779,7 +18858,7 @@ index 8967e33..a7aeba2 100644
  let lockFd: number | null = null;
  
  function acquireLock(): boolean {
-@@ -350,6 +395,18 @@ async function waitForComfyUIReady(timeoutMs: number = 60000): Promise<void> {
+@@ -350,6 +396,18 @@ async function waitForComfyUIReady(timeoutMs: number = 60000): Promise<void> {
  }
  
  async function startComfyUIService(logger: Logger): Promise<any> {
@@ -18798,7 +18877,7 @@ index 8967e33..a7aeba2 100644
    if (comfyuiStatus === 'running') {
      return { status: 'already_running', message: 'ComfyUI service is already running' };
    }
-@@ -472,6 +529,14 @@ async function startComfyUIService(logger: Logger): Promise<any> {
+@@ -472,6 +530,14 @@ async function startComfyUIService(logger: Logger): Promise<any> {
  }
  
  async function stopComfyUIService(logger: Logger): Promise<any> {
@@ -18813,7 +18892,7 @@ index 8967e33..a7aeba2 100644
    if (comfyuiStatus === 'stopped') {
      return { status: 'already_stopped', message: 'ComfyUI service is already stopped' };
    }
-@@ -510,7 +575,7 @@ async function checkComfyUIStatus(): Promise<any> {
+@@ -510,7 +576,7 @@ async function checkComfyUIStatus(): Promise<any> {
    // This handles both spawned processes and externally-started instances
  
    try {
@@ -18822,7 +18901,7 @@ index 8967e33..a7aeba2 100644
        signal: AbortSignal.timeout(5000),
      });
  
-@@ -520,16 +585,23 @@ async function checkComfyUIStatus(): Promise<any> {
+@@ -520,16 +586,23 @@ async function checkComfyUIStatus(): Promise<any> {
        comfyuiStatus = 'error';
      }
    } catch (error) {
@@ -18848,7 +18927,7 @@ index 8967e33..a7aeba2 100644
    };
  }
  
-@@ -1131,7 +1203,7 @@ async function processMapGenerationInBackend(
+@@ -1131,7 +1204,7 @@ async function processMapGenerationInBackend(
      );
  
      logger.error('Background map generation processing failed', { jobId, error });
@@ -18857,7 +18936,7 @@ index 8967e33..a7aeba2 100644
  
      // Emit failure to Foundry module
      foundryClient.sendMessage({
-@@ -1195,6 +1267,55 @@ async function startBackend(): Promise<void> {
+@@ -1195,6 +1268,61 @@ async function startBackend(): Promise<void> {
    const compendiumTools = new CompendiumTools({ foundryClient, logger, systemRegistry });
  
    const sceneTools = new SceneTools({ foundryClient, logger });
@@ -18902,6 +18981,12 @@ index 8967e33..a7aeba2 100644
 +  const tableTools = new TableTools({ foundryClient, logger });
 +  const revealTools = new RevealTools({ foundryClient, logger });
 +  const annotationTools = new AnnotationTools({ foundryClient, logger });
++  const imageEditTools = new ImageEditTools({
++    foundryClient,
++    logger,
++    generate: args => imageGenerationTools.handleGenerateImage(args),
++    upload: args => uploadTools.handleUploadFile(args),
++  });
 +  const actorArtTools = new ActorArtTools({
 +    foundryClient,
 +    logger,
@@ -18913,7 +18998,7 @@ index 8967e33..a7aeba2 100644
    const playlistTools = new PlaylistTools({ foundryClient, logger });
  
    const actorCreationTools = new ActorCreationTools({ foundryClient, logger });
-@@ -1301,6 +1422,13 @@ async function startBackend(): Promise<void> {
+@@ -1301,6 +1429,13 @@ async function startBackend(): Promise<void> {
  
          let result: any;
  
@@ -18927,7 +19012,7 @@ index 8967e33..a7aeba2 100644
          switch (message.type) {
            case 'start-comfyui-service':
              result = await startComfyUIService(logger);
-@@ -1317,6 +1445,19 @@ async function startBackend(): Promise<void> {
+@@ -1317,6 +1452,19 @@ async function startBackend(): Promise<void> {
  
              break;
  
@@ -18947,7 +19032,7 @@ index 8967e33..a7aeba2 100644
            // Map generation handlers (following existing tool pattern)
            case 'generate-map-request':
              await fs.appendFile(
-@@ -1429,6 +1570,26 @@ async function startBackend(): Promise<void> {
+@@ -1429,6 +1577,27 @@ async function startBackend(): Promise<void> {
  
      ...sceneTools.getToolDefinitions(),
  
@@ -18966,6 +19051,7 @@ index 8967e33..a7aeba2 100644
 +    ...tableTools.getToolDefinitions(),
 +    ...revealTools.getToolDefinitions(),
 +    ...annotationTools.getToolDefinitions(),
++    ...imageEditTools.getToolDefinitions(),
 +    ...actorArtTools.getToolDefinitions(),
 +    ...sceneSoundTools.getToolDefinitions(),
 +    ...layoutTools.getToolDefinitions(),
@@ -18974,7 +19060,7 @@ index 8967e33..a7aeba2 100644
      ...actorCreationTools.getToolDefinitions(),
      ...actorManagementTools.getToolDefinitions(),
      ...effectManagementTools.getToolDefinitions(),
-@@ -1456,7 +1617,11 @@ async function startBackend(): Promise<void> {
+@@ -1456,7 +1625,11 @@ async function startBackend(): Promise<void> {
  
      ...tokenManipulationTools.getToolDefinitions(),
  
@@ -18987,7 +19073,7 @@ index 8967e33..a7aeba2 100644
  
      ...playlistTools.getToolDefinitions(),
    ];
-@@ -1764,19 +1929,11 @@ async function startBackend(): Promise<void> {
+@@ -1764,19 +1937,11 @@ async function startBackend(): Promise<void> {
                  // Map generation tools
  
                  case 'generate-map':
@@ -19010,7 +19096,7 @@ index 8967e33..a7aeba2 100644
  
                  case 'list-scenes':
                    result = await mapGenerationTools.listScenes(args);
-@@ -1805,6 +1962,120 @@ async function startBackend(): Promise<void> {
+@@ -1805,6 +1970,124 @@ async function startBackend(): Promise<void> {
  
                    break;
  
@@ -19069,6 +19155,10 @@ index 8967e33..a7aeba2 100644
 +
 +                case 'make-actor-art':
 +                  result = await actorArtTools.handleMakeActorArt(args);
++                  break;
++
++                case 'edit-image-area':
++                  result = await imageEditTools.handle(args);
 +                  break;
 +
 +                case 'annotations':
@@ -22094,6 +22184,774 @@ index 0000000..1eb5384
 +      throw new Error(`Failed to manage scene backups: ${error instanceof Error ? error.message : 'Unknown error'}`);
 +    }
 +  }
++}
+diff --git a/packages/mcp-server/src/tools/image-edit-tools.test.ts b/packages/mcp-server/src/tools/image-edit-tools.test.ts
+new file mode 100644
+index 0000000..80fe1e9
+--- /dev/null
++++ b/packages/mcp-server/src/tools/image-edit-tools.test.ts
+@@ -0,0 +1,155 @@
++import { afterAll, describe, expect, it, vi } from 'vitest';
++import { promises as fs } from 'fs';
++import os from 'os';
++import path from 'path';
++import { PNG } from 'pngjs';
++import { ImageEditTools } from './image-edit-tools.js';
++
++const tmp: string[] = [];
++afterAll(async () => {
++  for (const f of tmp) await fs.rm(f, { force: true });
++});
++
++function pngBuffer(w: number, h: number, rgb: [number, number, number]): Buffer {
++  const png = new PNG({ width: w, height: h });
++  for (let i = 0; i < w * h; i++) png.data.set([rgb[0], rgb[1], rgb[2], 255], i * 4);
++  return PNG.sync.write(png);
++}
++async function pngFile(w: number, h: number, rgb: [number, number, number]): Promise<string> {
++  const file = path.join(os.tmpdir(), `edit-test-${Date.now()}-${Math.random().toString(36).slice(2)}.png`);
++  await fs.writeFile(file, pngBuffer(w, h, rgb));
++  tmp.push(file);
++  return file;
++}
++const pixelAt = (buf: Buffer, x: number, y: number) => {
++  const png = PNG.sync.read(buf);
++  return [...png.data.slice((y * png.width + x) * 4, (y * png.width + x) * 4 + 3)];
++};
++
++/** A scene 20 x 10 squares with a 200 x 100 map (10 px per square). */
++async function make(options: { note?: any } = {}) {
++  const edited = await pngFile(200, 100, [250, 0, 0]);
++  const generate = vi.fn(async (_a: any) => ({ success: true, local_path: edited, seed: 5 }));
++  const upload = vi.fn(async (a: any) => ({ success: true, path: `worlds/w/uploads/${a.folder}/${a.filename}` }));
++  const calls: Array<{ method: string; data: any }> = [];
++  const query = vi.fn(async (method: string, data: any) => {
++    calls.push({ method, data });
++    switch (method) {
++      case 'foundry-mcp-bridge.manage-scenes':
++        if (data.action === 'describe') {
++          return { success: true, scene: { id: 's1', name: 'Hall', background: 'worlds/w/uploads/maps/hall.png', width: 1280, height: 640, grid: { size: 64 } } };
++        }
++        return { success: true };
++      case 'foundry-mcp-bridge.read-image-file':
++        return { success: true, imageData: pngBuffer(200, 100, [0, 0, 255]).toString('base64') };
++      case 'foundry-mcp-bridge.annotations':
++        if (data.action === 'list') return { success: true, notes: options.note ? [options.note] : [] };
++        return { success: true, changed: data.ids };
++      case 'foundry-mcp-bridge.manage-scene-backups':
++        return { success: true, backup: { id: 'b1', name: 'Hall (old)' } };
++      default:
++        return { success: true };
++    }
++  });
++  const logger: any = { info: vi.fn(), debug: vi.fn(), error: vi.fn(), warn: vi.fn(), child: () => logger };
++  const tools = new ImageEditTools({ foundryClient: { query } as any, logger, generate, upload });
++  return { tools, generate, upload, query, calls };
++}
++
++describe('definition', () => {
++  it('is exposed with action required', async () => {
++    const def = (await make()).tools.getToolDefinitions()[0]!;
++    expect(def.name).toBe('edit-image-area');
++    expect(def.inputSchema.required).toEqual(['action']);
++  });
++});
++
++describe('edit-image-area edit', () => {
++  it('edits a scene map: outlines the area, asks H3, pastes only the area back and previews it', async () => {
++    const { tools, generate } = await make();
++    const r = await tools.handle({ action: 'edit', scene: 'Hall', area: { rect: [2, 2, 6, 4] }, prompt: 'add a wooden door', seed: 3 });
++    expect(r).toMatchObject({ success: true, scene: { name: 'Hall' }, size: '200x100', areaPixels: 60 * 40 });
++    const call = generate.mock.calls[0]![0];
++    expect(call).toMatchObject({ kind: 'map', upload: false, width: 256, height: 256, seed: 3 });
++    expect(call.prompt).toContain('inside the area marked by the red outline: add a wooden door');
++    // the reference is the whole map with a red outline
++    tmp.push(call.reference_images[0]);
++    const ref = await fs.readFile(call.reference_images[0]);
++    expect(pixelAt(ref, 40, 20)).toEqual([255, 0, 0]); // on the outline (x = 2 squares = 20 px.. y = 20)
++    expect(pixelAt(ref, 150, 80)).toEqual([0, 0, 255]); // untouched map
++    // the composite: edit inside the area, the original map everywhere else
++    tmp.push(r.picture, r.preview);
++    const composite = await fs.readFile(r.picture);
++    expect(pixelAt(composite, 50, 40)).toEqual([250, 0, 0]);
++    expect(pixelAt(composite, 150, 80)).toEqual([0, 0, 255]);
++    expect(pixelAt(composite, 5, 5)).toEqual([0, 0, 255]);
++    expect((await fs.stat(r.preview)).size).toBeGreaterThan(0);
++  });
++  it('uses the area and text of a note', async () => {
++    const note = { id: 'n1', scene: { id: 's1', name: 'Hall' }, prompt: 'open a door here', area: { shape: 'rect', points: [[2, 2], [8, 2], [8, 6], [2, 6]] } };
++    const { tools, generate } = await make({ note });
++    const r = await tools.handle({ action: 'edit', annotation: 'n1' });
++    expect(r).toMatchObject({ success: true, annotation: 'n1' });
++    expect(generate.mock.calls[0]![0].prompt).toContain('open a door here');
++    tmp.push(r.picture, r.preview);
++  });
++  it('edits a Foundry image or a local file by percent', async () => {
++    const { tools, query } = await make();
++    const r = await tools.handle({ action: 'edit', image: 'worlds/w/uploads/actors/bob/portrait.png', area: { rect: [10, 10, 50, 50] }, prompt: 'a scar on the left cheek' });
++    expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.read-image-file', { path: 'worlds/w/uploads/actors/bob/portrait.png' }, 60000);
++    expect(r.areaPixels).toBe(100 * 50);
++    tmp.push(r.picture, r.preview);
++    const local = await pngFile(200, 100, [10, 10, 10]);
++    const r2 = await tools.handle({ action: 'edit', image: local, area: { polygon: [[0, 0], [50, 0], [50, 50]], units: 'percent' }, prompt: 'a red gem' });
++    expect(r2.success).toBe(true);
++    tmp.push(r2.picture, r2.preview);
++  });
++  it('refuses unclear or incomplete requests', async () => {
++    const { tools } = await make({ note: { id: 'obj', scene: { id: 's1', name: 'Hall' }, prompt: 'x', target: { kind: 'token' } } });
++    await expect(tools.handle({ action: 'edit', prompt: 'something' })).rejects.toThrow('exactly one');
++    await expect(tools.handle({ action: 'edit', scene: 'Hall', image: 'a.png', prompt: 'x y z' })).rejects.toThrow('exactly one');
++    await expect(tools.handle({ action: 'edit', scene: 'Hall', prompt: 'add a door' })).rejects.toThrow('area');
++    await expect(tools.handle({ action: 'edit', scene: 'Hall', area: { rect: [1, 1, 3, 3] } })).rejects.toThrow('what to change');
++    await expect(tools.handle({ action: 'edit', annotation: 'missing' })).rejects.toThrow('Note not found');
++    await expect(tools.handle({ action: 'edit', annotation: 'obj', prompt: 'new picture' })).rejects.toThrow('object, not an area');
++    await expect(tools.handle({ action: 'edit', scene: 'Hall', area: { rect: [1, 1, 3, 3] }, prompt: 'ab' })).rejects.toThrow();
++  });
++  it('reports a failed generation', async () => {
++    const { tools, generate } = await make();
++    generate.mockResolvedValueOnce({ success: false, error: 'ComfyUI is offline' });
++    await expect(tools.handle({ action: 'edit', scene: 'Hall', area: { rect: [1, 1, 4, 4] }, prompt: 'add a door' })).rejects.toThrow('ComfyUI is offline');
++  });
++});
++
++describe('edit-image-area commit', () => {
++  it('backs the scene up, uploads next to the original, sets the map and marks the note done', async () => {
++    const note = { id: 'n1', scene: { id: 's1', name: 'Hall' }, prompt: 'open a door', area: { shape: 'rect', points: [[2, 2], [8, 2], [8, 6], [2, 6]] } };
++    const { tools, upload, calls } = await make({ note });
++    const edit = await tools.handle({ action: 'edit', annotation: 'n1' });
++    tmp.push(edit.picture, edit.preview);
++    const r = await tools.handle({ action: 'commit', result: edit.result, reply: 'Door added' });
++    expect(r).toMatchObject({ success: true, scene: { id: 's1' }, noteResolved: 'n1' });
++    expect(r.path).toMatch(/^worlds\/w\/uploads\/maps\/hall-edit-[a-z0-9]+\.png$/);
++    expect(upload).toHaveBeenCalledWith(expect.objectContaining({ folder: 'maps' }));
++    const methods = calls.map(c => c.method.replace('foundry-mcp-bridge.', '') + ':' + (c.data.action ?? ''));
++    expect(methods.indexOf('manage-scene-backups:backup')).toBeLessThan(methods.indexOf('manage-scenes:update'));
++    expect(calls.find(c => c.data.action === 'update')!.data).toMatchObject({ scene_identifier: 's1', background: r.path });
++    expect(calls.find(c => c.data.action === 'resolve')!.data).toMatchObject({ ids: ['n1'], status: 'done', reply: 'Door added' });
++    await expect(tools.handle({ action: 'commit', result: edit.result })).rejects.toThrow('Unknown result');
++  });
++  it('can skip the backup and the note, and only upload for non-scene pictures', async () => {
++    const { tools, calls } = await make();
++    const edit = await tools.handle({ action: 'edit', scene: 'Hall', area: { rect: [1, 1, 4, 4] }, prompt: 'add a door' });
++    tmp.push(edit.picture, edit.preview);
++    await tools.handle({ action: 'commit', result: edit.result, backup: false });
++    expect(calls.some(c => c.method.endsWith('manage-scene-backups'))).toBe(false);
++    const img = await tools.handle({ action: 'edit', image: 'worlds/w/uploads/actors/bob/portrait.png', area: { rect: [10, 10, 50, 50] }, prompt: 'a scar on the cheek' });
++    tmp.push(img.picture, img.preview);
++    const r = await tools.handle({ action: 'commit', result: img.result });
++    expect(r.path).toMatch(/^worlds\/w\/uploads\/actors\/bob\/portrait-edit-[a-z0-9]+\.png$/);
++    expect(r.scene).toBeUndefined();
++    const img2 = await tools.handle({ action: 'edit', image: 'worlds/w/uploads/x/y.png', area: { rect: [10, 10, 50, 50] }, prompt: 'a scar on the cheek' });
++    tmp.push(img2.picture, img2.preview);
++    await expect(tools.handle({ action: 'commit', result: img2.result, apply: 'scene' })).rejects.toThrow('apply file');
++  });
++});
+diff --git a/packages/mcp-server/src/tools/image-edit-tools.ts b/packages/mcp-server/src/tools/image-edit-tools.ts
+new file mode 100644
+index 0000000..5bd2fc9
+--- /dev/null
++++ b/packages/mcp-server/src/tools/image-edit-tools.ts
+@@ -0,0 +1,305 @@
++import { promises as fs } from 'fs';
++import os from 'os';
++import path from 'path';
++import { PNG } from 'pngjs';
++import { z } from 'zod';
++import { FoundryClient } from '../foundry-client.js';
++import { Logger } from '../logger.js';
++import { decodeImage } from './layout-image.js';
++import {
++  areaToPixels,
++  beforeAfter,
++  buildEditPrompt,
++  compositeArea,
++  drawOutline,
++  generationSize,
++  type Pixels,
++  type Pt,
++} from './image-edit-utils.js';
++
++export interface ImageEditToolsOptions {
++  foundryClient: FoundryClient;
++  logger: Logger;
++  generate?: ((args: any) => Promise<any>) | undefined;
++  upload?: ((args: any) => Promise<any>) | undefined;
++}
++
++const KINDS = ['map', 'portrait', 'token', 'handout'] as const;
++
++const areaSchema = z
++  .object({
++    rect: z.tuple([z.number(), z.number(), z.number(), z.number()]).optional(),
++    polygon: z.array(z.tuple([z.number(), z.number()])).min(3).max(200).optional(),
++    units: z.enum(['squares', 'percent', 'pixels']).optional(),
++  })
++  .strict();
++
++const schema = z.discriminatedUnion('action', [
++  z
++    .object({
++      action: z.literal('edit'),
++      annotation: z.string().min(1).optional(),
++      scene: z.string().min(1).optional(),
++      image: z.string().min(1).optional(),
++      area: areaSchema.optional(),
++      prompt: z.string().min(3).max(1500).optional(),
++      kind: z.enum(KINDS).optional(),
++      feather: z.number().min(0).max(200).optional(),
++      outline_width: z.number().int().min(1).max(30).optional(),
++      seed: z.number().int().min(0).optional(),
++    })
++    .strict(),
++  z
++    .object({
++      action: z.literal('commit'),
++      result: z.string().min(1),
++      apply: z.enum(['scene', 'file']).optional(),
++      folder: z.string().min(1).max(120).optional(),
++      filename: z.string().min(1).max(120).optional(),
++      backup: z.boolean().optional(),
++      resolve_note: z.boolean().optional(),
++      reply: z.string().max(2000).optional(),
++    })
++    .strict(),
++]);
++
++interface Pending {
++  id: string;
++  composite: string;
++  source: {
++    type: 'scene' | 'image';
++    scene?: { id: string; name: string };
++    foundryPath?: string;
++    annotation?: string;
++    originalName?: string;
++  };
++}
++
++const UNIQUE = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
++
++export class ImageEditTools {
++  private foundryClient: FoundryClient;
++  private logger: Logger;
++  private generate: ((args: any) => Promise<any>) | undefined;
++  private upload: ((args: any) => Promise<any>) | undefined;
++  private pending = new Map<string, Pending>();
++  private folder = path.join(os.tmpdir(), 'foundry-mcp-edits');
++
++  constructor({ foundryClient, logger, generate, upload }: ImageEditToolsOptions) {
++    this.foundryClient = foundryClient;
++    this.logger = logger.child({ component: 'ImageEditTools' });
++    this.generate = generate;
++    this.upload = upload;
++  }
++
++  getToolDefinitions() {
++    const areaProps = {
++      rect: { type: 'array', items: { type: 'number' }, minItems: 4, maxItems: 4, description: '[x, y, width, height]' },
++      polygon: { type: 'array', items: { type: 'array', items: { type: 'number' }, minItems: 2, maxItems: 2 }, description: '[[x, y], ...] at least three corners' },
++      units: { type: 'string', enum: ['squares', 'percent', 'pixels'], description: 'squares (grid squares from the top-left of the map; scenes and notes, the default there), percent (0 to 100 of the picture; the default for other pictures) or pixels' },
++    };
++    return [
++      {
++        name: 'edit-image-area',
++        description:
++          'Change one part of a picture (a map, a character, an item) with MiniMax H3 without touching the rest: the area is outlined in red on the whole picture, H3 redraws what is inside following your instruction and removes the outline, and ONLY the area is pasted back into the original (everything outside stays pixel-identical). ' +
++          'action edit: say what to change in prompt (e.g. "add a wooden door in the middle of the stone wall and a short dirt passage joining the two rooms"; describe the result, not the edit steps) and where: annotation (the id of a "Notes for Claude" note: its area and text are used; prompt is optional and replaces the note text), or scene (a scene id or name: its map is edited; give area in grid squares), or image (a Foundry file path or an absolute path on this computer; give area as percent or pixels). area is {rect: [x, y, width, height]} or {polygon: [[x, y], ...]}; keep it a little larger than the change. Takes about two to three minutes. The result is NOT applied: it returns result (an id), a local picture path, and preview (before and after side by side): look at the preview, and edit again with a different prompt, area or seed if it is not right. ' +
++          'action commit: result (the id from edit) uploads the picture and, for a scene, makes a backup copy of the scene (backup:false to skip) and sets the new picture as its map; the note is marked done (resolve_note:false to skip; reply is the message the GM sees). apply file only uploads and returns the Foundry path (use it for portraits, tokens and items). Walls, doors and lights are not changed: adjust them afterwards with the other scene tools.',
++        inputSchema: {
++          type: 'object',
++          properties: {
++            action: { type: 'string', enum: ['edit', 'commit'] },
++            annotation: { type: 'string', description: 'edit: id of a note (annotations tool)' },
++            scene: { type: 'string', description: 'edit: scene id or exact name; its map is edited' },
++            image: { type: 'string', description: 'edit: Foundry file path (e.g. worlds/<world>/uploads/...) or absolute local path of a png or jpg' },
++            area: { type: 'object', properties: areaProps, additionalProperties: false, description: 'edit: where to change (not needed with annotation)' },
++            prompt: { type: 'string', description: 'edit: what the area should look like afterwards' },
++            kind: { type: 'string', enum: [...KINDS], description: 'edit: image profile (default map)' },
++            feather: { type: 'number', description: 'edit: blend width in pixels at the edge of the area (default about 0.7% of the picture width)' },
++            outline_width: { type: 'number', description: 'edit: red outline thickness in pixels' },
++            seed: { type: 'number', description: 'edit: repeat or vary a result' },
++            result: { type: 'string', description: 'commit: the result id from edit' },
++            apply: { type: 'string', enum: ['scene', 'file'], description: 'commit: scene (default for scene and note edits) or file' },
++            folder: { type: 'string', description: 'commit: folder below the world uploads (default: next to the original)' },
++            filename: { type: 'string', description: 'commit: file name (default: original name plus -edit)' },
++            backup: { type: 'boolean', description: 'commit: back the scene up first (default true)' },
++            resolve_note: { type: 'boolean', description: 'commit: mark the note done (default true)' },
++            reply: { type: 'string', description: 'commit: message shown with the note' },
++          },
++          required: ['action'],
++          additionalProperties: false,
++        },
++      },
++    ];
++  }
++
++  private async query(method: string, data: Record<string, any>, timeout?: number): Promise<any> {
++    const result = await this.foundryClient.query(`foundry-mcp-bridge.${method}`, data, timeout);
++    if (result?.success === false) throw new Error(result.error || 'Request was refused');
++    return result;
++  }
++
++  private async savePng(image: Pixels, name: string): Promise<string> {
++    await fs.mkdir(this.folder, { recursive: true });
++    const png = new PNG({ width: image.width, height: image.height });
++    png.data = Buffer.from(image.data);
++    const file = path.join(this.folder, name);
++    await fs.writeFile(file, PNG.sync.write(png));
++    return file;
++  }
++
++  /** Read a Foundry image or a local file into pixels. */
++  private async load(source: string): Promise<{ image: Pixels; foundryPath?: string }> {
++    if (path.isAbsolute(source)) {
++      const d = await decodeImage(source);
++      return { image: { width: d.width, height: d.height, data: d.data } };
++    }
++    const file = await this.query('read-image-file', { path: source }, 60_000);
++    await fs.mkdir(this.folder, { recursive: true });
++    const ext = (source.split('.').pop() ?? 'png').toLowerCase();
++    const temp = path.join(this.folder, `source-${UNIQUE()}.${ext}`);
++    await fs.writeFile(temp, Buffer.from(file.imageData, 'base64'));
++    try {
++      const d = await decodeImage(temp);
++      return { image: { width: d.width, height: d.height, data: d.data }, foundryPath: source };
++    } catch {
++      throw new Error('Only PNG and JPEG pictures can be edited (this one is another format, for example WebP)');
++    }
++  }
++
++  private async edit(a: Extract<z.infer<typeof schema>, { action: 'edit' }>): Promise<any> {
++    if (!this.generate) throw new Error('Image generation is not available here');
++    const sources = [a.annotation, a.scene, a.image].filter(Boolean).length;
++    if (sources !== 1) throw new Error('Give exactly one of annotation, scene or image');
++
++    let sceneInfo: { id: string; name: string; background: string; columns: number; rows: number } | undefined;
++    let areaDef = a.area;
++    let change = a.prompt;
++    let annotation: string | undefined;
++    let sourcePath: string | undefined = a.image;
++
++    if (a.annotation) {
++      const list = await this.query('annotations', { action: 'list', status: 'all' });
++      const note = (list.notes ?? []).find((n: any) => n.id === a.annotation);
++      if (!note) throw new Error(`Note not found: ${a.annotation}`);
++      if (!note.area) throw new Error('That note points at an object, not an area; give scene and area yourself');
++      areaDef = { polygon: note.area.points, units: 'squares' };
++      change = change ?? note.prompt;
++      annotation = note.id;
++      sourcePath = undefined;
++      sceneInfo = await this.sceneDetails(note.scene.id);
++    } else if (a.scene) {
++      sceneInfo = await this.sceneDetails(a.scene);
++    }
++    if (!areaDef) throw new Error('Give the area to change (rect or polygon)');
++    if (!change) throw new Error('Say what to change (prompt)');
++    if (sceneInfo && !sceneInfo.background) throw new Error('That scene has no map image');
++
++    const { image: original, foundryPath } = await this.load(sceneInfo ? sceneInfo.background : sourcePath!);
++    const squares = sceneInfo ? { perSquareX: original.width / sceneInfo.columns, perSquareY: original.height / sceneInfo.rows } : undefined;
++    const poly: Pt[] = areaToPixels(areaDef, original, squares);
++
++    const outlineWidth = a.outline_width ?? Math.max(3, Math.round(Math.max(original.width, original.height) / 400));
++    const outlined = drawOutline(original, poly, outlineWidth);
++    const id = UNIQUE();
++    const refFile = await this.savePng(outlined, `ref-${id}.png`);
++    const size = generationSize(original);
++
++    const generated = await this.generate({
++      kind: a.kind ?? 'map',
++      name: `area-edit-${id}`,
++      prompt: buildEditPrompt(change),
++      reference_images: [refFile],
++      width: size.width,
++      height: size.height,
++      upload: false,
++      ...(a.seed !== undefined ? { seed: a.seed } : {}),
++    });
++    if (generated?.success === false || !generated?.local_path) throw new Error(generated?.error || 'The picture could not be generated');
++    const edited = await decodeImage(generated.local_path);
++
++    const feather = a.feather ?? Math.max(4, Math.round(original.width * 0.007));
++    const { image: composite, areaPixels } = compositeArea(original, { width: edited.width, height: edited.height, data: edited.data }, poly, feather);
++    const compositeFile = await this.savePng(composite, `edit-${id}.png`);
++    const previewFile = await this.savePng(beforeAfter(original, composite, poly), `preview-${id}.png`);
++
++    this.pending.set(id, {
++      id,
++      composite: compositeFile,
++      source: {
++        type: sceneInfo ? 'scene' : 'image',
++        ...(sceneInfo ? { scene: { id: sceneInfo.id, name: sceneInfo.name } } : {}),
++        ...((foundryPath ?? undefined) ? { foundryPath } : {}),
++        ...(annotation ? { annotation } : {}),
++      },
++    });
++    for (const old of [...this.pending.keys()].slice(0, -20)) this.pending.delete(old);
++
++    return {
++      success: true,
++      result: id,
++      picture: compositeFile,
++      preview: previewFile,
++      generated: generated.local_path,
++      size: `${original.width}x${original.height}`,
++      areaPixels,
++      ...(a.seed !== undefined ? { seed: a.seed } : generated.seed !== undefined ? { seed: generated.seed } : {}),
++      ...(sceneInfo ? { scene: { id: sceneInfo.id, name: sceneInfo.name } } : {}),
++      ...(annotation ? { annotation } : {}),
++      next: 'Open preview (before | after of the area). If it is right, commit with this result; otherwise edit again with another prompt, area or seed.',
++    };
++  }
++
++  private async sceneDetails(identifier: string): Promise<{ id: string; name: string; background: string; columns: number; rows: number }> {
++    const described = await this.query('manage-scenes', { action: 'describe', scene_identifier: identifier });
++    const s = described.scene;
++    if (!s) throw new Error(`Scene not found: "${identifier}"`);
++    const size = Number(s.grid?.size) || 100;
++    return { id: s.id, name: s.name, background: s.background ?? '', columns: Math.max(1, Math.round(Number(s.width) / size)), rows: Math.max(1, Math.round(Number(s.height) / size)) };
++  }
++
++  private async commit(a: Extract<z.infer<typeof schema>, { action: 'commit' }>): Promise<any> {
++    if (!this.upload) throw new Error('Upload is not available here');
++    const p = this.pending.get(a.result);
++    if (!p) throw new Error(`Unknown result "${a.result}"; run edit first (results are forgotten when the server restarts)`);
++    const apply = a.apply ?? (p.source.type === 'scene' ? 'scene' : 'file');
++    if (apply === 'scene' && !p.source.scene) throw new Error('This edit did not come from a scene; use apply file');
++
++    const original = p.source.foundryPath ?? p.source.scene?.name ?? 'image';
++    const stem = path.basename(original).replace(/\.[^.]+$/, '').replace(/[^A-Za-z0-9_-]+/g, '-').slice(0, 60) || 'image';
++    const fromUploads = /^worlds\/[^/]+\/uploads\/(.+)\/[^/]+$/.exec(p.source.foundryPath ?? '');
++    const folder = a.folder ?? fromUploads?.[1] ?? 'edits';
++    const filename = a.filename ?? `${stem.replace(/-edit-[a-z0-9]+$/, '')}-edit-${UNIQUE()}.png`;
++
++    let backup: any;
++    if (apply === 'scene' && a.backup !== false) {
++      backup = await this.query('manage-scene-backups', { action: 'backup', scene: p.source.scene!.id, label: 'before area edit' });
++    }
++    const uploaded = await this.upload({ file_path: p.composite, folder, filename });
++    if (uploaded?.success === false || !uploaded?.path) throw new Error(uploaded?.error || 'The picture could not be uploaded');
++
++    const out: Record<string, any> = { success: true, path: uploaded.path };
++    if (apply === 'scene') {
++      await this.query('manage-scenes', { action: 'update', scene_identifier: p.source.scene!.id, background: uploaded.path });
++      out.scene = p.source.scene;
++      out.backup = backup?.backup ?? backup?.scene ?? (backup ? 'made' : 'skipped');
++    }
++    if (p.source.annotation && a.resolve_note !== false) {
++      await this.query('annotations', {
++        action: 'resolve',
++        ids: [p.source.annotation],
++        status: 'done',
++        reply: a.reply ?? (apply === 'scene' ? 'Redrew the area on the map as requested.' : 'Redrew the area as requested.'),
++      });
++      out.noteResolved = p.source.annotation;
++    }
++    this.pending.delete(a.result);
++    return out;
++  }
++
++  async handle(args: unknown): Promise<any> {
++    const a = schema.parse(args ?? {});
++    this.logger.info('Edit image area', { action: a.action });
++    return a.action === 'edit' ? this.edit(a) : this.commit(a);
++  }
++}
+diff --git a/packages/mcp-server/src/tools/image-edit-utils.test.ts b/packages/mcp-server/src/tools/image-edit-utils.test.ts
+new file mode 100644
+index 0000000..aac7ab7
+--- /dev/null
++++ b/packages/mcp-server/src/tools/image-edit-utils.test.ts
+@@ -0,0 +1,87 @@
++import { describe, expect, it } from 'vitest';
++import { areaToPixels, beforeAfter, buildEditPrompt, compositeArea, cropBox, drawOutline, generationSize, polygonBox, resizeBilinear, type Pixels } from './image-edit-utils.js';
++
++function solid(width: number, height: number, rgb: [number, number, number]): Pixels {
++  const data = new Uint8Array(width * height * 4);
++  for (let i = 0; i < width * height; i++) data.set([rgb[0], rgb[1], rgb[2], 255], i * 4);
++  return { width, height, data };
++}
++const px = (img: Pixels, x: number, y: number) => [...img.data.slice((y * img.width + x) * 4, (y * img.width + x) * 4 + 3)];
++
++describe('areaToPixels', () => {
++  const image = { width: 200, height: 100 };
++  it('converts squares, percent and pixels, rect or polygon', () => {
++    expect(areaToPixels({ rect: [1, 2, 3, 4] }, image, { perSquareX: 10, perSquareY: 5 })).toEqual([[10, 10], [40, 10], [40, 30], [10, 30]]);
++    expect(areaToPixels({ rect: [10, 20, 50, 40], units: 'percent' }, image)).toEqual([[20, 20], [120, 20], [120, 60], [20, 60]]);
++    expect(areaToPixels({ polygon: [[0, 0], [50, 0], [50, 40]], units: 'pixels' }, image)).toEqual([[0, 0], [50, 0], [50, 40]]);
++  });
++  it('clamps to the picture and refuses bad areas', () => {
++    expect(areaToPixels({ rect: [-10, -10, 400, 400], units: 'pixels' }, image)[2]).toEqual([200, 100]);
++    expect(() => areaToPixels({ rect: [1, 1, 2, 2], units: 'squares' }, image)).toThrow('scene image');
++    expect(() => areaToPixels({}, image)).toThrow('either rect');
++    expect(() => areaToPixels({ rect: [0, 0, 1, 1], polygon: [[0, 0], [1, 1], [2, 0]] }, image)).toThrow('either rect');
++    expect(() => areaToPixels({ polygon: [[0, 0], [5, 5]], units: 'pixels' }, image)).toThrow('three points');
++    expect(() => areaToPixels({ rect: [0, 0, 2, 2], units: 'pixels' }, image)).toThrow('too small');
++  });
++});
++
++describe('outline, composite and crops', () => {
++  const poly: Array<[number, number]> = [[10, 10], [50, 10], [50, 40], [10, 40]];
++  it('draws a red outline without touching the original', () => {
++    const base = solid(60, 50, [20, 30, 40]);
++    const out = drawOutline(base, poly, 3);
++    expect(px(out, 30, 10)).toEqual([255, 0, 0]);
++    expect(px(out, 30, 25)).toEqual([20, 30, 40]);
++    expect(px(base, 30, 10)).toEqual([20, 30, 40]);
++  });
++  it('pastes only the area, with a soft edge, and leaves everything else exactly as it was', () => {
++    const original = solid(60, 50, [10, 10, 10]);
++    const edited = solid(60, 50, [200, 100, 50]);
++    const { image, areaPixels } = compositeArea(original, edited, poly, 6);
++    expect(areaPixels).toBe(40 * 30);
++    expect(px(image, 30, 25)).toEqual([200, 100, 50]); // deep inside: the edit
++    const edge = px(image, 11, 25)[0]!;
++    expect(edge).toBeGreaterThan(10);
++    expect(edge).toBeLessThan(200); // blended at the edge
++    expect(px(image, 5, 5)).toEqual([10, 10, 10]);
++    expect(px(image, 55, 45)).toEqual([10, 10, 10]);
++    let changedOutside = 0;
++    for (let y = 0; y < 50; y++) for (let x = 0; x < 60; x++) {
++      if (x >= 10 && x < 50 && y >= 10 && y < 40) continue;
++      if (px(image, x, y)[0] !== 10) changedOutside++;
++    }
++    expect(changedOutside).toBe(0);
++  });
++  it('accepts an edited picture of another size', () => {
++    const { image } = compositeArea(solid(60, 50, [0, 0, 0]), solid(120, 100, [255, 255, 255]), poly, 0);
++    expect(px(image, 30, 25)).toEqual([255, 255, 255]);
++    expect(image.width).toBe(60);
++  });
++  it('resizes, crops and builds a before and after sheet', () => {
++    const r = resizeBilinear(solid(4, 4, [9, 9, 9]), 8, 6);
++    expect([r.width, r.height]).toEqual([8, 6]);
++    expect(px(r, 7, 5)).toEqual([9, 9, 9]);
++    const c = cropBox(solid(20, 20, [1, 2, 3]), { x: 5, y: 5, width: 100, height: 4 });
++    expect([c.width, c.height]).toEqual([15, 4]);
++    expect(polygonBox(poly)).toEqual({ x: 10, y: 10, width: 40, height: 30 });
++    const sheet = beforeAfter(solid(60, 50, [0, 0, 0]), solid(60, 50, [255, 255, 255]), poly, 1500);
++    expect(px(sheet, 2, 5)).toEqual([0, 0, 0]);
++    expect(px(sheet, sheet.width - 2, 5)).toEqual([255, 255, 255]);
++    expect(beforeAfter(solid(60, 50, [0, 0, 0]), solid(60, 50, [0, 0, 0]), poly, 40).width).toBe(40);
++  });
++});
++
++describe('generation size and prompt', () => {
++  it('keeps proportions, caps at 2048 and rounds to 16', () => {
++    expect(generationSize({ width: 2016, height: 1344 })).toEqual({ width: 2016, height: 1344 });
++    expect(generationSize({ width: 4032, height: 2688 })).toEqual({ width: 2048, height: 1360 });
++    expect(generationSize({ width: 100, height: 100 })).toEqual({ width: 256, height: 256 });
++  });
++  it('wraps the change in an edit instruction', () => {
++    const p = buildEditPrompt('add a wooden door in the east wall.  ');
++    expect(p).toContain('<Picture 1>');
++    expect(p).toContain('inside the area marked by the red outline: add a wooden door in the east wall.');
++    expect(p).toContain('Remove the red outline completely');
++    expect(p).toContain('Everything outside the marked area stays unchanged');
++  });
++});
+diff --git a/packages/mcp-server/src/tools/image-edit-utils.ts b/packages/mcp-server/src/tools/image-edit-utils.ts
+new file mode 100644
+index 0000000..5370c6d
+--- /dev/null
++++ b/packages/mcp-server/src/tools/image-edit-utils.ts
+@@ -0,0 +1,197 @@
++/**
++ * Editing one area of a picture with an image model without touching the rest: mark the area
++ * with a red outline, let the model change what is inside, paste only that area back into the
++ * original. Pure pixel work; no network or Foundry.
++ */
++export interface Pixels {
++  width: number;
++  height: number;
++  /** RGBA */
++  data: Uint8Array;
++}
++
++export type Pt = [number, number];
++
++export interface AreaInput {
++  rect?: [number, number, number, number] | undefined;
++  polygon?: Pt[] | undefined;
++  units?: 'squares' | 'percent' | 'pixels' | undefined;
++}
++
++/** The area as a polygon in pixels of an image of this size. */
++export function areaToPixels(area: AreaInput, image: { width: number; height: number }, squares?: { perSquareX: number; perSquareY: number }): Pt[] {
++  const units = area.units ?? (squares ? 'squares' : 'percent');
++  if (!!area.rect === !!area.polygon) throw new Error('Give the area as either rect [x, y, width, height] or polygon [[x, y], ...]');
++  const pts: Pt[] = area.rect
++    ? [[area.rect[0], area.rect[1]], [area.rect[0] + area.rect[2], area.rect[1]], [area.rect[0] + area.rect[2], area.rect[1] + area.rect[3]], [area.rect[0], area.rect[1] + area.rect[3]]]
++    : area.polygon!;
++  if (pts.length < 3) throw new Error('A polygon needs at least three points');
++  const mapped = pts.map(([x, y]): Pt => {
++    if (units === 'pixels') return [x, y];
++    if (units === 'percent') return [(x / 100) * image.width, (y / 100) * image.height];
++    if (!squares) throw new Error('Squares only work for a scene image; use percent or pixels');
++    return [x * squares.perSquareX, y * squares.perSquareY];
++  });
++  const clamped = mapped.map(([x, y]): Pt => [Math.max(0, Math.min(image.width, x)), Math.max(0, Math.min(image.height, y))]);
++  const bounds = polygonBox(clamped);
++  if (bounds.width < 8 || bounds.height < 8) throw new Error('The area is too small (or outside the picture)');
++  return clamped;
++}
++
++export function polygonBox(points: Pt[]): { x: number; y: number; width: number; height: number } {
++  const xs = points.map(p => p[0]);
++  const ys = points.map(p => p[1]);
++  const x = Math.min(...xs);
++  const y = Math.min(...ys);
++  return { x, y, width: Math.max(...xs) - x, height: Math.max(...ys) - y };
++}
++
++function inside(poly: Pt[], x: number, y: number): boolean {
++  let r = false;
++  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
++    const [xi, yi] = poly[i]!;
++    const [xj, yj] = poly[j]!;
++    if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) r = !r;
++  }
++  return r;
++}
++
++function edgeDistance(poly: Pt[], x: number, y: number): number {
++  let best = Infinity;
++  for (let i = 0; i < poly.length; i++) {
++    const [ax, ay] = poly[i]!;
++    const [bx, by] = poly[(i + 1) % poly.length]!;
++    const dx = bx - ax;
++    const dy = by - ay;
++    const l2 = dx * dx + dy * dy;
++    const t = l2 ? Math.max(0, Math.min(1, ((x - ax) * dx + (y - ay) * dy) / l2)) : 0;
++    best = Math.min(best, Math.hypot(x - (ax + t * dx), y - (ay + t * dy)));
++  }
++  return best;
++}
++
++/** A copy of the picture with the area outlined in red. */
++export function drawOutline(image: Pixels, poly: Pt[], width: number): Pixels {
++  const out: Pixels = { width: image.width, height: image.height, data: new Uint8Array(image.data) };
++  const half = Math.floor(width / 2);
++  const put = (x: number, y: number) => {
++    if (x < 0 || y < 0 || x >= out.width || y >= out.height) return;
++    const i = (y * out.width + x) * 4;
++    out.data[i] = 255;
++    out.data[i + 1] = 0;
++    out.data[i + 2] = 0;
++    out.data[i + 3] = 255;
++  };
++  for (let k = 0; k < poly.length; k++) {
++    const [x1, y1] = poly[k]!;
++    const [x2, y2] = poly[(k + 1) % poly.length]!;
++    const steps = Math.max(1, Math.ceil(Math.hypot(x2 - x1, y2 - y1)));
++    for (let s = 0; s <= steps; s++) {
++      const x = Math.round(x1 + ((x2 - x1) * s) / steps);
++      const y = Math.round(y1 + ((y2 - y1) * s) / steps);
++      for (let dx = -half; dx <= half; dx++) for (let dy = -half; dy <= half; dy++) put(x + dx, y + dy);
++    }
++  }
++  return out;
++}
++
++export function resizeBilinear(src: Pixels, outW: number, outH: number): Pixels {
++  if (src.width === outW && src.height === outH) return src;
++  const out = new Uint8Array(outW * outH * 4);
++  for (let y = 0; y < outH; y++) {
++    const fy = ((y + 0.5) * src.height) / outH - 0.5;
++    const y0 = Math.max(0, Math.floor(fy));
++    const y1 = Math.min(src.height - 1, y0 + 1);
++    const ty = Math.min(1, Math.max(0, fy - y0));
++    for (let x = 0; x < outW; x++) {
++      const fx = ((x + 0.5) * src.width) / outW - 0.5;
++      const x0 = Math.max(0, Math.floor(fx));
++      const x1 = Math.min(src.width - 1, x0 + 1);
++      const tx = Math.min(1, Math.max(0, fx - x0));
++      for (let c = 0; c < 4; c++) {
++        const a = src.data[(y0 * src.width + x0) * 4 + c]!;
++        const b = src.data[(y0 * src.width + x1) * 4 + c]!;
++        const d = src.data[(y1 * src.width + x0) * 4 + c]!;
++        const e = src.data[(y1 * src.width + x1) * 4 + c]!;
++        out[(y * outW + x) * 4 + c] = Math.round((a * (1 - tx) + b * tx) * (1 - ty) + (d * (1 - tx) + e * tx) * ty);
++      }
++    }
++  }
++  return { width: outW, height: outH, data: out };
++}
++
++/**
++ * The original with only the area taken from the edited picture. The edge blends over `feather`
++ * pixels inside the area. Pixels outside the area are exactly the original's.
++ */
++export function compositeArea(original: Pixels, edited: Pixels, poly: Pt[], feather: number): { image: Pixels; areaPixels: number } {
++  const gen = resizeBilinear(edited, original.width, original.height);
++  const out: Pixels = { width: original.width, height: original.height, data: new Uint8Array(original.data) };
++  const box = polygonBox(poly);
++  const x0 = Math.max(0, Math.floor(box.x));
++  const y0 = Math.max(0, Math.floor(box.y));
++  const x1 = Math.min(original.width - 1, Math.ceil(box.x + box.width));
++  const y1 = Math.min(original.height - 1, Math.ceil(box.y + box.height));
++  let areaPixels = 0;
++  for (let y = y0; y <= y1; y++) {
++    for (let x = x0; x <= x1; x++) {
++      if (!inside(poly, x + 0.5, y + 0.5)) continue;
++      const a = feather > 0 ? Math.min(1, edgeDistance(poly, x + 0.5, y + 0.5) / feather) : 1;
++      const i = (y * original.width + x) * 4;
++      for (let c = 0; c < 3; c++) out.data[i + c] = Math.round(original.data[i + c]! * (1 - a) + gen.data[i + c]! * a);
++      areaPixels++;
++    }
++  }
++  return { image: out, areaPixels };
++}
++
++export function cropBox(image: Pixels, box: { x: number; y: number; width: number; height: number }): Pixels {
++  const x0 = Math.max(0, Math.floor(box.x));
++  const y0 = Math.max(0, Math.floor(box.y));
++  const x1 = Math.min(image.width, Math.ceil(box.x + box.width));
++  const y1 = Math.min(image.height, Math.ceil(box.y + box.height));
++  const w = Math.max(1, x1 - x0);
++  const h = Math.max(1, y1 - y0);
++  const out = new Uint8Array(w * h * 4);
++  for (let y = 0; y < h; y++) {
++    const from = ((y0 + y) * image.width + x0) * 4;
++    out.set(image.data.subarray(from, from + w * 4), y * w * 4);
++  }
++  return { width: w, height: h, data: out };
++}
++
++/** Before and after of the area, side by side, with some margin around it, at most maxWidth wide. */
++export function beforeAfter(before: Pixels, after: Pixels, poly: Pt[], maxWidth = 1500): Pixels {
++  const box = polygonBox(poly);
++  const margin = Math.max(box.width, box.height) * 0.12;
++  const around = { x: box.x - margin, y: box.y - margin, width: box.width + margin * 2, height: box.height + margin * 2 };
++  const a = cropBox(before, around);
++  const b = cropBox(after, around);
++  const gap = Math.max(4, Math.round(a.width * 0.02));
++  const width = a.width * 2 + gap;
++  const out = new Uint8Array(width * a.height * 4).fill(255);
++  for (let y = 0; y < a.height; y++) {
++    out.set(a.data.subarray(y * a.width * 4, (y + 1) * a.width * 4), y * width * 4);
++    out.set(b.data.subarray(y * b.width * 4, (y + 1) * b.width * 4), (y * width + a.width + gap) * 4);
++  }
++  const sheet: Pixels = { width, height: a.height, data: out };
++  if (width <= maxWidth) return sheet;
++  const scale = maxWidth / width;
++  return resizeBilinear(sheet, maxWidth, Math.max(1, Math.round(a.height * scale)));
++}
++
++/** Size to ask the image model for: the picture's own proportions, at most 2048 a side, multiples of 16. */
++export function generationSize(image: { width: number; height: number }, maxSide = 2048): { width: number; height: number } {
++  const scale = Math.min(1, maxSide / Math.max(image.width, image.height));
++  const round16 = (v: number) => Math.max(256, Math.min(maxSide, Math.round((v * scale) / 16) * 16));
++  return { width: round16(image.width), height: round16(image.height) };
++}
++
++export function buildEditPrompt(change: string): string {
++  const what = change.trim().replace(/[.\s]+$/, '');
++  return (
++    'Edit <Picture 1> and keep the whole picture exactly as it is (same layout, art style, colours, lighting and framing) ' +
++    `with one change inside the area marked by the red outline: ${what}. ` +
++    'Remove the red outline completely and paint what is underneath it in the original style. Everything outside the marked area stays unchanged.'
++  );
 +}
 diff --git a/packages/mcp-server/src/tools/image-generation.test.ts b/packages/mcp-server/src/tools/image-generation.test.ts
 new file mode 100644
@@ -28541,10 +29399,10 @@ index 0000000..8a21b3a
 +});
 diff --git a/packages/mcp-server/src/tools/prop-keying.ts b/packages/mcp-server/src/tools/prop-keying.ts
 new file mode 100644
-index 0000000..3de194b
+index 0000000..767a319
 --- /dev/null
 +++ b/packages/mcp-server/src/tools/prop-keying.ts
-@@ -0,0 +1,326 @@
+@@ -0,0 +1,330 @@
 +/**
 + * Turns a picture of an object on a flat coloured background into a picture with a transparent
 + * background (a prop that can be laid on a map as a tile). Pure pixel work, no files.
@@ -28778,9 +29636,13 @@ index 0000000..3de194b
 +      const b = out[i + 2]!;
 +      const excess = Math.min(r, b) - g;
 +      if (excess > 25) {
-+        const cut = excess * 0.85;
-+        out[i] = Math.round(r - cut);
-+        out[i + 2] = Math.round(b - cut);
++        // fade the pink towards a neutral grey of the same brightness (no green cast);
++        // a little pink stays when it is probably real (a nose, an ear)
++        const t = Math.min(1, (excess - 25) / 60) * 0.9;
++        const grey = (r + g + b) / 3;
++        out[i] = Math.round(r + (grey - r) * t);
++        out[i + 1] = Math.round(g + (grey - g) * t);
++        out[i + 2] = Math.round(b + (grey - b) * t);
 +      }
 +    }
 +  }
