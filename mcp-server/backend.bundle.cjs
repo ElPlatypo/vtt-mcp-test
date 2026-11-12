@@ -120240,7 +120240,7 @@ var ChatFeed = class {
     this.wss = void 0;
   }
   onConnection(socket, request) {
-    const from = new URL(request.url ?? "/", "http://localhost").searchParams.get("from") === "all" ? "all" : "players";
+    const from = new URL(request.url ?? "/", "http://localhost").searchParams.get("from") === "players" ? "players" : "people";
     this.clients.set(socket, from);
     socket.on("close", () => {
       this.clients.delete(socket);
@@ -120292,7 +120292,7 @@ var ChatFeed = class {
         if (!first) {
           for (const row2 of result?.messages ?? []) {
             const line = feedLine(row2);
-            this.broadcast(line, (from) => from === "all" || !row2.fromGM);
+            this.broadcast(line, (from) => from === "players" ? !row2.fromGM : !row2.auto);
           }
         }
         this.marker = result?.marker ?? (first ? "" : this.marker);
@@ -120341,7 +120341,7 @@ var ChatControlTools = class {
     return [
       {
         name: "chat",
-        description: `Talk with the players through the chat. read {since?, from?: players|all, rolls?, limit?(15)} returns the latest messages as short rows (who, as, kind say|roll|whisper|card, text, roll total, whisper recipients) and a marker: pass it as since next time to get only what is new. narrate {content, speaker?("Narrator"), whisperTo?} posts narration to everyone, or only to the named players when whisperTo is given. say {actorIdentifier | tokenId, content, whisperTo?, language?, chatLog?} speaks as an actor or token: a speech bubble by default, or a chat-log line, optionally whispered or in a language (Polyglot). Live chat: nothing in the chat can wake you up, so follow the table by watching the chat feed, a WebSocket on this computer (ws://127.0.0.1:${DEFAULT_CHAT_FEED_PORT}) that sends one JSON line per new player message ({id, who, as?, kind, text?, roll?, flavor?, to?}); ?from=all adds the GM's lines. In Claude Code, start it once with the Monitor tool (ws: {url}); each message then arrives as its own notification, to answer one at a time. Without such a tool, poll read with the marker. Reading is GM-only and shows whispers; never repeat a whisper to other players. A player's chat is their action: respond to what they said, do not act for them. Needs the Foundry GM tab open and not minimized; narrate and say need Allow Write Operations.`,
+        description: `Talk with the players through the chat. read {since?, from?: players|all, rolls?, limit?(15)} returns the latest messages as short rows (who, as, kind say|roll|whisper|card, text, roll total, whisper recipients) and a marker: pass it as since next time to get only what is new. narrate {content, speaker?("Narrator"), whisperTo?} posts narration to everyone, or only to the named players when whisperTo is given. say {actorIdentifier | tokenId, content, whisperTo?, language?, chatLog?} speaks as an actor or token: a speech bubble by default, or a chat-log line, optionally whispered or in a language (Polyglot). Live chat: nothing in the chat can wake you up, so follow the table by watching the chat feed, a WebSocket on this computer (ws://127.0.0.1:${DEFAULT_CHAT_FEED_PORT}) that sends one JSON line per new message typed by a person ({id, who, as?, kind, text?, roll?, flavor?, to?, gm?}): the players' and the GM's own typed lines, not what the bridge or the game system posts; ?from=players leaves out the GM. In Claude Code, start it once with the Monitor tool (ws: {url}); each message then arrives as its own notification, to answer one at a time. Without such a tool, poll read with the marker. Reading is GM-only and shows whispers; never repeat a whisper to other players. A player's chat is their action: respond to what they said, do not act for them. Needs the Foundry GM tab open and not minimized; narrate and say need Allow Write Operations.`,
         inputSchema: {
           type: "object",
           properties: {

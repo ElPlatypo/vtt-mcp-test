@@ -1684,14 +1684,15 @@ index 0000000..6c9da45
 +}
 diff --git a/packages/foundry-module/src/chat-utils.ts b/packages/foundry-module/src/chat-utils.ts
 new file mode 100644
-index 0000000..7b93eaa
+index 0000000..7b10937
 --- /dev/null
 +++ b/packages/foundry-module/src/chat-utils.ts
-@@ -0,0 +1,72 @@
+@@ -0,0 +1,78 @@
 +/**
 + * Chat reading: turning chat messages into short rows that say who spoke, what they said or rolled,
 + * and who a whisper was for, and picking the messages after a marker.
 + */
++import { MODULE_ID } from './constants.js';
 +import { htmlToText } from './rules-utils.js';
 +
 +export interface ChatRow {
@@ -1707,6 +1708,8 @@ index 0000000..7b93eaa
 +  /** recipients of a whisper */
 +  to?: string[];
 +  fromGM: boolean;
++  /** made by the bridge, the game system or a macro (narration, cards, tool rolls), not typed by a person */
++  auto?: boolean;
 +}
 +
 +const MAX_TEXT = 400;
@@ -1724,6 +1727,9 @@ index 0000000..7b93eaa
 +  const rolls: any[] = Array.isArray(message.rolls) ? message.rolls : [];
 +  const whisper: string[] = Array.isArray(message.whisper) ? message.whisper : [];
 +  const row: ChatRow = { id: message.id, who, fromGM, kind: whisper.length ? 'whisper' : rolls.length ? 'roll' : text ? 'say' : 'card' };
++  // The bridge marks what it posts with a flag; the system's cards have their own flags and message type.
++  const flags = message.flags ?? {};
++  if (flags[MODULE_ID]?.bridge || flags[MODULE_ID]?.tts || flags.dnd5e || (message.type && message.type !== 'base') || (fromGM && rolls.length)) row.auto = true;
 +  if (alias && alias !== who) row.as = alias;
 +  if (text) row.text = cut(text);
 +  if (rolls.length) row.roll = { formula: String(rolls[0].formula ?? ''), total: rolls[0].total ?? '' };
@@ -2954,10 +2960,10 @@ index 0000000..8e1aad5
 +});
 diff --git a/packages/foundry-module/src/data-access.chat.test.ts b/packages/foundry-module/src/data-access.chat.test.ts
 new file mode 100644
-index 0000000..1cd4fdb
+index 0000000..e1a0a64
 --- /dev/null
 +++ b/packages/foundry-module/src/data-access.chat.test.ts
-@@ -0,0 +1,79 @@
+@@ -0,0 +1,89 @@
 +/** chat: reading and narrating. Foundry is stubbed. */
 +import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 +import { FoundryDataAccess } from './data-access.js';
@@ -2977,6 +2983,16 @@ index 0000000..1cd4fdb
 +    expect(chatRow(msg('c', { author: users.gm, content: 'Psst.', whisper: ['cl'], speaker: { alias: 'Gamemaster' } }), name)).toMatchObject({ kind: 'whisper', to: ['Claudio'], fromGM: true });
 +    expect(chatRow(msg('d'), name).kind).toBe('card');
 +    expect(chatRow(msg('e', { content: 'x'.repeat(500) }), name).text!.length).toBe(400);
++  });
++  it('marks what the bridge, the system or a GM roll posts as automatic', () => {
++    const gm = { author: users.gm };
++    expect(chatRow(msg('a', { content: 'typed' }), name).auto).toBeUndefined();
++    expect(chatRow(msg('b', { ...gm, content: 'Narration', flags: { 'foundry-mcp-bridge-scenes': { bridge: true } } }), name).auto).toBe(true);
++    expect(chatRow(msg('c', { ...gm, content: 'spoken', flags: { 'foundry-mcp-bridge-scenes': { tts: { segments: [] } } } }), name).auto).toBe(true);
++    expect(chatRow(msg('d', { ...gm, content: 'Longsword', flags: { dnd5e: { messageType: 'usage' } } }), name).auto).toBe(true);
++    expect(chatRow(msg('e', { content: 'card', type: 'usage' }), name).auto).toBe(true);
++    expect(chatRow(msg('f', { ...gm, rolls: [{ formula: '1d20', total: 3 }] }), name).auto).toBe(true);
++    expect(chatRow(msg('g', { rolls: [{ formula: '1d20', total: 3 }] }), name).auto).toBeUndefined();
 +  });
 +  it('selects after a marker, by sender and without rolls', () => {
 +    const all = [msg('1', { content: 'old' }), msg('2', { author: users.gm, content: 'gm line' }), msg('3', { rolls: [{ formula: '1d20', total: 4 }] }), msg('4', { content: 'new' })];
@@ -3028,10 +3044,10 @@ index 0000000..1cd4fdb
 +  it('narrates publicly or as a whisper, escaping html', async () => {
 +    const { da, create } = setup();
 +    const pub = await da.controlChat({ action: 'narrate', content: 'The wind <rises>.\n\nA twig snaps.' });
-+    expect(create).toHaveBeenLastCalledWith({ content: '<p>The wind &lt;rises&gt;.</p><p>A twig snaps.</p>', speaker: { alias: 'Narrator' } });
++    expect(create).toHaveBeenLastCalledWith({ content: '<p>The wind &lt;rises&gt;.</p><p>A twig snaps.</p>', speaker: { alias: 'Narrator' }, flags: { 'foundry-mcp-bridge-scenes': { bridge: true } } });
 +    expect(pub).toMatchObject({ success: true, delivery: 'public' });
 +    const priv = await da.controlChat({ action: 'narrate', content: 'You notice a glint.', whisperTo: ['claudio'], speaker: 'Your instincts' });
-+    expect(create).toHaveBeenLastCalledWith({ content: '<p>You notice a glint.</p>', speaker: { alias: 'Your instincts' }, whisper: ['cl'] });
++    expect(create).toHaveBeenLastCalledWith({ content: '<p>You notice a glint.</p>', speaker: { alias: 'Your instincts' }, flags: { 'foundry-mcp-bridge-scenes': { bridge: true } }, whisper: ['cl'] });
 +    expect(priv).toMatchObject({ delivery: 'whisper', to: ['Claudio'] });
 +    await expect(da.controlChat({ action: 'narrate' })).rejects.toThrow('needs content');
 +    await expect(da.controlChat({ action: 'narrate', content: 'x', whisperTo: ['nobody'] })).rejects.toThrow('No matching players');
@@ -7629,7 +7645,7 @@ index 0000000..26e6aab
 +  });
 +});
 diff --git a/packages/foundry-module/src/data-access.ts b/packages/foundry-module/src/data-access.ts
-index eecda7e..cc54fdb 100644
+index eecda7e..e061afa 100644
 --- a/packages/foundry-module/src/data-access.ts
 +++ b/packages/foundry-module/src/data-access.ts
 @@ -1,6 +1,140 @@
@@ -7929,7 +7945,15 @@ index eecda7e..cc54fdb 100644
              type: 'requestMessageUpdate',
              buttonId,
              userId,
-@@ -8101,246 +8350,4804 @@ export class FoundryDataAccess {
+@@ -7603,6 +7852,7 @@ export class FoundryDataAccess {
+     if (applyPolyglot) {
+       messageData.flags = { polyglot: { language: data.language } };
+     }
++    messageData.flags = { ...(messageData.flags ?? {}), [MODULE_ID]: { bridge: true } };
+     if (whisperIds.length > 0) {
+       messageData.whisper = whisperIds;
+     }
+@@ -8101,246 +8351,4805 @@ export class FoundryDataAccess {
      }
    }
  
@@ -9668,6 +9692,7 @@ index eecda7e..cc54fdb 100644
 +        const created = await (globalThis as any).ChatMessage.create({
 +          content: html,
 +          speaker: { alias: data.speaker?.trim() || 'Narrator' },
++          flags: { [MODULE_ID]: { bridge: true } },
 +          ...(whisper.length ? { whisper } : {}),
 +        });
 +        return { success: true, id: created?.id ?? null, delivery: whisper.length ? 'whisper' : 'public', to: whisper.map(id => userName(id) ?? id), marker: lastId() };
@@ -12948,7 +12973,7 @@ index eecda7e..cc54fdb 100644
        };
  
        // Find the character first
-@@ -8468,6 +13275,21 @@ export class FoundryDataAccess {
+@@ -8468,6 +13277,21 @@ export class FoundryDataAccess {
      }
    }
  
@@ -12970,7 +12995,7 @@ index eecda7e..cc54fdb 100644
    /**
     * Move a token to a new position on the scene
     */
-@@ -8476,6 +13298,12 @@ export class FoundryDataAccess {
+@@ -8476,6 +13300,12 @@ export class FoundryDataAccess {
      x: number;
      y: number;
      animate?: boolean;
@@ -12983,7 +13008,7 @@ index eecda7e..cc54fdb 100644
    }): Promise<any> {
      this.validateFoundryState();
  
-@@ -8489,24 +13317,57 @@ export class FoundryDataAccess {
+@@ -8489,24 +13319,57 @@ export class FoundryDataAccess {
      }
  
      try {
@@ -13054,7 +13079,7 @@ index eecda7e..cc54fdb 100644
  
        this.auditLog('moveToken', data, 'success');
  
-@@ -8514,8 +13375,12 @@ export class FoundryDataAccess {
+@@ -8514,8 +13377,12 @@ export class FoundryDataAccess {
          success: true,
          tokenId: token.id,
          tokenName: token.name,
@@ -13068,7 +13093,7 @@ index eecda7e..cc54fdb 100644
        };
      } catch (error) {
        this.auditLog(
-@@ -8530,10 +13395,56 @@ export class FoundryDataAccess {
+@@ -8530,10 +13397,56 @@ export class FoundryDataAccess {
      }
    }
  
@@ -13126,7 +13151,7 @@ index eecda7e..cc54fdb 100644
      this.validateFoundryState();
  
      // Use permission system
-@@ -8546,20 +13457,19 @@ export class FoundryDataAccess {
+@@ -8546,20 +13459,19 @@ export class FoundryDataAccess {
      }
  
      try {
@@ -13153,7 +13178,7 @@ index eecda7e..cc54fdb 100644
  
        // Apply updates
        await token.update(cleanUpdates);
-@@ -8651,18 +13561,15 @@ export class FoundryDataAccess {
+@@ -8651,18 +13563,15 @@ export class FoundryDataAccess {
    /**
     * Get detailed information about a token
     */
@@ -13176,7 +13201,7 @@ index eecda7e..cc54fdb 100644
        }
  
        // Return flat structure that matches MCP server expectations
-@@ -11274,7 +16181,10 @@ export class FoundryDataAccess {
+@@ -11274,7 +16183,10 @@ export class FoundryDataAccess {
        name: string;
        type: string;
        img?: string;
@@ -13187,7 +13212,7 @@ index eecda7e..cc54fdb 100644
      }>;
      folder?: string;
    }): Promise<{ created: Array<{ id: string; name: string; type: string }>; total: number }> {
-@@ -11286,6 +16196,19 @@ export class FoundryDataAccess {
+@@ -11286,6 +16198,19 @@ export class FoundryDataAccess {
      const docs = params.actors.map(a => {
        const doc: Record<string, any> = { name: a.name, type: a.type };
        if (a.img) doc.img = a.img;
@@ -13207,7 +13232,7 @@ index eecda7e..cc54fdb 100644
  
        // Merge system data, adding safe defaults for systems that require certain
        // fields to exist during data preparation (avoids non-fatal init errors).
-@@ -11471,7 +16394,16 @@ export class FoundryDataAccess {
+@@ -11471,7 +16396,16 @@ export class FoundryDataAccess {
     * Merges supplied fields into the actor (top-level keys overwrite).
     */
    async updateActors(
@@ -13225,7 +13250,7 @@ index eecda7e..cc54fdb 100644
    ): Promise<{ updated: Array<{ id: string; name: string }>; total: number }> {
      const updatedActors: Array<{ id: string; name: string }> = [];
  
-@@ -11482,6 +16414,7 @@ export class FoundryDataAccess {
+@@ -11482,6 +16416,7 @@ export class FoundryDataAccess {
        const patch: Record<string, any> = {};
        if (u.name !== undefined) patch.name = u.name;
        if (u.img !== undefined) patch.img = u.img;
@@ -13233,7 +13258,7 @@ index eecda7e..cc54fdb 100644
        if (u.system !== undefined) {
          // Build a single patch.system nested object so Foundry deep-merges everything
          // in one pass without flat-key vs nested-key conflicts.
-@@ -11504,6 +16437,19 @@ export class FoundryDataAccess {
+@@ -11504,6 +16439,19 @@ export class FoundryDataAccess {
          }
          patch.system = systemPatch;
        }
@@ -22859,10 +22884,10 @@ index 8967e33..6ca37c5 100644
                }
 diff --git a/packages/mcp-server/src/chat-feed.test.ts b/packages/mcp-server/src/chat-feed.test.ts
 new file mode 100644
-index 0000000..c3de050
+index 0000000..dd1bbe2
 --- /dev/null
 +++ b/packages/mcp-server/src/chat-feed.test.ts
-@@ -0,0 +1,80 @@
+@@ -0,0 +1,86 @@
 +import { afterEach, describe, expect, it, vi } from 'vitest';
 +import WebSocket from 'ws';
 +import { ChatFeed, feedLine } from './chat-feed.js';
@@ -22905,26 +22930,32 @@ index 0000000..c3de050
 +    expect(check()).toBe(true);
 +  };
 +
-+  it('sends only messages that arrive after connecting, players only by default', async () => {
++  it('sends what people type after connecting: players and the GM, not what the bridge or system posts', async () => {
 +    const { rows } = setup();
 +    rows.push({ id: '1', who: 'Claudio', kind: 'say', text: 'old', fromGM: false });
 +    const { lines } = await connect();
 +    await new Promise(r => setTimeout(r, 80));
 +    expect(lines).toEqual([]);
-+    rows.push({ id: '2', who: 'Gamemaster', kind: 'say', text: 'gm line', fromGM: true });
-+    rows.push({ id: '3', who: 'Claudio', as: 'Randal', kind: 'say', text: 'I open the door', fromGM: false });
-+    await until(() => lines.length >= 1);
++    rows.push({ id: '2', who: 'Gamemaster', kind: 'say', text: 'typed by the GM', fromGM: true });
++    rows.push({ id: '3', who: 'Gamemaster', kind: 'say', text: 'narration from the bridge', fromGM: true, auto: true });
++    rows.push({ id: '4', who: 'Claudio', as: 'Randal', kind: 'say', text: 'I open the door', fromGM: false });
++    await until(() => lines.length >= 2);
 +    await new Promise(r => setTimeout(r, 60));
-+    expect(lines).toEqual([{ id: '3', who: 'Claudio', as: 'Randal', kind: 'say', text: 'I open the door' }]);
++    expect(lines).toEqual([
++      { id: '2', who: 'Gamemaster', kind: 'say', text: 'typed by the GM', gm: true },
++      { id: '4', who: 'Claudio', as: 'Randal', kind: 'say', text: 'I open the door' },
++    ]);
 +  });
 +
-+  it('sends the GM lines too with ?from=all, and handles an empty chat', async () => {
++  it('sends players only with ?from=players, and handles an empty chat', async () => {
 +    const { rows } = setup();
-+    const { lines } = await connect('/?from=all');
++    const { lines } = await connect('/?from=players');
 +    await new Promise(r => setTimeout(r, 80));
-+    rows.push({ id: '1', who: 'Gamemaster', kind: 'say', text: 'first ever', fromGM: true });
++    rows.push({ id: '1', who: 'Gamemaster', kind: 'say', text: 'gm line', fromGM: true });
++    rows.push({ id: '2', who: 'Claudio', kind: 'say', text: 'player line', fromGM: false });
 +    await until(() => lines.length >= 1);
-+    expect(lines[0]).toMatchObject({ id: '1', gm: true });
++    await new Promise(r => setTimeout(r, 60));
++    expect(lines).toEqual([{ id: '2', who: 'Claudio', kind: 'say', text: 'player line' }]);
 +  });
 +
 +  it('says so when Foundry is not connected, and stops reading when nobody listens', async () => {
@@ -22945,17 +22976,18 @@ index 0000000..c3de050
 +});
 diff --git a/packages/mcp-server/src/chat-feed.ts b/packages/mcp-server/src/chat-feed.ts
 new file mode 100644
-index 0000000..b5fe2a7
+index 0000000..525dfa1
 --- /dev/null
 +++ b/packages/mcp-server/src/chat-feed.ts
-@@ -0,0 +1,155 @@
+@@ -0,0 +1,158 @@
 +import { WebSocketServer, type WebSocket } from 'ws';
 +import type { IncomingMessage } from 'node:http';
 +
 +/**
 + * A live feed of the Foundry chat for anything that can read a WebSocket (in Claude Code: the Monitor tool).
 + * Each new chat message is sent as one JSON line, so a client can react to the table one message at a time without
-+ * keeping a request open. Players' messages by default; connect with ?from=all to also get the GM's.
++ * keeping a request open. It carries what people type: the players' messages and the GM's typed lines, not what the
++ * bridge or the game system post itself (narration, cards, tool rolls). Connect with ?from=players for players only.
 + * Listens on this computer only. It reads the chat through the module's `chat` query, but only while someone is connected.
 + */
 +
@@ -22980,6 +23012,7 @@ index 0000000..b5fe2a7
 +  flavor?: string;
 +  to?: string[];
 +  fromGM: boolean;
++  auto?: boolean;
 +}
 +
 +/** One chat row as the line a client receives. */
@@ -22998,7 +23031,7 @@ index 0000000..b5fe2a7
 +export class ChatFeed {
 +  private options: ChatFeedOptions;
 +  private wss: WebSocketServer | undefined;
-+  private clients = new Map<WebSocket, 'players' | 'all'>();
++  private clients = new Map<WebSocket, 'players' | 'people'>();
 +  private timer: ReturnType<typeof setTimeout> | undefined;
 +  private marker: string | undefined;
 +  private lastNotice: string | undefined;
@@ -23041,7 +23074,7 @@ index 0000000..b5fe2a7
 +  }
 +
 +  private onConnection(socket: WebSocket, request: IncomingMessage): void {
-+    const from = new URL(request.url ?? '/', 'http://localhost').searchParams.get('from') === 'all' ? 'all' : 'players';
++    const from = new URL(request.url ?? '/', 'http://localhost').searchParams.get('from') === 'players' ? 'players' : 'people';
 +    this.clients.set(socket, from);
 +    socket.on('close', () => {
 +      this.clients.delete(socket);
@@ -23061,7 +23094,7 @@ index 0000000..b5fe2a7
 +    this.broadcast(JSON.stringify({ type: 'notice', text }), () => true);
 +  }
 +
-+  private broadcast(line: string, wants: (from: 'players' | 'all') => boolean): void {
++  private broadcast(line: string, wants: (from: 'players' | 'people') => boolean): void {
 +    for (const [client, from] of this.clients) {
 +      if (client.readyState === 1 && wants(from)) client.send(line);
 +    }
@@ -23089,7 +23122,8 @@ index 0000000..b5fe2a7
 +        if (!first) {
 +          for (const row of (result?.messages ?? []) as Row[]) {
 +            const line = feedLine(row);
-+            this.broadcast(line, from => from === 'all' || !row.fromGM);
++            // Players always; the GM's lines only when typed by a person, so the bridge's own posts never wake the listener.
++            this.broadcast(line, from => (from === 'players' ? !row.fromGM : !row.auto));
 +          }
 +        }
 +        // An empty chat has no marker yet: '' means everything that appears now is new.
@@ -26364,10 +26398,10 @@ index 0000000..2185d13
 +}
 diff --git a/packages/mcp-server/src/tools/chat-control.test.ts b/packages/mcp-server/src/tools/chat-control.test.ts
 new file mode 100644
-index 0000000..240c4a4
+index 0000000..c5c09fa
 --- /dev/null
 +++ b/packages/mcp-server/src/tools/chat-control.test.ts
-@@ -0,0 +1,46 @@
+@@ -0,0 +1,47 @@
 +import { describe, expect, it, vi } from 'vitest';
 +import { ChatControlTools } from './chat-control.js';
 +
@@ -26412,11 +26446,12 @@ index 0000000..240c4a4
 +    expect(def.description).toContain('ws://127.0.0.1:31417');
 +    expect(def.description).toContain('Monitor');
 +    expect(def.description).not.toContain('timeout_s');
++    expect(def.description).toContain('typed by a person');
 +  });
 +});
 diff --git a/packages/mcp-server/src/tools/chat-control.ts b/packages/mcp-server/src/tools/chat-control.ts
 new file mode 100644
-index 0000000..dc3d265
+index 0000000..aae26bc
 --- /dev/null
 +++ b/packages/mcp-server/src/tools/chat-control.ts
 @@ -0,0 +1,95 @@
@@ -26472,7 +26507,7 @@ index 0000000..dc3d265
 +          'read {since?, from?: players|all, rolls?, limit?(15)} returns the latest messages as short rows (who, as, kind say|roll|whisper|card, text, roll total, whisper recipients) and a marker: pass it as since next time to get only what is new. ' +
 +          'narrate {content, speaker?("Narrator"), whisperTo?} posts narration to everyone, or only to the named players when whisperTo is given. ' +
 +          'say {actorIdentifier | tokenId, content, whisperTo?, language?, chatLog?} speaks as an actor or token: a speech bubble by default, or a chat-log line, optionally whispered or in a language (Polyglot). ' +
-+          `Live chat: nothing in the chat can wake you up, so follow the table by watching the chat feed, a WebSocket on this computer (ws://127.0.0.1:${DEFAULT_CHAT_FEED_PORT}) that sends one JSON line per new player message ({id, who, as?, kind, text?, roll?, flavor?, to?}); ?from=all adds the GM's lines. In Claude Code, start it once with the Monitor tool (ws: {url}); each message then arrives as its own notification, to answer one at a time. Without such a tool, poll read with the marker. ` +
++          `Live chat: nothing in the chat can wake you up, so follow the table by watching the chat feed, a WebSocket on this computer (ws://127.0.0.1:${DEFAULT_CHAT_FEED_PORT}) that sends one JSON line per new message typed by a person ({id, who, as?, kind, text?, roll?, flavor?, to?, gm?}): the players' and the GM's own typed lines, not what the bridge or the game system posts; ?from=players leaves out the GM. In Claude Code, start it once with the Monitor tool (ws: {url}); each message then arrives as its own notification, to answer one at a time. Without such a tool, poll read with the marker. ` +
 +          "Reading is GM-only and shows whispers; never repeat a whisper to other players. A player's chat is their action: respond to what they said, do not act for them. Needs the Foundry GM tab open and not minimized; narrate and say need Allow Write Operations.",
 +        inputSchema: {
 +          type: 'object',
