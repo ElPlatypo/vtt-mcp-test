@@ -6082,6 +6082,104 @@ index 0000000..8db7056
 +    await expect(setup(false).da.revealObjects({ reveal: [{ kind: 'token', all: true }] })).rejects.toThrow();
 +  });
 +});
+diff --git a/packages/foundry-module/src/data-access.rules.test.ts b/packages/foundry-module/src/data-access.rules.test.ts
+new file mode 100644
+index 0000000..f988ac7
+--- /dev/null
++++ b/packages/foundry-module/src/data-access.rules.test.ts
+@@ -0,0 +1,92 @@
++/** rules lookup: utils and the data-access search/read over journal packs and world journals. */
++import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
++import { FoundryDataAccess } from './data-access.js';
++import { clipText, htmlToText, queryTerms, searchPages, type RulePage } from './rules-utils.js';
++
++describe('rules utils', () => {
++  it('turns html into plain text with headings, lists and enrichers resolved', () => {
++    const t = htmlToText('<h2>Hiding</h2><p>Roll @UUID[Compendium.x.y]{Stealth} &amp; wait.</p><ul><li>one</li><li>two</li></ul>');
++    expect(t).toContain('## Hiding');
++    expect(t).toContain('Roll Stealth & wait.');
++    expect(t).toContain('\n- one\n- two');
++  });
++  it('keeps meaningful query words', () => {
++    expect(queryTerms('How does hiding work in combat?')).toEqual(['hiding', 'work', 'combat']);
++  });
++  it('ranks a page named for the term first and skips unrelated pages', () => {
++    const pages: RulePage[] = [
++      { uuid: 'u1', journal: 'Rules', page: 'Surprise', source: 'SRD', text: 'The GM determines who is surprised. Surprised creatures cannot act.' },
++      { uuid: 'u2', journal: 'Rules', page: 'Hiding', source: 'SRD', text: 'Make a Stealth check. A hidden creature may surprise enemies.' },
++      { uuid: 'u3', journal: 'Rules', page: 'Cooking', source: 'SRD', text: 'Soup.' },
++    ];
++    const hits = searchPages(pages, 'surprise');
++    expect(hits.map(h => h.uuid)).toEqual(['u1', 'u2']);
++    expect(hits[0]!.snippet).toContain('surprised');
++    expect(searchPages(pages, 'dragon')).toEqual([]);
++  });
++  it('clips text and reports what is left', () => {
++    const text = 'First sentence. '.repeat(50);
++    const c = clipText(text, 100);
++    expect(c.truncated).toBe(true);
++    expect(c.text.length).toBeLessThanOrEqual(100);
++    expect(c.remaining).toBeGreaterThan(text.length - 101);
++    expect(clipText('short', 100)).toEqual({ text: 'short', truncated: false, remaining: 0 });
++  });
++});
++
++function setup() {
++  const page = (id: string, name: string, html: string) => ({ uuid: `Compendium.dnd5e.rules.JournalEntry.J.JournalEntryPage.${id}`, name, type: 'text', text: { content: html } });
++  const journal = { name: 'Appendix E: Rules', pages: { contents: [page('p1', 'Surprise', '<p>Compare Stealth checks with passive Perception to see who is surprised.</p>'), page('p2', 'Grappling', '<p>Escape with Athletics.</p>')] } };
++  const houseJournal = { name: 'House Rules', pages: { contents: [{ ...page('h1', 'Crits', '<p>Max damage on a critical hit.</p>'), uuid: 'JournalEntry.W.JournalEntryPage.h1' }] } };
++  const getDocuments = vi.fn(async () => [journal]);
++  const packs = [
++    { collection: 'dnd5e.rules', documentName: 'JournalEntry', metadata: { label: 'SRD Rules', system: 'dnd5e' }, getDocuments },
++    { collection: 'dnd5e.items', documentName: 'Item', metadata: { label: 'Items', system: 'dnd5e' }, getDocuments: vi.fn() },
++  ];
++  vi.stubGlobal('Hooks', { on: vi.fn(), callAll: vi.fn() });
++  vi.stubGlobal('fromUuid', vi.fn(async (uuid: string) => (uuid.endsWith('.p1') ? { ...journal.pages.contents[0], documentName: 'JournalEntryPage', parent: journal } : null)));
++  vi.stubGlobal('game', {
++    ready: true,
++    system: { id: 'dnd5e' },
++    world: { id: 'w', getFlag: vi.fn(() => []), setFlag: vi.fn() },
++    user: { id: 'gm', name: 'GM', isGM: true },
++    packs: { contents: packs, get: (id: string) => packs.find(p => p.collection === id) },
++    journal: { contents: [houseJournal, { name: 'Session notes', pages: { contents: [page('n1', 'Notes', '<p>surprise party</p>')] } }] },
++    settings: { get: () => undefined },
++  });
++  return { da: new FoundryDataAccess(), getDocuments };
++}
++
++describe('lookupRules', () => {
++  beforeEach(() => vi.unstubAllGlobals());
++  afterEach(() => vi.unstubAllGlobals());
++
++  it('lists the sources', async () => {
++    const { da } = setup();
++    const r = await da.lookupRules({ action: 'sources' });
++    expect(r.sources.map((s: any) => s.id)).toEqual(['dnd5e.rules', 'world']);
++  });
++  it('searches packs and rules-named world journals, caching the pack', async () => {
++    const { da, getDocuments } = setup();
++    const r = await da.lookupRules({ query: 'surprise' });
++    expect(r.results.map((h: any) => h.page)).toEqual(['Surprise']);
++    expect(r.results[0]).toMatchObject({ journal: 'Appendix E: Rules', source: 'SRD Rules' });
++    expect(r.results[0].score).toBeUndefined();
++    const house = await da.lookupRules({ query: 'critical', sources: ['world'] });
++    expect(house.results[0]).toMatchObject({ page: 'Crits', source: 'world' });
++    await da.lookupRules({ query: 'grappling' });
++    expect(getDocuments).toHaveBeenCalledTimes(1);
++  });
++  it('reads pages, and says when one is missing', async () => {
++    const { da } = setup();
++    const r = await da.lookupRules({ action: 'read', uuids: ['Compendium.dnd5e.rules.JournalEntry.J.JournalEntryPage.p1', 'nope'] });
++    expect(r.results[0]).toMatchObject({ page: 'Surprise', journal: 'Appendix E: Rules' });
++    expect(r.results[0].text).toContain('passive Perception');
++    expect(r.results[1]).toMatchObject({ error: 'not found' });
++  });
++  it('asks for a query or a uuid', async () => {
++    const { da } = setup();
++    await expect(da.lookupRules({ action: 'search' })).rejects.toThrow('needs a query');
++    await expect(da.lookupRules({ action: 'read' })).rejects.toThrow('needs uuid');
++  });
++});
 diff --git a/packages/foundry-module/src/data-access.scene-objects.test.ts b/packages/foundry-module/src/data-access.scene-objects.test.ts
 new file mode 100644
 index 0000000..313055c
@@ -7141,10 +7239,10 @@ index 0000000..26e6aab
 +  });
 +});
 diff --git a/packages/foundry-module/src/data-access.ts b/packages/foundry-module/src/data-access.ts
-index eecda7e..4ca77c5 100644
+index eecda7e..21fd49d 100644
 --- a/packages/foundry-module/src/data-access.ts
 +++ b/packages/foundry-module/src/data-access.ts
-@@ -1,6 +1,137 @@
+@@ -1,6 +1,138 @@
  import { MODULE_ID, ERROR_MESSAGES, TOKEN_DISPOSITIONS } from './constants.js';
  import { permissionManager } from './permissions.js';
 +import {
@@ -7279,10 +7377,11 @@ index eecda7e..4ca77c5 100644
 +import { compactCombat, matchCombatants, pickTokens, type TokenLike } from './combat-utils.js';
 +import { performAttack, performCheck, type NamedActor } from './combat-actions.js';
 +import { partyRow, pickActors, pickClass, splitXp } from './party-utils.js';
++import { clipText, htmlToText, searchPages, type RulePage } from './rules-utils.js';
  
  // The same five characters foundry.utils.escapeHTML replaces in v14, kept local because
  // that helper isn't confirmed in v13, this module's minimum.
-@@ -1714,6 +1845,42 @@ const DND5E_SIZE: Record<string, string> = {
+@@ -1714,6 +1846,52 @@ const DND5E_SIZE: Record<string, string> = {
    gargantuan: 'gargantuan',
  };
  
@@ -7310,6 +7409,16 @@ index eecda7e..4ca77c5 100644
 +  consume?: boolean;
 +}
 +
++export interface RulesRequest {
++  action?: 'search' | 'read' | 'sources';
++  query?: string;
++  uuid?: string;
++  uuids?: string[];
++  sources?: string[];
++  limit?: number;
++  max_chars?: number;
++}
++
 +export interface PartyRequest {
 +  action: string;
 +  who?: string[];
@@ -7325,7 +7434,7 @@ index eecda7e..4ca77c5 100644
  export class FoundryDataAccess {
    private moduleId: string = MODULE_ID;
    private persistentIndex: PersistentCreatureIndex = new PersistentCreatureIndex();
-@@ -4681,12 +4848,28 @@ export class FoundryDataAccess {
+@@ -4681,12 +4859,28 @@ export class FoundryDataAccess {
        type: 'random' | 'grid' | 'center' | 'coordinates';
        coordinates?: { x: number; y: number }[];
      };
@@ -7354,7 +7463,7 @@ index eecda7e..4ca77c5 100644
        // Validate inputs
        if (!packId || !itemId) {
          throw new Error('Both packId and itemId are required');
-@@ -4753,10 +4936,33 @@ export class FoundryDataAccess {
+@@ -4753,10 +4947,33 @@ export class FoundryDataAccess {
            }
  
            // Organize created actors in a folder - use "Foundry MCP Creatures" for generic monsters
@@ -7389,7 +7498,7 @@ index eecda7e..4ca77c5 100644
  
            // Create the actor
            const newActor = await Actor.create(actorData);
-@@ -6714,7 +6920,7 @@ export class FoundryDataAccess {
+@@ -6714,7 +6931,7 @@ export class FoundryDataAccess {
  
          // Send socket request to GM
          if (game.socket) {
@@ -7398,7 +7507,7 @@ index eecda7e..4ca77c5 100644
              type: 'requestMessageUpdate',
              buttonId,
              userId,
-@@ -8101,198 +8307,4359 @@ export class FoundryDataAccess {
+@@ -8101,198 +8318,4458 @@ export class FoundryDataAccess {
      }
    }
  
@@ -7946,10 +8055,6 @@ index eecda7e..4ca77c5 100644
 -   * per-sound play/stop, all through the client Playlist API so the server
 -   * and every connected client stay in sync.
 -   */
--  async controlPlaylist(options: {
--    playlist: string;
--    command: 'play' | 'stop' | 'cycle-mode' | 'play-sound' | 'stop-sound';
--    sound?: string;
 +  // ===== WORLD HOUSEKEEPING (FOLDERS, MOVE, RENAME, DELETE) =====
 +
 +  private worldCollection(type: string): any {
@@ -9034,6 +9139,105 @@ index eecda7e..4ca77c5 100644
 +      return { ...out, combat: compactCombat(combat) };
 +    } catch (error) {
 +      throw new Error(`Failed to run the combat: ${error instanceof Error ? error.message : 'Unknown error'}`);
++    }
++  }
++
++  // ===== RULES LOOKUP =====
++
++  private rulesCache = new Map<string, RulePage[]>();
++
++  /** The text pages of a journal, as searchable plain text. */
++  private rulePagesOf(journal: any, source: string): RulePage[] {
++    const pages: RulePage[] = [];
++    for (const page of ((journal.pages?.contents || []) as any[])) {
++      if (page.type && page.type !== 'text') continue;
++      const text = htmlToText(page.text?.content);
++      if (text) pages.push({ uuid: page.uuid, journal: journal.name, page: page.name, source, text });
++    }
++    return pages;
++  }
++
++  /** Journal packs of the game system, and the world's journals about rules (name has rule, house or reference). */
++  private rulesSources(): Array<{ id: string; label: string; kind: 'pack' | 'world' }> {
++    const g = game as any;
++    const system = g.system?.id;
++    const packs = ((g.packs?.contents || [...(g.packs || [])]) as any[])
++      .filter(p => p.documentName === 'JournalEntry' && (!p.metadata?.system || p.metadata.system === system))
++      .map(p => ({ id: p.collection as string, label: (p.metadata?.label ?? p.collection) as string, kind: 'pack' as const }));
++    return [...packs, { id: 'world', label: 'World rules journals', kind: 'world' as const }];
++  }
++
++  /**
++   * Look up rules in the system's own rules journals and in the world's rules journals, so rules are
++   * read from the book and not remembered. search finds pages for a question; read returns a page
++   * (or lists the pages of a journal); sources lists where the rules come from.
++   */
++  async lookupRules(data: RulesRequest): Promise<any> {
++    this.validateFoundryState();
++    const action = data?.action ?? 'search';
++    if (!['search', 'read', 'sources'].includes(action)) throw new Error('action must be search, read or sources');
++    try {
++      const g = game as any;
++      const all = this.rulesSources();
++      if (action === 'sources') {
++        return { success: true, sources: all.map(s => ({ id: s.id, label: s.label })), note: 'Put house rules in a world journal whose name has "rules", "house" or "reference" in it to have them found too.' };
++      }
++
++      if (action === 'read') {
++        const uuids = data.uuids?.length ? data.uuids : data.uuid ? [data.uuid] : [];
++        if (uuids.length === 0 || uuids.length > 5) throw new Error('read needs uuid (or uuids, at most 5) from a search result');
++        const maxChars = Math.max(500, Math.min(12000, Number(data.max_chars ?? 4000)));
++        const results: Array<Record<string, any>> = [];
++        for (const uuid of uuids) {
++          const doc: any = await (globalThis as any).fromUuid(uuid);
++          if (!doc) {
++            results.push({ uuid, error: 'not found' });
++            continue;
++          }
++          if (doc.documentName === 'JournalEntry') {
++            results.push({ uuid, journal: doc.name, pages: ((doc.pages?.contents || []) as any[]).map(p => ({ page: p.name, uuid: p.uuid })), note: 'This is a whole journal: read one of its pages.' });
++            continue;
++          }
++          const text = htmlToText(doc.text?.content);
++          const clipped = clipText(text, maxChars);
++          results.push({ uuid, journal: doc.parent?.name, page: doc.name, text: clipped.text, ...(clipped.truncated ? { truncated: true, remainingChars: clipped.remaining, note: 'Pass a larger max_chars (up to 12000) for the rest.' } : {}) });
++        }
++        return { success: true, results };
++      }
++
++      const query = String(data?.query ?? '').trim();
++      if (!query) throw new Error('search needs a query');
++      const wanted = data.sources?.length ? new Set(data.sources) : null;
++      const pages: RulePage[] = [];
++      const searched: string[] = [];
++      for (const src of all) {
++        if (wanted && !wanted.has(src.id) && !(src.kind === 'world' && wanted.has('world'))) continue;
++        searched.push(src.id);
++        if (src.kind === 'world') {
++          for (const journal of ((g.journal?.contents || []) as any[])) {
++            if (/rule|house|reference|homebrew/i.test(journal.name ?? '')) pages.push(...this.rulePagesOf(journal, 'world'));
++          }
++          continue;
++        }
++        let cached = this.rulesCache.get(src.id);
++        if (!cached) {
++          const pack = g.packs.get(src.id);
++          cached = [];
++          for (const journal of (await pack.getDocuments()) as any[]) cached.push(...this.rulePagesOf(journal, src.label));
++          this.rulesCache.set(src.id, cached);
++        }
++        pages.push(...cached);
++      }
++      const hits = searchPages(pages, query, Math.max(1, Math.min(10, Number(data.limit ?? 5))));
++      return {
++        success: true,
++        query,
++        searched,
++        results: hits.map(({ score: _score, ...h }) => h),
++        ...(hits.length === 0 ? { note: 'No page matched. Try other words, or action sources to see what is searched.' } : { note: 'Read a page with action read and its uuid; the snippet is only a hint.' }),
++      };
++    } catch (error) {
++      throw new Error(`Failed to look up the rules: ${error instanceof Error ? error.message : 'Unknown error'}`);
 +    }
 +  }
 +
@@ -11827,10 +12031,12 @@ index eecda7e..4ca77c5 100644
 +   * per-sound play/stop, all through the client Playlist API so the server
 +   * and every connected client stay in sync.
 +   */
-+  async controlPlaylist(options: {
+   async controlPlaylist(options: {
+-    playlist: string;
+-    command: 'play' | 'stop' | 'cycle-mode' | 'play-sound' | 'stop-sound';
 +    playlist?: string;
 +    command: (typeof PLAYLIST_COMMANDS)[number];
-+    sound?: string;
+     sound?: string;
 +    volume?: number;
    }): Promise<any> {
      this.validateFoundryState();
@@ -11912,7 +12118,7 @@ index eecda7e..4ca77c5 100644
          case 'play':
            await pl.playAll();
            return { success: true, action: 'play', playlist: info };
-@@ -8304,20 +12671,48 @@ export class FoundryDataAccess {
+@@ -8304,20 +12781,48 @@ export class FoundryDataAccess {
            return { success: true, action: 'cycle-mode', playlist: info, mode: pl.mode as number };
          case 'play-sound':
          case 'stop-sound': {
@@ -11967,7 +12173,7 @@ index eecda7e..4ca77c5 100644
        }
      } catch (error) {
        throw new Error(
-@@ -8468,6 +12863,21 @@ export class FoundryDataAccess {
+@@ -8468,6 +12973,21 @@ export class FoundryDataAccess {
      }
    }
  
@@ -11989,7 +12195,7 @@ index eecda7e..4ca77c5 100644
    /**
     * Move a token to a new position on the scene
     */
-@@ -8476,6 +12886,12 @@ export class FoundryDataAccess {
+@@ -8476,6 +12996,12 @@ export class FoundryDataAccess {
      x: number;
      y: number;
      animate?: boolean;
@@ -12002,7 +12208,7 @@ index eecda7e..4ca77c5 100644
    }): Promise<any> {
      this.validateFoundryState();
  
-@@ -8489,24 +12905,57 @@ export class FoundryDataAccess {
+@@ -8489,24 +13015,57 @@ export class FoundryDataAccess {
      }
  
      try {
@@ -12073,7 +12279,7 @@ index eecda7e..4ca77c5 100644
  
        this.auditLog('moveToken', data, 'success');
  
-@@ -8514,8 +12963,12 @@ export class FoundryDataAccess {
+@@ -8514,8 +13073,12 @@ export class FoundryDataAccess {
          success: true,
          tokenId: token.id,
          tokenName: token.name,
@@ -12087,7 +12293,7 @@ index eecda7e..4ca77c5 100644
        };
      } catch (error) {
        this.auditLog(
-@@ -8530,10 +12983,56 @@ export class FoundryDataAccess {
+@@ -8530,10 +13093,56 @@ export class FoundryDataAccess {
      }
    }
  
@@ -12145,7 +12351,7 @@ index eecda7e..4ca77c5 100644
      this.validateFoundryState();
  
      // Use permission system
-@@ -8546,20 +13045,19 @@ export class FoundryDataAccess {
+@@ -8546,20 +13155,19 @@ export class FoundryDataAccess {
      }
  
      try {
@@ -12172,7 +12378,7 @@ index eecda7e..4ca77c5 100644
  
        // Apply updates
        await token.update(cleanUpdates);
-@@ -8651,18 +13149,15 @@ export class FoundryDataAccess {
+@@ -8651,18 +13259,15 @@ export class FoundryDataAccess {
    /**
     * Get detailed information about a token
     */
@@ -12195,7 +12401,7 @@ index eecda7e..4ca77c5 100644
        }
  
        // Return flat structure that matches MCP server expectations
-@@ -11274,7 +15769,10 @@ export class FoundryDataAccess {
+@@ -11274,7 +15879,10 @@ export class FoundryDataAccess {
        name: string;
        type: string;
        img?: string;
@@ -12206,7 +12412,7 @@ index eecda7e..4ca77c5 100644
      }>;
      folder?: string;
    }): Promise<{ created: Array<{ id: string; name: string; type: string }>; total: number }> {
-@@ -11286,6 +15784,19 @@ export class FoundryDataAccess {
+@@ -11286,6 +15894,19 @@ export class FoundryDataAccess {
      const docs = params.actors.map(a => {
        const doc: Record<string, any> = { name: a.name, type: a.type };
        if (a.img) doc.img = a.img;
@@ -12226,7 +12432,7 @@ index eecda7e..4ca77c5 100644
  
        // Merge system data, adding safe defaults for systems that require certain
        // fields to exist during data preparation (avoids non-fatal init errors).
-@@ -11471,7 +15982,16 @@ export class FoundryDataAccess {
+@@ -11471,7 +16092,16 @@ export class FoundryDataAccess {
     * Merges supplied fields into the actor (top-level keys overwrite).
     */
    async updateActors(
@@ -12244,7 +12450,7 @@ index eecda7e..4ca77c5 100644
    ): Promise<{ updated: Array<{ id: string; name: string }>; total: number }> {
      const updatedActors: Array<{ id: string; name: string }> = [];
  
-@@ -11482,6 +16002,7 @@ export class FoundryDataAccess {
+@@ -11482,6 +16112,7 @@ export class FoundryDataAccess {
        const patch: Record<string, any> = {};
        if (u.name !== undefined) patch.name = u.name;
        if (u.img !== undefined) patch.img = u.img;
@@ -12252,7 +12458,7 @@ index eecda7e..4ca77c5 100644
        if (u.system !== undefined) {
          // Build a single patch.system nested object so Foundry deep-merges everything
          // in one pass without flat-key vs nested-key conflicts.
-@@ -11504,6 +16025,19 @@ export class FoundryDataAccess {
+@@ -11504,6 +16135,19 @@ export class FoundryDataAccess {
          }
          patch.system = systemPatch;
        }
@@ -16641,7 +16847,7 @@ index 0000000..557e34d
 +  return view ? outSize : { width, height };
 +}
 diff --git a/packages/foundry-module/src/queries.ts b/packages/foundry-module/src/queries.ts
-index 9fe02ba..7767ec3 100644
+index 9fe02ba..ddcebb2 100644
 --- a/packages/foundry-module/src/queries.ts
 +++ b/packages/foundry-module/src/queries.ts
 @@ -1,7 +1,8 @@
@@ -16663,7 +16869,7 @@ index 9fe02ba..7767ec3 100644
  
      // Character/Actor queries
      CONFIG.queries[`${modulePrefix}.getCharacterInfo`] = this.handleGetCharacterInfo.bind(this);
-@@ -46,6 +47,32 @@ export class QueryHandlers {
+@@ -46,6 +47,33 @@ export class QueryHandlers {
      CONFIG.queries[`${modulePrefix}.list-scenes`] = this.handleListScenes.bind(this);
      CONFIG.queries[`${modulePrefix}.switch-scene`] = this.handleSwitchScene.bind(this);
      CONFIG.queries[`${modulePrefix}.update-scene-music`] = this.handleUpdateSceneMusic.bind(this);
@@ -16690,13 +16896,14 @@ index 9fe02ba..7767ec3 100644
 +    CONFIG.queries[`${modulePrefix}.reveal`] = this.handleReveal.bind(this);
 +    CONFIG.queries[`${modulePrefix}.combat`] = this.handleCombat.bind(this);
 +    CONFIG.queries[`${modulePrefix}.party`] = this.handleParty.bind(this);
++    CONFIG.queries[`${modulePrefix}.rules`] = this.handleRules.bind(this);
 +    CONFIG.queries[`${modulePrefix}.annotations`] = this.handleAnnotations.bind(this);
 +    CONFIG.queries[`${modulePrefix}.read-image-file`] = this.handleReadImageFile.bind(this);
 +    CONFIG.queries[`${modulePrefix}.inspect-document`] = this.handleInspectDocument.bind(this);
      CONFIG.queries[`${modulePrefix}.manage-playlists`] = this.handleManagePlaylists.bind(this);
      CONFIG.queries[`${modulePrefix}.control-playlist`] = this.handleControlPlaylist.bind(this);
  
-@@ -184,7 +211,7 @@ export class QueryHandlers {
+@@ -184,7 +212,7 @@ export class QueryHandlers {
     * Unregister all query handlers
     */
    unregisterHandlers(): void {
@@ -16705,7 +16912,7 @@ index 9fe02ba..7767ec3 100644
      const keysToRemove = Object.keys(CONFIG.queries).filter(key => key.startsWith(modulePrefix));
  
      for (const key of keysToRemove) {
-@@ -477,7 +504,7 @@ export class QueryHandlers {
+@@ -477,7 +505,7 @@ export class QueryHandlers {
     * Get list of all registered query methods
     */
    getRegisteredMethods(): string[] {
@@ -16714,7 +16921,7 @@ index 9fe02ba..7767ec3 100644
      return Object.keys(CONFIG.queries)
        .filter(key => key.startsWith(modulePrefix))
        .map(key => key.replace(`${modulePrefix}.`, ''));
-@@ -487,7 +514,7 @@ export class QueryHandlers {
+@@ -487,7 +515,7 @@ export class QueryHandlers {
     * Test if a specific query handler is registered
     */
    isMethodRegistered(method: string): boolean {
@@ -16723,7 +16930,7 @@ index 9fe02ba..7767ec3 100644
      return queryKey in CONFIG.queries && typeof CONFIG.queries[queryKey] === 'function';
    }
  
-@@ -530,6 +557,9 @@ export class QueryHandlers {
+@@ -530,6 +558,9 @@ export class QueryHandlers {
        if (data.placement) {
          requestData.placement = data.placement;
        }
@@ -16733,7 +16940,7 @@ index 9fe02ba..7767ec3 100644
  
        return await this.dataAccess.createActorFromCompendiumEntry(requestData);
      } catch (error) {
-@@ -1218,6 +1248,267 @@ export class QueryHandlers {
+@@ -1218,6 +1249,275 @@ export class QueryHandlers {
      }
    }
  
@@ -16841,6 +17048,14 @@ index 9fe02ba..7767ec3 100644
 +    if (action === 'resolve') return await this.dataAccess.resolveAnnotations(data ?? {});
 +    if (action === 'clear') return await this.dataAccess.clearAnnotations(data ?? {});
 +    return { error: 'Unknown action: ' + String(action) + ' (list | resolve | clear)', success: false };
++  }
++
++  private async handleRules(data: any): Promise<any> {
++    const gmCheck = this.validateGMAccess();
++    if (!gmCheck.allowed) {
++      return { error: 'Access denied', success: false };
++    }
++    return await this.dataAccess.lookupRules(data ?? {});
 +  }
 +
 +  private async handleParty(data: any): Promise<any> {
@@ -17001,7 +17216,7 @@ index 9fe02ba..7767ec3 100644
    private async handleManagePlaylists(data: any): Promise<any> {
      try {
        const gmCheck = this.validateGMAccess();
-@@ -1241,8 +1532,11 @@ export class QueryHandlers {
+@@ -1241,8 +1541,11 @@ export class QueryHandlers {
        if (!gmCheck.allowed) {
          return { error: 'Access denied', success: false };
        }
@@ -17015,7 +17230,7 @@ index 9fe02ba..7767ec3 100644
        }
        return await this.dataAccess.controlPlaylist(data);
      } catch (error) {
-@@ -1547,7 +1841,9 @@ export class QueryHandlers {
+@@ -1547,7 +1850,9 @@ export class QueryHandlers {
     */
    private async handleUpdateToken(data: {
      tokenId: string;
@@ -17026,7 +17241,7 @@ index 9fe02ba..7767ec3 100644
    }): Promise<any> {
      try {
        // SECURITY: Silent GM validation
-@@ -1561,8 +1857,8 @@ export class QueryHandlers {
+@@ -1561,8 +1866,8 @@ export class QueryHandlers {
        if (!data.tokenId) {
          throw new Error('tokenId is required');
        }
@@ -17571,6 +17786,134 @@ index 0000000..dcf8a11
 +export function revealPatch(kind: RevealKind, id: string, reveal: boolean): Record<string, any> {
 +  if (kind === 'door') return { _id: id, door: reveal ? 1 : 2 };
 +  return { _id: id, hidden: !reveal };
++}
+diff --git a/packages/foundry-module/src/rules-utils.ts b/packages/foundry-module/src/rules-utils.ts
+new file mode 100644
+index 0000000..526702e
+--- /dev/null
++++ b/packages/foundry-module/src/rules-utils.ts
+@@ -0,0 +1,122 @@
++/**
++ * Rules lookup: turning journal pages (the system's own rules compendiums, or the world's rules
++ * journals) into searchable plain text, ranking them against a question, and cutting snippets.
++ */
++
++export interface RulePage {
++  uuid: string;
++  /** the journal the page belongs to */
++  journal: string;
++  page: string;
++  /** where it came from: a compendium label, or "world" */
++  source: string;
++  /** plain text, original case */
++  text: string;
++}
++
++const ENTITIES: Record<string, string> = { '&nbsp;': ' ', '&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&#39;': "'", '&rsquo;': "'", '&lsquo;': "'", '&ndash;': '-', '&mdash;': '-' };
++
++/** Journal page HTML as plain text: headings and list items on their own lines, enrichers shown as their labels. */
++export function htmlToText(html: unknown): string {
++  let s = String(html ?? '');
++  s = s.replace(/@UUID\[[^\]]*\]\{([^}]*)\}/g, '$1');
++  s = s.replace(/@UUID\[[^\]]*\]/g, '');
++  s = s.replace(/@Embed\[[^\]]*\]/g, '');
++  s = s.replace(/@[A-Za-z]+\[[^\]]*\]\{([^}]*)\}/g, '$1');
++  s = s.replace(/\[\[[^\]]*\]\]\{([^}]*)\}/g, '$1');
++  s = s.replace(/\[\[\/?[a-z]+ ([^\]]*)\]\]/gi, '$1');
++  s = s.replace(/<\s*h[1-6][^>]*>/gi, '\n\n## ').replace(/<\s*\/\s*h[1-6]\s*>/gi, '\n');
++  s = s.replace(/<\s*li[^>]*>/gi, '\n- ').replace(/<\s*(\/p|br|\/tr|\/div|\/ul|\/ol)\s*\/?>/gi, '\n');
++  s = s.replace(/<\s*\/t[dh]\s*>/gi, ' | ');
++  s = s.replace(/<[^>]+>/g, '');
++  s = s.replace(/&[a-z#0-9]+;/gi, m => ENTITIES[m.toLowerCase()] ?? ' ');
++  return s
++    .split('\n')
++    .map(line => line.replace(/[ \t]+/g, ' ').trim())
++    .filter((line, i, all) => line !== '' || (i > 0 && all[i - 1] !== ''))
++    .join('\n')
++    .trim();
++}
++
++const STOP = new Set(['the', 'a', 'an', 'of', 'to', 'in', 'on', 'for', 'and', 'or', 'is', 'are', 'do', 'does', 'how', 'what', 'when', 'can', 'you', 'your', 'with', 'rule', 'rules']);
++
++/** The words of a question that carry meaning. */
++export function queryTerms(query: string): string[] {
++  const words = query.toLowerCase().match(/[a-z0-9']+/g) ?? [];
++  const terms = words.filter(w => w.length > 1 && !STOP.has(w));
++  return [...new Set(terms.length ? terms : words)];
++}
++
++const count = (haystack: string, needle: string): number => {
++  let n = 0;
++  let i = -1;
++  while ((i = haystack.indexOf(needle, i + 1)) >= 0) n++;
++  return n;
++};
++
++/** How well a page answers a question: its name counts most, then its journal, then its text. 0 means no match. */
++export function scorePage(page: RulePage, terms: string[], text: string = page.text.toLowerCase()): number {
++  if (terms.length === 0) return 0;
++  const name = page.page.toLowerCase();
++  const journal = page.journal.toLowerCase();
++  let score = 0;
++  let found = 0;
++  for (const term of terms) {
++    const inName = name.includes(term);
++    const inJournal = journal.includes(term);
++    const hits = count(text, term);
++    if (inName || inJournal || hits > 0) found++;
++    if (name === term) score += 100;
++    else if (inName) score += 30;
++    if (inJournal) score += 5;
++    score += Math.min(hits, 6) * 2;
++  }
++  // a page that covers every word beats one that covers some
++  if (found === terms.length) score += 20 * terms.length;
++  else if (found < Math.ceil(terms.length / 2)) return 0;
++  // short focused pages beat huge ones that merely mention the words
++  return score - Math.min(10, Math.floor(page.text.length / 4000));
++}
++
++/** About `width` characters of the page around the first place a term appears. */
++export function snippetFor(text: string, terms: string[], width = 260): string {
++  const lower = text.toLowerCase();
++  let at = -1;
++  for (const term of terms) {
++    const i = lower.indexOf(term);
++    if (i >= 0 && (at < 0 || i < at)) at = i;
++  }
++  const start = Math.max(0, (at < 0 ? 0 : at) - Math.floor(width / 3));
++  const piece = text.slice(start, start + width).replace(/\s+/g, ' ').trim();
++  return (start > 0 ? '... ' : '') + piece + (start + width < text.length ? ' ...' : '');
++}
++
++export interface RuleHit {
++  uuid: string;
++  journal: string;
++  page: string;
++  source: string;
++  chars: number;
++  snippet: string;
++  score: number;
++}
++
++/** The best pages for a question, best first. */
++export function searchPages(pages: RulePage[], query: string, limit = 5): RuleHit[] {
++  const terms = queryTerms(query);
++  return pages
++    .map(p => ({ p, score: scorePage(p, terms) }))
++    .filter(x => x.score > 0)
++    .sort((a, b) => b.score - a.score)
++    .slice(0, Math.max(1, limit))
++    .map(({ p, score }) => ({ uuid: p.uuid, journal: p.journal, page: p.page, source: p.source, chars: p.text.length, snippet: snippetFor(p.text, terms), score }));
++}
++
++/** Cut text at a paragraph or sentence end near the limit, and say how much is left. */
++export function clipText(text: string, maxChars: number): { text: string; truncated: boolean; remaining: number } {
++  if (text.length <= maxChars) return { text, truncated: false, remaining: 0 };
++  const cut = text.slice(0, maxChars);
++  const at = Math.max(cut.lastIndexOf('\n'), cut.lastIndexOf('. '));
++  const end = at > maxChars * 0.6 ? at + 1 : maxChars;
++  return { text: text.slice(0, end).trimEnd(), truncated: true, remaining: text.length - end };
 +}
 diff --git a/packages/foundry-module/src/scene-backup-utils.test.ts b/packages/foundry-module/src/scene-backup-utils.test.ts
 new file mode 100644
@@ -20341,10 +20684,10 @@ index 096f27b..903a94e 100644
      "@vitest/coverage-v8": "^3.2.4",
      "esbuild": "^0.19.0",
 diff --git a/packages/mcp-server/src/backend.ts b/packages/mcp-server/src/backend.ts
-index 8967e33..e752bb6 100644
+index 8967e33..900efa9 100644
 --- a/packages/mcp-server/src/backend.ts
 +++ b/packages/mcp-server/src/backend.ts
-@@ -48,6 +48,38 @@ import { DnD5eAddFeatureTool } from './tools/dnd5e/add-feature.js';
+@@ -48,6 +48,39 @@ import { DnD5eAddFeatureTool } from './tools/dnd5e/add-feature.js';
  import { DnD5eNpcTools } from './tools/dnd5e/npc.js';
  import { DnD5eFeaturesFromCompendiumTools } from './tools/dnd5e/features.js';
  import { ChatTools } from './tools/chat.js';
@@ -20373,6 +20716,7 @@ index 8967e33..e752bb6 100644
 +import { TableTools } from './tools/table-tools.js';
 +import { RevealTools } from './tools/reveal-tools.js';
 +import { CombatTools } from './tools/combat-tools.js';
++import { RulesTools } from './tools/rules-tools.js';
 +import { PartyTools } from './tools/party-tools.js';
 +import { AnnotationTools } from './tools/annotation-tools.js';
 +import { ImageEditTools } from './tools/image-edit-tools.js';
@@ -20383,7 +20727,7 @@ index 8967e33..e752bb6 100644
  
  const CONTROL_HOST = '127.0.0.1';
  
-@@ -174,6 +206,22 @@ let comfyuiProcess: ChildProcess | null = null;
+@@ -174,6 +207,22 @@ let comfyuiProcess: ChildProcess | null = null;
  
  let comfyuiStatus: 'stopped' | 'starting' | 'running' | 'error' = 'stopped';
  
@@ -20406,7 +20750,7 @@ index 8967e33..e752bb6 100644
  let lockFd: number | null = null;
  
  function acquireLock(): boolean {
-@@ -350,6 +398,18 @@ async function waitForComfyUIReady(timeoutMs: number = 60000): Promise<void> {
+@@ -350,6 +399,18 @@ async function waitForComfyUIReady(timeoutMs: number = 60000): Promise<void> {
  }
  
  async function startComfyUIService(logger: Logger): Promise<any> {
@@ -20425,7 +20769,7 @@ index 8967e33..e752bb6 100644
    if (comfyuiStatus === 'running') {
      return { status: 'already_running', message: 'ComfyUI service is already running' };
    }
-@@ -472,6 +532,14 @@ async function startComfyUIService(logger: Logger): Promise<any> {
+@@ -472,6 +533,14 @@ async function startComfyUIService(logger: Logger): Promise<any> {
  }
  
  async function stopComfyUIService(logger: Logger): Promise<any> {
@@ -20440,7 +20784,7 @@ index 8967e33..e752bb6 100644
    if (comfyuiStatus === 'stopped') {
      return { status: 'already_stopped', message: 'ComfyUI service is already stopped' };
    }
-@@ -510,7 +578,7 @@ async function checkComfyUIStatus(): Promise<any> {
+@@ -510,7 +579,7 @@ async function checkComfyUIStatus(): Promise<any> {
    // This handles both spawned processes and externally-started instances
  
    try {
@@ -20449,7 +20793,7 @@ index 8967e33..e752bb6 100644
        signal: AbortSignal.timeout(5000),
      });
  
-@@ -520,16 +588,23 @@ async function checkComfyUIStatus(): Promise<any> {
+@@ -520,16 +589,23 @@ async function checkComfyUIStatus(): Promise<any> {
        comfyuiStatus = 'error';
      }
    } catch (error) {
@@ -20475,7 +20819,7 @@ index 8967e33..e752bb6 100644
    };
  }
  
-@@ -1131,7 +1206,7 @@ async function processMapGenerationInBackend(
+@@ -1131,7 +1207,7 @@ async function processMapGenerationInBackend(
      );
  
      logger.error('Background map generation processing failed', { jobId, error });
@@ -20484,7 +20828,7 @@ index 8967e33..e752bb6 100644
  
      // Emit failure to Foundry module
      foundryClient.sendMessage({
-@@ -1195,6 +1270,63 @@ async function startBackend(): Promise<void> {
+@@ -1195,6 +1271,64 @@ async function startBackend(): Promise<void> {
    const compendiumTools = new CompendiumTools({ foundryClient, logger, systemRegistry });
  
    const sceneTools = new SceneTools({ foundryClient, logger });
@@ -20529,6 +20873,7 @@ index 8967e33..e752bb6 100644
 +  const tableTools = new TableTools({ foundryClient, logger });
 +  const revealTools = new RevealTools({ foundryClient, logger });
 +  const combatTools = new CombatTools({ foundryClient, logger });
++  const rulesTools = new RulesTools({ foundryClient, logger });
 +  const partyTools = new PartyTools({ foundryClient, logger });
 +  const annotationTools = new AnnotationTools({ foundryClient, logger });
 +  const imageEditTools = new ImageEditTools({
@@ -20548,7 +20893,7 @@ index 8967e33..e752bb6 100644
    const playlistTools = new PlaylistTools({ foundryClient, logger });
  
    const actorCreationTools = new ActorCreationTools({ foundryClient, logger });
-@@ -1301,6 +1433,13 @@ async function startBackend(): Promise<void> {
+@@ -1301,6 +1435,13 @@ async function startBackend(): Promise<void> {
  
          let result: any;
  
@@ -20562,7 +20907,7 @@ index 8967e33..e752bb6 100644
          switch (message.type) {
            case 'start-comfyui-service':
              result = await startComfyUIService(logger);
-@@ -1317,6 +1456,19 @@ async function startBackend(): Promise<void> {
+@@ -1317,6 +1458,19 @@ async function startBackend(): Promise<void> {
  
              break;
  
@@ -20582,7 +20927,7 @@ index 8967e33..e752bb6 100644
            // Map generation handlers (following existing tool pattern)
            case 'generate-map-request':
              await fs.appendFile(
-@@ -1429,6 +1581,29 @@ async function startBackend(): Promise<void> {
+@@ -1429,6 +1583,30 @@ async function startBackend(): Promise<void> {
  
      ...sceneTools.getToolDefinitions(),
  
@@ -20601,6 +20946,7 @@ index 8967e33..e752bb6 100644
 +    ...tableTools.getToolDefinitions(),
 +    ...revealTools.getToolDefinitions(),
 +    ...combatTools.getToolDefinitions(),
++    ...rulesTools.getToolDefinitions(),
 +    ...partyTools.getToolDefinitions(),
 +    ...annotationTools.getToolDefinitions(),
 +    ...imageEditTools.getToolDefinitions(),
@@ -20612,7 +20958,7 @@ index 8967e33..e752bb6 100644
      ...actorCreationTools.getToolDefinitions(),
      ...actorManagementTools.getToolDefinitions(),
      ...effectManagementTools.getToolDefinitions(),
-@@ -1456,7 +1631,11 @@ async function startBackend(): Promise<void> {
+@@ -1456,7 +1634,11 @@ async function startBackend(): Promise<void> {
  
      ...tokenManipulationTools.getToolDefinitions(),
  
@@ -20625,7 +20971,7 @@ index 8967e33..e752bb6 100644
  
      ...playlistTools.getToolDefinitions(),
    ];
-@@ -1764,19 +1943,11 @@ async function startBackend(): Promise<void> {
+@@ -1764,19 +1946,11 @@ async function startBackend(): Promise<void> {
                  // Map generation tools
  
                  case 'generate-map':
@@ -20648,7 +20994,7 @@ index 8967e33..e752bb6 100644
  
                  case 'list-scenes':
                    result = await mapGenerationTools.listScenes(args);
-@@ -1805,6 +1976,132 @@ async function startBackend(): Promise<void> {
+@@ -1805,6 +1979,136 @@ async function startBackend(): Promise<void> {
  
                    break;
  
@@ -20719,6 +21065,10 @@ index 8967e33..e752bb6 100644
 +
 +                case 'party':
 +                  result = await partyTools.handleParty(args);
++                  break;
++
++                case 'rules':
++                  result = await rulesTools.handleRules(args);
 +                  break;
 +
 +                case 'combat':
@@ -32220,6 +32570,111 @@ index 0000000..49a16cf
 +    const a = schema.parse(args ?? {});
 +    this.logger.info('Reveal and hide', { reveal: a.reveal?.length ?? 0, hide: a.hide?.length ?? 0 });
 +    const result = await this.foundryClient.query('foundry-mcp-bridge.reveal', a);
++    if (result?.success === false) throw new Error(result.error || 'Request was refused');
++    return result;
++  }
++}
+diff --git a/packages/mcp-server/src/tools/rules-tools.test.ts b/packages/mcp-server/src/tools/rules-tools.test.ts
+new file mode 100644
+index 0000000..97f07eb
+--- /dev/null
++++ b/packages/mcp-server/src/tools/rules-tools.test.ts
+@@ -0,0 +1,30 @@
++import { describe, expect, it, vi } from 'vitest';
++import { RulesTools } from './rules-tools.js';
++
++function make(response: any = { success: true }) {
++  const query = vi.fn(async () => response);
++  const logger: any = { info: vi.fn(), debug: vi.fn(), error: vi.fn(), warn: vi.fn(), child: () => logger };
++  return { tools: new RulesTools({ foundryClient: { query } as any, logger }), query };
++}
++
++describe('rules tool', () => {
++  it('is exposed and tells Claude to look rules up', () => {
++    const def = make().tools.getToolDefinitions()[0]!;
++    expect(def.name).toBe('rules');
++    expect(def.description).toContain('instead of answering from memory');
++    expect(def.description).toContain('house');
++  });
++  it('sends the request to Foundry', async () => {
++    const { tools, query } = make({ success: true, results: [] });
++    await tools.handleRules({ query: 'hiding' });
++    expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.rules', { query: 'hiding' }, 60000);
++  });
++  it('rejects bad input and refused requests', async () => {
++    const { tools } = make();
++    await expect(tools.handleRules({ action: 'edit' })).rejects.toThrow();
++    await expect(tools.handleRules({ action: 'read', uuids: [] })).rejects.toThrow();
++    await expect(tools.handleRules({ limit: 50 })).rejects.toThrow();
++    const refused = make({ success: false, error: 'Access denied' });
++    await expect(refused.tools.handleRules({ query: 'surprise' })).rejects.toThrow('Access denied');
++  });
++});
+diff --git a/packages/mcp-server/src/tools/rules-tools.ts b/packages/mcp-server/src/tools/rules-tools.ts
+new file mode 100644
+index 0000000..c403711
+--- /dev/null
++++ b/packages/mcp-server/src/tools/rules-tools.ts
+@@ -0,0 +1,63 @@
++import { z } from 'zod';
++import { FoundryClient } from '../foundry-client.js';
++import { Logger } from '../logger.js';
++
++export interface RulesToolsOptions {
++  foundryClient: FoundryClient;
++  logger: Logger;
++}
++
++const schema = z
++  .object({
++    action: z.enum(['search', 'read', 'sources']).optional(),
++    query: z.string().min(2).max(200).optional(),
++    uuid: z.string().min(1).optional(),
++    uuids: z.array(z.string().min(1)).min(1).max(5).optional(),
++    sources: z.array(z.string().min(1)).max(10).optional(),
++    limit: z.number().int().min(1).max(10).optional(),
++    max_chars: z.number().int().min(500).max(12000).optional(),
++  })
++  .strict();
++
++export class RulesTools {
++  private foundryClient: FoundryClient;
++  private logger: Logger;
++
++  constructor({ foundryClient, logger }: RulesToolsOptions) {
++    this.foundryClient = foundryClient;
++    this.logger = logger.child({ component: 'RulesTools' });
++  }
++
++  getToolDefinitions() {
++    return [
++      {
++        name: 'rules',
++        description:
++          'Look up the game rules instead of answering from memory: it searches the rules journals the game system ships (for dnd5e the SRD rules and the newer rules compendium: combat, conditions, hiding, surprise, actions, spells rules, glossary) and the world\'s own rules journals (any world journal with "rules", "house" or "reference" in its name, where house rules can be kept). ' +
++          'Use it whenever a ruling matters (what an action does, how a condition works, who is surprised), then follow what it says. ' +
++          'search {query, sources?, limit?(5)} returns the best pages with a short snippet, journal, source and uuid; read {uuid | uuids, max_chars?(4000)} returns the page text (a journal uuid lists its pages); sources lists where rules are searched. Search with the key words (hiding, surprise, grapple, opportunity attack), not a whole sentence. Needs the Foundry tab open in a browser.',
++        inputSchema: {
++          type: 'object',
++          properties: {
++            action: { type: 'string', enum: ['search', 'read', 'sources'], description: 'search (default), read or sources' },
++            query: { type: 'string', description: 'search: key words of the rule you need' },
++            uuid: { type: 'string', description: 'read: the uuid of a page from a search result' },
++            uuids: { type: 'array', items: { type: 'string' }, description: 'read: up to 5 pages at once' },
++            sources: { type: 'array', items: { type: 'string' }, description: 'search: only these sources (ids from action sources, or "world")' },
++            limit: { type: 'number', description: 'search: how many pages (default 5, max 10)' },
++            max_chars: { type: 'number', description: 'read: cut each page at about this many characters (default 4000, max 12000)' },
++          },
++          additionalProperties: false,
++        },
++      },
++    ];
++  }
++
++  async handleRules(args: unknown): Promise<any> {
++    const a = schema.parse(args ?? {});
++    this.logger.info('Rules lookup', { action: a.action ?? 'search' });
++    const result = await this.foundryClient.query('foundry-mcp-bridge.rules', a, 60000);
 +    if (result?.success === false) throw new Error(result.error || 'Request was refused');
 +    return result;
 +  }
