@@ -647,30 +647,30 @@ function floatSafeRemainder(val, step) {
   const stepInt = Number.parseInt(step.toFixed(decCount).replace(".", ""));
   return valInt % stepInt / 10 ** decCount;
 }
-function deepPartialify(schema13) {
-  if (schema13 instanceof ZodObject) {
+function deepPartialify(schema14) {
+  if (schema14 instanceof ZodObject) {
     const newShape = {};
-    for (const key in schema13.shape) {
-      const fieldSchema = schema13.shape[key];
+    for (const key in schema14.shape) {
+      const fieldSchema = schema14.shape[key];
       newShape[key] = ZodOptional.create(deepPartialify(fieldSchema));
     }
     return new ZodObject({
-      ...schema13._def,
+      ...schema14._def,
       shape: () => newShape
     });
-  } else if (schema13 instanceof ZodArray) {
+  } else if (schema14 instanceof ZodArray) {
     return new ZodArray({
-      ...schema13._def,
-      type: deepPartialify(schema13.element)
+      ...schema14._def,
+      type: deepPartialify(schema14.element)
     });
-  } else if (schema13 instanceof ZodOptional) {
-    return ZodOptional.create(deepPartialify(schema13.unwrap()));
-  } else if (schema13 instanceof ZodNullable) {
-    return ZodNullable.create(deepPartialify(schema13.unwrap()));
-  } else if (schema13 instanceof ZodTuple) {
-    return ZodTuple.create(schema13.items.map((item) => deepPartialify(item)));
+  } else if (schema14 instanceof ZodOptional) {
+    return ZodOptional.create(deepPartialify(schema14.unwrap()));
+  } else if (schema14 instanceof ZodNullable) {
+    return ZodNullable.create(deepPartialify(schema14.unwrap()));
+  } else if (schema14 instanceof ZodTuple) {
+    return ZodTuple.create(schema14.items.map((item) => deepPartialify(item)));
   } else {
-    return schema13;
+    return schema14;
   }
 }
 function mergeValues(a, b) {
@@ -2397,9 +2397,9 @@ var init_types = __esm({
         return this.min(1, message);
       }
     };
-    ZodArray.create = (schema13, params) => {
+    ZodArray.create = (schema14, params) => {
       return new ZodArray({
-        type: schema13,
+        type: schema14,
         minLength: null,
         maxLength: null,
         exactLength: null,
@@ -2620,8 +2620,8 @@ var init_types = __esm({
       //   }) as any;
       //   return merged;
       // }
-      setKey(key, schema13) {
-        return this.augment({ [key]: schema13 });
+      setKey(key, schema14) {
+        return this.augment({ [key]: schema14 });
       }
       // merge<Incoming extends AnyZodObject>(
       //   merging: Incoming
@@ -3029,10 +3029,10 @@ var init_types = __esm({
           status.dirty();
         }
         const items2 = [...ctx.data].map((item, itemIndex) => {
-          const schema13 = this._def.items[itemIndex] || this._def.rest;
-          if (!schema13)
+          const schema14 = this._def.items[itemIndex] || this._def.rest;
+          if (!schema14)
             return null;
-          return schema13._parse(new ParseInputLazyPath(ctx, item, ctx.path, itemIndex));
+          return schema14._parse(new ParseInputLazyPath(ctx, item, ctx.path, itemIndex));
         }).filter((x) => !!x);
         if (ctx.common.async) {
           return Promise.all(items2).then((results) => {
@@ -3539,9 +3539,9 @@ var init_types = __esm({
         }));
       }
     };
-    ZodPromise.create = (schema13, params) => {
+    ZodPromise.create = (schema14, params) => {
       return new ZodPromise({
-        type: schema13,
+        type: schema14,
         typeName: ZodFirstPartyTypeKind.ZodPromise,
         ...processCreateParams(params)
       });
@@ -3669,17 +3669,17 @@ var init_types = __esm({
         util.assertNever(effect);
       }
     };
-    ZodEffects.create = (schema13, effect, params) => {
+    ZodEffects.create = (schema14, effect, params) => {
       return new ZodEffects({
-        schema: schema13,
+        schema: schema14,
         typeName: ZodFirstPartyTypeKind.ZodEffects,
         effect,
         ...processCreateParams(params)
       });
     };
-    ZodEffects.createWithPreprocess = (preprocess, schema13, params) => {
+    ZodEffects.createWithPreprocess = (preprocess, schema14, params) => {
       return new ZodEffects({
-        schema: schema13,
+        schema: schema14,
         effect: { type: "preprocess", transform: preprocess },
         typeName: ZodFirstPartyTypeKind.ZodEffects,
         ...processCreateParams(params)
@@ -45790,11 +45790,11 @@ var require_converters = __commonJS({
         if (value === null) {
           return new asn1js.Null();
         }
-        const schema13 = asn1js.fromBER(value);
-        if (schema13.result.error) {
-          throw new Error(schema13.result.error);
+        const schema14 = asn1js.fromBER(value);
+        if (schema14.result.error) {
+          throw new Error(schema14.result.error);
         }
-        return schema13.result;
+        return schema14.result;
       }
     };
     exports2.AsnIntegerConverter = {
@@ -45984,35 +45984,35 @@ var require_schema = __commonJS({
         return this.items.has(target2);
       }
       get(target2, checkSchema = false) {
-        const schema13 = this.items.get(target2);
-        if (!schema13) {
+        const schema14 = this.items.get(target2);
+        if (!schema14) {
           throw new Error(`Cannot get schema for '${target2.prototype.constructor.name}' target`);
         }
-        if (checkSchema && !schema13.schema) {
+        if (checkSchema && !schema14.schema) {
           throw new Error(`Schema '${target2.prototype.constructor.name}' doesn't contain ASN.1 schema. Call 'AsnSchemaStorage.cache'.`);
         }
-        return schema13;
+        return schema14;
       }
       cache(target2) {
-        const schema13 = this.get(target2);
-        if (!schema13.schema) {
-          schema13.schema = this.create(target2, true);
+        const schema14 = this.get(target2);
+        if (!schema14.schema) {
+          schema14.schema = this.create(target2, true);
         }
       }
       createDefault(target2) {
-        const schema13 = { type: enums_1.AsnTypeTypes.Sequence, items: {} };
+        const schema14 = { type: enums_1.AsnTypeTypes.Sequence, items: {} };
         const parentSchema = this.findParentSchema(target2);
         if (parentSchema) {
-          Object.assign(schema13, parentSchema);
-          schema13.items = Object.assign({}, schema13.items, parentSchema.items);
+          Object.assign(schema14, parentSchema);
+          schema14.items = Object.assign({}, schema14.items, parentSchema.items);
         }
-        return schema13;
+        return schema14;
       }
       create(target2, useNames) {
-        const schema13 = this.items.get(target2) || this.createDefault(target2);
+        const schema14 = this.items.get(target2) || this.createDefault(target2);
         const asn1Value = [];
-        for (const key in schema13.items) {
-          const item = schema13.items[key];
+        for (const key in schema14.items) {
+          const item = schema14.items[key];
           const name = useNames ? key : "";
           let asn1Item;
           if (typeof item.type === "number") {
@@ -46074,7 +46074,7 @@ var require_schema = __commonJS({
             asn1Value.push(asn1Item);
           }
         }
-        switch (schema13.type) {
+        switch (schema14.type) {
           case enums_1.AsnTypeTypes.Sequence:
             return new asn1js.Sequence({ value: asn1Value, name: "" });
           case enums_1.AsnTypeTypes.Set:
@@ -46085,15 +46085,15 @@ var require_schema = __commonJS({
             throw new Error(`Unsupported ASN1 type in use`);
         }
       }
-      set(target2, schema13) {
-        this.items.set(target2, schema13);
+      set(target2, schema14) {
+        this.items.set(target2, schema14);
         return this;
       }
       findParentSchema(target2) {
         const parent = Object.getPrototypeOf(target2);
         if (parent) {
-          const schema13 = this.items.get(parent);
-          return schema13 || this.findParentSchema(parent);
+          const schema14 = this.items.get(parent);
+          return schema14 || this.findParentSchema(parent);
         }
         return null;
       }
@@ -46123,14 +46123,14 @@ var require_decorators = __commonJS({
     var enums_1 = require_enums();
     var storage_1 = require_storage();
     var AsnType = (options) => (target2) => {
-      let schema13;
+      let schema14;
       if (!storage_1.schemaStorage.has(target2)) {
-        schema13 = storage_1.schemaStorage.createDefault(target2);
-        storage_1.schemaStorage.set(target2, schema13);
+        schema14 = storage_1.schemaStorage.createDefault(target2);
+        storage_1.schemaStorage.set(target2, schema14);
       } else {
-        schema13 = storage_1.schemaStorage.get(target2);
+        schema14 = storage_1.schemaStorage.get(target2);
       }
-      Object.assign(schema13, options);
+      Object.assign(schema14, options);
     };
     exports2.AsnType = AsnType;
     var AsnChoiceType = () => (0, exports2.AsnType)({ type: enums_1.AsnTypeTypes.Choice });
@@ -46140,12 +46140,12 @@ var require_decorators = __commonJS({
     var AsnSequenceType = (options) => (0, exports2.AsnType)({ type: enums_1.AsnTypeTypes.Sequence, ...options });
     exports2.AsnSequenceType = AsnSequenceType;
     var AsnProp = (options) => (target2, propertyKey) => {
-      let schema13;
+      let schema14;
       if (!storage_1.schemaStorage.has(target2.constructor)) {
-        schema13 = storage_1.schemaStorage.createDefault(target2.constructor);
-        storage_1.schemaStorage.set(target2.constructor, schema13);
+        schema14 = storage_1.schemaStorage.createDefault(target2.constructor);
+        storage_1.schemaStorage.set(target2.constructor, schema14);
       } else {
-        schema13 = storage_1.schemaStorage.get(target2.constructor);
+        schema14 = storage_1.schemaStorage.get(target2.constructor);
       }
       const copyOptions = Object.assign({}, options);
       if (typeof copyOptions.type === "number" && !copyOptions.converter) {
@@ -46156,7 +46156,7 @@ var require_decorators = __commonJS({
         copyOptions.converter = defaultConverter;
       }
       copyOptions.raw = options.raw;
-      schema13.items[propertyKey] = copyOptions;
+      schema14.items[propertyKey] = copyOptions;
     };
     exports2.AsnProp = AsnProp;
   }
@@ -46215,26 +46215,26 @@ var require_parser = __commonJS({
             const value = new target2();
             return value.fromASN(asn1Schema);
           }
-          const schema13 = storage_1.schemaStorage.get(target2);
+          const schema14 = storage_1.schemaStorage.get(target2);
           storage_1.schemaStorage.cache(target2);
-          let targetSchema2 = schema13.schema;
-          const choiceResult = this.handleChoiceTypes(asn1Schema, schema13, target2, targetSchema2);
+          let targetSchema2 = schema14.schema;
+          const choiceResult = this.handleChoiceTypes(asn1Schema, schema14, target2, targetSchema2);
           if (choiceResult === null || choiceResult === void 0 ? void 0 : choiceResult.result) {
             return choiceResult.result;
           }
           if (choiceResult === null || choiceResult === void 0 ? void 0 : choiceResult.targetSchema) {
             targetSchema2 = choiceResult.targetSchema;
           }
-          const sequenceResult = this.handleSequenceTypes(asn1Schema, schema13, target2, targetSchema2);
+          const sequenceResult = this.handleSequenceTypes(asn1Schema, schema14, target2, targetSchema2);
           if (sequenceResult && "isManualMapping" in sequenceResult) {
             return sequenceResult.result;
           }
           const asn1ComparedSchema = sequenceResult;
           const res = new target2();
           if ((0, helper_1.isTypeOfArray)(target2)) {
-            return this.handleArrayTypes(asn1Schema, schema13, target2);
+            return this.handleArrayTypes(asn1Schema, schema14, target2);
           }
-          this.processSchemaItems(schema13, asn1ComparedSchema, res);
+          this.processSchemaItems(schema14, asn1ComparedSchema, res);
           return res;
         } catch (error) {
           if (error instanceof errors_1.AsnSchemaValidationError) {
@@ -46243,10 +46243,10 @@ var require_parser = __commonJS({
           throw error;
         }
       }
-      static handleChoiceTypes(asn1Schema, schema13, target2, targetSchema2) {
-        if (asn1Schema.constructor === asn1js.Constructed && schema13.type === enums_1.AsnTypeTypes.Choice && asn1Schema.idBlock.tagClass === 3) {
-          for (const key in schema13.items) {
-            const schemaItem = schema13.items[key];
+      static handleChoiceTypes(asn1Schema, schema14, target2, targetSchema2) {
+        if (asn1Schema.constructor === asn1js.Constructed && schema14.type === enums_1.AsnTypeTypes.Choice && asn1Schema.idBlock.tagClass === 3) {
+          for (const key in schema14.items) {
+            const schemaItem = schema14.items[key];
             if (schemaItem.context === asn1Schema.idBlock.tagNumber && schemaItem.implicit) {
               if (typeof schemaItem.type === "function" && storage_1.schemaStorage.has(schemaItem.type)) {
                 const fieldSchema = storage_1.schemaStorage.get(schemaItem.type);
@@ -46263,29 +46263,29 @@ var require_parser = __commonJS({
               }
             }
           }
-        } else if (asn1Schema.constructor === asn1js.Constructed && schema13.type !== enums_1.AsnTypeTypes.Choice) {
+        } else if (asn1Schema.constructor === asn1js.Constructed && schema14.type !== enums_1.AsnTypeTypes.Choice) {
           const newTargetSchema = new asn1js.Constructed({
             idBlock: {
               tagClass: 3,
               tagNumber: asn1Schema.idBlock.tagNumber
             },
-            value: schema13.schema.valueBlock.value
+            value: schema14.schema.valueBlock.value
           });
-          for (const key in schema13.items) {
+          for (const key in schema14.items) {
             delete asn1Schema[key];
           }
           return { targetSchema: newTargetSchema };
         }
         return null;
       }
-      static handleSequenceTypes(asn1Schema, schema13, target2, targetSchema2) {
-        if (schema13.type === enums_1.AsnTypeTypes.Sequence) {
-          const optionalChoiceFields = Object.keys(schema13.items).filter((key) => {
-            const item = schema13.items[key];
+      static handleSequenceTypes(asn1Schema, schema14, target2, targetSchema2) {
+        if (schema14.type === enums_1.AsnTypeTypes.Sequence) {
+          const optionalChoiceFields = Object.keys(schema14.items).filter((key) => {
+            const item = schema14.items[key];
             return item.optional && typeof item.type === "function" && storage_1.schemaStorage.has(item.type) && storage_1.schemaStorage.get(item.type).type === enums_1.AsnTypeTypes.Choice;
           });
           if (optionalChoiceFields.length > 0 && "value" in asn1Schema.valueBlock && Array.isArray(asn1Schema.valueBlock.value) && target2.name === "CertReqMsg") {
-            return this.handleManualMapping(asn1Schema, schema13, target2);
+            return this.handleManualMapping(asn1Schema, schema14, target2);
           }
           const asn1ComparedSchema = asn1js.compareSchema({}, asn1Schema, targetSchema2);
           if (!asn1ComparedSchema.verified) {
@@ -46300,14 +46300,14 @@ var require_parser = __commonJS({
           return asn1ComparedSchema;
         }
       }
-      static handleManualMapping(asn1Schema, schema13, target2) {
+      static handleManualMapping(asn1Schema, schema14, target2) {
         const res = new target2();
         const asn1Elements = asn1Schema.valueBlock.value;
-        const schemaKeys = Object.keys(schema13.items);
+        const schemaKeys = Object.keys(schema14.items);
         let asn1Index = 0;
         for (let i = 0; i < schemaKeys.length; i++) {
           const key = schemaKeys[i];
-          const schemaItem = schema13.items[key];
+          const schemaItem = schema14.items[key];
           if (asn1Index >= asn1Elements.length)
             break;
           if (schemaItem.repeated) {
@@ -46378,11 +46378,11 @@ var require_parser = __commonJS({
           throw err;
         }
       }
-      static handleArrayTypes(asn1Schema, schema13, target2) {
+      static handleArrayTypes(asn1Schema, schema14, target2) {
         if (!("value" in asn1Schema.valueBlock && Array.isArray(asn1Schema.valueBlock.value))) {
           throw new Error(`Cannot get items from the ASN.1 parsed value. ASN.1 object is not constructed.`);
         }
-        const itemType = schema13.itemType;
+        const itemType = schema14.itemType;
         if (typeof itemType === "number") {
           const converter = converters.defaultConverter(itemType);
           if (!converter) {
@@ -46393,13 +46393,13 @@ var require_parser = __commonJS({
           return target2.from(asn1Schema.valueBlock.value, (element) => this.fromASN(element, itemType));
         }
       }
-      static processSchemaItems(schema13, asn1ComparedSchema, res) {
-        for (const key in schema13.items) {
+      static processSchemaItems(schema14, asn1ComparedSchema, res) {
+        for (const key in schema14.items) {
           const asn1SchemaValue = asn1ComparedSchema.result[key];
           if (!asn1SchemaValue) {
             continue;
           }
-          const schemaItem = schema13.items[key];
+          const schemaItem = schema14.items[key];
           const schemaItemType = schemaItem.type;
           let parsedValue;
           if (typeof schemaItemType === "number" || (0, helper_1.isConvertible)(schemaItemType)) {
@@ -46495,14 +46495,14 @@ var require_parser = __commonJS({
       }
       static handleImplicitTagging(asn1SchemaValue, schemaItem, schemaItemType) {
         if (schemaItem.implicit && typeof schemaItem.context === "number") {
-          const schema13 = storage_1.schemaStorage.get(schemaItemType);
-          if (schema13.type === enums_1.AsnTypeTypes.Sequence) {
+          const schema14 = storage_1.schemaStorage.get(schemaItemType);
+          if (schema14.type === enums_1.AsnTypeTypes.Sequence) {
             const newSeq = new asn1js.Sequence();
             if ("value" in asn1SchemaValue.valueBlock && Array.isArray(asn1SchemaValue.valueBlock.value) && "value" in newSeq.valueBlock) {
               newSeq.valueBlock.value = asn1SchemaValue.valueBlock.value;
               return newSeq;
             }
-          } else if (schema13.type === enums_1.AsnTypeTypes.Set) {
+          } else if (schema14.type === enums_1.AsnTypeTypes.Set) {
             const newSet = new asn1js.Set();
             if ("value" in asn1SchemaValue.valueBlock && Array.isArray(asn1SchemaValue.valueBlock.value) && "value" in newSet.valueBlock) {
               newSet.valueBlock.value = asn1SchemaValue.valueBlock.value;
@@ -46543,25 +46543,25 @@ var require_serializer = __commonJS({
           throw new TypeError("Parameter 1 should be type of Object.");
         }
         const target2 = obj.constructor;
-        const schema13 = storage_1.schemaStorage.get(target2);
+        const schema14 = storage_1.schemaStorage.get(target2);
         storage_1.schemaStorage.cache(target2);
         let asn1Value = [];
-        if (schema13.itemType) {
+        if (schema14.itemType) {
           if (!Array.isArray(obj)) {
             throw new TypeError("Parameter 1 should be type of Array.");
           }
-          if (typeof schema13.itemType === "number") {
-            const converter = converters.defaultConverter(schema13.itemType);
+          if (typeof schema14.itemType === "number") {
+            const converter = converters.defaultConverter(schema14.itemType);
             if (!converter) {
               throw new Error(`Cannot get default converter for array item of ${target2.name} ASN1 schema`);
             }
             asn1Value = obj.map((o) => converter.toASN(o));
           } else {
-            asn1Value = obj.map((o) => this.toAsnItem({ type: schema13.itemType }, "[]", target2, o));
+            asn1Value = obj.map((o) => this.toAsnItem({ type: schema14.itemType }, "[]", target2, o));
           }
         } else {
-          for (const key in schema13.items) {
-            const schemaItem = schema13.items[key];
+          for (const key in schema14.items) {
+            const schemaItem = schema14.items[key];
             const objProp = obj[key];
             if (objProp === void 0 || schemaItem.defaultValue === objProp || typeof schemaItem.defaultValue === "object" && typeof objProp === "object" && (0, helper_1.isArrayEqual)(this.serialize(schemaItem.defaultValue), this.serialize(objProp))) {
               continue;
@@ -46608,7 +46608,7 @@ var require_serializer = __commonJS({
           }
         }
         let asnSchema;
-        switch (schema13.type) {
+        switch (schema14.type) {
           case enums_1.AsnTypeTypes.Sequence:
             asnSchema = new asn1js.Sequence({ value: asn1Value });
             break;
@@ -46775,14 +46775,14 @@ var require_build5 = __commonJS({
       }
     };
     var TransformError = class extends JsonError {
-      constructor(schema13, message, innerError) {
+      constructor(schema14, message, innerError) {
         super(message, innerError);
-        this.schema = schema13;
+        this.schema = schema14;
       }
     };
     var ParserError = class extends TransformError {
-      constructor(schema13, message, innerError) {
-        super(schema13, `JSON doesn't match to '${schema13.target.name}' schema. ${message}`, innerError);
+      constructor(schema14, message, innerError) {
+        super(schema14, `JSON doesn't match to '${schema14.target.name}' schema. ${message}`, innerError);
       }
     };
     var ValidationError = class extends JsonError {
@@ -46794,8 +46794,8 @@ var require_build5 = __commonJS({
       }
     };
     var KeyError = class extends ParserError {
-      constructor(schema13, keys, errors = {}) {
-        super(schema13, "Some keys doesn't match to schema");
+      constructor(schema14, keys, errors = {}) {
+        super(schema14, "Some keys doesn't match to schema");
         this.keys = keys;
         this.errors = errors;
       }
@@ -46841,34 +46841,34 @@ var require_build5 = __commonJS({
         return this.items.has(target2) || !!this.findParentSchema(target2);
       }
       get(target2) {
-        const schema13 = this.items.get(target2) || this.findParentSchema(target2);
-        if (!schema13) {
+        const schema14 = this.items.get(target2) || this.findParentSchema(target2);
+        if (!schema14) {
           throw new Error("Cannot get schema for current target");
         }
-        return schema13;
+        return schema14;
       }
       create(target2) {
-        const schema13 = { names: {} };
+        const schema14 = { names: {} };
         const parentSchema = this.findParentSchema(target2);
         if (parentSchema) {
-          Object.assign(schema13, parentSchema);
-          schema13.names = {};
+          Object.assign(schema14, parentSchema);
+          schema14.names = {};
           for (const name in parentSchema.names) {
-            schema13.names[name] = Object.assign({}, parentSchema.names[name]);
+            schema14.names[name] = Object.assign({}, parentSchema.names[name]);
           }
         }
-        schema13.target = target2;
-        return schema13;
+        schema14.target = target2;
+        return schema14;
       }
-      set(target2, schema13) {
-        this.items.set(target2, schema13);
+      set(target2, schema14) {
+        this.items.set(target2, schema14);
         return this;
       }
       findParentSchema(target2) {
         const parent = target2.__proto__;
         if (parent) {
-          const schema13 = this.items.get(parent);
-          return schema13 || this.findParentSchema(parent);
+          const schema14 = this.items.get(parent);
+          return schema14 || this.findParentSchema(parent);
         }
         return null;
       }
@@ -46977,8 +46977,8 @@ var require_build5 = __commonJS({
           }
         }
       }
-      static getSchemaByName(schema13, name = DEFAULT_SCHEMA) {
-        return { ...schema13.names[DEFAULT_SCHEMA], ...schema13.names[name] };
+      static getSchemaByName(schema14, name = DEFAULT_SCHEMA) {
+        return { ...schema14.names[DEFAULT_SCHEMA], ...schema14.names[name] };
       }
     };
     var JsonSerializer = class extends JsonTransform {
@@ -47004,9 +47004,9 @@ var require_build5 = __commonJS({
           }
           targetSchema2 = targetSchema2 || obj.constructor;
           if (schemaStorage.has(targetSchema2)) {
-            const schema13 = schemaStorage.get(targetSchema2);
+            const schema14 = schemaStorage.get(targetSchema2);
             res = {};
-            const namedSchema = this.getSchemaByName(schema13, schemaName);
+            const namedSchema = this.getSchemaByName(schema14, schemaName);
             for (const key in namedSchema) {
               try {
                 const item = namedSchema[key];
@@ -47042,7 +47042,7 @@ var require_build5 = __commonJS({
                 if (e instanceof SerializerError) {
                   throw e;
                 } else {
-                  throw new SerializerError(schema13.target.name, `Property '${key}' is wrong. ${e.message}`, e);
+                  throw new SerializerError(schema14.target.name, `Property '${key}' is wrong. ${e.message}`, e);
                 }
               }
             }
@@ -47070,11 +47070,11 @@ var require_build5 = __commonJS({
         if (isConvertible(obj)) {
           return obj.fromJSON(target2);
         }
-        const schema13 = schemaStorage.get(targetSchema2);
-        const namedSchema = this.getSchemaByName(schema13, schemaName);
+        const schema14 = schemaStorage.get(targetSchema2);
+        const namedSchema = this.getSchemaByName(schema14, schemaName);
         const keyErrors = {};
         if (options.strictProperty && !Array.isArray(target2)) {
-          _JsonParser.checkStrictProperty(target2, namedSchema, schema13);
+          _JsonParser.checkStrictProperty(target2, namedSchema, schema14);
         }
         for (const key in namedSchema) {
           try {
@@ -47085,7 +47085,7 @@ var require_build5 = __commonJS({
               continue;
             }
             if (!item.optional && value === void 0) {
-              throw new ParserError(schema13, `Property '${name}' is required.`);
+              throw new ParserError(schema14, `Property '${name}' is required.`);
             }
             this.checkTypes(value, item);
             this.checkValues(value, item);
@@ -47113,7 +47113,7 @@ var require_build5 = __commonJS({
             }
           } catch (e) {
             if (!(e instanceof ParserError)) {
-              e = new ParserError(schema13, `Property '${key}' is wrong. ${e.message}`, e);
+              e = new ParserError(schema14, `Property '${key}' is wrong. ${e.message}`, e);
             }
             if (options.strictAllKeys) {
               keyErrors[key] = e;
@@ -47124,11 +47124,11 @@ var require_build5 = __commonJS({
         }
         const keys = Object.keys(keyErrors);
         if (keys.length) {
-          throw new KeyError(schema13, keys, keyErrors);
+          throw new KeyError(schema14, keys, keyErrors);
         }
         return obj;
       }
-      static checkStrictProperty(target2, namedSchema, schema13) {
+      static checkStrictProperty(target2, namedSchema, schema14) {
         const jsonProps = Object.keys(target2);
         const schemaProps = Object.keys(namedSchema);
         const keys = [];
@@ -47138,7 +47138,7 @@ var require_build5 = __commonJS({
           }
         }
         if (keys.length) {
-          throw new KeyError(schema13, keys);
+          throw new KeyError(schema14, keys);
         }
       }
     };
@@ -47167,15 +47167,15 @@ var require_build5 = __commonJS({
     }
     var JsonProp = (options = {}) => (target2, propertyKey) => {
       const errorMessage = `Cannot set type for ${propertyKey} property of ${target2.constructor.name} schema`;
-      let schema13;
+      let schema14;
       if (!schemaStorage.has(target2.constructor)) {
-        schema13 = schemaStorage.create(target2.constructor);
-        schemaStorage.set(target2.constructor, schema13);
+        schema14 = schemaStorage.create(target2.constructor);
+        schemaStorage.set(target2.constructor, schema14);
       } else {
-        schema13 = schemaStorage.get(target2.constructor);
-        if (schema13.target !== target2.constructor) {
-          schema13 = schemaStorage.create(target2.constructor);
-          schemaStorage.set(target2.constructor, schema13);
+        schema14 = schemaStorage.get(target2.constructor);
+        if (schema14.target !== target2.constructor) {
+          schema14 = schemaStorage.create(target2.constructor);
+          schemaStorage.set(target2.constructor, schema14);
         }
       }
       const defaultSchema = {
@@ -47196,10 +47196,10 @@ var require_build5 = __commonJS({
         schemaNames = [options.schema || DEFAULT_SCHEMA];
       }
       for (const schemaName of schemaNames) {
-        if (!schema13.names[schemaName]) {
-          schema13.names[schemaName] = {};
+        if (!schema14.names[schemaName]) {
+          schema14.names[schemaName] = {};
         }
-        const namedSchema = schema13.names[schemaName];
+        const namedSchema = schema14.names[schemaName];
         namedSchema[propertyKey] = copyOptions;
       }
     };
@@ -62900,8 +62900,8 @@ var require_decode = __commonJS({
       }
       return decodeSchema(rstream, typeOrSchema, meta);
     }
-    function decodeSchema(rstream, schema13, meta) {
-      assertSchema(schema13);
+    function decodeSchema(rstream, schema14, meta) {
+      assertSchema(schema14);
       const node = /* @__PURE__ */ Object.create(null);
       if (meta.node === void 0) {
         meta.node = node;
@@ -62909,10 +62909,10 @@ var require_decode = __commonJS({
       } else {
         meta.current = node;
       }
-      const keys = Object.keys(schema13);
+      const keys = Object.keys(schema14);
       for (let i = 0; i < keys.length; i += 1) {
         const key = keys[i];
-        const type = schema13[key];
+        const type = schema14[key];
         if (!isDecodeType(type)) {
           node[key] = decodeSchema(rstream, type, meta);
           meta.current = node;
@@ -62927,8 +62927,8 @@ var require_decode = __commonJS({
       }
       return node;
     }
-    function assertSchema(schema13) {
-      if (!isUserType(schema13)) {
+    function assertSchema(schema14) {
+      if (!isUserType(schema14)) {
         throw new TypeError("Argument #2 should be a plain object.");
       }
     }
@@ -62970,18 +62970,18 @@ var require_encode = __commonJS({
         encodeSchema(object, wstream, typeOrSchema, context);
       }
     }
-    function encodeSchema(object, wstream, schema13, context) {
-      assertSchema(schema13);
+    function encodeSchema(object, wstream, schema14, context) {
+      assertSchema(schema14);
       if (context.node === void 0) {
         context.node = object;
         context.current = object;
       } else {
         context.current = object;
       }
-      const keys = Object.keys(schema13);
+      const keys = Object.keys(schema14);
       for (let i = 0; i < keys.length; i += 1) {
         const key = keys[i];
-        const type = schema13[key];
+        const type = schema14[key];
         const value = object[key];
         if (!isEncodeType(type)) {
           encodeSchema(value, wstream, type, context);
@@ -62992,8 +62992,8 @@ var require_encode = __commonJS({
         context[symbols.bytes] += type.encode.bytes;
       }
     }
-    function assertSchema(schema13) {
-      if (!isUserType(schema13)) {
+    function assertSchema(schema14) {
+      if (!isUserType(schema14)) {
         throw new TypeError("Argument `schema` should be a plain object.");
       }
     }
@@ -63011,9 +63011,9 @@ var require_encoding_length = __commonJS({
       encodingLength,
       encodingLengthCommon
     };
-    function encodingLength(obj, schema13) {
+    function encodingLength(obj, schema14) {
       const context = new Metadata();
-      encodingLengthCommon(obj, schema13, context);
+      encodingLengthCommon(obj, schema14, context);
       Metadata.clean(context);
       return context.bytes;
     }
@@ -63024,8 +63024,8 @@ var require_encoding_length = __commonJS({
         encodingLengthSchema(item, typeOrSchema, context);
       }
     }
-    function encodingLengthSchema(item, schema13, context) {
-      if (!isUserType(schema13)) {
+    function encodingLengthSchema(item, schema14, context) {
+      if (!isUserType(schema14)) {
         throw new TypeError("Argument `schema` should be a plain object.");
       }
       if (context.node === void 0) {
@@ -63034,10 +63034,10 @@ var require_encoding_length = __commonJS({
       } else {
         context.current = item;
       }
-      const keys = Object.keys(schema13);
+      const keys = Object.keys(schema14);
       for (let i = 0; i < keys.length; i += 1) {
         const key = keys[i];
-        const type = schema13[key];
+        const type = schema14[key];
         const value = item[key];
         if (!isType(type)) {
           encodingLengthSchema(value, type, context);
@@ -63890,27 +63890,27 @@ var require_src5 = __commonJS({
       types[type] = numbers[type];
     }
     var kschema = Symbol("schema");
-    function createEncodeStream(schema13) {
+    function createEncodeStream(schema14) {
       const stream4 = new BinaryStream({
         readableObjectMode: false,
         writableObjectMode: true,
         transform: transformEncode
       });
-      stream4[kschema] = schema13;
+      stream4[kschema] = schema14;
       return stream4;
     }
     function createDecodeStream(bufOrSchema) {
-      let schema13 = null;
+      let schema14 = null;
       const isBuffer2 = Buffer.isBuffer(bufOrSchema);
       if (!isBuffer2) {
-        schema13 = bufOrSchema;
+        schema14 = bufOrSchema;
       }
       const stream4 = new BinaryStream({
         transform: transformDecode,
         readableObjectMode: true,
         writableObjectMode: false
       });
-      stream4[kschema] = schema13;
+      stream4[kschema] = schema14;
       if (isBuffer2) {
         stream4.append(bufOrSchema);
       }
@@ -107512,7 +107512,7 @@ var init_dispatchRequest = __esm({
 });
 
 // ../../node_modules/axios/lib/helpers/validator.js
-function assertOptions(options, schema13, allowUnknown) {
+function assertOptions(options, schema14, allowUnknown) {
   if (typeof options !== "object") {
     throw new AxiosError_default("options must be an object", AxiosError_default.ERR_BAD_OPTION_VALUE);
   }
@@ -107520,7 +107520,7 @@ function assertOptions(options, schema13, allowUnknown) {
   let i = keys.length;
   while (i-- > 0) {
     const opt = keys[i];
-    const validator = schema13[opt];
+    const validator = schema14[opt];
     if (validator) {
       const value = options[opt];
       const result = value === void 0 || validator(value, opt, options);
@@ -110239,10 +110239,10 @@ var CharacterTools = class {
     ];
   }
   async handleGetCharacter(args) {
-    const schema13 = external_exports.object({
+    const schema14 = external_exports.object({
       identifier: external_exports.string().min(1, "Character identifier cannot be empty")
     });
-    const { identifier } = schema13.parse(args);
+    const { identifier } = schema14.parse(args);
     this.logger.info("Getting character information", { identifier });
     try {
       const characterData = await this.foundryClient.query("foundry-mcp-bridge.getCharacterInfo", {
@@ -110259,11 +110259,11 @@ var CharacterTools = class {
     }
   }
   async handleGetCharacterEntity(args) {
-    const schema13 = external_exports.object({
+    const schema14 = external_exports.object({
       characterIdentifier: external_exports.string().min(1, "Character identifier cannot be empty"),
       entityIdentifier: external_exports.string().min(1, "Entity identifier cannot be empty")
     });
-    const { characterIdentifier, entityIdentifier } = schema13.parse(args);
+    const { characterIdentifier, entityIdentifier } = schema14.parse(args);
     this.logger.info("Getting character entity", { characterIdentifier, entityIdentifier });
     try {
       const result = await this.foundryClient.query("foundry-mcp-bridge.getCharacterEntity", {
@@ -110328,10 +110328,10 @@ var CharacterTools = class {
     }
   }
   async handleListCharacters(args) {
-    const schema13 = external_exports.object({
+    const schema14 = external_exports.object({
       type: external_exports.string().optional()
     });
-    const { type } = schema13.parse(args);
+    const { type } = schema14.parse(args);
     this.logger.info("Listing characters", { type });
     try {
       const actors = await this.foundryClient.query("foundry-mcp-bridge.listActors", { type });
@@ -110352,7 +110352,7 @@ var CharacterTools = class {
     }
   }
   async handleUseItem(args) {
-    const schema13 = external_exports.object({
+    const schema14 = external_exports.object({
       actorIdentifier: external_exports.string().min(1, "Actor identifier cannot be empty"),
       itemIdentifier: external_exports.string().min(1, "Item identifier cannot be empty"),
       targets: external_exports.array(external_exports.string()).optional(),
@@ -110360,7 +110360,7 @@ var CharacterTools = class {
       spellLevel: external_exports.number().optional(),
       skipDialog: external_exports.boolean().optional()
     });
-    const { actorIdentifier, itemIdentifier, targets, consume, spellLevel, skipDialog } = schema13.parse(args);
+    const { actorIdentifier, itemIdentifier, targets, consume, spellLevel, skipDialog } = schema14.parse(args);
     this.logger.info("Using item", {
       actorIdentifier,
       itemIdentifier,
@@ -110399,11 +110399,11 @@ var CharacterTools = class {
       img: external_exports.string().optional(),
       system: external_exports.record(external_exports.any()).optional()
     });
-    const schema13 = external_exports.object({
+    const schema14 = external_exports.object({
       actorIdentifier: external_exports.string().min(1, "Actor identifier cannot be empty"),
       items: external_exports.array(itemSchema2).min(1, "At least one item is required")
     });
-    const { actorIdentifier, items: items2 } = schema13.parse(args);
+    const { actorIdentifier, items: items2 } = schema14.parse(args);
     this.logger.info("Adding items to actor", {
       actorIdentifier,
       count: items2.length,
@@ -110432,10 +110432,10 @@ var CharacterTools = class {
       system: external_exports.record(external_exports.any()).optional(),
       folder: external_exports.string().optional()
     });
-    const schema13 = external_exports.object({
+    const schema14 = external_exports.object({
       updates: external_exports.array(updateEntrySchema).min(1, "At least one update entry is required")
     });
-    const { updates } = schema13.parse(args);
+    const { updates } = schema14.parse(args);
     this.logger.info("Updating world items", {
       count: updates.length,
       ids: updates.map((u) => u.id)
@@ -110452,12 +110452,12 @@ var CharacterTools = class {
     }
   }
   async handleListWorldItems(args) {
-    const schema13 = external_exports.object({
+    const schema14 = external_exports.object({
       type: external_exports.string().optional(),
       folder: external_exports.string().optional(),
       nameFilter: external_exports.string().optional()
     });
-    const { type, folder, nameFilter } = schema13.parse(args);
+    const { type, folder, nameFilter } = schema14.parse(args);
     this.logger.info("Listing world items", {
       type: type ?? null,
       folder: folder ?? null,
@@ -110500,11 +110500,11 @@ var CharacterTools = class {
       effects: external_exports.array(external_exports.record(external_exports.any())).optional(),
       flags: external_exports.record(external_exports.any()).optional()
     });
-    const schema13 = external_exports.object({
+    const schema14 = external_exports.object({
       items: external_exports.array(itemSchema2).min(1, "At least one item is required"),
       folder: external_exports.string().optional()
     });
-    const { items: items2, folder } = schema13.parse(args);
+    const { items: items2, folder } = schema14.parse(args);
     this.logger.info("Creating world items", {
       count: items2.length,
       folder: folder ?? null,
@@ -110555,7 +110555,7 @@ var CharacterTools = class {
     }
   }
   async handleRemoveActorItems(args) {
-    const schema13 = external_exports.object({
+    const schema14 = external_exports.object({
       actorIdentifier: external_exports.string().min(1, "Actor identifier cannot be empty"),
       itemIds: external_exports.array(external_exports.string().min(1)).optional(),
       itemNames: external_exports.array(external_exports.string().min(1)).optional(),
@@ -110563,7 +110563,7 @@ var CharacterTools = class {
     }).refine((v) => (v.itemIds?.length ?? 0) + (v.itemNames?.length ?? 0) > 0, {
       message: "Provide itemIds and/or itemNames identifying the items to remove"
     });
-    const { actorIdentifier, itemIds, itemNames, type } = schema13.parse(args);
+    const { actorIdentifier, itemIds, itemNames, type } = schema14.parse(args);
     this.logger.info("Removing items from actor", {
       actorIdentifier,
       ids: itemIds?.length ?? 0,
@@ -110595,14 +110595,14 @@ var CharacterTools = class {
     }
   }
   async handleSearchCharacterItems(args) {
-    const schema13 = external_exports.object({
+    const schema14 = external_exports.object({
       characterIdentifier: external_exports.string().min(1, "Character identifier cannot be empty"),
       query: external_exports.string().optional(),
       type: external_exports.string().optional(),
       category: external_exports.string().optional(),
       limit: external_exports.number().optional()
     });
-    const { characterIdentifier, query, type, category, limit } = schema13.parse(args);
+    const { characterIdentifier, query, type, category, limit } = schema14.parse(args);
     this.logger.info("Searching character items", {
       characterIdentifier,
       query,
@@ -111345,7 +111345,7 @@ var CompendiumTools = class {
   }
   async handleSearchCompendium(args) {
     const gameSystem = await this.getGameSystem();
-    const schema13 = external_exports.object({
+    const schema14 = external_exports.object({
       query: external_exports.string().min(2, "Search query must be at least 2 characters"),
       packType: external_exports.string().optional(),
       filters: GenericFiltersSchema.optional(),
@@ -111353,14 +111353,14 @@ var CompendiumTools = class {
     });
     let parsedArgs;
     try {
-      parsedArgs = schema13.parse(args);
+      parsedArgs = schema14.parse(args);
     } catch (zodError) {
       if (typeof args === "string") {
-        parsedArgs = schema13.parse({ query: args });
+        parsedArgs = schema14.parse({ query: args });
       } else if (args && typeof args.query === "undefined" && typeof args === "object") {
         const firstKey = Object.keys(args)[0];
         if (firstKey && typeof args[firstKey] === "string") {
-          parsedArgs = schema13.parse({ query: args[firstKey] });
+          parsedArgs = schema14.parse({ query: args[firstKey] });
         } else {
           throw zodError;
         }
@@ -111407,12 +111407,12 @@ var CompendiumTools = class {
     }
   }
   async handleGetCompendiumItem(args) {
-    const schema13 = external_exports.object({
+    const schema14 = external_exports.object({
       packId: external_exports.string().min(1, "Pack ID cannot be empty"),
       itemId: external_exports.string().min(1, "Item ID cannot be empty"),
       compact: external_exports.boolean().default(false)
     });
-    const { packId, itemId, compact } = schema13.parse(args);
+    const { packId, itemId, compact } = schema14.parse(args);
     try {
       const item = await this.foundryClient.query("foundry-mcp-bridge.getCompendiumDocumentFull", {
         packId,
@@ -111462,7 +111462,7 @@ var CompendiumTools = class {
   }
   async handleListCreaturesByCriteria(args) {
     const gameSystem = await this.getGameSystem();
-    const schema13 = external_exports.object({
+    const schema14 = external_exports.object({
       // D&D 5e: challengeRating
       challengeRating: external_exports.union([
         external_exports.object({
@@ -111592,7 +111592,7 @@ var CompendiumTools = class {
     });
     let params;
     try {
-      params = schema13.parse(args);
+      params = schema14.parse(args);
       this.logger.debug("Parsed creature criteria parameters successfully", params);
     } catch (parseError) {
       this.logger.error("Failed to parse creature criteria parameters", { args, parseError });
@@ -111642,10 +111642,10 @@ var CompendiumTools = class {
     }
   }
   async handleListCompendiumPacks(args) {
-    const schema13 = external_exports.object({
+    const schema14 = external_exports.object({
       type: external_exports.string().optional()
     });
-    const { type } = schema13.parse(args);
+    const { type } = schema14.parse(args);
     this.logger.info("Listing compendium packs", { type });
     try {
       const packs = await this.foundryClient.query("foundry-mcp-bridge.getAvailablePacks");
@@ -112364,11 +112364,11 @@ var SceneTools = class {
     ];
   }
   async handleGetCurrentScene(args) {
-    const schema13 = external_exports.object({
+    const schema14 = external_exports.object({
       includeTokens: external_exports.boolean().default(true),
       includeHidden: external_exports.boolean().default(false)
     });
-    const { includeTokens, includeHidden } = schema13.parse(args);
+    const { includeTokens, includeHidden } = schema14.parse(args);
     this.logger.info("Getting current scene information", { includeTokens, includeHidden });
     try {
       const sceneData = await this.foundryClient.query("foundry-mcp-bridge.getActiveScene");
@@ -112398,12 +112398,12 @@ var SceneTools = class {
     }
   }
   async handleUpdateSceneMusic(args) {
-    const schema13 = external_exports.object({
+    const schema14 = external_exports.object({
       scene_identifier: external_exports.string().min(1),
       playlist: external_exports.string().nullable().optional(),
       playlist_sound: external_exports.string().nullable().optional()
     });
-    const parsed = schema13.parse(withSceneAlias(args));
+    const parsed = schema14.parse(withSceneAlias(args));
     this.logger.info("Updating scene music", { scene_identifier: parsed.scene_identifier });
     try {
       const result = await this.foundryClient.query("foundry-mcp-bridge.update-scene-music", parsed);
@@ -112415,7 +112415,7 @@ var SceneTools = class {
     }
   }
   async handleManageScenes(args) {
-    const schema13 = external_exports.object({
+    const schema14 = external_exports.object({
       action: external_exports.enum(["create", "update", "describe"]),
       scene_identifier: external_exports.string().min(1).optional(),
       name: external_exports.string().min(1).optional(),
@@ -112446,7 +112446,7 @@ var SceneTools = class {
       }).strict().optional(),
       activate: external_exports.boolean().optional()
     }).strict();
-    const parsed = schema13.parse(withSceneAlias(args, true));
+    const parsed = schema14.parse(withSceneAlias(args, true));
     if (parsed.action === "create" && !parsed.name) {
       throw new Error("name is required for create");
     }
@@ -112734,7 +112734,7 @@ var PlaylistTools = class {
     ];
   }
   async handleManagePlaylists(args) {
-    const schema13 = external_exports.object({
+    const schema14 = external_exports.object({
       action: external_exports.enum(["create", "update", "delete", "describe"]),
       playlist: external_exports.string().nullable().optional(),
       name: external_exports.string().optional(),
@@ -112749,7 +112749,7 @@ var PlaylistTools = class {
       remove_sounds: external_exports.array(external_exports.string().min(1)).max(100).optional(),
       updates: external_exports.record(external_exports.any()).optional()
     });
-    const parsed = schema13.parse(args);
+    const parsed = schema14.parse(args);
     this.logger.info("Managing playlists", { action: parsed.action, playlist: parsed.playlist });
     try {
       const result = await this.foundryClient.query("foundry-mcp-bridge.manage-playlists", parsed);
@@ -112760,13 +112760,13 @@ var PlaylistTools = class {
     }
   }
   async handleControlPlaylist(args) {
-    const schema13 = external_exports.object({
+    const schema14 = external_exports.object({
       playlist: external_exports.string().min(1).optional(),
       command: external_exports.enum(COMMANDS),
       sound: external_exports.string().optional(),
       volume: external_exports.number().min(0).max(1).optional()
     });
-    const parsed = schema13.parse(args);
+    const parsed = schema14.parse(args);
     if (!parsed.playlist && parsed.command !== "now-playing" && parsed.command !== "stop-all") {
       throw new Error(`command ${parsed.command} requires "playlist"`);
     }
@@ -113129,7 +113129,7 @@ var ActorCreationTools = class {
    * Handle actor creation from specific compendium entry
    */
   async handleCreateActorFromCompendium(args) {
-    const schema13 = external_exports.object({
+    const schema14 = external_exports.object({
       packId: external_exports.string().min(1, "Pack ID cannot be empty"),
       itemId: external_exports.string().min(1, "Item ID cannot be empty"),
       names: external_exports.array(external_exports.string().min(1)).min(1, "At least one name is required"),
@@ -113148,7 +113148,7 @@ var ActorCreationTools = class {
         })).optional()
       }).optional()
     });
-    const { packId, itemId, names, quantity, addToScene, placement, folder, hp, token, img, tokenImg } = schema13.parse(args);
+    const { packId, itemId, names, quantity, addToScene, placement, folder, hp, token, img, tokenImg } = schema14.parse(args);
     const finalQuantity = quantity || names.length;
     this.logger.info("Creating actors from specific compendium entry", {
       packId,
@@ -113194,11 +113194,11 @@ var ActorCreationTools = class {
    * Handle getting full compendium entry data
    */
   async handleGetCompendiumEntryFull(args) {
-    const schema13 = external_exports.object({
+    const schema14 = external_exports.object({
       packId: external_exports.string().min(1, "Pack ID cannot be empty"),
       entryId: external_exports.string().min(1, "Entry ID cannot be empty")
     });
-    const { packId, entryId } = schema13.parse(args);
+    const { packId, entryId } = schema14.parse(args);
     this.logger.info("Getting full compendium entry", { packId, entryId });
     try {
       const fullEntry = await this.foundryClient.query("foundry-mcp-bridge.getCompendiumDocumentFull", {
@@ -113488,12 +113488,12 @@ var ActorManagementTools = class {
   }
   // ── place ─────────────────────────────────────────────────────────────────
   async handlePlace(args) {
-    const schema13 = external_exports.object({
+    const schema14 = external_exports.object({
       actorIds: external_exports.array(external_exports.string().min(1)).min(1),
       placement: external_exports.enum(["random", "grid", "center"]).default("random"),
       hidden: external_exports.boolean().default(false)
     });
-    const { actorIds, placement, hidden } = schema13.parse(args);
+    const { actorIds, placement, hidden } = schema14.parse(args);
     this.logger.info("Placing existing actors on scene", {
       count: actorIds.length,
       placement,
@@ -113514,7 +113514,7 @@ var ActorManagementTools = class {
   }
   // ── create ────────────────────────────────────────────────────────────────
   async handleCreate(args) {
-    const schema13 = external_exports.object({
+    const schema14 = external_exports.object({
       actors: external_exports.array(external_exports.object({
         name: external_exports.string().min(1),
         type: external_exports.string().min(1),
@@ -113526,7 +113526,7 @@ var ActorManagementTools = class {
       })).min(1),
       folder: external_exports.string().optional()
     });
-    const { actors, folder } = schema13.parse(args);
+    const { actors, folder } = schema14.parse(args);
     this.logger.info("Creating actors", {
       count: actors.length,
       types: actors.map((a) => a.type)
@@ -113541,7 +113541,7 @@ var ActorManagementTools = class {
   }
   // ── update ────────────────────────────────────────────────────────────────
   async handleUpdate(args) {
-    const schema13 = external_exports.object({
+    const schema14 = external_exports.object({
       updates: external_exports.array(external_exports.object({
         id: external_exports.string().min(1),
         name: external_exports.string().optional(),
@@ -113553,7 +113553,7 @@ var ActorManagementTools = class {
         folder: external_exports.string().min(1).optional()
       })).min(1)
     });
-    const { updates } = schema13.parse(args);
+    const { updates } = schema14.parse(args);
     this.logger.info("Updating actors", { count: updates.length });
     const adapter2 = await this.getAdapter();
     const normalizedUpdates = adapter2?.normalizePayload ? updates.map((u) => u.system !== void 0 ? { ...u, system: adapter2.normalizePayload(u.system) } : u) : updates;
@@ -113564,17 +113564,17 @@ var ActorManagementTools = class {
   }
   // ── delete ────────────────────────────────────────────────────────────────
   async handleDelete(args) {
-    const schema13 = external_exports.object({
+    const schema14 = external_exports.object({
       ids: external_exports.array(external_exports.string().min(1)).min(1)
     });
-    const { ids } = schema13.parse(args);
+    const { ids } = schema14.parse(args);
     this.logger.info("Deleting actors", { count: ids.length });
     const result = await this.foundryClient.query("foundry-mcp-bridge.deleteActors", { ids });
     return result;
   }
   // ── update-items ────────────────────────────────────────────────────────────
   async handleUpdateItems(args) {
-    const schema13 = external_exports.object({
+    const schema14 = external_exports.object({
       actorIdentifier: external_exports.string().min(1),
       itemUpdates: external_exports.array(external_exports.object({
         id: external_exports.string().min(1),
@@ -113592,7 +113592,7 @@ var ActorManagementTools = class {
         }
       })).min(1)
     });
-    const { actorIdentifier, itemUpdates } = schema13.parse(args);
+    const { actorIdentifier, itemUpdates } = schema14.parse(args);
     this.logger.info("Updating actor embedded items", {
       actorIdentifier,
       count: itemUpdates.length
@@ -113605,11 +113605,11 @@ var ActorManagementTools = class {
   }
   // ── delete-items ────────────────────────────────────────────────────────────
   async handleDeleteItems(args) {
-    const schema13 = external_exports.object({
+    const schema14 = external_exports.object({
       actorIdentifier: external_exports.string().min(1),
       itemIds: external_exports.array(external_exports.string().min(1)).min(1)
     });
-    const { actorIdentifier, itemIds } = schema13.parse(args);
+    const { actorIdentifier, itemIds } = schema14.parse(args);
     this.logger.info("Deleting actor embedded items", {
       actorIdentifier,
       count: itemIds.length
@@ -114962,7 +114962,7 @@ var DiceRollTools = class {
     ];
   }
   async handleRequestPlayerRolls(args) {
-    const schema13 = external_exports.object({
+    const schema14 = external_exports.object({
       rollType: external_exports.enum(["ability", "skill", "save", "attack", "initiative", "custom"]),
       rollTarget: external_exports.string(),
       targetPlayer: external_exports.string(),
@@ -114972,7 +114972,7 @@ var DiceRollTools = class {
       flavor: external_exports.string().default("")
     });
     try {
-      const params = schema13.parse(args);
+      const params = schema14.parse(args);
       if (typeof params.isPublic !== "boolean") {
         return 'Please specify whether you want this to be a PUBLIC roll (visible to all players) or PRIVATE roll (visible only to the target player and GM). You must provide either "true" for public or "false" for private.';
       }
@@ -116778,7 +116778,7 @@ var TokenManipulationTools = class {
     ];
   }
   async handleMoveToken(args) {
-    const schema13 = external_exports.object({
+    const schema14 = external_exports.object({
       tokenId: external_exports.string(),
       x: external_exports.number(),
       y: external_exports.number(),
@@ -116786,7 +116786,7 @@ var TokenManipulationTools = class {
       scene: external_exports.string().min(1).optional(),
       units: external_exports.enum(["pixels", "squares"]).optional()
     });
-    const { tokenId, x, y, animate, scene, units } = schema13.parse(args);
+    const { tokenId, x, y, animate, scene, units } = schema14.parse(args);
     this.logger.info("Moving token", { tokenId, x, y, animate });
     try {
       const result = await this.foundryClient.query("foundry-mcp-bridge.move-token", {
@@ -116812,7 +116812,7 @@ var TokenManipulationTools = class {
     }
   }
   async handleUpdateToken(args) {
-    const schema13 = external_exports.object({
+    const schema14 = external_exports.object({
       tokenId: external_exports.string(),
       scene: external_exports.string().min(1).optional(),
       options: external_exports.record(external_exports.any()).optional(),
@@ -116829,7 +116829,7 @@ var TokenManipulationTools = class {
         lockRotation: external_exports.boolean().optional()
       }).default({})
     });
-    const { tokenId, updates, options, scene } = schema13.parse(args);
+    const { tokenId, updates, options, scene } = schema14.parse(args);
     if (Object.keys(updates).length === 0 && !options)
       throw new Error("Give updates or options");
     this.logger.info("Updating token", { tokenId, updates });
@@ -116853,10 +116853,10 @@ var TokenManipulationTools = class {
     }
   }
   async handleDeleteTokens(args) {
-    const schema13 = external_exports.object({
+    const schema14 = external_exports.object({
       tokenIds: external_exports.array(external_exports.string()).min(1)
     });
-    const { tokenIds } = schema13.parse(args);
+    const { tokenIds } = schema14.parse(args);
     this.logger.info("Deleting tokens", { count: tokenIds.length, tokenIds });
     try {
       const result = await this.foundryClient.query("foundry-mcp-bridge.delete-tokens", {
@@ -116878,11 +116878,11 @@ var TokenManipulationTools = class {
     }
   }
   async handleGetTokenDetails(args) {
-    const schema13 = external_exports.object({
+    const schema14 = external_exports.object({
       tokenId: external_exports.string(),
       scene: external_exports.string().min(1).optional()
     });
-    const { tokenId, scene } = schema13.parse(args);
+    const { tokenId, scene } = schema14.parse(args);
     this.logger.info("Getting token details", { tokenId });
     try {
       const tokenData = await this.foundryClient.query("foundry-mcp-bridge.get-token-details", {
@@ -116945,12 +116945,12 @@ var TokenManipulationTools = class {
     }
   }
   async handleToggleTokenCondition(args) {
-    const schema13 = external_exports.object({
+    const schema14 = external_exports.object({
       tokenId: external_exports.string(),
       conditionId: external_exports.string(),
       active: external_exports.boolean().optional()
     });
-    const { tokenId, conditionId, active } = schema13.parse(args);
+    const { tokenId, conditionId, active } = schema14.parse(args);
     this.logger.info("Toggling token condition", { tokenId, conditionId, active });
     try {
       const result = await this.foundryClient.query("foundry-mcp-bridge.toggle-token-condition", {
@@ -117107,7 +117107,7 @@ var DSA5CharacterCreator = class {
    * Handle DSA5 character creation from archetype
    */
   async handleCreateCharacterFromArchetype(args) {
-    const schema13 = external_exports.object({
+    const schema14 = external_exports.object({
       archetypePackId: external_exports.string().min(1, "Archetype pack ID cannot be empty"),
       archetypeId: external_exports.string().min(1, "Archetype ID cannot be empty"),
       characterName: external_exports.string().min(1, "Character name cannot be empty"),
@@ -117125,7 +117125,7 @@ var DSA5CharacterCreator = class {
       }).optional(),
       addToWorld: external_exports.boolean().default(true)
     });
-    const { archetypePackId, archetypeId, characterName, customization, addToWorld } = schema13.parse(args);
+    const { archetypePackId, archetypeId, characterName, customization, addToWorld } = schema14.parse(args);
     this.logger.info("Creating DSA5 character from archetype", {
       archetypePackId,
       archetypeId,
@@ -117165,12 +117165,12 @@ var DSA5CharacterCreator = class {
    * Handle listing DSA5 archetypes
    */
   async handleListArchetypes(args) {
-    const schema13 = external_exports.object({
+    const schema14 = external_exports.object({
       packId: external_exports.string().optional(),
       filterBySpecies: external_exports.string().optional(),
       filterByProfession: external_exports.string().optional()
     });
-    const { packId, filterBySpecies, filterByProfession } = schema13.parse(args);
+    const { packId, filterBySpecies, filterByProfession } = schema14.parse(args);
     this.logger.info("Listing DSA5 archetypes", { packId, filterBySpecies, filterByProfession });
     try {
       const packs = await this.foundryClient.query("foundry-mcp-bridge.getAvailablePacks");
@@ -118221,7 +118221,7 @@ var DSA5JsonActorImporter = class {
     ];
   }
   async handleImportActorFromJson(args) {
-    const schema13 = external_exports.object({
+    const schema14 = external_exports.object({
       jsonPayload: external_exports.union([external_exports.string(), external_exports.record(external_exports.unknown())]).optional(),
       filePath: external_exports.string().optional(),
       strategy: external_exports.enum(["auto", "custom_dsa5", "optolith_like", "raw_foundry", "darkaid"]).default("auto"),
@@ -118233,7 +118233,7 @@ var DSA5JsonActorImporter = class {
     }).refine((value) => Boolean(value.jsonPayload) || Boolean(value.filePath), {
       message: "Either jsonPayload or filePath is required."
     });
-    const { jsonPayload, filePath, strategy, resolveItems, addToScene, updateExisting, existingActorIdentifier, strict } = schema13.parse(args);
+    const { jsonPayload, filePath, strategy, resolveItems, addToScene, updateExisting, existingActorIdentifier, strict } = schema14.parse(args);
     try {
       await this.assertDsa5World();
       const payload = await extractPayload(jsonPayload, filePath);
@@ -118786,7 +118786,7 @@ var DnD5eAddFeatureTool = class {
   // passive
   // ---------------------------------------------------------------------------
   async handlePassive(args) {
-    const schema13 = external_exports.object({
+    const schema14 = external_exports.object({
       featureType: external_exports.literal("passive"),
       actorIdentifier: external_exports.string().min(1, "actorIdentifier cannot be empty"),
       featureName: external_exports.string().min(1, "featureName cannot be empty"),
@@ -118796,7 +118796,7 @@ var DnD5eAddFeatureTool = class {
       sourceBook: external_exports.string().default(""),
       sourcePage: external_exports.string().default("")
     });
-    const parsed = schema13.parse(args);
+    const parsed = schema14.parse(args);
     this.logger.info("Adding passive feature to D&D 5e actor", {
       actorIdentifier: parsed.actorIdentifier,
       featureName: parsed.featureName
@@ -118838,7 +118838,7 @@ ${details}`
   // save
   // ---------------------------------------------------------------------------
   async handleSave(args) {
-    const schema13 = external_exports.object({
+    const schema14 = external_exports.object({
       featureType: external_exports.literal("save"),
       actorIdentifier: external_exports.string().min(1, "actorIdentifier cannot be empty"),
       featureName: external_exports.string().min(1, "featureName cannot be empty"),
@@ -118862,7 +118862,7 @@ ${details}`
         });
       }
     });
-    const parsed = schema13.parse(args);
+    const parsed = schema14.parse(args);
     this.logger.info("Adding save feature to D&D 5e actor", {
       actorIdentifier: parsed.actorIdentifier,
       featureName: parsed.featureName,
@@ -118912,7 +118912,7 @@ ${details}`
   // attack
   // ---------------------------------------------------------------------------
   async handleAttack(args) {
-    const schema13 = external_exports.object({
+    const schema14 = external_exports.object({
       featureType: external_exports.literal("attack"),
       actorIdentifier: external_exports.string().min(1, "actorIdentifier cannot be empty"),
       featureName: external_exports.string().min(1, "featureName cannot be empty"),
@@ -118949,7 +118949,7 @@ ${details}`
         });
       }
     });
-    const parsed = schema13.parse(args);
+    const parsed = schema14.parse(args);
     const effectiveAbility = parsed.abilityModifier ?? (parsed.attackType === "melee" ? "str" : "dex");
     const warnings = [];
     for (const part of parsed.damageParts) {
@@ -119023,7 +119023,7 @@ ${details}${warningSection}`
   // attack-with-save
   // ---------------------------------------------------------------------------
   async handleAttackWithSave(args) {
-    const schema13 = external_exports.object({
+    const schema14 = external_exports.object({
       featureType: external_exports.literal("attack-with-save"),
       actorIdentifier: external_exports.string().min(1, "actorIdentifier cannot be empty"),
       featureName: external_exports.string().min(1, "featureName cannot be empty"),
@@ -119064,7 +119064,7 @@ ${details}${warningSection}`
         });
       }
     });
-    const parsed = schema13.parse(args);
+    const parsed = schema14.parse(args);
     const effectiveAbility = parsed.abilityModifier ?? (parsed.attackType === "melee" ? "str" : "dex");
     const warnings = [];
     for (const part of [...parsed.damageParts, ...parsed.saveDamageParts]) {
@@ -119133,7 +119133,7 @@ ${details}${warningSection}`
   // aura
   // ---------------------------------------------------------------------------
   async handleAura(args) {
-    const schema13 = external_exports.object({
+    const schema14 = external_exports.object({
       featureType: external_exports.literal("aura"),
       actorIdentifier: external_exports.string().min(1, "actorIdentifier cannot be empty"),
       featureName: external_exports.string().min(1, "featureName cannot be empty"),
@@ -119149,7 +119149,7 @@ ${details}${warningSection}`
       sourceBook: external_exports.string().default(""),
       sourcePage: external_exports.string().default("")
     });
-    const parsed = schema13.parse(args);
+    const parsed = schema14.parse(args);
     const warnings = [];
     for (const part of parsed.damageParts) {
       if (!DAMAGE_CANONICAL.has(part.type)) {
@@ -119210,7 +119210,7 @@ ${details}${warningSection}`
   // spellcasting
   // ---------------------------------------------------------------------------
   async handleSpellcasting(args) {
-    const schema13 = external_exports.object({
+    const schema14 = external_exports.object({
       featureType: external_exports.literal("spellcasting"),
       actorIdentifier: external_exports.string().min(1, "actorIdentifier cannot be empty"),
       spellcastingClass: external_exports.enum([
@@ -119228,7 +119228,7 @@ ${details}${warningSection}`
       spellcastingAbility: external_exports.enum(["str", "dex", "con", "int", "wis", "cha"]).optional(),
       sourceRules: external_exports.enum(["2014", "2024"]).default("2014")
     });
-    const parsed = schema13.parse(args);
+    const parsed = schema14.parse(args);
     const effectiveAbility = parsed.spellcastingAbility ?? CLASS_DEFAULT_ABILITY[parsed.spellcastingClass];
     this.logger.info("Setting actor spellcasting", {
       actorIdentifier: parsed.actorIdentifier,
@@ -119280,13 +119280,13 @@ ${details}${warningSection}`
   // spells
   // ---------------------------------------------------------------------------
   async handleSpells(args) {
-    const schema13 = external_exports.object({
+    const schema14 = external_exports.object({
       featureType: external_exports.literal("spells"),
       actorIdentifier: external_exports.string().min(1, "actorIdentifier cannot be empty"),
       spellNames: external_exports.array(external_exports.string().min(1)).min(1).max(50),
       compendiumPacks: external_exports.array(external_exports.string().min(1)).default(["dnd5e.spells"])
     });
-    const parsed = schema13.parse(args);
+    const parsed = schema14.parse(args);
     this.logger.info("Adding spells to D&D 5e actor", {
       actorIdentifier: parsed.actorIdentifier,
       spellCount: parsed.spellNames.length,
@@ -119719,7 +119719,7 @@ var DnD5eNpcTools = class {
     ];
   }
   async handleCreateNpc(args) {
-    const schema13 = external_exports.object({
+    const schema14 = external_exports.object({
       // Identity
       name: external_exports.string().min(1, "name cannot be empty"),
       creatureType: external_exports.enum([
@@ -119821,7 +119821,7 @@ var DnD5eNpcTools = class {
         });
       }
     });
-    const parsed = schema13.parse(args);
+    const parsed = schema14.parse(args);
     const warnings = [];
     const allDamageValues = [
       ...parsed.damageImmunities.map((v) => ({ field: "damageImmunities", value: v })),
@@ -119936,12 +119936,12 @@ var DnD5eFeaturesFromCompendiumTools = class {
     ];
   }
   async handleAddFeaturesFromCompendium(args) {
-    const schema13 = external_exports.object({
+    const schema14 = external_exports.object({
       actorIdentifier: external_exports.string().min(1, "actorIdentifier cannot be empty"),
       featureNames: external_exports.array(external_exports.string().min(1)).min(1).max(50),
       compendiumPacks: external_exports.array(external_exports.string().min(1)).default(["dnd5e.monsterfeatures", "dnd5e.classfeatures"])
     });
-    const parsed = schema13.parse(args);
+    const parsed = schema14.parse(args);
     this.logger.info("Adding features to D&D 5e actor from compendium", {
       actorIdentifier: parsed.actorIdentifier,
       featureCount: parsed.featureNames.length,
@@ -120083,7 +120083,7 @@ var ChatTools = class {
     ];
   }
   async handleCreateChatMessage(args) {
-    const schema13 = external_exports.object({
+    const schema14 = external_exports.object({
       actorIdentifier: external_exports.string().optional(),
       tokenId: external_exports.string().optional(),
       content: external_exports.string().min(1),
@@ -120093,7 +120093,7 @@ var ChatTools = class {
     }).refine((v) => v.actorIdentifier || v.tokenId, {
       message: "Either actorIdentifier or tokenId is required"
     });
-    const parsed = schema13.parse(args);
+    const parsed = schema14.parse(args);
     this.logger.info("Creating chat message", {
       speaker: parsed.tokenId ?? parsed.actorIdentifier,
       whispered: !!parsed.whisperTo?.length
@@ -120187,13 +120187,13 @@ var UploadTools = class {
     ];
   }
   async handleUploadFile(args) {
-    const schema13 = external_exports.object({
+    const schema14 = external_exports.object({
       file_path: external_exports.string().min(1),
       folder: external_exports.string().optional(),
       filename: external_exports.string().min(1).optional(),
       overwrite: external_exports.boolean().optional()
     }).strict();
-    const parsed = schema13.parse(args);
+    const parsed = schema14.parse(args);
     if (!import_path.default.isAbsolute(parsed.file_path)) {
       throw new Error("file_path must be an absolute path");
     }
@@ -123407,9 +123407,64 @@ var RevealTools = class {
   }
 };
 
+// dist/tools/combat-tools.js
+init_zod();
+var ACTIONS = ["status", "start", "add", "remove", "roll", "set_initiative", "next", "previous", "next_round", "damage", "heal", "defeat", "end"];
+var schema8 = external_exports.object({
+  action: external_exports.enum(ACTIONS),
+  scene: external_exports.string().min(1).optional(),
+  who: external_exports.array(external_exports.string().min(1)).max(60).optional(),
+  names: external_exports.array(external_exports.string().min(1)).max(60).optional(),
+  roll: external_exports.enum(["none", "missing", "npcs", "all"]).optional(),
+  begin: external_exports.boolean().optional(),
+  initiative: external_exports.array(external_exports.object({ name: external_exports.string().min(1), value: external_exports.number() }).strict()).max(60).optional(),
+  amounts: external_exports.array(external_exports.object({ target: external_exports.string().min(1), amount: external_exports.number().positive() }).strict()).max(60).optional(),
+  defeated: external_exports.boolean().optional()
+}).strict();
+var CombatTools = class {
+  foundryClient;
+  logger;
+  constructor({ foundryClient, logger }) {
+    this.foundryClient = foundryClient;
+    this.logger = logger.child({ component: "CombatTools" });
+  }
+  getToolDefinitions() {
+    return [
+      {
+        name: "combat",
+        description: `Run the combat tracker (Foundry's own, so tracker modules keep working). Every action returns a short readout: round, whose turn, and one line per combatant in order (initiative, name, hp, conditions). ACTIONS: status; start {scene?, who?, roll?, begin?} makes the encounter from tokens on the scene (who = list of: "all" (default), "hostile", "friendly", "neutral", "players", "npcs", or token/actor names; hidden tokens are included), rolls initiative for the ones without one (roll: missing (default) | npcs | all | none) and begins it (begin:false to only set it up); add {who, roll?} adds more tokens mid-fight; remove {names}; roll {names? | roll?} rolls initiative (default for everyone still without one); set_initiative {initiative:[{name, value}]}; next, previous, next_round move the turn (the first next begins the combat); damage / heal {amounts:[{target, amount}]} apply to combatants (or scene tokens) by name, through the system rules (temp HP, resistances are the system's job) and report hp before and after; defeat {names, defeated?(true)} marks defeated or not; end ends and deletes the encounter. Names match exactly, else part of a name or the actor name. Needs the Foundry tab open in a browser.`,
+        inputSchema: {
+          type: "object",
+          properties: {
+            action: { type: "string", enum: [...ACTIONS] },
+            scene: { type: "string", description: "start, add, damage, heal: scene id or exact name (default the one being viewed)" },
+            who: { type: "array", items: { type: "string" }, description: 'start, add: "all", "hostile", "friendly", "neutral", "players", "npcs" or token/actor names' },
+            names: { type: "array", items: { type: "string" }, description: "remove, roll, defeat: combatant names" },
+            roll: { type: "string", enum: ["none", "missing", "npcs", "all"], description: "start, add, roll: who to roll initiative for (default missing)" },
+            begin: { type: "boolean", description: "start: begin the combat after setting it up (default true)" },
+            initiative: { type: "array", items: { type: "object", properties: { name: { type: "string" }, value: { type: "number" } }, required: ["name", "value"], additionalProperties: false }, description: "set_initiative: [{name, value}]" },
+            amounts: { type: "array", items: { type: "object", properties: { target: { type: "string" }, amount: { type: "number" } }, required: ["target", "amount"], additionalProperties: false }, description: "damage, heal: [{target, amount}]" },
+            defeated: { type: "boolean", description: "defeat: true (default) marks defeated, false revives" }
+          },
+          required: ["action"],
+          additionalProperties: false
+        }
+      }
+    ];
+  }
+  async handleCombat(args) {
+    const a = schema8.parse(args ?? {});
+    this.logger.info("Combat", { action: a.action });
+    const result = await this.foundryClient.query("foundry-mcp-bridge.combat", a);
+    if (result?.success === false)
+      throw new Error(result.error || "Request was refused");
+    return result;
+  }
+};
+
 // dist/tools/annotation-tools.js
 init_zod();
-var schema8 = external_exports.discriminatedUnion("action", [
+var schema9 = external_exports.discriminatedUnion("action", [
   external_exports.object({
     action: external_exports.literal("list"),
     scene: external_exports.string().min(1).optional(),
@@ -123454,7 +123509,7 @@ var AnnotationTools = class {
     ];
   }
   async handle(args) {
-    const a = schema8.parse(args ?? {});
+    const a = schema9.parse(args ?? {});
     this.logger.info("Annotations", { action: a.action });
     const result = await this.foundryClient.query("foundry-mcp-bridge.annotations", a);
     if (result?.success === false)
@@ -123646,7 +123701,7 @@ var areaSchema = external_exports.object({
   polygon: external_exports.array(external_exports.tuple([external_exports.number(), external_exports.number()])).min(3).max(200).optional(),
   units: external_exports.enum(["squares", "percent", "pixels"]).optional()
 }).strict();
-var schema9 = external_exports.discriminatedUnion("action", [
+var schema10 = external_exports.discriminatedUnion("action", [
   external_exports.object({
     action: external_exports.literal("edit"),
     annotation: external_exports.string().min(1).optional(),
@@ -123884,7 +123939,7 @@ var ImageEditTools = class {
     return out;
   }
   async handle(args) {
-    const a = schema9.parse(args ?? {});
+    const a = schema10.parse(args ?? {});
     this.logger.info("Edit image area", { action: a.action });
     return a.action === "edit" ? this.edit(a) : this.commit(a);
   }
@@ -123897,7 +123952,7 @@ var import_path6 = __toESM(require("path"), 1);
 var import_pngjs5 = __toESM(require_png(), 1);
 init_zod();
 var MAX_ACTORS = 2;
-var schema10 = external_exports.object({
+var schema11 = external_exports.object({
   actors: external_exports.array(external_exports.object({
     actor: external_exports.string().min(1),
     prompt: external_exports.string().min(3).max(1500).optional(),
@@ -124030,7 +124085,7 @@ var ActorArtTools = class {
     return result;
   }
   async handleMakeActorArt(args) {
-    const a = schema10.parse(args ?? {});
+    const a = schema11.parse(args ?? {});
     const options = {
       style: a.style,
       portraitSize: a.portrait_size ?? 1024,
@@ -124078,7 +124133,7 @@ var musicSchema = external_exports.object({
   clear: external_exports.boolean().optional(),
   play: external_exports.boolean().optional()
 }).strict();
-var schema11 = external_exports.object({
+var schema12 = external_exports.object({
   scene: external_exports.string().min(1),
   action: external_exports.enum(["apply", "describe"]).optional(),
   music: musicSchema.optional(),
@@ -124172,7 +124227,7 @@ var SceneSoundTools = class {
     };
   }
   async handleSetupSceneSound(args) {
-    const a = schema11.parse(args ?? {});
+    const a = schema12.parse(args ?? {});
     const action = a.action ?? "apply";
     if (action === "describe") {
       try {
@@ -125883,7 +125938,7 @@ var region = external_exports.object({
   width: external_exports.number().min(1),
   height: external_exports.number().min(1)
 }).strict();
-var schema12 = external_exports.object({
+var schema13 = external_exports.object({
   action: external_exports.enum(["new", "add", "update", "remove", "show", "render", "walls", "apply_walls", "check", "place", "lights", "align", "build", "portals", "set", "undo", "redo", "list", "delete"]),
   layout: external_exports.string().min(1).optional(),
   name: external_exports.string().min(1).max(60).optional(),
@@ -126066,7 +126121,7 @@ var LayoutTools = class {
     ];
   }
   async handleLayout(args) {
-    const a = schema12.parse(args ?? {});
+    const a = schema13.parse(args ?? {});
     switch (a.action) {
       case "list":
         return { success: true, layouts: await this.store.list(), folder: this.store.folder };
@@ -127627,6 +127682,7 @@ async function startBackend() {
   const campaignMemoryTools = new CampaignMemoryTools({ foundryClient, logger });
   const tableTools = new TableTools({ foundryClient, logger });
   const revealTools = new RevealTools({ foundryClient, logger });
+  const combatTools = new CombatTools({ foundryClient, logger });
   const annotationTools = new AnnotationTools({ foundryClient, logger });
   const imageEditTools = new ImageEditTools({
     foundryClient,
@@ -127816,6 +127872,7 @@ async function startBackend() {
     ...campaignMemoryTools.getToolDefinitions(),
     ...tableTools.getToolDefinitions(),
     ...revealTools.getToolDefinitions(),
+    ...combatTools.getToolDefinitions(),
     ...annotationTools.getToolDefinitions(),
     ...imageEditTools.getToolDefinitions(),
     ...actorArtTools.getToolDefinitions(),
@@ -128075,6 +128132,9 @@ async function startBackend() {
                   break;
                 case "annotations":
                   result = await annotationTools.handle(args);
+                  break;
+                case "combat":
+                  result = await combatTools.handleCombat(args);
                   break;
                 case "reveal":
                   result = await revealTools.handleReveal(args);

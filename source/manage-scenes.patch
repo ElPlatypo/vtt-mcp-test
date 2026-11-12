@@ -1655,6 +1655,101 @@ index 0000000..6c9da45
 +  }
 +  return out;
 +}
+diff --git a/packages/foundry-module/src/combat-utils.ts b/packages/foundry-module/src/combat-utils.ts
+new file mode 100644
+index 0000000..c643700
+--- /dev/null
++++ b/packages/foundry-module/src/combat-utils.ts
+@@ -0,0 +1,89 @@
++/** Combat control helpers: picking tokens and combatants by plain description, and a short readout of the encounter. */
++
++export interface TokenLike {
++  id: string;
++  name?: string;
++  actorName?: string;
++  /** -1 hostile, 0 neutral, 1 friendly, 2 secret */
++  disposition?: number;
++  /** a player character (owned by a non-GM player) */
++  player?: boolean;
++}
++
++const lower = (s: unknown) => String(s ?? '').trim().toLowerCase();
++
++/**
++ * Tokens a request means: "all", "hostile", "friendly", "neutral", "players", "npcs", or a name
++ * (token or actor name; exact first, else part of a name). Several can be given.
++ */
++export function pickTokens(tokens: TokenLike[], who: string[]): { picked: TokenLike[]; notFound: string[] } {
++  const picked = new Map<string, TokenLike>();
++  const notFound: string[] = [];
++  for (const spec of who) {
++    const key = lower(spec);
++    let hits: TokenLike[];
++    if (key === 'all') hits = tokens;
++    else if (key === 'hostile') hits = tokens.filter(t => t.disposition === -1);
++    else if (key === 'friendly') hits = tokens.filter(t => t.disposition === 1);
++    else if (key === 'neutral') hits = tokens.filter(t => t.disposition === 0);
++    else if (key === 'players') hits = tokens.filter(t => t.player);
++    else if (key === 'npcs') hits = tokens.filter(t => !t.player);
++    else {
++      const byId = tokens.filter(t => t.id === spec);
++      const exact = tokens.filter(t => lower(t.name) === key);
++      const exactActor = tokens.filter(t => lower(t.actorName) === key);
++      const part = tokens.filter(t => lower(t.name).includes(key) || lower(t.actorName).includes(key));
++      hits = byId.length ? byId : exact.length ? exact : exactActor.length ? exactActor : part;
++    }
++    if (hits.length === 0) notFound.push(spec);
++    for (const t of hits) picked.set(t.id, t);
++  }
++  return { picked: [...picked.values()], notFound };
++}
++
++export interface CombatantLike {
++  id: string;
++  name?: string;
++  tokenId?: string;
++  actorName?: string;
++  defeated?: boolean;
++  initiative?: number | null;
++}
++
++/** The combatants a name means: exact name, else part of a name or the actor name. */
++export function matchCombatants<T extends CombatantLike>(combatants: T[], name: string): T[] {
++  const key = lower(name);
++  const byId = combatants.filter(c => c.id === name || c.tokenId === name);
++  if (byId.length) return byId;
++  const exact = combatants.filter(c => lower(c.name) === key);
++  if (exact.length) return exact;
++  return combatants.filter(c => lower(c.name).includes(key) || lower(c.actorName).includes(key));
++}
++
++/** One short line per combatant, in turn order, with the active one marked. */
++export function compactCombat(combat: any): Record<string, any> | null {
++  if (!combat) return null;
++  const turns = ((combat.turns ?? combat.combatants?.contents ?? []) as any[]).slice();
++  const started = !!combat.started;
++  const lines = turns.map((c, index) => {
++    const hp = c.actor?.system?.attributes?.hp;
++    const parts = [
++      index === combat.turn && started ? '>' : ' ',
++      c.initiative === null || c.initiative === undefined ? '--' : String(c.initiative),
++      c.name ?? '?',
++    ];
++    if (hp && hp.value !== undefined) parts.push(`hp ${hp.value}${hp.max !== undefined ? '/' + hp.max : ''}${hp.temp ? '+' + hp.temp : ''}`);
++    const statuses = c.actor?.statuses ? [...c.actor.statuses] : [];
++    if (statuses.length) parts.push(`[${statuses.join(', ')}]`);
++    if (c.defeated) parts.push('(defeated)');
++    if (c.hidden) parts.push('(hidden)');
++    return parts.join(' ').trim();
++  });
++  const current = combat.combatant ?? turns[combat.turn ?? -1];
++  return {
++    started,
++    round: combat.round ?? 0,
++    ...(started && current ? { turn: current.name } : {}),
++    order: lines,
++  };
++}
 diff --git a/packages/foundry-module/src/comfyui-manager.test.ts b/packages/foundry-module/src/comfyui-manager.test.ts
 new file mode 100644
 index 0000000..6034370
@@ -2404,6 +2499,221 @@ index 0000000..8e1aad5
 +    const gated = setup(false);
 +    await expect(gated.da.resolveAnnotations({ ids: ['x'] })).rejects.toThrow();
 +    await expect(gated.da.clearAnnotations({})).rejects.toThrow();
++  });
++});
+diff --git a/packages/foundry-module/src/data-access.combat.test.ts b/packages/foundry-module/src/data-access.combat.test.ts
+new file mode 100644
+index 0000000..f4181c6
+--- /dev/null
++++ b/packages/foundry-module/src/data-access.combat.test.ts
+@@ -0,0 +1,209 @@
++/** combat control: start an encounter, initiative, turns, damage and healing. Foundry is stubbed. */
++import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
++import { FoundryDataAccess } from './data-access.js';
++import { compactCombat, matchCombatants, pickTokens } from './combat-utils.js';
++
++describe('combat utils', () => {
++  const tokens = [
++    { id: 't1', name: 'Goblin 1', actorName: 'Goblin', disposition: -1 },
++    { id: 't2', name: 'Goblin 2', actorName: 'Goblin', disposition: -1 },
++    { id: 't3', name: 'Mira', actorName: 'Mira', disposition: 1, player: true },
++  ];
++  it('picks tokens by group or name', () => {
++    expect(pickTokens(tokens, ['hostile']).picked.map(t => t.id)).toEqual(['t1', 't2']);
++    expect(pickTokens(tokens, ['players']).picked.map(t => t.id)).toEqual(['t3']);
++    expect(pickTokens(tokens, ['npcs']).picked.map(t => t.id)).toEqual(['t1', 't2']);
++    expect(pickTokens(tokens, ['goblin 2']).picked.map(t => t.id)).toEqual(['t2']);
++    expect(pickTokens(tokens, ['Goblin']).picked.map(t => t.id)).toEqual(['t1', 't2']);
++    expect(pickTokens(tokens, ['mir', 'Dragon'])).toMatchObject({ notFound: ['Dragon'] });
++  });
++  it('matches combatants and writes a short readout', () => {
++    const list = [{ id: 'c1', name: 'Goblin 1', actorName: 'Goblin' }, { id: 'c2', name: 'Mira' }];
++    expect(matchCombatants(list, 'goblin 1').map(c => c.id)).toEqual(['c1']);
++    expect(matchCombatants(list, 'gob').map(c => c.id)).toEqual(['c1']);
++    const combat = {
++      started: true,
++      round: 2,
++      turn: 1,
++      turns: [
++        { name: 'Goblin 1', initiative: 18, actor: { system: { attributes: { hp: { value: 3, max: 7 } } }, statuses: new Set(['prone']) } },
++        { name: 'Mira', initiative: 12, defeated: false, actor: { system: { attributes: { hp: { value: 20, max: 20, temp: 4 } } } } },
++        { name: 'Boss', initiative: null, hidden: true },
++      ],
++    };
++    const view = compactCombat(combat)!;
++    expect(view).toMatchObject({ started: true, round: 2, turn: 'Mira' });
++    expect(view.order).toEqual(['18 Goblin 1 hp 3/7 [prone]', '> 12 Mira hp 20/20+4', '-- Boss (hidden)']);
++  });
++});
++
++function setup(options: { allow?: boolean; applyDamage?: boolean } = {}) {
++  const hp = { g1: { value: 7, max: 7 }, mira: { value: 20, max: 20 } };
++  const actor = (key: 'g1' | 'mira', name: string) => {
++    const a: any = {
++      id: key,
++      name,
++      type: key === 'mira' ? 'character' : 'npc',
++      hasPlayerOwner: key === 'mira',
++      system: { attributes: { hp: hp[key] } },
++      update: vi.fn(async (patch: any) => {
++        hp[key].value = patch['system.attributes.hp.value'];
++      }),
++    };
++    if (options.applyDamage !== false) {
++      a.applyDamage = vi.fn(async (n: number) => {
++        hp[key].value = Math.max(0, Math.min(hp[key].max, hp[key].value - n));
++      });
++    }
++    return a;
++  };
++  const g1 = actor('g1', 'Goblin');
++  const mira = actor('mira', 'Mira');
++  const tokenDocs: any[] = [
++    { id: 't1', name: 'Goblin 1', actorId: 'g1', actor: g1, disposition: -1, hidden: true },
++    { id: 't3', name: 'Mira', actorId: 'mira', actor: mira, disposition: 1, hidden: false },
++  ];
++  const scene: any = { id: 's1', name: 'Cave', tokens: { contents: tokenDocs } };
++  const combatants: any[] = [];
++  const combat: any = {
++    id: 'cb1',
++    started: false,
++    round: 0,
++    turn: null,
++    scene,
++    combatants: { contents: combatants },
++    get turns() {
++      return combatants.slice().sort((a, b) => (b.initiative ?? -1) - (a.initiative ?? -1));
++    },
++    get combatant() {
++      return this.turns[this.turn ?? -1];
++    },
++    createEmbeddedDocuments: vi.fn(async (_type: string, docs: any[]) => {
++      for (const d of docs) {
++        const token = tokenDocs.find(t => t.id === d.tokenId);
++        combatants.push({ id: 'c_' + d.tokenId, name: token.name, tokenId: d.tokenId, actor: token.actor, initiative: null, isNPC: token.actor.type !== 'character', hidden: d.hidden, update: vi.fn(async function (this: any, p: any) { Object.assign(this, p); }) });
++      }
++    }),
++    deleteEmbeddedDocuments: vi.fn(async (_t: string, ids: string[]) => {
++      for (const id of ids) combatants.splice(combatants.findIndex(c => c.id === id), 1);
++    }),
++    rollInitiative: vi.fn(async (ids: string[]) => {
++      ids.forEach((id, i) => (combatants.find(c => c.id === id).initiative = 10 + i * 5));
++    }),
++    setInitiative: vi.fn(async (id: string, v: number) => {
++      combatants.find(c => c.id === id).initiative = v;
++    }),
++    startCombat: vi.fn(async function (this: any) {
++      this.started = true;
++      this.round = 1;
++      this.turn = 0;
++    }),
++    nextTurn: vi.fn(async function (this: any) {
++      this.turn += 1;
++    }),
++    previousTurn: vi.fn(async () => undefined),
++    nextRound: vi.fn(async function (this: any) {
++      this.round += 1;
++      this.turn = 0;
++    }),
++    delete: vi.fn(async () => undefined),
++  };
++  const create = vi.fn(async () => {
++    (globalThis as any).game.combat = combat;
++    return combat;
++  });
++  vi.stubGlobal('Hooks', { on: vi.fn(), callAll: vi.fn() });
++  vi.stubGlobal('CONFIG', { Combat: { documentClass: { create } }, queries: {} });
++  vi.stubGlobal('game', {
++    ready: true,
++    world: { id: 'w', getFlag: vi.fn(() => []), setFlag: vi.fn() },
++    user: { id: 'gm', name: 'GM', isGM: true },
++    scenes: { get: (id: string) => (id === 's1' ? scene : undefined), contents: [scene], viewed: scene },
++    settings: { get: (_m: string, key: string) => (key === 'allowWriteOperations' ? true : undefined) },
++    combat: null,
++  });
++  const da = new FoundryDataAccess();
++  (da as any).resolveSceneForObjects = () => scene;
++  if (options.allow === false) (da as any).validateFoundryState = () => undefined;
++  return { da, combat, create, hp, g1, mira };
++}
++
++describe('controlCombat', () => {
++  beforeEach(() => vi.unstubAllGlobals());
++  afterEach(() => vi.unstubAllGlobals());
++
++  it('starts an encounter from the scene tokens, rolls initiative and begins', async () => {
++    const { da, combat, create } = setup();
++    const r = await da.controlCombat({ action: 'start' });
++    expect(create).toHaveBeenCalledWith({ scene: 's1', active: true });
++    expect(combat.createEmbeddedDocuments.mock.calls[0][1]).toEqual([
++      { tokenId: 't1', sceneId: 's1', actorId: 'g1', hidden: true },
++      { tokenId: 't3', sceneId: 's1', actorId: 'mira', hidden: false },
++    ]);
++    expect(combat.rollInitiative).toHaveBeenCalledWith(['c_t1', 'c_t3']);
++    expect(combat.startCombat).toHaveBeenCalled();
++    expect(r).toMatchObject({ success: true, added: ['Goblin 1', 'Mira'], rolled: 2 });
++    expect(r.combat.started).toBe(true);
++  });
++
++  it('can set up without beginning, only some tokens, no rolling', async () => {
++    const { da, combat } = setup();
++    const r = await da.controlCombat({ action: 'start', who: ['hostile'], roll: 'none', begin: false });
++    expect(r.added).toEqual(['Goblin 1']);
++    expect(combat.rollInitiative).not.toHaveBeenCalled();
++    expect(combat.startCombat).not.toHaveBeenCalled();
++  });
++
++  it('sets initiative, moves turns and rounds', async () => {
++    const { da, combat } = setup();
++    await da.controlCombat({ action: 'start', roll: 'none' });
++    await da.controlCombat({ action: 'set_initiative', initiative: [{ name: 'Mira', value: 20 }] });
++    expect(combat.setInitiative).toHaveBeenCalledWith('c_t3', 20);
++    const next = await da.controlCombat({ action: 'next' });
++    expect(combat.nextTurn).toHaveBeenCalled();
++    expect(next.combat.round).toBe(1);
++    await da.controlCombat({ action: 'next_round' });
++    expect(combat.round).toBe(2);
++  });
++
++  it('applies damage and healing through the system and reports hp', async () => {
++    const { da, g1 } = setup();
++    await da.controlCombat({ action: 'start', roll: 'none' });
++    const hit = await da.controlCombat({ action: 'damage', amounts: [{ target: 'Goblin 1', amount: 5 }] });
++    expect(g1.applyDamage).toHaveBeenCalledWith(5);
++    expect(hit.applied).toEqual([{ name: 'Goblin 1', hp: '7 -> 2' }]);
++    const heal = await da.controlCombat({ action: 'heal', amounts: [{ target: 'goblin', amount: 3 }] });
++    expect(g1.applyDamage).toHaveBeenLastCalledWith(-3);
++    expect(heal.applied[0].hp).toBe('2 -> 5');
++    const kill = await da.controlCombat({ action: 'damage', amounts: [{ target: 'Goblin 1', amount: 50 }, { target: 'Dragon', amount: 1 }] });
++    expect(kill.applied[0]).toMatchObject({ hp: '5 -> 0', down: true });
++    expect(kill.notFound).toEqual(['Dragon']);
++  });
++
++  it('falls back to changing hp directly when the system has no applyDamage', async () => {
++    const { da, g1, hp } = setup({ applyDamage: false });
++    await da.controlCombat({ action: 'damage', amounts: [{ target: 'Goblin 1', amount: 4 }] });
++    expect(g1.update).toHaveBeenCalledWith({ 'system.attributes.hp.value': 3 });
++    expect(hp.g1.value).toBe(3);
++  });
++
++  it('removes, marks defeated and ends', async () => {
++    const { da, combat } = setup();
++    await da.controlCombat({ action: 'start', roll: 'none' });
++    const d = await da.controlCombat({ action: 'defeat', names: ['Goblin 1'] });
++    expect(d.combat.order.join(' ')).toContain('(defeated)');
++    const rm = await da.controlCombat({ action: 'remove', names: ['Mira', 'Nobody'] });
++    expect(rm).toMatchObject({ removed: 1, notFound: ['Nobody'] });
++    const end = await da.controlCombat({ action: 'end' });
++    expect(combat.delete).toHaveBeenCalled();
++    expect(end.ended).toBe(true);
++  });
++
++  it('asks for a combat first and rejects unknown actions', async () => {
++    const { da } = setup();
++    await expect(da.controlCombat({ action: 'next' })).rejects.toThrow('no combat');
++    await expect(da.controlCombat({ action: 'dance' })).rejects.toThrow('action must be one of');
++    await expect(da.controlCombat({ action: 'damage', amounts: [{ target: 'x', amount: 0 }] })).rejects.toThrow('above 0');
++    expect((await da.controlCombat({ action: 'status' })).combat).toBeNull();
 +  });
 +});
 diff --git a/packages/foundry-module/src/data-access.create-actor-from-data.test.ts b/packages/foundry-module/src/data-access.create-actor-from-data.test.ts
@@ -6348,10 +6658,10 @@ index 0000000..26e6aab
 +  });
 +});
 diff --git a/packages/foundry-module/src/data-access.ts b/packages/foundry-module/src/data-access.ts
-index eecda7e..a6b7393 100644
+index eecda7e..cea4cc1 100644
 --- a/packages/foundry-module/src/data-access.ts
 +++ b/packages/foundry-module/src/data-access.ts
-@@ -1,5 +1,133 @@
+@@ -1,6 +1,135 @@
  import { MODULE_ID, ERROR_MESSAGES, TOKEN_DISPOSITIONS } from './constants.js';
  import { permissionManager } from './permissions.js';
 +import {
@@ -6483,9 +6793,30 @@ index eecda7e..a6b7393 100644
 +  sanitizeUploadFolder,
 +} from './upload-utils.js';
  import { transactionManager } from './transaction-manager.js';
++import { compactCombat, matchCombatants, pickTokens, type TokenLike } from './combat-utils.js';
  
  // The same five characters foundry.utils.escapeHTML replaces in v14, kept local because
-@@ -4681,12 +4809,28 @@ export class FoundryDataAccess {
+ // that helper isn't confirmed in v13, this module's minimum.
+@@ -1714,6 +1843,18 @@ const DND5E_SIZE: Record<string, string> = {
+   gargantuan: 'gargantuan',
+ };
+ 
++export interface CombatRequest {
++  action: string;
++  scene?: string;
++  who?: string[];
++  names?: string[];
++  roll?: 'none' | 'missing' | 'npcs' | 'all';
++  begin?: boolean;
++  initiative?: Array<{ name: string; value: number }>;
++  amounts?: Array<{ target: string; amount: number }>;
++  defeated?: boolean;
++}
++
+ export class FoundryDataAccess {
+   private moduleId: string = MODULE_ID;
+   private persistentIndex: PersistentCreatureIndex = new PersistentCreatureIndex();
+@@ -4681,12 +4822,28 @@ export class FoundryDataAccess {
        type: 'random' | 'grid' | 'center' | 'coordinates';
        coordinates?: { x: number; y: number }[];
      };
@@ -6514,7 +6845,7 @@ index eecda7e..a6b7393 100644
        // Validate inputs
        if (!packId || !itemId) {
          throw new Error('Both packId and itemId are required');
-@@ -4753,10 +4897,33 @@ export class FoundryDataAccess {
+@@ -4753,10 +4910,33 @@ export class FoundryDataAccess {
            }
  
            // Organize created actors in a folder - use "Foundry MCP Creatures" for generic monsters
@@ -6549,7 +6880,7 @@ index eecda7e..a6b7393 100644
  
            // Create the actor
            const newActor = await Actor.create(actorData);
-@@ -6714,7 +6881,7 @@ export class FoundryDataAccess {
+@@ -6714,7 +6894,7 @@ export class FoundryDataAccess {
  
          // Send socket request to GM
          if (game.socket) {
@@ -6558,7 +6889,7 @@ index eecda7e..a6b7393 100644
              type: 'requestMessageUpdate',
              buttonId,
              userId,
-@@ -8101,198 +8268,3974 @@ export class FoundryDataAccess {
+@@ -8101,198 +8281,4171 @@ export class FoundryDataAccess {
      }
    }
  
@@ -7113,9 +7444,7 @@ index eecda7e..a6b7393 100644
 -  }): Promise<any> {
 -    this.validateFoundryState();
 +  // ===== WORLD HOUSEKEEPING (FOLDERS, MOVE, RENAME, DELETE) =====
- 
--    try {
--      const pl = this.findMusicDoc((game as any).playlists, options.playlist, 'playlist');
++
 +  private worldCollection(type: string): any {
 +    const g = game as any;
 +    const map: Record<string, any> = {
@@ -7890,6 +8219,203 @@ index eecda7e..a6b7393 100644
 +      return { success: true, scene: { id: scene.id, name: scene.name }, changed: done, ...(notFound.length ? { notFound } : {}), ...(fogReset ? { fogReset } : {}) };
 +    } catch (error) {
 +      throw new Error(`Failed to reveal or hide: ${error instanceof Error ? error.message : 'Unknown error'}`);
++    }
++  }
++
++  // ===== COMBAT CONTROL =====
++
++  /**
++   * Run the combat tracker: start an encounter from the tokens on a scene, roll initiative, move
++   * through turns and rounds, apply damage and healing, mark defeated, end. Uses Foundry's own
++   * combat, so any tracker module built on it keeps working.
++   */
++  async controlCombat(data: CombatRequest): Promise<any> {
++    this.validateFoundryState();
++    const action = data?.action;
++    const ACTIONS = ['status', 'start', 'add', 'remove', 'roll', 'set_initiative', 'next', 'previous', 'next_round', 'damage', 'heal', 'defeat', 'end'];
++    if (!ACTIONS.includes(action as string)) throw new Error(`action must be one of: ${ACTIONS.join(', ')}`);
++    if (action !== 'status') {
++      const gate = permissionManager.checkWritePermission('modifyScene', {});
++      if (!gate.allowed) throw new Error(`${ERROR_MESSAGES.ACCESS_DENIED}: ${gate.reason}`);
++    }
++    try {
++      const g = game as any;
++      let combat: any = g.combat ?? g.combats?.active ?? null;
++      const members = () =>
++        ((combat?.combatants?.contents ?? []) as any[]).map(c => ({
++          id: c.id,
++          name: c.name,
++          tokenId: c.tokenId,
++          actorName: c.actor?.name,
++          initiative: c.initiative,
++          doc: c,
++        }));
++      const out: Record<string, any> = { success: true, action };
++      const needCombat = () => {
++        if (!combat) throw new Error('There is no combat on this scene yet: use action start');
++        return combat;
++      };
++      const rollFor = async (which: 'missing' | 'npcs' | 'all' | string[]) => {
++        const all = members();
++        let ids: string[];
++        if (Array.isArray(which)) {
++          ids = which.flatMap(n => matchCombatants(all, n).map(c => c.id));
++        } else {
++          ids = all
++            .filter(c => (which === 'all' ? true : which === 'npcs' ? c.doc.isNPC && c.initiative == null : c.initiative == null))
++            .map(c => c.id);
++        }
++        if (ids.length > 0) await combat.rollInitiative(ids);
++        return ids.length;
++      };
++
++      switch (action) {
++        case 'status':
++          return { ...out, combat: compactCombat(combat) };
++
++        case 'start':
++        case 'add': {
++          const scene = this.resolveSceneForObjects(data.scene);
++          if (!combat || (combat.scene?.id && combat.scene.id !== scene.id && action === 'start')) {
++            combat = await (globalThis as any).CONFIG.Combat.documentClass.create({ scene: scene.id, active: true });
++          }
++          const tokenDocs = ((scene.tokens?.contents || []) as any[]);
++          const infos: TokenLike[] = tokenDocs.map(t => ({
++            id: t.id,
++            name: t.name,
++            actorName: t.actor?.name,
++            disposition: t.disposition,
++            player: !!(t.actor?.hasPlayerOwner && t.actor?.type === 'character'),
++          }));
++          const already = new Set(members().map(m => m.tokenId));
++          const { picked, notFound } = pickTokens(infos, data.who?.length ? data.who : ['all']);
++          const fresh = picked.filter(t => !already.has(t.id));
++          if (fresh.length > 0) {
++            await combat.createEmbeddedDocuments(
++              'Combatant',
++              fresh.map(t => {
++                const doc = tokenDocs.find(d => d.id === t.id);
++                return { tokenId: t.id, sceneId: scene.id, actorId: doc?.actorId, hidden: !!doc?.hidden };
++              })
++            );
++          }
++          const rollWhich = data.roll ?? 'missing';
++          if (rollWhich !== 'none') out.rolled = await rollFor(rollWhich);
++          if (action === 'start' && data.begin !== false && !combat.started) await combat.startCombat();
++          out.added = fresh.map(t => t.name);
++          if (picked.length > fresh.length) out.alreadyIn = picked.length - fresh.length;
++          if (notFound.length) out.notFound = notFound;
++          break;
++        }
++
++        case 'remove': {
++          needCombat();
++          const ids: string[] = [];
++          const missing: string[] = [];
++          for (const name of data.names ?? []) {
++            const hit = matchCombatants(members(), name);
++            if (hit.length === 0) missing.push(name);
++            ids.push(...hit.map(c => c.id));
++          }
++          if (ids.length > 0) await combat.deleteEmbeddedDocuments('Combatant', [...new Set(ids)]);
++          out.removed = ids.length;
++          if (missing.length) out.notFound = missing;
++          break;
++        }
++
++        case 'roll': {
++          needCombat();
++          out.rolled = await rollFor(data.names?.length ? data.names : data.roll && data.roll !== 'none' ? data.roll : 'missing');
++          break;
++        }
++
++        case 'set_initiative': {
++          needCombat();
++          const entries = data.initiative ?? [];
++          if (entries.length === 0) throw new Error('set_initiative needs initiative: [{name, value}]');
++          const missing: string[] = [];
++          for (const e of entries) {
++            const hit = matchCombatants(members(), e.name);
++            if (hit.length === 0) missing.push(e.name);
++            for (const c of hit) await combat.setInitiative(c.id, Number(e.value));
++          }
++          if (missing.length) out.notFound = missing;
++          break;
++        }
++
++        case 'next':
++        case 'previous':
++        case 'next_round': {
++          needCombat();
++          if (!combat.started) await combat.startCombat();
++          else if (action === 'next') await combat.nextTurn();
++          else if (action === 'previous') await combat.previousTurn();
++          else await combat.nextRound();
++          break;
++        }
++
++        case 'damage':
++        case 'heal': {
++          const list = data.amounts ?? [];
++          if (list.length === 0) throw new Error(`${action} needs amounts: [{target, amount}]`);
++          const sceneTokens = (this.resolveSceneForObjects(data.scene).tokens?.contents || []) as any[];
++          const applied: Array<Record<string, any>> = [];
++          const missing: string[] = [];
++          for (const entry of list) {
++            const amount = Number(entry.amount);
++            if (!(amount > 0)) throw new Error('amount must be a number above 0');
++            let actors: Array<{ name: string; actor: any }> = [];
++            const inCombat = combat ? matchCombatants(members(), entry.target) : [];
++            if (inCombat.length > 0) actors = inCombat.map(c => ({ name: c.name ?? '?', actor: c.doc.actor }));
++            else {
++              const infos: TokenLike[] = sceneTokens.map(t => ({ id: t.id, name: t.name, actorName: t.actor?.name }));
++              const { picked } = pickTokens(infos, [entry.target]);
++              actors = picked.map(p => ({ name: p.name ?? '?', actor: sceneTokens.find(t => t.id === p.id)?.actor }));
++            }
++            actors = actors.filter(a => a.actor);
++            if (actors.length === 0) missing.push(entry.target);
++            for (const { name, actor } of actors) {
++              const before = Number(actor.system?.attributes?.hp?.value ?? 0);
++              if (typeof actor.applyDamage === 'function') {
++                await actor.applyDamage(action === 'damage' ? amount : -amount);
++              } else {
++                const hp = actor.system?.attributes?.hp ?? {};
++                const next = action === 'damage' ? Math.max(0, before - amount) : Math.min(Number(hp.max ?? before + amount), before + amount);
++                await actor.update({ 'system.attributes.hp.value': next });
++              }
++              const after = Number(actor.system?.attributes?.hp?.value ?? before);
++              applied.push({ name, hp: `${before} -> ${after}`, ...(after <= 0 ? { down: true } : {}) });
++            }
++          }
++          out.applied = applied;
++          if (missing.length) out.notFound = missing;
++          break;
++        }
++
++        case 'defeat': {
++          needCombat();
++          const missing: string[] = [];
++          for (const name of data.names ?? []) {
++            const hit = matchCombatants(members(), name);
++            if (hit.length === 0) missing.push(name);
++            for (const c of hit) await c.doc.update({ defeated: data.defeated !== false });
++          }
++          if (missing.length) out.notFound = missing;
++          break;
++        }
++
++        case 'end': {
++          needCombat();
++          await combat.delete();
++          this.auditLog('controlCombat', { action }, 'success');
++          return { ...out, ended: true };
++        }
++      }
++      this.auditLog('controlCombat', { action }, 'success');
++      combat = g.combat ?? g.combats?.active ?? combat;
++      return { ...out, combat: compactCombat(combat) };
++    } catch (error) {
++      throw new Error(`Failed to run the combat: ${error instanceof Error ? error.message : 'Unknown error'}`);
 +    }
 +  }
 +
@@ -10613,8 +11139,8 @@ index eecda7e..a6b7393 100644
 +    volume?: number;
 +  }): Promise<any> {
 +    this.validateFoundryState();
-+
-+    try {
+ 
+     try {
 +      const command = options.command;
 +      if (!(PLAYLIST_COMMANDS as readonly string[]).includes(command)) {
 +        throw new Error(`Unknown command: ${String(command)} (${PLAYLIST_COMMANDS.join(', ')})`);
@@ -10658,7 +11184,7 @@ index eecda7e..a6b7393 100644
 +        return { success: true, action: command, stopped };
 +      }
 +
-+      const pl = this.findMusicDoc((game as any).playlists, options.playlist, 'playlist');
+       const pl = this.findMusicDoc((game as any).playlists, options.playlist, 'playlist');
        if (!pl) throw new Error('playlist identifier is required');
        const info = { id: pl.id, name: pl.name, mode: pl.mode };
 +      const sounds = ((pl.sounds?.contents || []) as any[]);
@@ -10691,7 +11217,7 @@ index eecda7e..a6b7393 100644
          case 'play':
            await pl.playAll();
            return { success: true, action: 'play', playlist: info };
-@@ -8304,20 +12247,48 @@ export class FoundryDataAccess {
+@@ -8304,20 +12457,48 @@ export class FoundryDataAccess {
            return { success: true, action: 'cycle-mode', playlist: info, mode: pl.mode as number };
          case 'play-sound':
          case 'stop-sound': {
@@ -10746,7 +11272,7 @@ index eecda7e..a6b7393 100644
        }
      } catch (error) {
        throw new Error(
-@@ -8468,6 +12439,21 @@ export class FoundryDataAccess {
+@@ -8468,6 +12649,21 @@ export class FoundryDataAccess {
      }
    }
  
@@ -10768,7 +11294,7 @@ index eecda7e..a6b7393 100644
    /**
     * Move a token to a new position on the scene
     */
-@@ -8476,6 +12462,8 @@ export class FoundryDataAccess {
+@@ -8476,6 +12672,8 @@ export class FoundryDataAccess {
      x: number;
      y: number;
      animate?: boolean;
@@ -10777,7 +11303,7 @@ index eecda7e..a6b7393 100644
    }): Promise<any> {
      this.validateFoundryState();
  
-@@ -8489,21 +12477,33 @@ export class FoundryDataAccess {
+@@ -8489,21 +12687,33 @@ export class FoundryDataAccess {
      }
  
      try {
@@ -10818,7 +11344,7 @@ index eecda7e..a6b7393 100644
          },
          { animate: data.animate !== false }
        );
-@@ -8514,7 +12514,9 @@ export class FoundryDataAccess {
+@@ -8514,7 +12724,9 @@ export class FoundryDataAccess {
          success: true,
          tokenId: token.id,
          tokenName: token.name,
@@ -10829,7 +11355,7 @@ index eecda7e..a6b7393 100644
          animated: data.animate !== false,
        };
      } catch (error) {
-@@ -8533,7 +12535,13 @@ export class FoundryDataAccess {
+@@ -8533,7 +12745,13 @@ export class FoundryDataAccess {
    /**
     * Update token properties
     */
@@ -10844,7 +11370,7 @@ index eecda7e..a6b7393 100644
      this.validateFoundryState();
  
      // Use permission system
-@@ -8546,20 +12554,19 @@ export class FoundryDataAccess {
+@@ -8546,20 +12764,19 @@ export class FoundryDataAccess {
      }
  
      try {
@@ -10871,7 +11397,7 @@ index eecda7e..a6b7393 100644
  
        // Apply updates
        await token.update(cleanUpdates);
-@@ -8651,18 +12658,15 @@ export class FoundryDataAccess {
+@@ -8651,18 +12868,15 @@ export class FoundryDataAccess {
    /**
     * Get detailed information about a token
     */
@@ -10894,7 +11420,7 @@ index eecda7e..a6b7393 100644
        }
  
        // Return flat structure that matches MCP server expectations
-@@ -11274,7 +15278,10 @@ export class FoundryDataAccess {
+@@ -11274,7 +15488,10 @@ export class FoundryDataAccess {
        name: string;
        type: string;
        img?: string;
@@ -10905,7 +11431,7 @@ index eecda7e..a6b7393 100644
      }>;
      folder?: string;
    }): Promise<{ created: Array<{ id: string; name: string; type: string }>; total: number }> {
-@@ -11286,6 +15293,19 @@ export class FoundryDataAccess {
+@@ -11286,6 +15503,19 @@ export class FoundryDataAccess {
      const docs = params.actors.map(a => {
        const doc: Record<string, any> = { name: a.name, type: a.type };
        if (a.img) doc.img = a.img;
@@ -10925,7 +11451,7 @@ index eecda7e..a6b7393 100644
  
        // Merge system data, adding safe defaults for systems that require certain
        // fields to exist during data preparation (avoids non-fatal init errors).
-@@ -11471,7 +15491,16 @@ export class FoundryDataAccess {
+@@ -11471,7 +15701,16 @@ export class FoundryDataAccess {
     * Merges supplied fields into the actor (top-level keys overwrite).
     */
    async updateActors(
@@ -10943,7 +11469,7 @@ index eecda7e..a6b7393 100644
    ): Promise<{ updated: Array<{ id: string; name: string }>; total: number }> {
      const updatedActors: Array<{ id: string; name: string }> = [];
  
-@@ -11482,6 +15511,7 @@ export class FoundryDataAccess {
+@@ -11482,6 +15721,7 @@ export class FoundryDataAccess {
        const patch: Record<string, any> = {};
        if (u.name !== undefined) patch.name = u.name;
        if (u.img !== undefined) patch.img = u.img;
@@ -10951,7 +11477,7 @@ index eecda7e..a6b7393 100644
        if (u.system !== undefined) {
          // Build a single patch.system nested object so Foundry deep-merges everything
          // in one pass without flat-key vs nested-key conflicts.
-@@ -11504,6 +15534,19 @@ export class FoundryDataAccess {
+@@ -11504,6 +15744,19 @@ export class FoundryDataAccess {
          }
          patch.system = systemPatch;
        }
@@ -15179,7 +15705,7 @@ index 0000000..557e34d
 +  return view ? outSize : { width, height };
 +}
 diff --git a/packages/foundry-module/src/queries.ts b/packages/foundry-module/src/queries.ts
-index 9fe02ba..0642dff 100644
+index 9fe02ba..0bf4e47 100644
 --- a/packages/foundry-module/src/queries.ts
 +++ b/packages/foundry-module/src/queries.ts
 @@ -1,7 +1,8 @@
@@ -15201,7 +15727,7 @@ index 9fe02ba..0642dff 100644
  
      // Character/Actor queries
      CONFIG.queries[`${modulePrefix}.getCharacterInfo`] = this.handleGetCharacterInfo.bind(this);
-@@ -46,6 +47,30 @@ export class QueryHandlers {
+@@ -46,6 +47,31 @@ export class QueryHandlers {
      CONFIG.queries[`${modulePrefix}.list-scenes`] = this.handleListScenes.bind(this);
      CONFIG.queries[`${modulePrefix}.switch-scene`] = this.handleSwitchScene.bind(this);
      CONFIG.queries[`${modulePrefix}.update-scene-music`] = this.handleUpdateSceneMusic.bind(this);
@@ -15226,13 +15752,14 @@ index 9fe02ba..0642dff 100644
 +    CONFIG.queries[`${modulePrefix}.share-with-players`] = this.handleShareWithPlayers.bind(this);
 +    CONFIG.queries[`${modulePrefix}.read-table`] = this.handleReadTable.bind(this);
 +    CONFIG.queries[`${modulePrefix}.reveal`] = this.handleReveal.bind(this);
++    CONFIG.queries[`${modulePrefix}.combat`] = this.handleCombat.bind(this);
 +    CONFIG.queries[`${modulePrefix}.annotations`] = this.handleAnnotations.bind(this);
 +    CONFIG.queries[`${modulePrefix}.read-image-file`] = this.handleReadImageFile.bind(this);
 +    CONFIG.queries[`${modulePrefix}.inspect-document`] = this.handleInspectDocument.bind(this);
      CONFIG.queries[`${modulePrefix}.manage-playlists`] = this.handleManagePlaylists.bind(this);
      CONFIG.queries[`${modulePrefix}.control-playlist`] = this.handleControlPlaylist.bind(this);
  
-@@ -184,7 +209,7 @@ export class QueryHandlers {
+@@ -184,7 +210,7 @@ export class QueryHandlers {
     * Unregister all query handlers
     */
    unregisterHandlers(): void {
@@ -15241,7 +15768,7 @@ index 9fe02ba..0642dff 100644
      const keysToRemove = Object.keys(CONFIG.queries).filter(key => key.startsWith(modulePrefix));
  
      for (const key of keysToRemove) {
-@@ -477,7 +502,7 @@ export class QueryHandlers {
+@@ -477,7 +503,7 @@ export class QueryHandlers {
     * Get list of all registered query methods
     */
    getRegisteredMethods(): string[] {
@@ -15250,7 +15777,7 @@ index 9fe02ba..0642dff 100644
      return Object.keys(CONFIG.queries)
        .filter(key => key.startsWith(modulePrefix))
        .map(key => key.replace(`${modulePrefix}.`, ''));
-@@ -487,7 +512,7 @@ export class QueryHandlers {
+@@ -487,7 +513,7 @@ export class QueryHandlers {
     * Test if a specific query handler is registered
     */
    isMethodRegistered(method: string): boolean {
@@ -15259,7 +15786,7 @@ index 9fe02ba..0642dff 100644
      return queryKey in CONFIG.queries && typeof CONFIG.queries[queryKey] === 'function';
    }
  
-@@ -530,6 +555,9 @@ export class QueryHandlers {
+@@ -530,6 +556,9 @@ export class QueryHandlers {
        if (data.placement) {
          requestData.placement = data.placement;
        }
@@ -15269,7 +15796,7 @@ index 9fe02ba..0642dff 100644
  
        return await this.dataAccess.createActorFromCompendiumEntry(requestData);
      } catch (error) {
-@@ -1218,6 +1246,251 @@ export class QueryHandlers {
+@@ -1218,6 +1247,259 @@ export class QueryHandlers {
      }
    }
  
@@ -15377,6 +15904,14 @@ index 9fe02ba..0642dff 100644
 +    if (action === 'resolve') return await this.dataAccess.resolveAnnotations(data ?? {});
 +    if (action === 'clear') return await this.dataAccess.clearAnnotations(data ?? {});
 +    return { error: 'Unknown action: ' + String(action) + ' (list | resolve | clear)', success: false };
++  }
++
++  private async handleCombat(data: any): Promise<any> {
++    const gmCheck = this.validateGMAccess();
++    if (!gmCheck.allowed) {
++      return { error: 'Access denied', success: false };
++    }
++    return await this.dataAccess.controlCombat(data ?? {});
 +  }
 +
 +  private async handleReveal(data: any): Promise<any> {
@@ -15521,7 +16056,7 @@ index 9fe02ba..0642dff 100644
    private async handleManagePlaylists(data: any): Promise<any> {
      try {
        const gmCheck = this.validateGMAccess();
-@@ -1241,8 +1514,11 @@ export class QueryHandlers {
+@@ -1241,8 +1523,11 @@ export class QueryHandlers {
        if (!gmCheck.allowed) {
          return { error: 'Access denied', success: false };
        }
@@ -15535,7 +16070,7 @@ index 9fe02ba..0642dff 100644
        }
        return await this.dataAccess.controlPlaylist(data);
      } catch (error) {
-@@ -1547,7 +1823,9 @@ export class QueryHandlers {
+@@ -1547,7 +1832,9 @@ export class QueryHandlers {
     */
    private async handleUpdateToken(data: {
      tokenId: string;
@@ -15546,7 +16081,7 @@ index 9fe02ba..0642dff 100644
    }): Promise<any> {
      try {
        // SECURITY: Silent GM validation
-@@ -1561,8 +1839,8 @@ export class QueryHandlers {
+@@ -1561,8 +1848,8 @@ export class QueryHandlers {
        if (!data.tokenId) {
          throw new Error('tokenId is required');
        }
@@ -18861,10 +19396,10 @@ index 096f27b..903a94e 100644
      "@vitest/coverage-v8": "^3.2.4",
      "esbuild": "^0.19.0",
 diff --git a/packages/mcp-server/src/backend.ts b/packages/mcp-server/src/backend.ts
-index 8967e33..691e1b5 100644
+index 8967e33..e34c1b0 100644
 --- a/packages/mcp-server/src/backend.ts
 +++ b/packages/mcp-server/src/backend.ts
-@@ -48,6 +48,36 @@ import { DnD5eAddFeatureTool } from './tools/dnd5e/add-feature.js';
+@@ -48,6 +48,37 @@ import { DnD5eAddFeatureTool } from './tools/dnd5e/add-feature.js';
  import { DnD5eNpcTools } from './tools/dnd5e/npc.js';
  import { DnD5eFeaturesFromCompendiumTools } from './tools/dnd5e/features.js';
  import { ChatTools } from './tools/chat.js';
@@ -18892,6 +19427,7 @@ index 8967e33..691e1b5 100644
 +import { CampaignMemoryTools } from './tools/campaign-memory.js';
 +import { TableTools } from './tools/table-tools.js';
 +import { RevealTools } from './tools/reveal-tools.js';
++import { CombatTools } from './tools/combat-tools.js';
 +import { AnnotationTools } from './tools/annotation-tools.js';
 +import { ImageEditTools } from './tools/image-edit-tools.js';
 +import { ActorArtTools } from './tools/actor-art-tools.js';
@@ -18901,7 +19437,7 @@ index 8967e33..691e1b5 100644
  
  const CONTROL_HOST = '127.0.0.1';
  
-@@ -174,6 +204,22 @@ let comfyuiProcess: ChildProcess | null = null;
+@@ -174,6 +205,22 @@ let comfyuiProcess: ChildProcess | null = null;
  
  let comfyuiStatus: 'stopped' | 'starting' | 'running' | 'error' = 'stopped';
  
@@ -18924,7 +19460,7 @@ index 8967e33..691e1b5 100644
  let lockFd: number | null = null;
  
  function acquireLock(): boolean {
-@@ -350,6 +396,18 @@ async function waitForComfyUIReady(timeoutMs: number = 60000): Promise<void> {
+@@ -350,6 +397,18 @@ async function waitForComfyUIReady(timeoutMs: number = 60000): Promise<void> {
  }
  
  async function startComfyUIService(logger: Logger): Promise<any> {
@@ -18943,7 +19479,7 @@ index 8967e33..691e1b5 100644
    if (comfyuiStatus === 'running') {
      return { status: 'already_running', message: 'ComfyUI service is already running' };
    }
-@@ -472,6 +530,14 @@ async function startComfyUIService(logger: Logger): Promise<any> {
+@@ -472,6 +531,14 @@ async function startComfyUIService(logger: Logger): Promise<any> {
  }
  
  async function stopComfyUIService(logger: Logger): Promise<any> {
@@ -18958,7 +19494,7 @@ index 8967e33..691e1b5 100644
    if (comfyuiStatus === 'stopped') {
      return { status: 'already_stopped', message: 'ComfyUI service is already stopped' };
    }
-@@ -510,7 +576,7 @@ async function checkComfyUIStatus(): Promise<any> {
+@@ -510,7 +577,7 @@ async function checkComfyUIStatus(): Promise<any> {
    // This handles both spawned processes and externally-started instances
  
    try {
@@ -18967,7 +19503,7 @@ index 8967e33..691e1b5 100644
        signal: AbortSignal.timeout(5000),
      });
  
-@@ -520,16 +586,23 @@ async function checkComfyUIStatus(): Promise<any> {
+@@ -520,16 +587,23 @@ async function checkComfyUIStatus(): Promise<any> {
        comfyuiStatus = 'error';
      }
    } catch (error) {
@@ -18993,7 +19529,7 @@ index 8967e33..691e1b5 100644
    };
  }
  
-@@ -1131,7 +1204,7 @@ async function processMapGenerationInBackend(
+@@ -1131,7 +1205,7 @@ async function processMapGenerationInBackend(
      );
  
      logger.error('Background map generation processing failed', { jobId, error });
@@ -19002,7 +19538,7 @@ index 8967e33..691e1b5 100644
  
      // Emit failure to Foundry module
      foundryClient.sendMessage({
-@@ -1195,6 +1268,61 @@ async function startBackend(): Promise<void> {
+@@ -1195,6 +1269,62 @@ async function startBackend(): Promise<void> {
    const compendiumTools = new CompendiumTools({ foundryClient, logger, systemRegistry });
  
    const sceneTools = new SceneTools({ foundryClient, logger });
@@ -19046,6 +19582,7 @@ index 8967e33..691e1b5 100644
 +  const campaignMemoryTools = new CampaignMemoryTools({ foundryClient, logger });
 +  const tableTools = new TableTools({ foundryClient, logger });
 +  const revealTools = new RevealTools({ foundryClient, logger });
++  const combatTools = new CombatTools({ foundryClient, logger });
 +  const annotationTools = new AnnotationTools({ foundryClient, logger });
 +  const imageEditTools = new ImageEditTools({
 +    foundryClient,
@@ -19064,7 +19601,7 @@ index 8967e33..691e1b5 100644
    const playlistTools = new PlaylistTools({ foundryClient, logger });
  
    const actorCreationTools = new ActorCreationTools({ foundryClient, logger });
-@@ -1301,6 +1429,13 @@ async function startBackend(): Promise<void> {
+@@ -1301,6 +1431,13 @@ async function startBackend(): Promise<void> {
  
          let result: any;
  
@@ -19078,7 +19615,7 @@ index 8967e33..691e1b5 100644
          switch (message.type) {
            case 'start-comfyui-service':
              result = await startComfyUIService(logger);
-@@ -1317,6 +1452,19 @@ async function startBackend(): Promise<void> {
+@@ -1317,6 +1454,19 @@ async function startBackend(): Promise<void> {
  
              break;
  
@@ -19098,7 +19635,7 @@ index 8967e33..691e1b5 100644
            // Map generation handlers (following existing tool pattern)
            case 'generate-map-request':
              await fs.appendFile(
-@@ -1429,6 +1577,27 @@ async function startBackend(): Promise<void> {
+@@ -1429,6 +1579,28 @@ async function startBackend(): Promise<void> {
  
      ...sceneTools.getToolDefinitions(),
  
@@ -19116,6 +19653,7 @@ index 8967e33..691e1b5 100644
 +    ...campaignMemoryTools.getToolDefinitions(),
 +    ...tableTools.getToolDefinitions(),
 +    ...revealTools.getToolDefinitions(),
++    ...combatTools.getToolDefinitions(),
 +    ...annotationTools.getToolDefinitions(),
 +    ...imageEditTools.getToolDefinitions(),
 +    ...actorArtTools.getToolDefinitions(),
@@ -19126,7 +19664,7 @@ index 8967e33..691e1b5 100644
      ...actorCreationTools.getToolDefinitions(),
      ...actorManagementTools.getToolDefinitions(),
      ...effectManagementTools.getToolDefinitions(),
-@@ -1456,7 +1625,11 @@ async function startBackend(): Promise<void> {
+@@ -1456,7 +1628,11 @@ async function startBackend(): Promise<void> {
  
      ...tokenManipulationTools.getToolDefinitions(),
  
@@ -19139,7 +19677,7 @@ index 8967e33..691e1b5 100644
  
      ...playlistTools.getToolDefinitions(),
    ];
-@@ -1764,19 +1937,11 @@ async function startBackend(): Promise<void> {
+@@ -1764,19 +1940,11 @@ async function startBackend(): Promise<void> {
                  // Map generation tools
  
                  case 'generate-map':
@@ -19162,7 +19700,7 @@ index 8967e33..691e1b5 100644
  
                  case 'list-scenes':
                    result = await mapGenerationTools.listScenes(args);
-@@ -1805,6 +1970,124 @@ async function startBackend(): Promise<void> {
+@@ -1805,6 +1973,128 @@ async function startBackend(): Promise<void> {
  
                    break;
  
@@ -19229,6 +19767,10 @@ index 8967e33..691e1b5 100644
 +
 +                case 'annotations':
 +                  result = await annotationTools.handle(args);
++                  break;
++
++                case 'combat':
++                  result = await combatTools.handleCombat(args);
 +                  break;
 +
 +                case 'reveal':
@@ -22069,6 +22611,116 @@ index 0000000..2185d13
 +
 +    const result = await this.query('manage-journals', { action: 'update', journal: id, pages: updates });
 +    return { success: true, journal: { id, name }, ...done, ...(result?.warnings?.length ? { warnings: result.warnings } : {}) };
++  }
++}
+diff --git a/packages/mcp-server/src/tools/combat-tools.test.ts b/packages/mcp-server/src/tools/combat-tools.test.ts
+new file mode 100644
+index 0000000..ef4d95e
+--- /dev/null
++++ b/packages/mcp-server/src/tools/combat-tools.test.ts
+@@ -0,0 +1,29 @@
++import { describe, expect, it, vi } from 'vitest';
++import { CombatTools } from './combat-tools.js';
++
++function make(response: any = { success: true }) {
++  const query = vi.fn(async () => response);
++  const logger: any = { info: vi.fn(), debug: vi.fn(), error: vi.fn(), warn: vi.fn(), child: () => logger };
++  return { tools: new CombatTools({ foundryClient: { query } as any, logger }), query };
++}
++
++describe('combat tool', () => {
++  it('is exposed with action required', () => {
++    const def = make().tools.getToolDefinitions()[0]!;
++    expect(def.name).toBe('combat');
++    expect(def.inputSchema.required).toEqual(['action']);
++  });
++  it('sends the request to Foundry', async () => {
++    const { tools, query } = make({ success: true, combat: { round: 1 } });
++    const r = await tools.handleCombat({ action: 'damage', amounts: [{ target: 'Goblin 1', amount: 4 }] });
++    expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.combat', { action: 'damage', amounts: [{ target: 'Goblin 1', amount: 4 }] });
++    expect(r.combat.round).toBe(1);
++  });
++  it('rejects bad input and refused requests', async () => {
++    const { tools } = make();
++    await expect(tools.handleCombat({ action: 'dance' })).rejects.toThrow();
++    await expect(tools.handleCombat({ action: 'damage', amounts: [{ target: 'x', amount: -2 }] })).rejects.toThrow();
++    const refused = make({ success: false, error: 'Access denied' });
++    await expect(refused.tools.handleCombat({ action: 'status' })).rejects.toThrow('Access denied');
++  });
++});
+diff --git a/packages/mcp-server/src/tools/combat-tools.ts b/packages/mcp-server/src/tools/combat-tools.ts
+new file mode 100644
+index 0000000..daafc57
+--- /dev/null
++++ b/packages/mcp-server/src/tools/combat-tools.ts
+@@ -0,0 +1,69 @@
++import { z } from 'zod';
++import { FoundryClient } from '../foundry-client.js';
++import { Logger } from '../logger.js';
++
++export interface CombatToolsOptions {
++  foundryClient: FoundryClient;
++  logger: Logger;
++}
++
++const ACTIONS = ['status', 'start', 'add', 'remove', 'roll', 'set_initiative', 'next', 'previous', 'next_round', 'damage', 'heal', 'defeat', 'end'] as const;
++
++const schema = z
++  .object({
++    action: z.enum(ACTIONS),
++    scene: z.string().min(1).optional(),
++    who: z.array(z.string().min(1)).max(60).optional(),
++    names: z.array(z.string().min(1)).max(60).optional(),
++    roll: z.enum(['none', 'missing', 'npcs', 'all']).optional(),
++    begin: z.boolean().optional(),
++    initiative: z.array(z.object({ name: z.string().min(1), value: z.number() }).strict()).max(60).optional(),
++    amounts: z.array(z.object({ target: z.string().min(1), amount: z.number().positive() }).strict()).max(60).optional(),
++    defeated: z.boolean().optional(),
++  })
++  .strict();
++
++export class CombatTools {
++  private foundryClient: FoundryClient;
++  private logger: Logger;
++
++  constructor({ foundryClient, logger }: CombatToolsOptions) {
++    this.foundryClient = foundryClient;
++    this.logger = logger.child({ component: 'CombatTools' });
++  }
++
++  getToolDefinitions() {
++    return [
++      {
++        name: 'combat',
++        description:
++          'Run the combat tracker (Foundry\'s own, so tracker modules keep working). Every action returns a short readout: round, whose turn, and one line per combatant in order (initiative, name, hp, conditions). ' +
++          'ACTIONS: status; start {scene?, who?, roll?, begin?} makes the encounter from tokens on the scene (who = list of: "all" (default), "hostile", "friendly", "neutral", "players", "npcs", or token/actor names; hidden tokens are included), rolls initiative for the ones without one (roll: missing (default) | npcs | all | none) and begins it (begin:false to only set it up); add {who, roll?} adds more tokens mid-fight; remove {names}; roll {names? | roll?} rolls initiative (default for everyone still without one); set_initiative {initiative:[{name, value}]}; next, previous, next_round move the turn (the first next begins the combat); damage / heal {amounts:[{target, amount}]} apply to combatants (or scene tokens) by name, through the system rules (temp HP, resistances are the system\'s job) and report hp before and after; defeat {names, defeated?(true)} marks defeated or not; end ends and deletes the encounter. Names match exactly, else part of a name or the actor name. Needs the Foundry tab open in a browser.',
++        inputSchema: {
++          type: 'object',
++          properties: {
++            action: { type: 'string', enum: [...ACTIONS] },
++            scene: { type: 'string', description: 'start, add, damage, heal: scene id or exact name (default the one being viewed)' },
++            who: { type: 'array', items: { type: 'string' }, description: 'start, add: "all", "hostile", "friendly", "neutral", "players", "npcs" or token/actor names' },
++            names: { type: 'array', items: { type: 'string' }, description: 'remove, roll, defeat: combatant names' },
++            roll: { type: 'string', enum: ['none', 'missing', 'npcs', 'all'], description: 'start, add, roll: who to roll initiative for (default missing)' },
++            begin: { type: 'boolean', description: 'start: begin the combat after setting it up (default true)' },
++            initiative: { type: 'array', items: { type: 'object', properties: { name: { type: 'string' }, value: { type: 'number' } }, required: ['name', 'value'], additionalProperties: false }, description: 'set_initiative: [{name, value}]' },
++            amounts: { type: 'array', items: { type: 'object', properties: { target: { type: 'string' }, amount: { type: 'number' } }, required: ['target', 'amount'], additionalProperties: false }, description: 'damage, heal: [{target, amount}]' },
++            defeated: { type: 'boolean', description: 'defeat: true (default) marks defeated, false revives' },
++          },
++          required: ['action'],
++          additionalProperties: false,
++        },
++      },
++    ];
++  }
++
++  async handleCombat(args: unknown): Promise<any> {
++    const a = schema.parse(args ?? {});
++    this.logger.info('Combat', { action: a.action });
++    const result = await this.foundryClient.query('foundry-mcp-bridge.combat', a);
++    if (result?.success === false) throw new Error(result.error || 'Request was refused');
++    return result;
 +  }
 +}
 diff --git a/packages/mcp-server/src/tools/file-backup-tools.test.ts b/packages/mcp-server/src/tools/file-backup-tools.test.ts
