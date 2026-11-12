@@ -37779,10 +37779,10 @@ index 0000000..72c9a65
 +});
 diff --git a/packages/mcp-server/src/tools/speech-tools.ts b/packages/mcp-server/src/tools/speech-tools.ts
 new file mode 100644
-index 0000000..2e9a203
+index 0000000..bf1bb52
 --- /dev/null
 +++ b/packages/mcp-server/src/tools/speech-tools.ts
-@@ -0,0 +1,403 @@
+@@ -0,0 +1,422 @@
 +import { randomInt } from 'crypto';
 +import { z } from 'zod';
 +import { FoundryClient } from '../foundry-client.js';
@@ -37828,6 +37828,8 @@ index 0000000..2e9a203
 + */
 +const FIRST_SEGMENT_SECONDS = 0.9;
 +const MAX_SEGMENT_SECONDS = 4;
++/** Extra wait before the first streamed piece plays, to build a small lead over the uploads that follow. */
++const FAST_PREROLL_MS = 500;
 +function nextSegmentSeconds(last: number): number {
 +  return Math.min(MAX_SEGMENT_SECONDS, Math.round(last * 1.4 * 100) / 100);
 +}
@@ -38048,43 +38050,57 @@ index 0000000..2e9a203
 +    let lastPath: string | undefined;
 +    let messageId: string | undefined;
 +
-+    const queue = async (pcm: Buffer, rate: number, segmentText: string): Promise<void> => {
++    // Uploads and queueing run in the background, in order, while the next audio keeps streaming in: waiting for
++    // each upload before reading on is what leaves gaps in the playback.
++    let sendChain: Promise<void> = Promise.resolve();
++    let sendError: unknown;
++    const queue = (pcm: Buffer, rate: number, segmentText: string): void => {
 +      const seconds = pcmSeconds(pcm, rate);
-+      const filename = `${slugify(text, 30)}-${utterance}-${segmentIndex}.wav`;
-+      let uploaded: any;
-+      try {
-+        uploaded = await this.foundryClient.query('foundry-mcp-bridge.upload-file', { filename, imageData: pcmToWav(pcm, rate).toString('base64'), folder: 'generated/speech' }, UPLOAD_TIMEOUT_MS);
-+        if (uploaded?.success === false) throw new Error(uploaded.error || 'Upload was refused');
-+      } catch (error) {
-+        throw new Error(`The speech was generated but uploading it to Foundry failed: ${error instanceof Error ? error.message : String(error)}`);
-+      }
-+      lastPath = uploaded?.path;
-+      const queued = await this.foundryClient.query('foundry-mcp-bridge.speak', {
-+        action: 'queue',
-+        id: utterance,
-+        index: segmentIndex++,
-+        path: uploaded?.path,
-+        text: segmentText,
-+        audioSeconds: seconds,
-+        speaker,
-+        sync,
-+      });
-+      if (queued?.success === false) throw new Error(queued.error || 'Foundry could not play the speech');
-+      if (queued?.messageId) messageId = queued.messageId;
-+      if (firstAudioMs === undefined) firstAudioMs = Date.now() - started;
++      const index = segmentIndex++;
 +      totalAudio += seconds;
++      const filename = `${slugify(text, 30)}-${utterance}-${index}.wav`;
++      sendChain = sendChain.then(async () => {
++        if (sendError) return;
++        try {
++          let uploaded: any;
++          try {
++            uploaded = await this.foundryClient.query('foundry-mcp-bridge.upload-file', { filename, imageData: pcmToWav(pcm, rate).toString('base64'), folder: 'generated/speech' }, UPLOAD_TIMEOUT_MS);
++            if (uploaded?.success === false) throw new Error(uploaded.error || 'Upload was refused');
++          } catch (error) {
++            throw new Error(`The speech was generated but uploading it to Foundry failed: ${error instanceof Error ? error.message : String(error)}`);
++          }
++          lastPath = uploaded?.path;
++          const queued = await this.foundryClient.query('foundry-mcp-bridge.speak', {
++            action: 'queue',
++            id: utterance,
++            index,
++            path: uploaded?.path,
++            text: segmentText,
++            audioSeconds: seconds,
++            speaker,
++            sync,
++            ...(index === 0 ? { startDelayMs: FAST_PREROLL_MS } : {}),
++          });
++          if (queued?.success === false) throw new Error(queued.error || 'Foundry could not play the speech');
++          if (queued?.messageId) messageId = queued.messageId;
++          if (firstAudioMs === undefined) firstAudioMs = Date.now() - started;
++        } catch (error) {
++          sendError = error;
++        }
++      });
 +    };
 +
++    let target = FIRST_SEGMENT_SECONDS; // keeps growing across sentences
 +    try {
 +      for (const piece of pieces) {
++        if (sendError) break;
 +        const words = piece.split(/\s+/).length;
 +        const expected = Math.max(1, words * secondsPerWord);
 +        const stream = await streamSpeech(baseUrl, { text: piece, mode: 'custom', speaker: voice, instruct, language, model: '1.7B', chunk_size: 6 });
 +        let pending: Buffer[] = [];
 +        let pendingBytes = 0;
 +        let spoken = 0; // seconds of this sentence already queued
-+        let target = segmentIndex === 0 ? FIRST_SEGMENT_SECONDS : nextSegmentSeconds(FIRST_SEGMENT_SECONDS);
-+        const flush = async (final: boolean) => {
++        const flush = (final: boolean) => {
 +          const pcm = Buffer.concat(pending);
 +          pending = [];
 +          pendingBytes = 0;
@@ -38092,18 +38108,21 @@ index 0000000..2e9a203
 +          const seconds = pcmSeconds(pcm, stream.sampleRate);
 +          const from = spoken / expected;
 +          spoken += seconds;
-+          await queue(pcm, stream.sampleRate, sliceWords(piece, from, final ? 1 : spoken / expected));
++          queue(pcm, stream.sampleRate, sliceWords(piece, from, final ? 1 : spoken / expected));
 +          target = nextSegmentSeconds(target);
 +        };
 +        for await (const chunk of stream.chunks) {
 +          pending.push(chunk);
 +          pendingBytes += chunk.length;
-+          if (pendingBytes / 2 / stream.sampleRate >= target) await flush(false);
++          if (pendingBytes / 2 / stream.sampleRate >= target) flush(false);
++          if (sendError) break;
 +        }
-+        await flush(true);
++        flush(true);
 +        totalWords += words;
 +        if (spoken > 0) secondsPerWord = Math.max(0.2, Math.min(0.9, (secondsPerWord * (totalWords - words) + spoken) / totalWords));
 +      }
++      await sendChain;
++      if (sendError) throw sendError;
 +    } catch (error) {
 +      await this.stopQuietly();
 +      throw new Error(`Speech generation failed: ${error instanceof Error ? error.message : String(error)}`);
