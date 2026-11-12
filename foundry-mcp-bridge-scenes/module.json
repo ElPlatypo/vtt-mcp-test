@@ -2,7 +2,7 @@
   "id": "foundry-mcp-bridge-scenes",
   "title": "Foundry MCP Bridge (Scenes)",
   "description": "Unofficial variant of Foundry MCP Bridge by Adam Dooley (MIT licence) that adds a manage-scenes tool for creating and editing scenes. Installs next to the original under its own id; enable only one of the two per world.",
-  "version": "0.8.6.20",
+  "version": "0.8.6.21",
   "compatibility": {
     "minimum": "13",
     "verified": "14",
@@ -45,8 +45,8 @@
     }
   ],
   "socket": true,
-  "manifest": "https://raw.githubusercontent.com/ElPlatypo/vtt-mcp-test/main/foundry-mcp-bridge-scenes/module.json",
-  "download": "https://raw.githubusercontent.com/ElPlatypo/vtt-mcp-test/main/foundry-mcp-bridge-scenes/foundry-mcp-bridge-scenes.zip",
+  "manifest": "https://github.com/ElPlatypo/vtt-mcp-test/releases/download/main/module.json",
+  "download": "https://github.com/ElPlatypo/vtt-mcp-test/releases/download/main/foundry-mcp-bridge-scenes.zip",
   "protected": false,
   "coreTranslation": false,
   "library": false,

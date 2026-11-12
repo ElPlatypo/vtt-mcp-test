@@ -1,3 +1,202 @@
+diff --git a/package-lock.json b/package-lock.json
+index 1b9aef4..fdbc3c1 100644
+--- a/package-lock.json
++++ b/package-lock.json
+@@ -3839,8 +3839,7 @@
+     "node_modules/@types/earcut": {
+       "version": "2.1.4",
+       "dev": true,
+-      "license": "MIT",
+-      "peer": true
++      "license": "MIT"
+     },
+     "node_modules/@types/estree": {
+       "version": "1.0.8",
+@@ -3864,6 +3863,7 @@
+       "version": "20.19.10",
+       "dev": true,
+       "license": "MIT",
++      "peer": true,
+       "dependencies": {
+         "undici-types": "~6.21.0"
+       }
+@@ -3871,8 +3871,17 @@
+     "node_modules/@types/offscreencanvas": {
+       "version": "2019.7.3",
+       "dev": true,
++      "license": "MIT"
++    },
++    "node_modules/@types/pngjs": {
++      "version": "6.0.5",
++      "resolved": "https://registry.npmjs.org/@types/pngjs/-/pngjs-6.0.5.tgz",
++      "integrity": "sha512-0k5eKfrA83JOZPppLtS2C7OUtyNAl2wKNxfyYl9Q5g9lPkgBl/9hNyAu6HuEH2J4XmIv2znEpkDd0SaZVxW6iQ==",
++      "dev": true,
+       "license": "MIT",
+-      "peer": true
++      "dependencies": {
++        "@types/node": "*"
++      }
+     },
+     "node_modules/@types/semver": {
+       "version": "7.7.0",
+@@ -3942,6 +3951,7 @@
+       "version": "6.21.0",
+       "dev": true,
+       "license": "BSD-2-Clause",
++      "peer": true,
+       "dependencies": {
+         "@typescript-eslint/scope-manager": "6.21.0",
+         "@typescript-eslint/types": "6.21.0",
+@@ -4367,6 +4377,7 @@
+       "version": "8.15.0",
+       "dev": true,
+       "license": "MIT",
++      "peer": true,
+       "bin": {
+         "acorn": "bin/acorn"
+       },
+@@ -6128,6 +6139,7 @@
+       "version": "8.57.1",
+       "dev": true,
+       "license": "MIT",
++      "peer": true,
+       "dependencies": {
+         "@eslint-community/eslint-utils": "^4.2.0",
+         "@eslint-community/regexpp": "^4.6.1",
+@@ -6182,6 +6194,7 @@
+       "version": "9.1.2",
+       "dev": true,
+       "license": "MIT",
++      "peer": true,
+       "bin": {
+         "eslint-config-prettier": "bin/cli.js"
+       },
+@@ -6380,6 +6393,7 @@
+     "node_modules/express": {
+       "version": "5.1.0",
+       "license": "MIT",
++      "peer": true,
+       "dependencies": {
+         "accepts": "^2.0.0",
+         "body-parser": "^2.2.0",
+@@ -7420,6 +7434,12 @@
+         "jiti": "lib/jiti-cli.mjs"
+       }
+     },
++    "node_modules/jpeg-js": {
++      "version": "0.4.4",
++      "resolved": "https://registry.npmjs.org/jpeg-js/-/jpeg-js-0.4.4.tgz",
++      "integrity": "sha512-WZzeDOEtTOBK4Mdsar0IqEU5sMr3vSV2RqkAIzUEV2BHnUfKGyswWFPFwK5EeDo93K3FohSHbLAjj0s1Wzd+dg==",
++      "license": "BSD-3-Clause"
++    },
+     "node_modules/js-tokens": {
+       "version": "9.0.1",
+       "dev": true,
+@@ -8671,6 +8691,7 @@
+       "version": "5.3.11",
+       "dev": true,
+       "license": "MIT",
++      "peer": true,
+       "dependencies": {
+         "@pixi/accessibility": "5.3.11",
+         "@pixi/app": "5.3.11",
+@@ -8825,6 +8846,15 @@
+         "node": ">=4"
+       }
+     },
++    "node_modules/pngjs": {
++      "version": "7.0.0",
++      "resolved": "https://registry.npmjs.org/pngjs/-/pngjs-7.0.0.tgz",
++      "integrity": "sha512-LKWqWJRhstyYo9pGvgor/ivk2w94eSjE3RGVuzLGlr3NmD8bf7RcYGze1mNdEHRP6TRP6rMuDHk5t44hnTRyow==",
++      "license": "MIT",
++      "engines": {
++        "node": ">=14.19.0"
++      }
++    },
+     "node_modules/postcss": {
+       "version": "8.5.6",
+       "dev": true,
+@@ -8843,6 +8873,7 @@
+         }
+       ],
+       "license": "MIT",
++      "peer": true,
+       "dependencies": {
+         "nanoid": "^3.3.11",
+         "picocolors": "^1.1.1",
+@@ -8922,6 +8953,7 @@
+       "version": "3.6.2",
+       "dev": true,
+       "license": "MIT",
++      "peer": true,
+       "bin": {
+         "prettier": "bin/prettier.cjs"
+       },
+@@ -10021,6 +10053,7 @@
+       "version": "4.0.3",
+       "dev": true,
+       "license": "MIT",
++      "peer": true,
+       "engines": {
+         "node": ">=12"
+       },
+@@ -10211,6 +10244,7 @@
+       "version": "5.9.2",
+       "dev": true,
+       "license": "Apache-2.0",
++      "peer": true,
+       "bin": {
+         "tsc": "bin/tsc",
+         "tsserver": "bin/tsserver"
+@@ -10295,6 +10329,7 @@
+       "version": "7.1.1",
+       "dev": true,
+       "license": "MIT",
++      "peer": true,
+       "dependencies": {
+         "esbuild": "^0.25.0",
+         "fdir": "^6.4.6",
+@@ -10402,6 +10437,7 @@
+       "version": "4.0.3",
+       "dev": true,
+       "license": "MIT",
++      "peer": true,
+       "engines": {
+         "node": ">=12"
+       },
+@@ -10413,6 +10449,7 @@
+       "version": "3.2.4",
+       "dev": true,
+       "license": "MIT",
++      "peer": true,
+       "dependencies": {
+         "@types/chai": "^5.2.2",
+         "@vitest/expect": "3.2.4",
+@@ -10851,6 +10888,7 @@
+     "node_modules/zod": {
+       "version": "3.25.76",
+       "license": "MIT",
++      "peer": true,
+       "funding": {
+         "url": "https://github.com/sponsors/colinhacks"
+       }
+@@ -10882,6 +10920,8 @@
+         "@modelcontextprotocol/sdk": "^1.7.0",
+         "axios": "^1.6.0",
+         "dotenv": "^16.3.0",
++        "jpeg-js": "^0.4.4",
++        "pngjs": "^7.0.0",
+         "werift": "^0.17.0",
+         "winston": "^3.11.0",
+         "ws": "^8.14.0",
+@@ -10889,6 +10929,7 @@
+       },
+       "devDependencies": {
+         "@types/node": "^20.0.0",
++        "@types/pngjs": "^6.0.5",
+         "@types/ws": "^8.5.0",
+         "@vitest/coverage-v8": "^3.2.4",
+         "esbuild": "^0.19.0",
 diff --git a/packages/foundry-module/lang/en.json b/packages/foundry-module/lang/en.json
 index f74967f..8c2f0f6 100644
 --- a/packages/foundry-module/lang/en.json
@@ -2295,10 +2494,10 @@ index 0000000..0cc8cfa
 +});
 diff --git a/packages/foundry-module/src/data-access.scene-objects.test.ts b/packages/foundry-module/src/data-access.scene-objects.test.ts
 new file mode 100644
-index 0000000..94cee28
+index 0000000..313055c
 --- /dev/null
 +++ b/packages/foundry-module/src/data-access.scene-objects.test.ts
-@@ -0,0 +1,651 @@
+@@ -0,0 +1,714 @@
 +/**
 + * manage-scene-objects and preview-scene tests. Foundry is stubbed: these check the data sent
 + * to createEmbeddedDocuments / deleteEmbeddedDocuments, the grid conversion, validation, the
@@ -2733,6 +2932,69 @@ index 0000000..94cee28
 +    stubBrowser(true);
 +    await expect(dataAccess.previewScene({ max_size: 50 })).rejects.toThrow('max_size');
 +    await expect(dataAccess.previewScene({ label_every: 0 })).rejects.toThrow('label_every');
++    await expect(dataAccess.previewScene({ layers: ['tokens', 'ghosts'] })).rejects.toThrow('ghosts');
++    await expect(dataAccess.previewScene({ dim: 2 })).rejects.toThrow('dim');
++  });
++
++  function sceneWithObjects() {
++    const { scene } = makeScene({ _source: { background: { src: 'maps/cave.webp' } } });
++    scene.tokens.contents = [
++      { id: 't1', name: 'Wolf', x: 2000, y: 1600, width: 1, height: 1, hidden: true },
++      { id: 't2', name: 'Goblin', x: 2100, y: 1600, width: 2, height: 2 },
++    ];
++    scene.regions = {
++      contents: [
++        {
++          name: 'Rubble',
++          color: '#abcdef',
++          shapes: [{ type: 'rectangle', x: 1300, y: 1200, width: 200, height: 100 }],
++          behaviors: { contents: [{ type: 'dnd5e.difficultTerrain' }] },
++        },
++        {
++          name: 'Pit',
++          shapes: [{ type: 'ellipse', x: 1700, y: 1500, radiusX: 100, radiusY: 50 }, { type: 'polygon', points: [1000, 800, 1100, 800, 1100, 900] }],
++          behaviors: { contents: [{ type: 'executeMacro' }] },
++        },
++      ],
++    };
++    scene.walls = { contents: [{ c: [1000, 800, 1400, 800], door: 0 }, { c: [1400, 800, 1500, 800], door: 1 }] };
++    return scene;
++  }
++
++  it('lists tokens, lights, pins and regions in a legend with numbers', async () => {
++    const { dataAccess } = setup({ scene: sceneWithObjects() });
++    stubBrowser(true);
++    const result = await dataAccess.previewScene({});
++    expect(result.regions).toBe(2);
++    expect(result.layers).toContain('regions');
++    expect(result.layers).not.toContain('light_radii');
++    expect(result.legend.tokens).toEqual([
++      { n: 1, name: 'Wolf', x: 10, y: 8, width: 1, height: 1, hidden: true },
++      { n: 2, name: 'Goblin', x: 11, y: 8, width: 2, height: 2, hidden: false },
++    ]);
++    expect(result.legend.regions).toEqual([
++      { n: 'R1', name: 'Rubble', kinds: ['dnd5e.difficultTerrain'] },
++      { n: 'R2', name: 'Pit', kinds: ['executeMacro'] },
++    ]);
++  });
++
++  it('passes the chosen layers on and skips loading the image when it is not drawn', async () => {
++    const { dataAccess } = setup({ scene: sceneWithObjects() });
++    stubBrowser(false);
++    const result = await dataAccess.previewScene({ layers: ['grid', 'tokens'], labels: 'names' });
++    expect(result.layers).toEqual(['grid', 'tokens']);
++    expect(result.warnings).toBeUndefined();
++  });
++
++  it('returns only data, with region outlines and wall segments, when asked', async () => {
++    const { dataAccess } = setup({ scene: sceneWithObjects() });
++    const result = await dataAccess.previewScene({ data_only: true });
++    expect(result.imageBase64).toBeUndefined();
++    expect(result.dataOnly).toBe(true);
++    expect(result.walls).toEqual([[0, 0, 4, 0, 0], [4, 0, 5, 0, 1]]);
++    expect(result.regionShapes[0][0]).toEqual({ type: 'poly', points: [[3, 4], [5, 4], [5, 5], [3, 5]] });
++    expect(result.regionShapes[1][0]).toEqual({ type: 'ellipse', cx: 7, cy: 7, rx: 1, ry: 0.5 });
++    expect(result.regionShapes[1][1].type).toBe('poly');
 +  });
 +});
 +
@@ -2951,10 +3213,10 @@ index 0000000..94cee28
 +  });
 +});
 diff --git a/packages/foundry-module/src/data-access.ts b/packages/foundry-module/src/data-access.ts
-index eecda7e..bc63bd1 100644
+index eecda7e..a5aacc4 100644
 --- a/packages/foundry-module/src/data-access.ts
 +++ b/packages/foundry-module/src/data-access.ts
-@@ -1,5 +1,69 @@
+@@ -1,5 +1,73 @@
  import { MODULE_ID, ERROR_MESSAGES, TOKEN_DISPOSITIONS } from './constants.js';
  import { permissionManager } from './permissions.js';
 +import {
@@ -2981,11 +3243,15 @@ index eecda7e..bc63bd1 100644
 +} from './scene-objects-utils.js';
 +import {
 +  defaultLabelEvery,
++  DEFAULT_LAYERS,
++  PREVIEW_LAYERS,
 +  drawPreview,
 +  previewScale,
 +  previewSize,
++  type PreviewLayer,
 +  type PreviewLight,
 +  type PreviewNote,
++  type PreviewRegion,
 +  type PreviewToken,
 +  type PreviewView,
 +  type PreviewWall,
@@ -3024,7 +3290,7 @@ index eecda7e..bc63bd1 100644
  import { transactionManager } from './transaction-manager.js';
  
  // The same five characters foundry.utils.escapeHTML replaces in v14, kept local because
-@@ -4681,12 +4745,28 @@ export class FoundryDataAccess {
+@@ -4681,12 +4749,28 @@ export class FoundryDataAccess {
        type: 'random' | 'grid' | 'center' | 'coordinates';
        coordinates?: { x: number; y: number }[];
      };
@@ -3053,7 +3319,7 @@ index eecda7e..bc63bd1 100644
        // Validate inputs
        if (!packId || !itemId) {
          throw new Error('Both packId and itemId are required');
-@@ -4753,10 +4833,33 @@ export class FoundryDataAccess {
+@@ -4753,10 +4837,33 @@ export class FoundryDataAccess {
            }
  
            // Organize created actors in a folder - use "Foundry MCP Creatures" for generic monsters
@@ -3088,7 +3354,7 @@ index eecda7e..bc63bd1 100644
  
            // Create the actor
            const newActor = await Actor.create(actorData);
-@@ -6714,7 +6817,7 @@ export class FoundryDataAccess {
+@@ -6714,7 +6821,7 @@ export class FoundryDataAccess {
  
          // Send socket request to GM
          if (game.socket) {
@@ -3097,7 +3363,7 @@ index eecda7e..bc63bd1 100644
              type: 'requestMessageUpdate',
              buttonId,
              userId,
-@@ -7941,162 +8044,2392 @@ export class FoundryDataAccess {
+@@ -7941,162 +8048,2480 @@ export class FoundryDataAccess {
  
        return {
          success: true,
@@ -4701,11 +4967,24 @@ index eecda7e..bc63bd1 100644
 +    max_size?: number;
 +    label_every?: number;
 +    region?: { x: number; y: number; width: number; height: number };
++    layers?: string[];
++    labels?: 'numbers' | 'names' | 'none';
++    dim?: number;
++    data_only?: boolean;
 +  }): Promise<any> {
 +    this.validateFoundryState();
 +
 +    try {
 +      const scene = this.resolveSceneForObjects(options.scene);
++      const layers = options.layers ?? [...DEFAULT_LAYERS];
++      for (const layer of layers) {
++        if (!(PREVIEW_LAYERS as readonly string[]).includes(layer)) {
++          throw new Error(`Unknown layer "${layer}" (${PREVIEW_LAYERS.join(', ')})`);
++        }
++      }
++      if (options.dim !== undefined && (typeof options.dim !== 'number' || options.dim < 0 || options.dim > 0.9)) {
++        throw new Error('dim must be a number from 0 to 0.9');
++      }
 +      const geom = getGridGeometry(scene);
 +      const maxSize = options.max_size ?? 1600;
 +      if (typeof maxSize !== 'number' || !Number.isFinite(maxSize) || maxSize < 200 || maxSize > 3000) {
@@ -4742,7 +5021,7 @@ index eecda7e..bc63bd1 100644
 +      const src =
 +        scene._source?.background?.src || scene.levels?.contents?.[0]?.background?.src || null;
 +      let image: any;
-+      if (src) {
++      if (src && !options.data_only && layers.includes('image')) {
 +        try {
 +          image = await new Promise<any>((resolve, reject) => {
 +            const img = new Image();
@@ -4755,7 +5034,7 @@ index eecda7e..bc63bd1 100644
 +            `Background ${src}: ${error instanceof Error ? error.message : 'could not be drawn'}; drawn on grey`
 +          );
 +        }
-+      } else {
++      } else if (!src) {
 +        warnings.push('The scene has no background image; drawn on grey');
 +      }
 +
@@ -4763,6 +5042,7 @@ index eecda7e..bc63bd1 100644
 +        const topLeft = pixelsToSquares(geom, t.x, t.y);
 +        return {
 +          name: String(t.name ?? ''),
++          hidden: Boolean(t.hidden),
 +          ...topLeft,
 +          width: Number(t.width ?? 1),
 +          height: Number(t.height ?? 1),
@@ -4788,6 +5068,73 @@ index eecda7e..bc63bd1 100644
 +        text: String(n.text ?? ''),
 +      }));
 +
++      const regions: PreviewRegion[] = ((scene.regions?.contents || []) as any[]).map(r => {
++        const shapes: PreviewRegion['shapes'] = [];
++        for (const sh of (r.shapes || []) as any[]) {
++          if (sh.hole) continue;
++          if (sh.type === 'rectangle') {
++            const a = pixelsToSquares(geom, sh.x, sh.y);
++            const w = Number(sh.width) / geom.size;
++            const h = Number(sh.height) / geom.size;
++            shapes.push({ type: 'poly', points: [[a.x, a.y], [a.x + w, a.y], [a.x + w, a.y + h], [a.x, a.y + h]] });
++          } else if (sh.type === 'ellipse') {
++            const c = pixelsToSquares(geom, sh.x, sh.y);
++            shapes.push({ type: 'ellipse', cx: c.x, cy: c.y, rx: Number(sh.radiusX) / geom.size, ry: Number(sh.radiusY) / geom.size });
++          } else if (sh.type === 'circle') {
++            const c = pixelsToSquares(geom, sh.x, sh.y);
++            const rad = Number(sh.radius) / geom.size;
++            shapes.push({ type: 'ellipse', cx: c.x, cy: c.y, rx: rad, ry: rad });
++          } else if (sh.type === 'polygon' && Array.isArray(sh.points)) {
++            const pts: Array<[number, number]> = [];
++            for (let i = 0; i + 1 < sh.points.length; i += 2) {
++              const p = pixelsToSquares(geom, sh.points[i], sh.points[i + 1]);
++              pts.push([p.x, p.y]);
++            }
++            if (pts.length >= 3) shapes.push({ type: 'poly', points: pts });
++          }
++        }
++        return {
++          name: String(r.name ?? ''),
++          color: r.color ? String(r.color) : undefined,
++          kinds: ((r.behaviors?.contents || []) as any[]).map(b => String(b.type ?? '')),
++          shapes,
++        };
++      });
++
++      const round2 = (v: number) => Math.round(v * 100) / 100;
++      const legend = {
++        tokens: tokens.map((t, i) => ({
++          n: i + 1,
++          name: t.name,
++          x: round2(t.x),
++          y: round2(t.y),
++          width: t.width,
++          height: t.height,
++          hidden: Boolean(t.hidden),
++        })),
++        lights: lights.map((l, i) => ({
++          n: `L${i + 1}`,
++          x: round2(l.x),
++          y: round2(l.y),
++          bright: round2(l.bright),
++          dim: round2(l.dim),
++        })),
++        notes: notes.map((n, i) => ({ n: `N${i + 1}`, x: round2(n.x), y: round2(n.y), text: n.text })),
++        regions: regions.map((r, i) => ({ n: `R${i + 1}`, name: r.name, kinds: r.kinds })),
++      };
++
++      if (options.data_only) {
++        return {
++          success: true,
++          scene: { id: scene.id, name: scene.name },
++          dataOnly: true,
++          grid: { columns: geom.columns, rows: geom.rows },
++          legend,
++          regionShapes: regions.map(r => r.shapes),
++          walls: walls.map(w => [round2(w.x1), round2(w.y1), round2(w.x2), round2(w.y2), w.door]),
++        };
++      }
++
 +      const canvas = document.createElement('canvas');
 +      const outSize = previewSize(geom, scale, view);
 +      canvas.width = outSize.width;
@@ -4802,6 +5149,10 @@ index eecda7e..bc63bd1 100644
 +        lights,
 +        walls,
 +        notes,
++        regions,
++        layers: layers as PreviewLayer[],
++        labelMode: options.labels ?? 'numbers',
++        ...(options.dim !== undefined ? { dim: options.dim } : {}),
 +        image,
 +        ...(view ? { view } : {}),
 +      });
@@ -4829,6 +5180,9 @@ index eecda7e..bc63bd1 100644
 +        lights: lights.length,
 +        walls: walls.length,
 +        notes: notes.length,
++        regions: regions.length,
++        layers,
++        legend,
 +        ...(warnings.length > 0 ? { warnings } : {}),
 +      };
 +    } catch (error) {
@@ -5608,7 +5962,7 @@ index eecda7e..bc63bd1 100644
        );
      }
    }
-@@ -11274,7 +13607,10 @@ export class FoundryDataAccess {
+@@ -11274,7 +13699,10 @@ export class FoundryDataAccess {
        name: string;
        type: string;
        img?: string;
@@ -5619,7 +5973,7 @@ index eecda7e..bc63bd1 100644
      }>;
      folder?: string;
    }): Promise<{ created: Array<{ id: string; name: string; type: string }>; total: number }> {
-@@ -11286,6 +13622,19 @@ export class FoundryDataAccess {
+@@ -11286,6 +13714,19 @@ export class FoundryDataAccess {
      const docs = params.actors.map(a => {
        const doc: Record<string, any> = { name: a.name, type: a.type };
        if (a.img) doc.img = a.img;
@@ -5639,7 +5993,7 @@ index eecda7e..bc63bd1 100644
  
        // Merge system data, adding safe defaults for systems that require certain
        // fields to exist during data preparation (avoids non-fatal init errors).
-@@ -11471,7 +13820,16 @@ export class FoundryDataAccess {
+@@ -11471,7 +13912,16 @@ export class FoundryDataAccess {
     * Merges supplied fields into the actor (top-level keys overwrite).
     */
    async updateActors(
@@ -5657,7 +6011,7 @@ index eecda7e..bc63bd1 100644
    ): Promise<{ updated: Array<{ id: string; name: string }>; total: number }> {
      const updatedActors: Array<{ id: string; name: string }> = [];
  
-@@ -11482,6 +13840,7 @@ export class FoundryDataAccess {
+@@ -11482,6 +13932,7 @@ export class FoundryDataAccess {
        const patch: Record<string, any> = {};
        if (u.name !== undefined) patch.name = u.name;
        if (u.img !== undefined) patch.img = u.img;
@@ -5665,7 +6019,7 @@ index eecda7e..bc63bd1 100644
        if (u.system !== undefined) {
          // Build a single patch.system nested object so Foundry deep-merges everything
          // in one pass without flat-key vs nested-key conflicts.
-@@ -11504,6 +13863,19 @@ export class FoundryDataAccess {
+@@ -11504,6 +13955,19 @@ export class FoundryDataAccess {
          }
          patch.system = systemPatch;
        }
@@ -7806,6 +8160,153 @@ index 0000000..66661f2
 +    ...(spec.img ? { img: spec.img } : {}),
 +  };
 +}
+diff --git a/packages/foundry-module/src/preview-utils.layers.test.ts b/packages/foundry-module/src/preview-utils.layers.test.ts
+new file mode 100644
+index 0000000..ad7dc3d
+--- /dev/null
++++ b/packages/foundry-module/src/preview-utils.layers.test.ts
+@@ -0,0 +1,141 @@
++import { describe, expect, it, vi } from 'vitest';
++import { drawPreview, regionColor, DEFAULT_LAYERS, type PreviewRegion } from './preview-utils.js';
++import type { GridGeometry } from './scene-objects-utils.js';
++
++const geom: GridGeometry = {
++  size: 100,
++  originX: 0,
++  originY: 0,
++  sceneWidth: 1000,
++  sceneHeight: 500,
++  columns: 10,
++  rows: 5,
++  distance: 5,
++  units: 'ft',
++};
++
++function fakeContext() {
++  const texts: Array<{ text: string; x: number; y: number }> = [];
++  const dashes: number[][] = [];
++  const ctx: any = {
++    texts,
++    dashes,
++    fillRect: vi.fn(),
++    drawImage: vi.fn(),
++    beginPath: vi.fn(),
++    closePath: vi.fn(),
++    moveTo: vi.fn(),
++    lineTo: vi.fn(),
++    arc: vi.fn(),
++    ellipse: vi.fn(),
++    stroke: vi.fn(),
++    fill: vi.fn(),
++    save: vi.fn(),
++    restore: vi.fn(),
++    translate: vi.fn(),
++    setLineDash: vi.fn((d: number[]) => dashes.push(d)),
++    strokeText: vi.fn(),
++    fillText: vi.fn((text: string, x: number, y: number) => texts.push({ text, x, y })),
++  };
++  return ctx;
++}
++
++const tokens = [
++  { name: 'Wolf', x: 1, y: 1, width: 1, height: 1 },
++  { name: 'Goblin', x: 2, y: 1, width: 1, height: 1, hidden: true },
++];
++const lights = [{ x: 5, y: 2, bright: 2, dim: 4 }];
++const regions: PreviewRegion[] = [
++  { name: 'Rubble', kinds: ['dnd5e.difficultTerrain'], shapes: [{ type: 'poly', points: [[3, 3], [5, 3], [5, 4], [3, 4]] }] },
++  { name: 'Pit', kinds: ['executeMacro'], shapes: [{ type: 'ellipse', cx: 7, cy: 3, rx: 1, ry: 1 }] },
++];
++
++describe('drawPreview layers', () => {
++  it('numbers tokens, lights and regions instead of writing names', () => {
++    const ctx = fakeContext();
++    drawPreview(ctx, { geom, scale: 1, labelEvery: 5, tokens, lights, regions, labelMode: 'numbers' });
++    const labels = ctx.texts.map((t: any) => t.text);
++    expect(labels).toEqual(expect.arrayContaining(['1', '2', 'L1', 'R1', 'R2']));
++    expect(labels).not.toContain('Wolf');
++    expect(labels).not.toContain('Rubble');
++  });
++
++  it('writes names when asked, and nothing for none', () => {
++    const named = fakeContext();
++    drawPreview(named, { geom, scale: 1, labelEvery: 5, tokens, lights, regions, labelMode: 'names' });
++    expect(named.texts.map((t: any) => t.text)).toEqual(expect.arrayContaining(['Wolf', 'Goblin', 'Rubble', 'Pit']));
++    const none = fakeContext();
++    drawPreview(none, { geom, scale: 1, labelEvery: 5, tokens, lights, regions, labelMode: 'none' });
++    const labels = none.texts.map((t: any) => t.text);
++    expect(labels).not.toContain('Wolf');
++    expect(labels).not.toContain('1');
++  });
++
++  it('draws only the layers asked for', () => {
++    const ctx = fakeContext();
++    drawPreview(ctx, { geom, scale: 1, labelEvery: 1, tokens, lights, regions, layers: ['tokens'], labelMode: 'numbers' });
++    // tokens are circles; no light dot, no region ellipse, no grid numbers
++    expect(ctx.arc).toHaveBeenCalledTimes(2);
++    expect(ctx.ellipse).not.toHaveBeenCalled();
++    expect(ctx.drawImage).not.toHaveBeenCalled();
++    const labels = ctx.texts.map((t: any) => t.text);
++    expect(labels).toEqual(['1', '2']);
++  });
++
++  it('draws regions as filled outlines and ellipses', () => {
++    const ctx = fakeContext();
++    drawPreview(ctx, { geom, scale: 1, labelEvery: 5, tokens: [], lights: [], regions, layers: ['regions'] });
++    expect(ctx.ellipse).toHaveBeenCalledWith(700, 300, 100, 100, 0, 0, Math.PI * 2);
++    expect(ctx.moveTo).toHaveBeenCalledWith(300, 300);
++  });
++
++  it('draws light radii only when the layer is asked for', () => {
++    const dots = fakeContext();
++    drawPreview(dots, { geom, scale: 1, labelEvery: 5, tokens: [], lights, layers: ['lights'] });
++    expect(dots.arc).toHaveBeenCalledTimes(1);
++    expect(dots.arc).toHaveBeenCalledWith(500, 200, 4, 0, Math.PI * 2);
++    const radii = fakeContext();
++    drawPreview(radii, { geom, scale: 1, labelEvery: 5, tokens: [], lights, layers: ['lights', 'light_radii'] });
++    expect(radii.arc).toHaveBeenCalledWith(500, 200, 400, 0, Math.PI * 2);
++    expect(radii.arc).toHaveBeenCalledWith(500, 200, 200, 0, Math.PI * 2);
++  });
++
++  it('shows hidden tokens dashed', () => {
++    const ctx = fakeContext();
++    drawPreview(ctx, { geom, scale: 1, labelEvery: 5, tokens, lights: [], layers: ['tokens'] });
++    expect(ctx.dashes).toContainEqual([4, 3]);
++  });
++
++  it('dims the map image under the overlay', () => {
++    const ctx = fakeContext();
++    drawPreview(ctx, { geom, scale: 1, labelEvery: 5, tokens: [], lights: [], image: {}, dim: 0.5 });
++    expect(ctx.drawImage).toHaveBeenCalled();
++    expect(ctx.fillRect).toHaveBeenCalledTimes(2);
++  });
++
++  it('separates walls from doors', () => {
++    const ctx = fakeContext();
++    const walls = [
++      { x1: 0, y1: 0, x2: 1, y2: 0, door: 0 },
++      { x1: 1, y1: 0, x2: 2, y2: 0, door: 1 },
++    ];
++    drawPreview(ctx, { geom, scale: 1, labelEvery: 5, tokens: [], lights: [], walls, layers: ['doors'] });
++    expect(ctx.lineTo).toHaveBeenCalledTimes(1);
++    expect(ctx.lineTo).toHaveBeenCalledWith(200, 0);
++  });
++});
++
++describe('regionColor and defaults', () => {
++  it('colours regions by what they do', () => {
++    expect(regionColor({ name: 'a', kinds: ['dnd5e.difficultTerrain'], shapes: [] })).toBe('#b5803a');
++    expect(regionColor({ name: 'a', kinds: ['executeMacro'], shapes: [] })).toBe('#ff3b30');
++    expect(regionColor({ name: 'a', kinds: ['teleportToken'], shapes: [] })).toBe('#bf5af2');
++    expect(regionColor({ name: 'a', kinds: ['pauseGame'], shapes: [] })).toBe('#0a84ff');
++    expect(regionColor({ name: 'a', color: '#123456', kinds: [], shapes: [] })).toBe('#123456');
++  });
++
++  it('leaves light radii out by default', () => {
++    expect(DEFAULT_LAYERS).toContain('regions');
++    expect(DEFAULT_LAYERS).not.toContain('light_radii');
++  });
++});
 diff --git a/packages/foundry-module/src/preview-utils.test.ts b/packages/foundry-module/src/preview-utils.test.ts
 new file mode 100644
 index 0000000..5d8be30
@@ -8009,10 +8510,10 @@ index 0000000..5d8be30
 +});
 diff --git a/packages/foundry-module/src/preview-utils.ts b/packages/foundry-module/src/preview-utils.ts
 new file mode 100644
-index 0000000..ca891e2
+index 0000000..02df35b
 --- /dev/null
 +++ b/packages/foundry-module/src/preview-utils.ts
-@@ -0,0 +1,255 @@
+@@ -0,0 +1,357 @@
 +/**
 + * Drawing for preview-scene: the scene image with a numbered grid and the scene's tokens
 + * and lights on top, so positions can be read in grid squares. Works on any 2D context, so
@@ -8023,6 +8524,8 @@ index 0000000..ca891e2
 +
 +export interface PreviewToken {
 +  name: string;
++  /** Hidden from players: drawn dashed. */
++  hidden?: boolean;
 +  /** Top-left corner in grid squares. */
 +  x: number;
 +  y: number;
@@ -8039,6 +8542,46 @@ index 0000000..ca891e2
 +  bright: number;
 +  dim: number;
 +  color?: string | undefined;
++}
++
++/** A region drawn as one or more outlines, in grid squares. */
++export interface PreviewRegion {
++  name: string;
++  /** The colour set on the region, #RRGGBB. */
++  color?: string | undefined;
++  /** Behavior types, used to pick a colour (difficult terrain, trap, teleport, other). */
++  kinds: string[];
++  shapes: Array<
++    | { type: 'poly'; points: Array<[number, number]> }
++    | { type: 'ellipse'; cx: number; cy: number; rx: number; ry: number }
++  >;
++}
++
++export const PREVIEW_LAYERS = [
++  'image',
++  'grid',
++  'walls',
++  'doors',
++  'tokens',
++  'lights',
++  'light_radii',
++  'notes',
++  'regions',
++] as const;
++export type PreviewLayer = (typeof PREVIEW_LAYERS)[number];
++/** What is drawn when no layers are asked for (light radii only on request). */
++export const DEFAULT_LAYERS: PreviewLayer[] = ['image', 'grid', 'walls', 'doors', 'tokens', 'lights', 'notes', 'regions'];
++
++export type LabelMode = 'numbers' | 'names' | 'none';
++
++/** Colour of a region by what it does. */
++export function regionColor(region: PreviewRegion): string {
++  const kinds = region.kinds.join(' ').toLowerCase();
++  if (kinds.includes('difficult')) return '#b5803a';
++  if (kinds.includes('macro') || kinds.includes('trap')) return '#ff3b30';
++  if (kinds.includes('teleport')) return '#bf5af2';
++  if (region.kinds.length > 0) return '#0a84ff';
++  return region.color && /^#[0-9a-fA-F]{6}$/.test(region.color) ? region.color : '#8e8e93';
 +}
 +
 +export interface PreviewWall {
@@ -8067,6 +8610,13 @@ index 0000000..ca891e2
 +  lights: PreviewLight[];
 +  walls?: PreviewWall[];
 +  notes?: PreviewNote[];
++  regions?: PreviewRegion[];
++  /** Layers to draw (default: all of them, with light radii). */
++  layers?: readonly PreviewLayer[];
++  /** How tokens, lights and regions are labelled (default names). */
++  labelMode?: LabelMode;
++  /** Darken the map image by this fraction (0 to 0.9) so the overlay stands out. */
++  dim?: number;
 +  /** Image to draw behind the grid; omit for a plain grey background. */
 +  image?: unknown;
 +  /** Only draw this part of the scene, in grid squares (a zoomed look at one area). */
@@ -8114,7 +8664,12 @@ index 0000000..ca891e2
 +}
 +
 +export function drawPreview(ctx: any, options: PreviewOptions): { width: number; height: number } {
-+  const { geom, scale, tokens, lights } = options;
++  const { geom, scale } = options;
++  const layers = new Set<string>(options.layers ?? PREVIEW_LAYERS);
++  const labelMode: LabelMode = options.labelMode ?? 'names';
++  const tokens = layers.has('tokens') ? options.tokens : [];
++  const lights = layers.has('lights') || layers.has('light_radii') ? options.lights : [];
++  const regions = layers.has('regions') ? options.regions ?? [] : [];
 +  const width = Math.round(geom.sceneWidth * scale);
 +  const height = Math.round(geom.sceneHeight * scale);
 +  const square = geom.size * scale;
@@ -8133,8 +8688,31 @@ index 0000000..ca891e2
 +  // Background.
 +  ctx.fillStyle = '#808080';
 +  ctx.fillRect(0, 0, width, height);
-+  if (options.image) {
++  if (options.image && layers.has('image')) {
 +    ctx.drawImage(options.image, 0, 0, width, height);
++    if (options.dim && options.dim > 0) {
++      ctx.fillStyle = `rgba(0,0,0,${Math.min(0.9, options.dim)})`;
++      ctx.fillRect(0, 0, width, height);
++    }
++  }
++
++  // Regions (under everything else): a tinted fill and an outline.
++  for (const region of regions) {
++    const color = regionColor(region);
++    ctx.fillStyle = color + '40';
++    ctx.strokeStyle = color;
++    ctx.lineWidth = 2;
++    for (const shape of region.shapes) {
++      ctx.beginPath();
++      if (shape.type === 'ellipse') {
++        ctx.ellipse(shape.cx * square, shape.cy * square, shape.rx * square, shape.ry * square, 0, 0, Math.PI * 2);
++      } else {
++        shape.points.forEach((p, i) => (i === 0 ? ctx.moveTo(p[0] * square, p[1] * square) : ctx.lineTo(p[0] * square, p[1] * square)));
++        ctx.closePath();
++      }
++      ctx.fill();
++      ctx.stroke();
++    }
 +  }
 +
 +  // Lights (under the grid).
@@ -8144,26 +8722,29 @@ index 0000000..ca891e2
 +    const color = light.color || '#ffcc33';
 +    ctx.lineWidth = 2;
 +    ctx.strokeStyle = color;
-+    if (light.dim > 0) {
++    const radii = layers.has('light_radii');
++    if (radii && light.dim > 0) {
 +      ctx.setLineDash([6, 4]);
 +      ctx.beginPath();
 +      ctx.arc(cx, cy, light.dim * square, 0, Math.PI * 2);
 +      ctx.stroke();
 +    }
 +    ctx.setLineDash([]);
-+    if (light.bright > 0) {
++    if (radii && light.bright > 0) {
 +      ctx.beginPath();
 +      ctx.arc(cx, cy, light.bright * square, 0, Math.PI * 2);
 +      ctx.stroke();
 +    }
-+    ctx.fillStyle = color;
-+    ctx.beginPath();
-+    ctx.arc(cx, cy, 4, 0, Math.PI * 2);
-+    ctx.fill();
++    if (layers.has('lights')) {
++      ctx.fillStyle = color;
++      ctx.beginPath();
++      ctx.arc(cx, cy, 4, 0, Math.PI * 2);
++      ctx.fill();
++    }
 +  }
 +
 +  // Grid lines: thin every square, stronger every 5.
-+  for (let col = 0; col <= geom.columns; col++) {
++  for (let col = 0; layers.has('grid') && col <= geom.columns; col++) {
 +    const px = col * square;
 +    ctx.strokeStyle = col % 5 === 0 ? 'rgba(255,255,255,0.75)' : 'rgba(255,255,255,0.35)';
 +    ctx.lineWidth = col % 5 === 0 ? 1.5 : 0.75;
@@ -8172,7 +8753,7 @@ index 0000000..ca891e2
 +    ctx.lineTo(px, height);
 +    ctx.stroke();
 +  }
-+  for (let row = 0; row <= geom.rows; row++) {
++  for (let row = 0; layers.has('grid') && row <= geom.rows; row++) {
 +    const py = row * square;
 +    ctx.strokeStyle = row % 5 === 0 ? 'rgba(255,255,255,0.75)' : 'rgba(255,255,255,0.35)';
 +    ctx.lineWidth = row % 5 === 0 ? 1.5 : 0.75;
@@ -8184,6 +8765,7 @@ index 0000000..ca891e2
 +
 +  // Walls: cyan; doors orange; secret doors dashed orange.
 +  for (const wall of options.walls ?? []) {
++    if (wall.door ? !layers.has('doors') : !layers.has('walls')) continue;
 +    ctx.lineWidth = 3;
 +    ctx.strokeStyle = wall.door ? '#ff9500' : '#00e5ff';
 +    ctx.setLineDash(wall.door === 2 ? [5, 4] : []);
@@ -8195,7 +8777,7 @@ index 0000000..ca891e2
 +  ctx.setLineDash([]);
 +
 +  // Map pins: yellow diamonds.
-+  for (const note of options.notes ?? []) {
++  for (const note of layers.has('notes') ? options.notes ?? [] : []) {
 +    const cx = note.x * square;
 +    const cy = note.y * square;
 +    ctx.fillStyle = '#ffd60a';
@@ -8220,10 +8802,12 @@ index 0000000..ca891e2
 +    ctx.lineWidth = 2;
 +    ctx.strokeStyle = '#ff3b30';
 +    ctx.fillStyle = 'rgba(255,59,48,0.3)';
++    ctx.setLineDash(token.hidden ? [4, 3] : []);
 +    ctx.beginPath();
 +    ctx.arc(left + w / 2, top + h / 2, Math.min(w, h) / 2, 0, Math.PI * 2);
 +    ctx.fill();
 +    ctx.stroke();
++    ctx.setLineDash([]);
 +  }
 +
 +  // Labels: outlined text so they read on any map.
@@ -8242,27 +8826,46 @@ index 0000000..ca891e2
 +  const lastCol = view ? Math.min(geom.columns, Math.ceil(view.x + view.width)) : geom.columns;
 +  const firstRow = view ? Math.max(0, Math.floor(view.y)) : 0;
 +  const lastRow = view ? Math.min(geom.rows, Math.ceil(view.y + view.height)) : geom.rows;
-+  for (let col = firstCol - (firstCol % every); col < lastCol; col += every) {
++  for (let col = firstCol - (firstCol % every); layers.has('grid') && col < lastCol; col += every) {
 +    if (col < firstCol) continue;
 +    const x = (col + 0.5) * square;
 +    label(String(col), x, oy + fontSize);
 +    label(String(col), x, oy + outSize.height - fontSize);
 +  }
-+  for (let row = firstRow - (firstRow % every); row < lastRow; row += every) {
++  for (let row = firstRow - (firstRow % every); layers.has('grid') && row < lastRow; row += every) {
 +    if (row < firstRow) continue;
 +    const y = (row + 0.5) * square;
 +    label(String(row), ox + fontSize, y);
 +    label(String(row), ox + outSize.width - fontSize, y);
 +  }
-+  for (const note of options.notes ?? []) {
++  for (const note of layers.has('notes') ? options.notes ?? [] : []) {
 +    if (note.text) label(note.text, note.x * square, note.y * square - 16);
 +  }
-+  for (const token of tokens) {
-+    label(
-+      token.name,
-+      (token.x + token.width / 2) * square,
-+      (token.y + token.height) * square + fontSize
-+    );
++  if (labelMode !== 'none') {
++    tokens.forEach((token, i) => {
++      if (labelMode === 'numbers') {
++        label(String(i + 1), (token.x + token.width / 2) * square, (token.y + token.height / 2) * square);
++      } else {
++        label(token.name, (token.x + token.width / 2) * square, (token.y + token.height) * square + fontSize);
++      }
++    });
++    if (layers.has('lights') && labelMode === 'numbers') {
++      lights.forEach((light, i) => label(`L${i + 1}`, light.x * square + 14, light.y * square - 12));
++    }
++    regions.forEach((region, i) => {
++      const first = region.shapes[0];
++      if (!first) return;
++      let cx: number;
++      let cy: number;
++      if (first.type === 'ellipse') {
++        cx = first.cx;
++        cy = first.cy;
++      } else {
++        cx = first.points.reduce((a, p) => a + p[0], 0) / first.points.length;
++        cy = first.points.reduce((a, p) => a + p[1], 0) / first.points.length;
++      }
++      label(labelMode === 'numbers' ? `R${i + 1}` : region.name, cx * square, cy * square);
++    });
 +  }
 +
 +  if (view) ctx.restore();
@@ -11020,7 +11623,7 @@ index 096f27b..903a94e 100644
      "@vitest/coverage-v8": "^3.2.4",
      "esbuild": "^0.19.0",
 diff --git a/packages/mcp-server/src/backend.ts b/packages/mcp-server/src/backend.ts
-index 8967e33..b1492ed 100644
+index 8967e33..c54e77d 100644
 --- a/packages/mcp-server/src/backend.ts
 +++ b/packages/mcp-server/src/backend.ts
 @@ -48,6 +48,23 @@ import { DnD5eAddFeatureTool } from './tools/dnd5e/add-feature.js';
@@ -11148,7 +11751,7 @@ index 8967e33..b1492ed 100644
  
      // Emit failure to Foundry module
      foundryClient.sendMessage({
-@@ -1195,6 +1255,28 @@ async function startBackend(): Promise<void> {
+@@ -1195,6 +1255,33 @@ async function startBackend(): Promise<void> {
    const compendiumTools = new CompendiumTools({ foundryClient, logger, systemRegistry });
  
    const sceneTools = new SceneTools({ foundryClient, logger });
@@ -11172,12 +11775,17 @@ index 8967e33..b1492ed 100644
 +  const journalTools = new JournalTools({ foundryClient, logger });
 +  const sceneObjectTools = new SceneObjectTools({ foundryClient, logger });
 +  const playTools = new PlayTools({ foundryClient, logger });
-+  const layoutTools = new LayoutTools({ logger, foundryClient });
++  const layoutTools = new LayoutTools({
++    logger,
++    foundryClient,
++    generate: args => imageGenerationTools.handleGenerateImage(args),
++    upload: args => uploadTools.handleUploadFile(args),
++  });
 +  const inspectTools = new InspectTools({ foundryClient, logger });
    const playlistTools = new PlaylistTools({ foundryClient, logger });
  
    const actorCreationTools = new ActorCreationTools({ foundryClient, logger });
-@@ -1301,6 +1383,13 @@ async function startBackend(): Promise<void> {
+@@ -1301,6 +1388,13 @@ async function startBackend(): Promise<void> {
  
          let result: any;
  
@@ -11191,7 +11799,7 @@ index 8967e33..b1492ed 100644
          switch (message.type) {
            case 'start-comfyui-service':
              result = await startComfyUIService(logger);
-@@ -1317,6 +1406,19 @@ async function startBackend(): Promise<void> {
+@@ -1317,6 +1411,19 @@ async function startBackend(): Promise<void> {
  
              break;
  
@@ -11211,7 +11819,7 @@ index 8967e33..b1492ed 100644
            // Map generation handlers (following existing tool pattern)
            case 'generate-map-request':
              await fs.appendFile(
-@@ -1429,6 +1531,14 @@ async function startBackend(): Promise<void> {
+@@ -1429,6 +1536,14 @@ async function startBackend(): Promise<void> {
  
      ...sceneTools.getToolDefinitions(),
  
@@ -11226,7 +11834,7 @@ index 8967e33..b1492ed 100644
      ...actorCreationTools.getToolDefinitions(),
      ...actorManagementTools.getToolDefinitions(),
      ...effectManagementTools.getToolDefinitions(),
-@@ -1456,7 +1566,11 @@ async function startBackend(): Promise<void> {
+@@ -1456,7 +1571,11 @@ async function startBackend(): Promise<void> {
  
      ...tokenManipulationTools.getToolDefinitions(),
  
@@ -11239,7 +11847,7 @@ index 8967e33..b1492ed 100644
  
      ...playlistTools.getToolDefinitions(),
    ];
-@@ -1764,19 +1878,11 @@ async function startBackend(): Promise<void> {
+@@ -1764,19 +1883,11 @@ async function startBackend(): Promise<void> {
                  // Map generation tools
  
                  case 'generate-map':
@@ -11262,7 +11870,7 @@ index 8967e33..b1492ed 100644
  
                  case 'list-scenes':
                    result = await mapGenerationTools.listScenes(args);
-@@ -1805,6 +1911,64 @@ async function startBackend(): Promise<void> {
+@@ -1805,6 +1916,64 @@ async function startBackend(): Promise<void> {
  
                    break;
  
@@ -14065,6 +14673,1166 @@ index 0000000..942a444
 +    }
 +  }
 +}
+diff --git a/packages/mcp-server/src/tools/layout-actions.test.ts b/packages/mcp-server/src/tools/layout-actions.test.ts
+new file mode 100644
+index 0000000..81e5a4c
+--- /dev/null
++++ b/packages/mcp-server/src/tools/layout-actions.test.ts
+@@ -0,0 +1,285 @@
++import { afterAll, describe, expect, it, vi } from 'vitest';
++import { promises as fs } from 'fs';
++import os from 'os';
++import path from 'path';
++import { LayoutTools } from './layout.js';
++import { encodePng, renderLayout } from './layout-utils.js';
++import { layoutOf } from './layout-doc.js';
++
++const folder = path.join(os.tmpdir(), `layout-actions-test-${Date.now()}`);
++afterAll(async () => {
++  await fs.rm(folder, { recursive: true, force: true });
++});
++
++const logger: any = { info: vi.fn(), debug: vi.fn(), error: vi.fn(), warn: vi.fn(), child: () => logger };
++
++type Call = { tool: string; args: any };
++
++interface Fakes {
++  scene?: { tokens?: any[]; lights?: any[]; notes?: any[]; grid?: any };
++  generate?: (args: any) => Promise<any>;
++  upload?: (args: any) => Promise<any>;
++}
++
++function make(fakes: Fakes = {}) {
++  const calls: Call[] = [];
++  const query = vi.fn(async (tool: string, args: any) => {
++    calls.push({ tool, args });
++    if (tool === 'foundry-mcp-bridge.manage-scenes') {
++      return { success: true, action: 'create', scene: { id: 'sc1', name: args.name } };
++    }
++    if (args.action === 'describe') {
++      return {
++        success: true,
++        scene: { id: 'sc1', name: 'Cave' },
++        grid: fakes.scene?.grid ?? { columns: 24, rows: 16 },
++        tokens: fakes.scene?.tokens ?? [],
++        lights: fakes.scene?.lights ?? [],
++        notes: fakes.scene?.notes ?? [],
++      };
++    }
++    if (args.action === 'remove') return { success: true, removed: [{ id: 'old' }] };
++    if (args.action === 'place') return { success: true, created: args.objects.map((o: any, i: number) => ({ kind: o.kind, id: `n${i}`, x: o.x, y: o.y })) };
++    return { success: true };
++  });
++  const tools = new LayoutTools({
++    logger,
++    folder,
++    foundryClient: { query } as any,
++    ...(fakes.generate ? { generate: fakes.generate } : {}),
++    ...(fakes.upload ? { upload: fakes.upload } : {}),
++  });
++  return { tools, calls, query };
++}
++
++async function newLayout(tools: LayoutTools, name: string, shapes?: any[]) {
++  await tools.handleLayout({ action: 'new', name, columns: 24, rows: 16, grid_size: 32, snap: 0.5 });
++  await tools.handleLayout({
++    action: 'add',
++    layout: name,
++    shapes: shapes ?? [
++      { shape: 'room', at: [2, 2], size: [6, 6], name: 'west room' },
++      { shape: 'room', at: [8.5, 2], size: [6, 6], name: 'east room' },
++      { shape: 'door', at: [8.25, 4], dir: 'v' },
++      { shape: 'room', at: [16, 4], size: [6, 8], name: 'cellar' },
++    ],
++  });
++}
++
++describe('layout check', () => {
++  it('reports unconnected areas without Foundry', async () => {
++    const { tools } = make();
++    await newLayout(tools, 'check one');
++    const result = await tools.handleLayout({ action: 'check', layout: 'check one' });
++    expect(result.ok).toBe(false);
++    expect(result.warnings.join(' ')).toContain('not connected');
++    expect(result.sceneProblems).toBeUndefined();
++  });
++
++  it('reads the scene and reports objects on rock', async () => {
++    const { tools, calls } = make({
++      scene: {
++        tokens: [{ name: 'Rocky', x: 12, y: 12, width: 1, height: 1 }, { name: 'Fine', x: 3, y: 3, width: 1, height: 1 }],
++        lights: [{ x: 3, y: 3 }],
++        notes: [{ x: 12, y: 12, text: 'lost pin' }],
++      },
++    });
++    await newLayout(tools, 'check two');
++    const result = await tools.handleLayout({ action: 'check', layout: 'check two', scene: 'Cave' });
++    expect(calls[0]!.args).toMatchObject({ action: 'describe', scene: 'Cave' });
++    expect(result.sceneProblems.join(' ')).toContain('"Rocky"');
++    expect(result.sceneProblems.join(' ')).toContain('lost pin');
++    expect(result.sceneProblems.join(' ')).not.toContain('"Fine"');
++  });
++});
++
++describe('layout place', () => {
++  it('puts tokens, a light and a pin inside named shapes and sends them to the scene', async () => {
++    const { tools, calls } = make();
++    await newLayout(tools, 'place one');
++    const result = await tools.handleLayout({
++      action: 'place',
++      layout: 'place one',
++      scene: 'Cave',
++      items: [
++        { kind: 'token', actor: 'Wolf', name: 'Kennel Wolf', in: 'cellar', count: 3, hidden: true },
++        { kind: 'light', in: 'west room', bright: 3 },
++        { kind: 'note', in: 'east room', journal: 'Notes', text: 'East' },
++      ],
++    });
++    expect(result.placed).toBe(5);
++    const place = calls.find(c => c.args.action === 'place')!;
++    const objects = place.args.objects;
++    expect(place.args.scene).toBe('Cave');
++    const tokens = objects.filter((o: any) => o.kind === 'token');
++    expect(tokens.map((t: any) => t.name)).toEqual(['Kennel Wolf 1', 'Kennel Wolf 2', 'Kennel Wolf 3']);
++    for (const t of tokens) {
++      expect(t.hidden).toBe(true);
++      expect(t.x).toBeGreaterThanOrEqual(16);
++      expect(t.x).toBeLessThan(22);
++      expect(t.y).toBeGreaterThanOrEqual(4);
++      expect(t.y).toBeLessThan(12);
++    }
++    expect(new Set(tokens.map((t: any) => `${t.x},${t.y}`)).size).toBe(3);
++    const light = objects.find((o: any) => o.kind === 'light');
++    expect(light).toMatchObject({ bright: 3, dim: 6 });
++    expect(light.x % 1).toBe(0.5);
++    expect(light.x).toBeLessThan(8);
++    expect(objects.find((o: any) => o.kind === 'note')).toMatchObject({ journal: 'Notes', text: 'East' });
++  });
++
++  it('keeps off squares that already hold tokens on the scene', async () => {
++    const { tools, calls } = make({ scene: { tokens: [{ name: 'Old', x: 19, y: 7, width: 1, height: 1 }] } });
++    await newLayout(tools, 'place two');
++    await tools.handleLayout({ action: 'place', layout: 'place two', scene: 'Cave', items: [{ kind: 'token', actor: 'Wolf', in: 'cellar' }] });
++    const [t] = calls.find(c => c.args.action === 'place')!.args.objects;
++    expect(`${t.x},${t.y}`).not.toBe('19,7');
++  });
++
++  it('does a dry run, shifts, and checks its input', async () => {
++    const { tools, calls } = make();
++    await newLayout(tools, 'place three');
++    const dry = await tools.handleLayout({
++      action: 'place',
++      layout: 'place three',
++      dry_run: true,
++      items: [{ kind: 'token', actor: 'Wolf', in: 'cellar', count: 2 }],
++    });
++    expect(dry).toMatchObject({ dryRun: true, wouldPlace: 2 });
++    expect(calls.some(c => c.args.action === 'place')).toBe(false);
++
++    await tools.handleLayout({ action: 'place', layout: 'place three', scene: 'Cave', shift: [1, 2], items: [{ kind: 'token', actor: 'Wolf', in: 'cellar' }] });
++    const [t] = calls.find(c => c.args.action === 'place')!.args.objects;
++    expect(t.x).toBeGreaterThanOrEqual(17);
++    expect(t.y).toBeGreaterThanOrEqual(6);
++
++    await expect(tools.handleLayout({ action: 'place', layout: 'place three', dry_run: true, items: [{ kind: 'token', in: 'cellar' }] })).rejects.toThrow('needs actor');
++    await expect(tools.handleLayout({ action: 'place', layout: 'place three', dry_run: true, items: [{ kind: 'token', actor: 'W', in: 'attic' }] })).rejects.toThrow('No shape named');
++    await expect(tools.handleLayout({ action: 'place', layout: 'place three', dry_run: true, items: [{ kind: 'orb', in: 'cellar' }] })).rejects.toThrow('kind must be');
++    await expect(tools.handleLayout({ action: 'place', layout: 'place three', dry_run: true, items: [{ kind: 'token', actor: 'W' }] })).rejects.toThrow('"in"');
++  });
++});
++
++describe('layout lights', () => {
++  it('proposes and places torches, optionally replacing earlier ones', async () => {
++    const { tools, calls } = make();
++    await newLayout(tools, 'lights one');
++    const dry = await tools.handleLayout({ action: 'lights', layout: 'lights one', dry_run: true });
++    expect(dry.wouldPlace).toBeGreaterThanOrEqual(3);
++
++    const result = await tools.handleLayout({ action: 'lights', layout: 'lights one', scene: 'Cave', replace: true, color: '#ff9900' });
++    expect(result.placed).toBe(dry.wouldPlace);
++    const remove = calls.find(c => c.args.action === 'remove')!;
++    expect(remove.args).toMatchObject({ kind: 'light', all_mine: true, scene: 'Cave' });
++    const objects = calls.find(c => c.args.action === 'place')!.args.objects;
++    expect(objects[0]).toMatchObject({ kind: 'light', color: '#ff9900', animation: 'torch' });
++  });
++
++  it('says when nothing is big enough', async () => {
++    const { tools } = make();
++    await newLayout(tools, 'lights two', [{ shape: 'room', at: [2, 2], size: [2, 2] }]);
++    await expect(tools.handleLayout({ action: 'lights', layout: 'lights two' })).rejects.toThrow('big enough');
++  });
++});
++
++describe('layout align', () => {
++  it('reads a picture file and suggests a shift', async () => {
++    const { tools } = make();
++    await newLayout(tools, 'align one', [
++      { shape: 'room', at: [3, 2], size: [8, 4] },
++      { shape: 'room', at: [3, 6], size: [3, 6] },
++      { shape: 'ellipse', center: [16, 9], radius: [3, 2] },
++    ]);
++    const doc = await (tools as any).store.load('align one');
++    const sketch = renderLayout(layoutOf(doc));
++    const file = path.join(folder, 'align-picture.png');
++    await fs.mkdir(folder, { recursive: true });
++    await fs.writeFile(file, encodePng(sketch.width, sketch.height, sketch.rgb));
++
++    const same = await tools.handleLayout({ action: 'align', layout: 'align one', image: file });
++    expect(same.shift).toEqual([0, 0]);
++    expect(same.advice).toContain('lines up');
++
++    // The same picture drawn one square to the right.
++    const shifted = new Uint8Array(sketch.rgb.length);
++    const rowBytes = sketch.width * 3;
++    const dx = 32 * 3;
++    for (let y = 0; y < sketch.height; y++) shifted.set(sketch.rgb.subarray(y * rowBytes, y * rowBytes + rowBytes - dx), y * rowBytes + dx);
++    const file2 = path.join(folder, 'align-picture-2.png');
++    await fs.writeFile(file2, encodePng(sketch.width, sketch.height, shifted));
++    const moved = await tools.handleLayout({ action: 'align', layout: 'align one', image: file2 });
++    expect(moved.shift).toEqual([1, 0]);
++    expect(moved.advice).toContain('shift [1, 0]');
++
++    await expect(tools.handleLayout({ action: 'align', layout: 'align one' })).rejects.toThrow('needs image');
++  });
++});
++
++describe('layout build', () => {
++  it('runs the whole chain: sketch, generate, upload, scene, align and walls', async () => {
++    const generate = vi.fn(async (args: any) => ({ success: true, local_path: args.reference_images[0], seconds: 1 }));
++    const upload = vi.fn(async () => ({ success: true, path: 'worlds/w/uploads/maps/x.png' }));
++    const { tools, calls } = make({ generate, upload });
++    await newLayout(tools, 'build one');
++    const result = await tools.handleLayout({
++      action: 'build',
++      layout: 'build one',
++      scene_name: 'Built Cave',
++      prompt: 'Damp cave with torches.',
++      scene_options: { darkness: 0.5 },
++    });
++    expect(generate).toHaveBeenCalledTimes(1);
++    const gen = generate.mock.calls[0]![0];
++    expect(gen).toMatchObject({ kind: 'map', width: 768, height: 512, upload: false });
++    expect(gen.prompt).toContain('<Picture 1>');
++    expect(gen.prompt).toContain('Damp cave with torches.');
++    expect(upload).toHaveBeenCalledWith(expect.objectContaining({ folder: 'maps' }));
++
++    const create = calls.find(c => c.tool === 'foundry-mcp-bridge.manage-scenes')!;
++    expect(create.args).toMatchObject({
++      action: 'create',
++      name: 'Built Cave',
++      background: 'worlds/w/uploads/maps/x.png',
++      width: 24 * 64,
++      height: 16 * 64,
++      grid_size: 64,
++      darkness: 0.5,
++    });
++    const walls = calls.filter(c => c.args.action === 'place');
++    expect(walls.length).toBeGreaterThan(0);
++    expect(walls[0]!.args.scene).toBe('sc1');
++    expect(result.scene).toEqual({ id: 'sc1', name: 'Built Cave' });
++    expect(result.steps.length).toBeGreaterThanOrEqual(5);
++    expect(result.walls.doors).toBe(1);
++  });
++
++  it('can skip walls and alignment, and explains what is missing', async () => {
++    const generate = vi.fn(async () => ({ success: true, local_path: path.join(folder, 'none.png') }));
++    const upload = vi.fn(async () => ({ success: true, path: 'worlds/w/uploads/maps/y.png' }));
++    const { tools, calls } = make({ generate, upload });
++    await newLayout(tools, 'build two');
++    const result = await tools.handleLayout({ action: 'build', layout: 'build two', scene_name: 'S', prompt: 'p', walls: false, auto_align: false });
++    expect(calls.some(c => c.args.action === 'place')).toBe(false);
++    expect(result.walls).toBeUndefined();
++
++    await expect(tools.handleLayout({ action: 'build', layout: 'build two', prompt: 'p' })).rejects.toThrow('scene_name');
++    await expect(tools.handleLayout({ action: 'build', layout: 'build two', scene_name: 'S' })).rejects.toThrow('prompt');
++    const bare = make();
++    await newLayout(bare.tools, 'build three');
++    await expect(bare.tools.handleLayout({ action: 'build', layout: 'build three', scene_name: 'S', prompt: 'p' })).rejects.toThrow('not available');
++  });
++
++  it('refuses a size the image model cannot make', async () => {
++    const { tools } = make({ generate: vi.fn(), upload: vi.fn() });
++    await tools.handleLayout({ action: 'new', name: 'odd size', columns: 21, rows: 15, grid_size: 48 });
++    await tools.handleLayout({ action: 'add', layout: 'odd size', shapes: [{ shape: 'room', at: [2, 2], size: [4, 4] }] });
++    await expect(tools.handleLayout({ action: 'build', layout: 'odd size', scene_name: 'S', prompt: 'p' })).rejects.toThrow('multiples of 32');
++  });
++
++  it('stops with a clear message when generation fails', async () => {
++    const { tools, calls } = make({ generate: vi.fn(async () => ({ success: false, error: 'GPU busy' })), upload: vi.fn() });
++    await newLayout(tools, 'build four');
++    await expect(tools.handleLayout({ action: 'build', layout: 'build four', scene_name: 'S', prompt: 'p' })).rejects.toThrow('GPU busy');
++    expect(calls.some(c => c.tool === 'foundry-mcp-bridge.manage-scenes')).toBe(false);
++  });
++});
+diff --git a/packages/mcp-server/src/tools/layout-analysis.test.ts b/packages/mcp-server/src/tools/layout-analysis.test.ts
+new file mode 100644
+index 0000000..bdfdd49
+--- /dev/null
++++ b/packages/mcp-server/src/tools/layout-analysis.test.ts
+@@ -0,0 +1,273 @@
++import { describe, expect, it } from 'vitest';
++import {
++  alignToImage,
++  checkLayout,
++  checkSceneObjects,
++  fillAt,
++  isOpenAt,
++  isStandAt,
++  openAreas,
++  pickSpots,
++  proposeLights,
++  rasterize,
++  resolveShape,
++} from './layout-analysis.js';
++import { addShapes, createDoc, layoutOf } from './layout-doc.js';
++import { renderLayout } from './layout-utils.js';
++
++function layoutWith(shapes: any[], extra: Partial<{ columns: number; rows: number; background: string; snap: number }> = {}) {
++  const doc = createDoc({ name: 'test', columns: extra.columns ?? 24, rows: extra.rows ?? 16, grid_size: 32, snap: extra.snap ?? 0.5, ...(extra.background ? { background: extra.background } : {}) });
++  addShapes(doc, shapes);
++  return layoutOf(doc);
++}
++
++// Two rooms side by side with a thin wall between them.
++const twoRooms = (door: boolean) => [
++  { shape: 'room', at: [2, 2], size: [6, 6], name: 'west room' },
++  { shape: 'room', at: [8.5, 2], size: [6, 6], name: 'east room' },
++  ...(door ? [{ shape: 'door', at: [8.25, 4], dir: 'v', size: 1 }] : []),
++];
++
++describe('rasterize and lookups', () => {
++  it('tells floor, rock and water apart', () => {
++    const layout = layoutWith([
++      { shape: 'room', at: [2, 2], size: [6, 6] },
++      { shape: 'room', at: [4, 4], size: [2, 2], fill: 'water' },
++    ]);
++    const r = rasterize(layout);
++    expect(fillAt(r, 3, 3)).toBe('floor');
++    expect(fillAt(r, 5, 5)).toBe('water');
++    expect(fillAt(r, 12, 12)).toBe('rock');
++    expect(fillAt(r, -1, 3)).toBe('rock');
++    expect(isOpenAt(r, 5, 5)).toBe(true);
++    expect(isStandAt(r, 5, 5)).toBe(false);
++    expect(isStandAt(r, 3, 3)).toBe(true);
++  });
++});
++
++describe('checkLayout', () => {
++  it('reports rooms that nothing connects, and is quiet once a door joins them', () => {
++    const apart = checkLayout(layoutWith(twoRooms(false)));
++    expect(apart.warnings.join(' ')).toContain('not connected');
++    expect(apart.areas.length).toBe(2);
++
++    const joined = checkLayout(layoutWith(twoRooms(true)));
++    expect(joined.errors).toEqual([]);
++    expect(joined.warnings).toEqual([]);
++    expect(joined.areas.length).toBe(1);
++  });
++
++  it('flags a door with rock on a side', () => {
++    const result = checkLayout(layoutWith([{ shape: 'room', at: [2, 2], size: [6, 6] }, { shape: 'door', at: [12, 4], dir: 'v', size: 1 }]));
++    expect(result.errors.join(' ')).toContain('connects nothing');
++  });
++
++  it('warns about a door that hangs half off its opening', () => {
++    // A one-square-wide passage joining two rooms; the door starts half a square too far down.
++    const shapes = [
++      { shape: 'room', at: [2, 2], size: [2, 6], name: 'a' },
++      { shape: 'room', at: [10, 2], size: [2, 6], name: 'b' },
++      { shape: 'room', at: [4, 4], size: [6, 1], name: 'link' },
++    ];
++    const ok = checkLayout(layoutWith([...shapes, { shape: 'door', at: [7, 4], dir: 'v', size: 1 }]));
++    expect(ok.errors).toEqual([]);
++    expect(ok.warnings).toEqual([]);
++    const half = checkLayout(layoutWith([...shapes, { shape: 'door', at: [7, 4.5], dir: 'v', size: 1 }]));
++    expect(half.errors).toEqual([]);
++    // The rooms are joined by the link either way; only the door is judged.
++    expect(half.warnings.join(' ')).toContain('only partly');
++  });
++
++  it('says so when the layout is empty', () => {
++    const doc = createDoc({ name: 'empty', columns: 10, rows: 10 });
++    expect(checkLayout(layoutOf(doc)).errors[0]).toContain('no shapes');
++  });
++
++  it('lists open areas biggest first with a point inside each', () => {
++    const layout = layoutWith(twoRooms(false));
++    const areas = openAreas(layout, rasterize(layout));
++    expect(areas[0]!.squares).toBe(36);
++    const r = rasterize(layout);
++    for (const a of areas) expect(isOpenAt(r, a.at[0], a.at[1])).toBe(true);
++  });
++});
++
++describe('checkSceneObjects', () => {
++  const layout = layoutWith(twoRooms(true));
++  it('finds tokens on rock, on the same square, in water and outside, and lights and pins in rock', () => {
++    const problems = checkSceneObjects(layout, {
++      tokens: [
++        { name: 'Ok', x: 3, y: 3, width: 1, height: 1 },
++        { name: 'Rocky', x: 20, y: 12, width: 1, height: 1 },
++        { name: 'Twin A', x: 5, y: 5, width: 1, height: 1 },
++        { name: 'Twin B', x: 5.2, y: 5.1, width: 1, height: 1 },
++        { name: 'Lost', x: 40, y: 3, width: 1, height: 1 },
++      ],
++      lights: [{ x: 3, y: 3 }, { x: 20, y: 13 }],
++      notes: [{ x: 3, y: 3, text: 'fine' }, { x: 20, y: 13, text: 'buried' }],
++    });
++    const text = problems.join('\n');
++    expect(text).toContain('"Rocky"');
++    expect(text).toContain('solid rock');
++    expect(text).toContain('"Twin A" and "Twin B"');
++    expect(text).toContain('"Lost" at 40,3 is outside');
++    expect(text).toContain('Light at 20,13');
++    expect(text).toContain('"buried"');
++    expect(text).not.toContain('"Ok"');
++    expect(text).not.toContain('fine');
++  });
++
++  it('is quiet when everything is on the floor', () => {
++    expect(checkSceneObjects(layout, { tokens: [{ name: 'A', x: 3, y: 3, width: 1, height: 1 }], lights: [{ x: 4, y: 4 }], notes: [] })).toEqual([]);
++  });
++});
++
++describe('resolveShape', () => {
++  const layout = layoutWith([
++    ...twoRooms(true),
++    { shape: 'room', at: [2, 10], size: [4, 4], name: 'west cellar', label: 9 },
++  ]);
++  it('finds shapes by id, label, exact name and partial name', () => {
++    expect(resolveShape(layout, 2).shape.name).toBe('east room');
++    expect(resolveShape(layout, '2').shape.name).toBe('east room');
++    expect(resolveShape(layout, 9).shape.name).toBe('west cellar');
++    expect(resolveShape(layout, 'EAST ROOM').shape.name).toBe('east room');
++    expect(resolveShape(layout, 'cellar').shape.name).toBe('west cellar');
++  });
++  it('explains ambiguity and unknown names', () => {
++    expect(() => resolveShape(layout, 'west')).toThrow('several shapes');
++    expect(() => resolveShape(layout, 'attic')).toThrow('No shape named');
++    expect(() => resolveShape(layout, 99)).toThrow('No shape');
++  });
++});
++
++describe('pickSpots', () => {
++  const layout = layoutWith(twoRooms(true));
++  const r = rasterize(layout);
++  const west = resolveShape(layout, 'west room').index;
++
++  it('spreads creatures out, away from the walls, inside the room', () => {
++    const spots = pickSpots(layout, r, west, 4);
++    expect(spots.length).toBe(4);
++    for (const s of spots) {
++      expect(s.x).toBeGreaterThanOrEqual(3);
++      expect(s.x).toBeLessThanOrEqual(7);
++      expect(s.y).toBeGreaterThanOrEqual(3);
++      expect(s.y).toBeLessThanOrEqual(7);
++    }
++    const min = Math.min(...spots.flatMap((a, i) => spots.slice(i + 1).map(b => Math.hypot(a.x - b.x, a.y - b.y))));
++    expect(min).toBeGreaterThanOrEqual(2);
++    expect(new Set(spots.map(s => `${s.x},${s.y}`)).size).toBe(4);
++  });
++
++  it('keeps them together when not spreading', () => {
++    const spread = pickSpots(layout, r, west, 3, { spread: true });
++    const near = pickSpots(layout, r, west, 3, { spread: false });
++    const span = (list: Array<{ x: number; y: number }>) => Math.max(...list.flatMap(a => list.map(b => Math.hypot(a.x - b.x, a.y - b.y))));
++    expect(span(near)).toBeLessThan(span(spread));
++  });
++
++  it('avoids taken squares and makes room for big creatures', () => {
++    const taken = new Set(['4,4', '5,4', '4,5', '5,5']);
++    const [one] = pickSpots(layout, r, west, 1, { taken });
++    expect(taken.has(`${one!.x},${one!.y}`)).toBe(false);
++    const [big] = pickSpots(layout, r, west, 1, { width: 2, height: 2 });
++    for (const [dx, dy] of [[0, 0], [1, 0], [0, 1], [1, 1]]) expect(isStandAt(r, big!.x + dx! + 0.5, big!.y + dy! + 0.5)).toBe(true);
++  });
++
++  it('is deterministic and refuses more creatures than fit', () => {
++    expect(pickSpots(layout, r, west, 3)).toEqual(pickSpots(layout, r, west, 3));
++    expect(() => pickSpots(layout, r, west, 60)).toThrow('room for only');
++  });
++
++  it('keeps off water', () => {
++    const wet = layoutWith([{ shape: 'room', at: [2, 2], size: [6, 6], name: 'hall' }, { shape: 'room', at: [2, 2], size: [6, 3], fill: 'water' }]);
++    const wr = rasterize(wet);
++    const spots = pickSpots(wet, wr, resolveShape(wet, 'hall').index, 5);
++    for (const s of spots) expect(s.y).toBeGreaterThanOrEqual(5);
++  });
++});
++
++describe('proposeLights', () => {
++  it('lights big rooms away from walls, none for tiny ones, and not outdoors by default', () => {
++    const layout = layoutWith([
++      { shape: 'room', at: [2, 2], size: [8, 8], name: 'hall' },
++      { shape: 'room', at: [12, 2], size: [2, 2], name: 'closet' },
++      { shape: 'room', at: [2, 12], size: [10, 3], name: 'yard', fill: 'grass' },
++    ]);
++    const lights = proposeLights(layout);
++    expect(lights.length).toBeGreaterThanOrEqual(1);
++    expect(lights.every(l => l.shape.includes('shape 1'))).toBe(true);
++    expect(lights[0]!.x).toBeGreaterThan(3);
++    expect(lights[0]!.dim).toBe(lights[0]!.bright * 2);
++    const withYard = proposeLights(layout, { includeOutdoor: true });
++    expect(withYard.some(l => l.shape.includes('shape 3'))).toBe(true);
++    expect(proposeLights(layout, { bright: 3, dim: 5 })[0]).toMatchObject({ bright: 3, dim: 5 });
++  });
++
++  it('puts more lights in a very big cave and never stacks them', () => {
++    const layout = layoutWith([{ shape: 'room', at: [2, 2], size: [20, 12], name: 'cavern' }]);
++    const lights = proposeLights(layout);
++    expect(lights.length).toBeGreaterThan(2);
++    for (let i = 0; i < lights.length; i++) {
++      for (let j = i + 1; j < lights.length; j++) {
++        expect(Math.hypot(lights[i]!.x - lights[j]!.x, lights[i]!.y - lights[j]!.y)).toBeGreaterThan(2);
++      }
++    }
++  });
++});
++
++describe('alignToImage', () => {
++  // An L-shaped layout so a shift in either direction changes the match.
++  const layout = layoutWith(
++    [
++      { shape: 'room', at: [3, 2], size: [8, 4] },
++      { shape: 'room', at: [3, 6], size: [3, 6] },
++      { shape: 'ellipse', center: [16, 9], radius: [3, 2] },
++    ],
++    { columns: 24, rows: 16 }
++  );
++  const sketch = renderLayout(layout);
++
++  function pictureShifted(dxSquares: number, dySquares: number) {
++    const { width, height, rgb } = sketch;
++    const data = new Uint8Array(width * height * 4);
++    const dx = Math.round(dxSquares * layout.size);
++    const dy = Math.round(dySquares * layout.size);
++    for (let y = 0; y < height; y++) {
++      for (let x = 0; x < width; x++) {
++        const sx = x - dx;
++        const sy = y - dy;
++        const o = (y * width + x) * 4;
++        if (sx >= 0 && sy >= 0 && sx < width && sy < height) {
++          const s = (sy * width + sx) * 3;
++          data[o] = rgb[s]!;
++          data[o + 1] = rgb[s + 1]!;
++          data[o + 2] = rgb[s + 2]!;
++        }
++        data[o + 3] = 255;
++      }
++    }
++    return { width, height, data };
++  }
++
++  it('finds no shift when the picture lines up', () => {
++    const result = alignToImage(layout, pictureShifted(0, 0));
++    expect(result.shift).toEqual([0, 0]);
++    expect(result.quality).toBe('good');
++    expect(result.score).toBeGreaterThan(0.8);
++  });
++
++  it('finds the shift of a picture drawn off to the side', () => {
++    const result = alignToImage(layout, pictureShifted(1, 0.5));
++    expect(result.shift).toEqual([1, 0.5]);
++    expect(result.score).toBeGreaterThan(result.scoreAtZero);
++    const other = alignToImage(layout, pictureShifted(-0.75, -1));
++    expect(other.shift).toEqual([-0.75, -1]);
++  });
++
++  it('says when the picture has nothing to do with the layout', () => {
++    const flat = { width: 100, height: 100, data: new Uint8Array(100 * 100 * 4).fill(128) };
++    expect(alignToImage(layout, flat).quality).toBe('none');
++  });
++});
+diff --git a/packages/mcp-server/src/tools/layout-analysis.ts b/packages/mcp-server/src/tools/layout-analysis.ts
+new file mode 100644
+index 0000000..c0da42b
+--- /dev/null
++++ b/packages/mcp-server/src/tools/layout-analysis.ts
+@@ -0,0 +1,584 @@
++/**
++ * Looking at a layout as data: where the floor is, what is connected, where a creature or a
++ * light can go, and how well a generated picture lines up with the sketch. Pure functions on a
++ * NormalizedLayout, so they are easy to test; layout.ts wires them to the tool.
++ */
++
++import type { DecodedImage } from './layout-image.js';
++import { FILLS, scanPolygon, shapePolygons, type LayoutShape, type NormalizedLayout } from './layout-utils.js';
++
++/** Samples per square when rasterizing (thin half-square walls need at least 2). */
++export const SAMPLES = 4;
++
++const FILL_NAMES = Object.keys(FILLS);
++const ROCK = FILL_NAMES.indexOf('rock');
++const WATER = FILL_NAMES.indexOf('water');
++
++export interface Raster {
++  columns: number;
++  rows: number;
++  /** Fill index (into FILLS) per sample. */
++  fill: Uint8Array;
++  /** Index of the shape (position in layout.shapes + 1) that painted the sample, 0 = background. */
++  owner: Uint16Array;
++  /** Samples a door opens through a thin wall. */
++  doorCut: Uint8Array;
++  w: number;
++  h: number;
++}
++
++export function rasterize(layout: NormalizedLayout): Raster {
++  const w = layout.columns * SAMPLES;
++  const h = layout.rows * SAMPLES;
++  const fill = new Uint8Array(w * h);
++  fill.fill(Math.max(0, FILL_NAMES.indexOf(layout.background)));
++  const owner = new Uint16Array(w * h);
++  const doorCut = new Uint8Array(w * h);
++  layout.shapes.forEach((shape, index) => {
++    if (shape.shape === 'door') {
++      const [x, y] = shape.at as [number, number];
++      const len = Math.max(1, shape.size ?? 1);
++      const x0 = shape.dir === 'v' ? x - 0.5 : x;
++      const x1 = shape.dir === 'v' ? x + 0.5 : x + len;
++      const y0 = shape.dir === 'v' ? y : y - 0.5;
++      const y1 = shape.dir === 'v' ? y + len : y + 0.5;
++      for (let j = Math.max(0, Math.floor(y0 * SAMPLES)); j < Math.min(h, Math.ceil(y1 * SAMPLES)); j++) {
++        for (let i = Math.max(0, Math.floor(x0 * SAMPLES)); i < Math.min(w, Math.ceil(x1 * SAMPLES)); i++) {
++          doorCut[j * w + i] = 1;
++        }
++      }
++      return;
++    }
++    const value = Math.max(0, FILL_NAMES.indexOf(shape.fill ?? 'floor'));
++    for (const poly of shapePolygons(shape, SAMPLES)) {
++      scanPolygon(poly, w, h, (y, x0, x1) => {
++        fill.fill(value, y * w + x0, y * w + x1 + 1);
++        owner.fill(index + 1, y * w + x0, y * w + x1 + 1);
++      });
++    }
++  });
++  return { columns: layout.columns, rows: layout.rows, fill, owner, doorCut, w, h };
++}
++
++function sampleIndex(r: Raster, x: number, y: number): number {
++  const i = Math.min(r.w - 1, Math.max(0, Math.floor(x * SAMPLES)));
++  const j = Math.min(r.h - 1, Math.max(0, Math.floor(y * SAMPLES)));
++  return j * r.w + i;
++}
++
++export function insideLayout(r: Raster, x: number, y: number): boolean {
++  return x >= 0 && y >= 0 && x < r.columns && y < r.rows;
++}
++
++/** The fill name at a point in squares ("rock" outside the layout). */
++export function fillAt(r: Raster, x: number, y: number): string {
++  if (!insideLayout(r, x, y)) return 'rock';
++  return FILL_NAMES[r.fill[sampleIndex(r, x, y)]!]!;
++}
++
++export function isOpenAt(r: Raster, x: number, y: number): boolean {
++  return insideLayout(r, x, y) && r.fill[sampleIndex(r, x, y)] !== ROCK;
++}
++
++/** Floor a creature can stand on: not rock and not deep water. */
++export function isStandAt(r: Raster, x: number, y: number): boolean {
++  if (!insideLayout(r, x, y)) return false;
++  const v = r.fill[sampleIndex(r, x, y)]!;
++  return v !== ROCK && v !== WATER;
++}
++
++/** Index in layout.shapes of the shape that painted this point, or -1. */
++export function shapeIndexAt(r: Raster, x: number, y: number): number {
++  if (!insideLayout(r, x, y)) return -1;
++  return r.owner[sampleIndex(r, x, y)]! - 1;
++}
++
++export function shapeTitle(shape: LayoutShape | undefined): string {
++  if (!shape) return 'the background';
++  return shape.name ? `"${shape.name}" (shape ${shape.id})` : `shape ${shape.id}`;
++}
++
++// ===== Layout checks =====
++
++export interface AreaInfo {
++  squares: number;
++  /** A point inside the area, in squares. */
++  at: [number, number];
++  near: string;
++}
++
++export interface LayoutCheck {
++  errors: string[];
++  warnings: string[];
++  areas: AreaInfo[];
++}
++
++/** Separate open areas (rooms joined by a door count as one), biggest first. */
++export function openAreas(layout: NormalizedLayout, r: Raster): AreaInfo[] {
++  const seen = new Uint8Array(r.w * r.h);
++  const areas: Array<{ count: number; sx: number; sy: number; samples: number[] }> = [];
++  const stack: number[] = [];
++  const open = (idx: number) => r.fill[idx] !== ROCK || r.doorCut[idx] === 1;
++  for (let start = 0; start < r.w * r.h; start++) {
++    if (seen[start] || !open(start)) continue;
++    let count = 0;
++    let sx = 0;
++    let sy = 0;
++    stack.length = 0;
++    stack.push(start);
++    seen[start] = 1;
++    let kept: number[] = [];
++    while (stack.length > 0) {
++      const idx = stack.pop()!;
++      count++;
++      const i = idx % r.w;
++      const j = (idx - i) / r.w;
++      sx += i;
++      sy += j;
++      if (count % 37 === 0) kept.push(idx);
++      for (const n of [idx - 1, idx + 1, idx - r.w, idx + r.w]) {
++        if (n < 0 || n >= r.w * r.h) continue;
++        if ((n === idx - 1 && i === 0) || (n === idx + 1 && i === r.w - 1)) continue;
++        if (seen[n] || !open(n)) continue;
++        seen[n] = 1;
++        stack.push(n);
++      }
++    }
++    if (kept.length === 0) kept = [start];
++    areas.push({ count, sx: sx / count, sy: sy / count, samples: kept });
++  }
++  return areas
++    .map(a => {
++      // A point really inside the area, near its middle.
++      let best = a.samples[0]!;
++      let bestD = Infinity;
++      for (const idx of a.samples) {
++        const i = idx % r.w;
++        const j = (idx - i) / r.w;
++        const d = (i - a.sx) ** 2 + (j - a.sy) ** 2;
++        if (d < bestD) {
++          bestD = d;
++          best = idx;
++        }
++      }
++      const bi = best % r.w;
++      const bj = (best - bi) / r.w;
++      const at: [number, number] = [Math.round(((bi + 0.5) / SAMPLES) * 10) / 10, Math.round(((bj + 0.5) / SAMPLES) * 10) / 10];
++      const owner = layout.shapes[shapeIndexAt(r, at[0], at[1])];
++      return { squares: Math.round(a.count / (SAMPLES * SAMPLES)), at, near: shapeTitle(owner) };
++    })
++    .sort((a, b) => b.squares - a.squares);
++}
++
++export function checkLayout(layout: NormalizedLayout): LayoutCheck {
++  const r = rasterize(layout);
++  const errors: string[] = [];
++  const warnings: string[] = [];
++
++  if (layout.shapes.filter(s => s.shape !== 'door').length === 0) {
++    errors.push('The layout has no shapes yet');
++    return { errors, warnings, areas: [] };
++  }
++
++  // Connectivity: everything open should be one area (through doors).
++  const areas = openAreas(layout, r).filter(a => a.squares >= 2);
++  if (areas.length > 1) {
++    const main = areas[0]!;
++    for (const a of areas.slice(1)) {
++      warnings.push(
++        `Open area of about ${a.squares} squares around ${a.at[0]},${a.at[1]} (${a.near}) is not connected to the main area of ${main.squares} squares (${main.near}): no corridor, door or overlap joins them`
++      );
++    }
++  }
++
++  // Doors: both sides must be open.
++  layout.shapes.forEach(shape => {
++    if (shape.shape !== 'door') return;
++    const [x, y] = shape.at as [number, number];
++    const len = Math.max(1, shape.size ?? 1);
++    // Look at points along the whole door: both sides must be open somewhere along it.
++    const n = Math.max(1, Math.round(len * 4));
++    const sideOpen = (px: number, py: number, sign: number) =>
++      [0.5, 0.75, 1, 1.25].some(d => isOpenAt(r, shape.dir === 'v' ? px + sign * d : px, shape.dir === 'v' ? py : py + sign * d));
++    let both = 0;
++    let anyA = false;
++    let anyB = false;
++    for (let i = 0; i < n; i++) {
++      const t = ((i + 0.5) / n) * len;
++      const px = shape.dir === 'v' ? x : x + t;
++      const py = shape.dir === 'v' ? y + t : y;
++      const a = sideOpen(px, py, -1);
++      const b = sideOpen(px, py, 1);
++      anyA ||= a;
++      anyB ||= b;
++      if (a && b) both++;
++    }
++    const title = `Door ${shape.id}${shape.name ? ` "${shape.name}"` : ''} at ${x},${y}`;
++    if (both === 0) {
++      errors.push(
++        `${title} has ${!anyA && !anyB ? 'rock on both sides' : `rock on its ${!anyA ? (shape.dir === 'v' ? 'west' : 'north') : shape.dir === 'v' ? 'east' : 'south'} side`}: it connects nothing`
++      );
++    } else if (both / n < 0.6) {
++      warnings.push(`${title} is only partly over an opening (${both} of ${n} quarter-squares join two open areas); move it so it sits on the opening`);
++    }
++  });
++
++  // Shapes outside the layout.
++  layout.shapes.forEach(shape => {
++    if (shape.shape === 'door') return;
++    let any = false;
++    for (const poly of shapePolygons(shape, 1)) {
++      if (poly.some(([px, py]) => px >= 0 && py >= 0 && px <= layout.columns && py <= layout.rows)) any = true;
++    }
++    if (!any) warnings.push(`${shapeTitle(shape)} lies completely outside the layout`);
++  });
++
++  return { errors, warnings, areas };
++}
++
++// ===== Checking what is on a scene =====
++
++export interface SceneToken {
++  name: string;
++  x: number;
++  y: number;
++  width: number;
++  height: number;
++  hidden?: boolean;
++}
++export interface ScenePoint {
++  x: number;
++  y: number;
++  text?: string;
++  name?: string;
++}
++
++export function checkSceneObjects(
++  layout: NormalizedLayout,
++  objects: { tokens?: SceneToken[]; lights?: ScenePoint[]; notes?: ScenePoint[] }
++): string[] {
++  const r = rasterize(layout);
++  const problems: string[] = [];
++  const taken = new Map<string, string>();
++  for (const t of objects.tokens ?? []) {
++    const cx = t.x + t.width / 2;
++    const cy = t.y + t.height / 2;
++    const where = `${Math.round(t.x * 100) / 100},${Math.round(t.y * 100) / 100}`;
++    if (!insideLayout(r, cx, cy)) {
++      problems.push(`Token "${t.name}" at ${where} is outside the map`);
++      continue;
++    }
++    const fill = fillAt(r, cx, cy);
++    if (fill === 'rock') problems.push(`Token "${t.name}" at ${where} stands on solid rock`);
++    else if (fill === 'water') problems.push(`Token "${t.name}" at ${where} is in water (fine for a stream, check it is meant)`);
++    else {
++      // Is a wall between the token's square and the nearest open floor? Only flag tokens wedged
++      // into a corner of a thin wall: the centre must be open, which it is, so nothing more here.
++    }
++    const key = `${Math.floor(t.x)},${Math.floor(t.y)}`;
++    const other = taken.get(key);
++    if (other) problems.push(`Tokens "${other}" and "${t.name}" are on the same square (${key})`);
++    else taken.set(key, t.name);
++  }
++  for (const l of objects.lights ?? []) {
++    const near = [0, 0.5, 1].some(d => [[0, 0], [d, 0], [-d, 0], [0, d], [0, -d]].some(([dx, dy]) => isOpenAt(r, l.x + dx!, l.y + dy!)));
++    if (!near) problems.push(`Light at ${l.x},${l.y} is deep inside solid rock`);
++  }
++  for (const n of objects.notes ?? []) {
++    if (!isOpenAt(r, n.x, n.y)) problems.push(`Pin "${n.text ?? ''}" at ${n.x},${n.y} sits on solid rock`);
++  }
++  return problems;
++}
++
++// ===== Picking positions =====
++
++export interface CellPick {
++  /** Top-left square of the footprint. */
++  x: number;
++  y: number;
++}
++
++/** Find a shape by id, label number or name (exact, then partial). */
++export function resolveShape(layout: NormalizedLayout, ref: number | string): { shape: LayoutShape; index: number } {
++  const shapes = layout.shapes;
++  const non = (s: LayoutShape) => s.shape !== 'door';
++  const byId = (id: number) => shapes.findIndex(s => s.id === id && non(s));
++  if (typeof ref === 'number') {
++    let i = byId(ref);
++    if (i < 0) i = shapes.findIndex(s => s.label === ref && non(s));
++    if (i < 0) throw new Error(`No shape with id or label ${ref}`);
++    return { shape: shapes[i]!, index: i };
++  }
++  const text = ref.trim().toLowerCase();
++  if (/^\d+$/.test(text)) return resolveShape(layout, Number(text));
++  const named = shapes.map((s, i) => ({ s, i })).filter(({ s }) => non(s) && s.name);
++  const exact = named.filter(({ s }) => s.name!.toLowerCase() === text);
++  const partial = named.filter(({ s }) => s.name!.toLowerCase().includes(text));
++  const pool = exact.length > 0 ? exact : partial;
++  if (pool.length === 0) throw new Error(`No shape named "${ref}"; name shapes when you add them, or use the id`);
++  if (pool.length > 1) {
++    throw new Error(`"${ref}" matches several shapes (${pool.map(({ s }) => `${s.id} "${s.name}"`).join(', ')}); use the id`);
++  }
++  return { shape: pool[0]!.s, index: pool[0]!.i };
++}
++
++/** Distance (in squares, 8-neighbour) from each cell to the nearest square one cannot stand on. */
++function edgeDistance(r: Raster): Uint8Array {
++  const { columns, rows } = r;
++  const dist = new Uint8Array(columns * rows);
++  const standCell = (c: number, row: number) => isStandAt(r, c + 0.5, row + 0.5);
++  const queue: number[] = [];
++  const unset = 255;
++  dist.fill(unset);
++  for (let row = 0; row < rows; row++) {
++    for (let c = 0; c < columns; c++) {
++      if (!standCell(c, row)) {
++        dist[row * columns + c] = 0;
++        queue.push(row * columns + c);
++      }
++    }
++  }
++  for (let head = 0; head < queue.length; head++) {
++    const idx = queue[head]!;
++    const c = idx % columns;
++    const row = (idx - c) / columns;
++    for (let dy = -1; dy <= 1; dy++) {
++      for (let dx = -1; dx <= 1; dx++) {
++        if (!dx && !dy) continue;
++        const nc = c + dx;
++        const nr = row + dy;
++        if (nc < 0 || nr < 0 || nc >= columns || nr >= rows) continue;
++        const n = nr * columns + nc;
++        if (dist[n] !== unset) continue;
++        dist[n] = Math.min(254, dist[idx]! + 1);
++        queue.push(n);
++      }
++    }
++  }
++  // Squares next to the map edge count as next to a wall.
++  for (let row = 0; row < rows; row++) for (let c = 0; c < columns; c++) {
++    const edge = Math.min(c, row, columns - 1 - c, rows - 1 - row) + 1;
++    const idx = row * columns + c;
++    if (dist[idx]! > edge) dist[idx] = edge;
++  }
++  return dist;
++}
++
++export interface PickOptions {
++  /** Footprint in squares (default 1 x 1). */
++  width?: number;
++  height?: number;
++  /** Squares already taken, as "col,row". */
++  taken?: Set<string>;
++  /** Spread the picks out (default) or keep them together. */
++  spread?: boolean;
++}
++
++/**
++ * Choose `count` free spots inside a shape: away from walls where possible and, when spreading,
++ * as far from each other as possible. Deterministic.
++ */
++export function pickSpots(layout: NormalizedLayout, r: Raster, shapeIndex: number, count: number, options: PickOptions = {}): CellPick[] {
++  const fw = Math.max(1, Math.round(options.width ?? 1));
++  const fh = Math.max(1, Math.round(options.height ?? 1));
++  const dist = edgeDistance(r);
++  const taken = options.taken ?? new Set<string>();
++  const candidates: Array<{ c: number; row: number; d: number }> = [];
++  for (let row = 0; row + fh <= r.rows; row++) {
++    for (let c = 0; c + fw <= r.columns; c++) {
++      if (shapeIndexAt(r, c + 0.5, row + 0.5) !== shapeIndex) continue;
++      let ok = true;
++      let minD = 255;
++      for (let dy = 0; dy < fh && ok; dy++) {
++        for (let dx = 0; dx < fw && ok; dx++) {
++          if (!isStandAt(r, c + dx + 0.5, row + dy + 0.5) || taken.has(`${c + dx},${row + dy}`)) ok = false;
++          minD = Math.min(minD, dist[(row + dy) * r.columns + c + dx]!);
++        }
++      }
++      if (ok) candidates.push({ c, row, d: minD });
++    }
++  }
++  if (candidates.length === 0) throw new Error(`No free floor inside ${shapeTitle(layout.shapes[shapeIndex])} for a ${fw}x${fh} footprint`);
++  // Prefer squares away from walls (distance 2+), but use any when the room is tight.
++  const preferred = candidates.filter(c => c.d >= 2);
++  const pool = preferred.length >= count ? preferred : candidates;
++  if (pool.length < count) {
++    throw new Error(`${shapeTitle(layout.shapes[shapeIndex])} has room for only ${pool.length} of ${count}`);
++  }
++  const cx = pool.reduce((a, p) => a + p.c, 0) / pool.length;
++  const cy = pool.reduce((a, p) => a + p.row, 0) / pool.length;
++  const chosen: typeof pool = [];
++  const used = new Set<string>();
++  const anchors: Array<[number, number]> = [...taken].map(k => k.split(',').map(Number) as [number, number]);
++  const spread = options.spread !== false;
++  for (let n = 0; n < count; n++) {
++    let best: (typeof pool)[number] | undefined;
++    let bestScore = -Infinity;
++    for (const p of pool) {
++      const key = `${p.c},${p.row}`;
++      if (used.has(key)) continue;
++      // Footprints must not overlap earlier picks.
++      if (chosen.some(q => Math.abs(q.c - p.c) < fw && Math.abs(q.row - p.row) < fh)) continue;
++      let score: number;
++      if (chosen.length === 0) {
++        score = p.d * 4 - Math.hypot(p.c - cx, p.row - cy) * 0.3;
++      } else if (spread) {
++        let minDist = Infinity;
++        for (const q of chosen) minDist = Math.min(minDist, Math.hypot(q.c - p.c, q.row - p.row));
++        for (const [ax, ay] of anchors) minDist = Math.min(minDist, Math.hypot(ax - p.c, ay - p.row) * 1.5);
++        score = minDist * 3 + p.d;
++      } else {
++        score = -Math.hypot(chosen[0]!.c - p.c, chosen[0]!.row - p.row) * 3 + p.d;
++      }
++      if (score > bestScore) {
++        bestScore = score;
++        best = p;
++      }
++    }
++    if (!best) throw new Error(`No room for ${count} in ${shapeTitle(layout.shapes[shapeIndex])}`);
++    chosen.push(best);
++    used.add(`${best.c},${best.row}`);
++  }
++  return chosen.map(p => ({ x: p.c, y: p.row }));
++}
++
++// ===== Light proposals =====
++
++export interface LightProposal {
++  x: number;
++  y: number;
++  bright: number;
++  dim: number;
++  shape: string;
++}
++
++export function proposeLights(
++  layout: NormalizedLayout,
++  options: { minArea?: number; bright?: number; dim?: number; includeOutdoor?: boolean } = {}
++): LightProposal[] {
++  const r = rasterize(layout);
++  const minArea = options.minArea ?? 10;
++  const outdoor = new Set(['grass', 'road', 'sand']);
++  const out: LightProposal[] = [];
++  layout.shapes.forEach((shape, index) => {
++    if (shape.shape === 'door') return;
++    const fill = shape.fill ?? 'floor';
++    if (fill === 'rock' || fill === 'water') return;
++    if (!options.includeOutdoor && outdoor.has(fill)) return;
++    let cells = 0;
++    for (let row = 0; row < r.rows; row++) for (let c = 0; c < r.columns; c++) {
++      if (shapeIndexAt(r, c + 0.5, row + 0.5) === index) cells++;
++    }
++    if (cells < minArea) return;
++    const count = Math.max(1, Math.round(cells / 40));
++    const bright = options.bright ?? Math.max(2, Math.min(5, Math.round(Math.sqrt(cells) / 2)));
++    const dim = options.dim ?? bright * 2;
++    let spots: CellPick[];
++    try {
++      spots = pickSpots(layout, r, index, count, { spread: true });
++    } catch {
++      return;
++    }
++    for (const s of spots) {
++      const x = s.x + 0.5;
++      const y = s.y + 0.5;
++      if (out.some(o => Math.hypot(o.x - x, o.y - y) < Math.max(o.bright, bright) * 0.8)) continue;
++      out.push({ x, y, bright, dim, shape: shapeTitle(shape) });
++    }
++  });
++  return out;
++}
++
++// ===== Aligning a generated picture with the layout =====
++
++export interface AlignResult {
++  /** Move the layout's walls by this many squares to match the picture. */
++  shift: [number, number];
++  score: number;
++  scoreAtZero: number;
++  /** How strongly the picture follows the layout at all (about 0.3 or more is a clear match). */
++  quality: 'good' | 'weak' | 'none';
++}
++
++/** Brightness of the picture, averaged into SAMPLES x SAMPLES blocks per layout square. */
++export function brightnessGrid(image: DecodedImage, columns: number, rows: number): Float32Array {
++  const w = columns * SAMPLES;
++  const h = rows * SAMPLES;
++  const out = new Float32Array(w * h);
++  for (let j = 0; j < h; j++) {
++    const y0 = Math.floor((j * image.height) / h);
++    const y1 = Math.max(y0 + 1, Math.floor(((j + 1) * image.height) / h));
++    for (let i = 0; i < w; i++) {
++      const x0 = Math.floor((i * image.width) / w);
++      const x1 = Math.max(x0 + 1, Math.floor(((i + 1) * image.width) / w));
++      let sum = 0;
++      let n = 0;
++      for (let y = y0; y < y1; y += 2) {
++        for (let x = x0; x < x1; x += 2) {
++          const o = (y * image.width + x) * 4;
++          sum += 0.299 * image.data[o]! + 0.587 * image.data[o + 1]! + 0.114 * image.data[o + 2]!;
++          n++;
++        }
++      }
++      out[j * w + i] = n ? sum / n : 0;
++    }
++  }
++  return out;
++}
++
++export function alignToImage(layout: NormalizedLayout, image: DecodedImage, maxShift = 1.5): AlignResult {
++  const r = rasterize(layout);
++  const bright = brightnessGrid(image, layout.columns, layout.rows);
++  const mask = new Uint8Array(r.w * r.h);
++  for (let k = 0; k < mask.length; k++) mask[k] = r.fill[k] === ROCK ? 0 : 1;
++  const n = Math.round(maxShift * SAMPLES);
++
++  const correlate = (sx: number, sy: number): number => {
++    // brightness(i, j) against mask(i - sx, j - sy)
++    let count = 0;
++    let sumB = 0;
++    let sumM = 0;
++    let sumBB = 0;
++    let sumMM = 0;
++    let sumBM = 0;
++    const jStart = Math.max(0, sy);
++    const jEnd = Math.min(r.h, r.h + sy);
++    const iStart = Math.max(0, sx);
++    const iEnd = Math.min(r.w, r.w + sx);
++    for (let j = jStart; j < jEnd; j++) {
++      for (let i = iStart; i < iEnd; i++) {
++        const b = bright[j * r.w + i]!;
++        const m = mask[(j - sy) * r.w + (i - sx)]!;
++        count++;
++        sumB += b;
++        sumM += m;
++        sumBB += b * b;
++        sumMM += m * m;
++        sumBM += b * m;
++      }
++    }
++    if (count === 0) return -1;
++    const cov = sumBM - (sumB * sumM) / count;
++    const varB = sumBB - (sumB * sumB) / count;
++    const varM = sumMM - (sumM * sumM) / count;
++    if (varB <= 1e-9 || varM <= 1e-9) return 0;
++    return cov / Math.sqrt(varB * varM);
++  };
++
++  const scoreAtZero = correlate(0, 0);
++  let best = { sx: 0, sy: 0, score: scoreAtZero };
++  for (let sy = -n; sy <= n; sy++) {
++    for (let sx = -n; sx <= n; sx++) {
++      const score = correlate(sx, sy);
++      // Prefer no shift unless another is clearly better.
++      if (score > best.score + 0.01) best = { sx, sy, score };
++    }
++  }
++  const round = (v: number) => Math.round(v * 1000) / 1000;
++  return {
++    shift: [best.sx / SAMPLES, best.sy / SAMPLES],
++    score: round(best.score),
++    scoreAtZero: round(scoreAtZero),
++    quality: best.score >= 0.35 ? 'good' : best.score >= 0.15 ? 'weak' : 'none',
++  };
++}
 diff --git a/packages/mcp-server/src/tools/layout-doc.ts b/packages/mcp-server/src/tools/layout-doc.ts
 new file mode 100644
 index 0000000..d3d9a54
@@ -15769,16 +17537,26 @@ index 0000000..5b5d028
 +
 diff --git a/packages/mcp-server/src/tools/layout.ts b/packages/mcp-server/src/tools/layout.ts
 new file mode 100644
-index 0000000..ca5e009
+index 0000000..24dc381
 --- /dev/null
 +++ b/packages/mcp-server/src/tools/layout.ts
-@@ -0,0 +1,531 @@
+@@ -0,0 +1,868 @@
 +import { promises as fs } from 'fs';
 +import path from 'path';
 +import { z } from 'zod';
 +import { FoundryClient } from '../foundry-client.js';
 +import { Logger } from '../logger.js';
 +import { FILLS, encodePng, legendFor, renderLayout, wallsFromLayout } from './layout-utils.js';
++import { decodeImage } from './layout-image.js';
++import {
++  alignToImage,
++  checkLayout,
++  checkSceneObjects,
++  pickSpots,
++  proposeLights,
++  rasterize,
++  resolveShape,
++} from './layout-analysis.js';
 +import {
 +  LayoutStore,
 +  addShapes,
@@ -15804,6 +17582,10 @@ index 0000000..ca5e009
 +  foundryClient?: FoundryClient;
 +  /** Where layouts and pictures are kept (default: a folder in the temp directory). */
 +  folder?: string;
++  /** generate-image, for the build action. */
++  generate?: (args: any) => Promise<any>;
++  /** upload-file, for the build action. */
++  upload?: (args: any) => Promise<any>;
 +}
 +
 +const KEEP_PICTURES = 30;
@@ -15822,7 +17604,7 @@ index 0000000..ca5e009
 +
 +const schema = z
 +  .object({
-+    action: z.enum(['new', 'add', 'update', 'remove', 'show', 'render', 'walls', 'apply_walls', 'set', 'undo', 'redo', 'list', 'delete']),
++    action: z.enum(['new', 'add', 'update', 'remove', 'show', 'render', 'walls', 'apply_walls', 'check', 'place', 'lights', 'align', 'build', 'set', 'undo', 'redo', 'list', 'delete']),
 +    layout: z.string().min(1).optional(),
 +    name: z.string().min(1).max(60).optional(),
 +    columns: z.number().optional(),
@@ -15860,6 +17642,23 @@ index 0000000..ca5e009
 +    replace: z.boolean().optional(),
 +    shift: z.tuple([z.number(), z.number()]).optional(),
 +    dry_run: z.boolean().optional(),
++    items: z.array(z.record(z.any())).min(1).max(100).optional(),
++    min_area: z.number().min(1).optional(),
++    bright: z.number().min(0).optional(),
++    dim: z.number().min(0).optional(),
++    color: z.string().optional(),
++    animation: z.string().optional(),
++    include_outdoor: z.boolean().optional(),
++    image: z.string().min(1).optional(),
++    max_shift: z.number().min(0).max(5).optional(),
++    prompt: z.string().min(1).optional(),
++    scene_name: z.string().min(1).optional(),
++    scene_grid_size: z.number().int().min(50).max(1000).optional(),
++    scene_options: z.record(z.any()).optional(),
++    upload_folder: z.string().optional(),
++    filename: z.string().optional(),
++    auto_align: z.boolean().optional(),
++    walls: z.boolean().optional(),
 +  })
 +  .strict();
 +
@@ -15880,11 +17679,15 @@ index 0000000..ca5e009
 +  private logger: Logger;
 +  private store: LayoutStore;
 +  private foundryClient: FoundryClient | undefined;
++  private generate: ((args: any) => Promise<any>) | undefined;
++  private upload: ((args: any) => Promise<any>) | undefined;
 +
-+  constructor({ logger, folder, foundryClient }: LayoutToolsOptions) {
++  constructor({ logger, folder, foundryClient, generate, upload }: LayoutToolsOptions) {
 +    this.logger = logger.child({ component: 'LayoutTools' });
 +    this.store = new LayoutStore(folder);
 +    this.foundryClient = foundryClient;
++    this.generate = generate;
++    this.upload = upload;
 +  }
 +
 +  getToolDefinitions() {
@@ -15898,11 +17701,11 @@ index 0000000..ca5e009
 +          'ACTIONS: new {name, columns, rows, grid_size?(64), background?(rock; grass outdoors), snap?(1), wall_fills?, reference?} starts a layout. add {layout, shapes, after?} adds shapes and returns their ids and the text map. update {layout, id, set?, move?:[cols,rows], front?, back?, after?} changes one shape (set null to clear a field). remove {layout, ids}. ' +
 +          'show {layout} returns the text map (one character per square with column and row numbers; add region to zoom, shapes_list for every shape and its numbers) or, with png:true, a picture with the numbered grid, shape ids and the reference page showing through, for checking against a book map. ' +
 +          'reference traces a picture: set {layout, reference:{image, origin:[px,py], cell_px}} where image is a PNG/JPEG on this computer, origin the pixel where square (0,0) starts and cell_px the pixels per square; show png:true then lays your shapes over it (show_reference:false hides it, hide_shapes:true shows only the picture and grid so you can calibrate origin and cell_px). ' +
-+          'render {layout} writes the clean sketch PNG (no grid or labels) and returns its file path and a legend sentence for the prompt. walls {layout} returns wall and door objects (chains around everything drawn with the wall_fills, default floor, at half-square steps; doors become door walls, with secret and state closed/open/locked). apply_walls {layout, scene?, replace?, shift?, dry_run?} builds them and PLACES them on the scene in one step, once the generated map is the scene background: the scene must have the same number of columns and rows as the layout (the generated picture and the layout line up square for square); replace (default true) first removes the walls this tool placed before, so it can be run again after the layout changes; shift [dx, dy] moves everything by squares to match the picture; dry_run only counts. Then check with preview-scene and nudge anything that is off. set {layout, snap?, background?, wall_fills?, reference?} changes layout settings. undo {layout, steps?} and redo {layout, steps?} step back and forward through the changes (add, update, remove, set; the last 40 are kept and saved with the layout); every change reports how many undo and redo steps there are. list; delete {layout}. Works without Foundry.',
++          'render {layout} writes the clean sketch PNG (no grid or labels) and returns its file path and a legend sentence for the prompt. walls {layout} returns wall and door objects (chains around everything drawn with the wall_fills, default floor, at half-square steps; doors become door walls, with secret and state closed/open/locked). apply_walls {layout, scene?, replace?, shift?, dry_run?} builds them and PLACES them on the scene in one step, once the generated map is the scene background: the scene must have the same number of columns and rows as the layout (the generated picture and the layout line up square for square); replace (default true) first removes the walls this tool placed before, so it can be run again after the layout changes; shift [dx, dy] moves everything by squares to match the picture; dry_run only counts. Then check with preview-scene and nudge anything that is off. CHECK, PLACE AND LIGHT: check {layout, scene?} finds problems without looking at a picture: open areas that nothing connects, doors with rock on a side and shapes outside the layout; with scene (id or name) it also reads what is on that scene and reports tokens or pins on solid rock, tokens sharing a square and lights buried in rock. place {layout, scene?, items:[...], shift?, dry_run?} puts tokens, lights and pins INSIDE named shapes without you picking coordinates: each item {kind:"token"|"light"|"note", in: shape id, label number or name, count?(1), spread?(true), ...} where a token has actor, name?, hidden?, width?, height?, disposition?; a light has bright, dim, color?, animation?; a pin has journal, page?, text?. Spots are away from walls, spread apart, on floor (not rock or water), and avoid squares already taken on the scene. lights {layout, scene?, dry_run?, min_area?, bright?, dim?, color?(#ffa040), animation?(torch), include_outdoor?, replace?} proposes torch lights for every room or cave big enough (one per ~40 squares, away from walls; outdoors skipped unless include_outdoor) and places them; replace first removes the lights the tools placed. align {layout, image, max_shift?(1.5)} compares a generated picture with the layout and returns the shift in squares that best makes its floor match, for apply_walls shift. build {layout, scene_name, prompt, upload_folder?(maps), filename?, scene_grid_size?(64), scene_options?, auto_align?(true), walls?(true)} does the whole chain in one call: render the sketch, generate the map (prompt is your description of the look; the legend sentence is added), upload it, create the scene (scene_options: darkness, fog_mode, token_vision, initial_view, grid_alpha ... as in manage-scenes), align and place the walls and doors. Needs the layout to have columns and rows whose pixel size is a multiple of 32. set {layout, snap?, background?, wall_fills?, reference?} changes layout settings. undo {layout, steps?} and redo {layout, steps?} step back and forward through the changes (add, update, remove, set; the last 40 are kept and saved with the layout); every change reports how many undo and redo steps there are. list; delete {layout}. Works without Foundry.',
 +        inputSchema: {
 +          type: 'object',
 +          properties: {
-+            action: { type: 'string', enum: ['new', 'add', 'update', 'remove', 'show', 'render', 'walls', 'apply_walls', 'set', 'undo', 'redo', 'list', 'delete'] },
++            action: { type: 'string', enum: ['new', 'add', 'update', 'remove', 'show', 'render', 'walls', 'apply_walls', 'check', 'place', 'lights', 'align', 'build', 'set', 'undo', 'redo', 'list', 'delete'] },
 +            layout: { type: 'string', description: 'Layout name or id (new: use name)' },
 +            name: { type: 'string', description: 'new: layout name' },
 +            columns: { type: 'number', description: 'new: width in squares (4 to 200)' },
@@ -15977,7 +17780,29 @@ index 0000000..ca5e009
 +            scene: { type: 'string', description: 'apply_walls: scene id or exact name (default the scene being viewed)' },
 +            replace: { type: 'boolean', description: 'apply_walls: first remove walls this tool placed (default true)' },
 +            shift: { type: 'array', items: { type: 'number' }, minItems: 2, maxItems: 2, description: 'apply_walls: shift every wall by [columns, rows]' },
-+            dry_run: { type: 'boolean', description: 'apply_walls: only report what would be placed' },
++            dry_run: { type: 'boolean', description: 'apply_walls, place, lights: only report what would be placed' },
++            items: {
++              type: 'array',
++              maxItems: 100,
++              description: 'place: what to put where. Each: {kind:"token"|"light"|"note", in: shape id, label or name, count?, spread?, actor/name/hidden/width/height/disposition (token), bright/dim/color/animation (light), journal/page/text (note)}',
++              items: { type: 'object', additionalProperties: true },
++            },
++            min_area: { type: 'number', description: 'lights: smallest shape (squares) that gets a light (default 10)' },
++            bright: { type: 'number', description: 'lights: bright radius in squares (default from the room size)' },
++            dim: { type: 'number', description: 'lights: dim radius in squares (default twice bright)' },
++            color: { type: 'string', description: 'lights: #RRGGBB (default #ffa040)' },
++            animation: { type: 'string', description: 'lights: animation (default torch)' },
++            include_outdoor: { type: 'boolean', description: 'lights: also light grass, road and sand shapes' },
++            image: { type: 'string', description: 'align: PNG or JPEG of the generated map on this computer' },
++            max_shift: { type: 'number', description: 'align: largest shift to try, in squares (default 1.5)' },
++            prompt: { type: 'string', description: 'build: the look of the map (the legend of the layout is added)' },
++            scene_name: { type: 'string', description: 'build: name of the scene to create' },
++            scene_grid_size: { type: 'number', description: 'build: pixels per square in the scene (default 64)' },
++            scene_options: { type: 'object', additionalProperties: true, description: 'build: extra manage-scenes create fields (darkness, fog_mode, token_vision, initial_view, grid_alpha, ...)' },
++            upload_folder: { type: 'string', description: 'build: folder below the world uploads (default maps)' },
++            filename: { type: 'string', description: 'build: file name for the uploaded map' },
++            auto_align: { type: 'boolean', description: 'build: shift the walls to match the picture (default true)' },
++            walls: { type: 'boolean', description: 'build: place walls and doors (default true)' },
 +          },
 +          required: ['action'],
 +          additionalProperties: false,
@@ -16117,6 +17942,16 @@ index 0000000..ca5e009
 +      }
 +      case 'apply_walls':
 +        return this.applyWalls(doc, a);
++      case 'check':
++        return this.check(doc, a);
++      case 'place':
++        return this.place(doc, a);
++      case 'lights':
++        return this.lights(doc, a);
++      case 'align':
++        return this.align(doc, a);
++      case 'build':
++        return this.build(doc, a);
 +      default:
 +        throw new Error(`Unknown action: ${a.action}`);
 +    }
@@ -16199,6 +18034,276 @@ index 0000000..ca5e009
 +      removedOldWalls: removed,
 +      wallSegmentsCreated: created,
 +      next: 'Open preview-scene to check where the walls fall on the picture; the generated art often draws its walls a little inside or outside the floor edge, so use shift or manage-scene-objects to adjust.',
++    };
++  }
++
++  private client(): FoundryClient {
++    if (!this.foundryClient) throw new Error('This needs the connection to Foundry, which is not available here');
++    return this.foundryClient;
++  }
++
++  /** Read what is on a scene (tokens, lights, pins) in grid squares. */
++  private async readScene(scene: string | undefined): Promise<any> {
++    const res = await this.client().query('foundry-mcp-bridge.manage-scene-objects', {
++      action: 'describe',
++      ...(scene ? { scene } : {}),
++    });
++    if (res?.success === false) throw new Error(res.error || 'Could not read the scene');
++    return res;
++  }
++
++  private async check(doc: LayoutDoc, a: Args): Promise<any> {
++    const layout = layoutOf(doc);
++    const result = checkLayout(layout);
++    let sceneProblems: string[] | undefined;
++    let sceneInfo: any;
++    if (a.scene) {
++      const described = await this.readScene(a.scene);
++      sceneInfo = described.scene;
++      sceneProblems = checkSceneObjects(layout, {
++        tokens: (described.tokens ?? []).map((t: any) => ({ name: t.name, x: t.x, y: t.y, width: t.width ?? 1, height: t.height ?? 1, hidden: t.hidden })),
++        lights: (described.lights ?? []).map((l: any) => ({ x: l.x, y: l.y })),
++        notes: (described.notes ?? []).map((n: any) => ({ x: n.x, y: n.y, text: n.text })),
++      });
++    }
++    const problems = result.errors.length + result.warnings.length + (sceneProblems?.length ?? 0);
++    return {
++      success: true,
++      layout: doc.id,
++      ok: problems === 0,
++      errors: result.errors,
++      warnings: result.warnings,
++      ...(sceneProblems ? { scene: sceneInfo, sceneProblems } : {}),
++      areas: result.areas.slice(0, 8),
++    };
++  }
++
++  private async place(doc: LayoutDoc, a: Args): Promise<any> {
++    if (!a.items) throw new Error('place needs items');
++    const layout = layoutOf(doc);
++    const r = rasterize(layout);
++    const taken = new Set<string>();
++    if (a.scene || !a.dry_run) {
++      try {
++        const described = await this.readScene(a.scene);
++        for (const t of described.tokens ?? []) {
++          for (let dy = 0; dy < Math.max(1, Math.round(t.height ?? 1)); dy++) {
++            for (let dx = 0; dx < Math.max(1, Math.round(t.width ?? 1)); dx++) taken.add(`${Math.floor(t.x) + dx},${Math.floor(t.y) + dy}`);
++          }
++        }
++      } catch (error) {
++        if (!a.dry_run) throw error;
++      }
++    }
++    const [sx, sy] = a.shift ?? [0, 0];
++    const objects: any[] = [];
++    const report: any[] = [];
++    for (const [index, item] of a.items.entries()) {
++      const label = `items[${index}]`;
++      const kind = item.kind;
++      if (kind !== 'token' && kind !== 'light' && kind !== 'note') throw new Error(`${label}: kind must be token, light or note`);
++      if (item.in === undefined) throw new Error(`${label}: "in" (a shape id, label or name) is required`);
++      const { shape, index: shapeIndex } = resolveShape(layout, item.in);
++      const count = Math.max(1, Math.min(60, Math.round(Number(item.count ?? 1))));
++      const width = kind === 'token' ? Number(item.width ?? 1) : 1;
++      const height = kind === 'token' ? Number(item.height ?? 1) : 1;
++      const spots = pickSpots(layout, r, shapeIndex, count, {
++        width,
++        height,
++        taken,
++        spread: item.spread !== false,
++      });
++      spots.forEach((spot, n) => {
++        for (let dy = 0; dy < Math.max(1, Math.round(height)); dy++) {
++          for (let dx = 0; dx < Math.max(1, Math.round(width)); dx++) taken.add(`${spot.x + dx},${spot.y + dy}`);
++        }
++        const round = (v: number) => Math.round(v * 100) / 100;
++        if (kind === 'token') {
++          if (!item.actor) throw new Error(`${label}: a token needs actor`);
++          const name = item.name ? (count > 1 ? `${item.name} ${n + 1}` : item.name) : undefined;
++          objects.push({
++            kind: 'token',
++            actor: item.actor,
++            x: round(spot.x + sx),
++            y: round(spot.y + sy),
++            ...(name ? { name } : {}),
++            ...(item.hidden !== undefined ? { hidden: item.hidden } : {}),
++            ...(item.width !== undefined ? { width: item.width } : {}),
++            ...(item.height !== undefined ? { height: item.height } : {}),
++            ...(item.disposition !== undefined ? { disposition: item.disposition } : {}),
++            ...(item.elevation !== undefined ? { elevation: item.elevation } : {}),
++          });
++        } else if (kind === 'light') {
++          objects.push({
++            kind: 'light',
++            x: round(spot.x + 0.5 + sx),
++            y: round(spot.y + 0.5 + sy),
++            bright: Number(item.bright ?? 3),
++            dim: Number(item.dim ?? (item.bright ? Number(item.bright) * 2 : 7)),
++            ...(item.color ? { color: item.color } : {}),
++            ...(item.animation ? { animation: item.animation } : {}),
++            ...(item.alpha !== undefined ? { alpha: item.alpha } : {}),
++            ...(item.hidden !== undefined ? { hidden: item.hidden } : {}),
++          });
++        } else {
++          if (!item.journal) throw new Error(`${label}: a pin needs journal`);
++          objects.push({
++            kind: 'note',
++            x: round(spot.x + 0.5 + sx),
++            y: round(spot.y + 0.5 + sy),
++            journal: item.journal,
++            ...(item.page ? { page: item.page } : {}),
++            ...(item.text ? { text: item.text } : {}),
++            ...(item.global !== undefined ? { global: item.global } : {}),
++          });
++        }
++        report.push({ kind, in: shape.name ?? shape.id, at: [spot.x, spot.y] });
++      });
++    }
++    if (a.dry_run) return { success: true, layout: doc.id, dryRun: true, wouldPlace: objects.length, positions: report };
++    return this.placeObjects(doc, a.scene, objects, report);
++  }
++
++  private async placeObjects(doc: LayoutDoc, scene: string | undefined, objects: any[], report: any[]): Promise<any> {
++    const created: any[] = [];
++    for (let i = 0; i < objects.length; i += 150) {
++      const res = await this.client().query('foundry-mcp-bridge.manage-scene-objects', {
++        action: 'place',
++        ...(scene ? { scene } : {}),
++        objects: objects.slice(i, i + 150),
++      });
++      if (res?.success === false) throw new Error(res.error || 'Could not place the objects');
++      created.push(...(res?.created ?? []));
++    }
++    return { success: true, layout: doc.id, placed: created.length, positions: report, created };
++  }
++
++  private async lights(doc: LayoutDoc, a: Args): Promise<any> {
++    const layout = layoutOf(doc);
++    const proposals = proposeLights(layout, {
++      ...(a.min_area !== undefined ? { minArea: a.min_area } : {}),
++      ...(a.bright !== undefined ? { bright: a.bright } : {}),
++      ...(a.dim !== undefined ? { dim: a.dim } : {}),
++      ...(a.include_outdoor !== undefined ? { includeOutdoor: a.include_outdoor } : {}),
++    });
++    if (proposals.length === 0) throw new Error('No shape is big enough for a light (lower min_area, or use include_outdoor)');
++    const [sx, sy] = a.shift ?? [0, 0];
++    const report = proposals.map(p => ({ kind: 'light', in: p.shape, at: [p.x, p.y], bright: p.bright, dim: p.dim }));
++    if (a.dry_run) return { success: true, layout: doc.id, dryRun: true, wouldPlace: proposals.length, positions: report };
++    if (a.replace) {
++      const out = await this.client().query('foundry-mcp-bridge.manage-scene-objects', {
++        action: 'remove',
++        kind: 'light',
++        all_mine: true,
++        ...(a.scene ? { scene: a.scene } : {}),
++      });
++      if (out?.success === false) throw new Error(out.error || 'Could not remove the old lights');
++    }
++    const objects = proposals.map(p => ({
++      kind: 'light',
++      x: Math.round((p.x + sx) * 100) / 100,
++      y: Math.round((p.y + sy) * 100) / 100,
++      bright: p.bright,
++      dim: p.dim,
++      color: a.color ?? '#ffa040',
++      animation: a.animation ?? 'torch',
++    }));
++    return this.placeObjects(doc, a.scene, objects, report);
++  }
++
++  private async align(doc: LayoutDoc, a: Args): Promise<any> {
++    if (!a.image) throw new Error('align needs image (the generated map file on this computer)');
++    const image = await decodeImage(a.image);
++    const layout = layoutOf(doc);
++    const result = alignToImage(layout, image, a.max_shift ?? 1.5);
++    return {
++      success: true,
++      layout: doc.id,
++      ...result,
++      advice:
++        result.quality === 'none'
++          ? 'The picture hardly follows the layout (the shapes may be too loose, or the picture has a different size); check it by eye with preview-scene before trusting any shift.'
++          : result.shift[0] === 0 && result.shift[1] === 0
++            ? 'The picture lines up with the layout; no shift needed.'
++            : `Pass shift [${result.shift[0]}, ${result.shift[1]}] to apply_walls (or lights/place) so walls and objects match the picture.`,
++    };
++  }
++
++  private async build(doc: LayoutDoc, a: Args): Promise<any> {
++    if (!this.generate || !this.upload) throw new Error('build needs image generation and upload, which are not available here');
++    if (!a.scene_name) throw new Error('build needs scene_name');
++    if (!a.prompt) throw new Error('build needs prompt (describe the look of the map)');
++    const width = doc.columns * doc.size;
++    const height = doc.rows * doc.size;
++    if (width % 32 !== 0 || height % 32 !== 0) {
++      throw new Error(`The picture would be ${width} x ${height} pixels; the image model needs multiples of 32. Change the layout columns, rows or grid_size (set grid_size 32, 64 or pick even columns for 48).`);
++    }
++    const steps: string[] = [];
++    const sketch = await this.render(doc);
++    steps.push('sketch rendered');
++    const generated = await this.generate({
++      kind: 'map',
++      width,
++      height,
++      upload: false,
++      reference_images: [sketch.file],
++      prompt: `<Picture 1> is the exact floor plan to follow. ${sketch.legend} ${a.prompt} No text, no numbers, no grid lines, no characters.`,
++    });
++    if (generated?.success === false) throw new Error(generated.error || 'The map could not be generated');
++    const localPath: string | undefined = generated?.local_path;
++    if (!localPath) throw new Error('The image generator returned no file');
++    steps.push(`map generated (${generated.seconds ?? '?'} s)`);
++
++    const uploaded = await this.upload({
++      file_path: localPath,
++      folder: a.upload_folder ?? 'maps',
++      filename: a.filename ?? `${doc.id}-${Date.now().toString(36)}.png`,
++    });
++    if (uploaded?.success === false || !uploaded?.path) throw new Error(uploaded?.error || 'The map could not be uploaded');
++    steps.push(`uploaded to ${uploaded.path}`);
++
++    const gridPx = a.scene_grid_size ?? 64;
++    const created = await this.client().query('foundry-mcp-bridge.manage-scenes', {
++      action: 'create',
++      name: a.scene_name,
++      background: uploaded.path,
++      width: doc.columns * gridPx,
++      height: doc.rows * gridPx,
++      grid_size: gridPx,
++      padding: 0,
++      ...(a.scene_options ?? {}),
++    });
++    if (created?.success === false) throw new Error(created.error || 'The scene could not be created');
++    const sceneId: string | undefined = created?.scene?.id;
++    if (!sceneId) throw new Error('Foundry did not return the new scene');
++    steps.push(`scene "${a.scene_name}" created`);
++
++    let shift: [number, number] = a.shift ?? [0, 0];
++    let alignment: any;
++    if (a.auto_align !== false && !a.shift) {
++      try {
++        alignment = alignToImage(layoutOf(doc), await decodeImage(localPath));
++        if (alignment.quality !== 'none') shift = alignment.shift;
++        steps.push(`aligned (shift ${shift[0]}, ${shift[1]}, match ${alignment.score})`);
++      } catch (error) {
++        steps.push(`alignment skipped: ${error instanceof Error ? error.message : 'failed'}`);
++      }
++    }
++
++    let walls: any;
++    if (a.walls !== false) {
++      walls = await this.applyWalls(doc, { ...a, scene: sceneId, shift });
++      steps.push(`${walls.walls} walls and ${walls.doors} doors placed`);
++    }
++    return {
++      success: true,
++      layout: doc.id,
++      scene: { id: sceneId, name: a.scene_name },
++      image: { local: localPath, uploaded: uploaded.path },
++      ...(alignment ? { alignment } : {}),
++      ...(walls ? { walls: { walls: walls.walls, doors: walls.doors, shift } } : {}),
++      steps,
++      next: 'Look at the result with preview-scene (layers and text mode help in crowded scenes), then place tokens and lights with layout place and lights.',
 +    };
 +  }
 +
@@ -16528,10 +18633,10 @@ index 0000000..06e09dd
 +}
 diff --git a/packages/mcp-server/src/tools/scene-objects.test.ts b/packages/mcp-server/src/tools/scene-objects.test.ts
 new file mode 100644
-index 0000000..11f4072
+index 0000000..5b9f701
 --- /dev/null
 +++ b/packages/mcp-server/src/tools/scene-objects.test.ts
-@@ -0,0 +1,321 @@
+@@ -0,0 +1,359 @@
 +import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 +import { promises as fs } from 'fs';
 +import { SceneObjectTools } from './scene-objects.js';
@@ -16724,6 +18829,44 @@ index 0000000..11f4072
 +    expect(await fs.readFile(result.file)).toEqual(png);
 +  });
 +
++  it('passes layers, labels and dim on to Foundry', async () => {
++    const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 1]);
++    const { tools, query } = makeTools(async () => ({
++      success: true,
++      scene: { id: 's', name: 'Cave' },
++      imageBase64: png.toString('base64'),
++      legend: { tokens: [{ n: 1, name: 'Wolf' }] },
++    }));
++    const result = await tools.handlePreviewScene({ layers: ['image', 'tokens'], labels: 'names', dim: 0.4 });
++    created.push(result.file);
++    expect(query.mock.calls[0][1]).toEqual({ layers: ['image', 'tokens'], labels: 'names', dim: 0.4 });
++    expect(result.legend.tokens[0].name).toBe('Wolf');
++    await expect(tools.handlePreviewScene({ layers: ['ghosts'] })).rejects.toThrow();
++    await expect(tools.handlePreviewScene({ dim: 1 })).rejects.toThrow();
++  });
++
++  it('text mode asks for data only and returns a text map and key, no file', async () => {
++    const { tools, query } = makeTools(async () => ({
++      success: true,
++      dataOnly: true,
++      scene: { id: 's', name: 'Cave' },
++      grid: { columns: 4, rows: 3 },
++      legend: {
++        tokens: [{ n: 1, name: 'Wolf', x: 1, y: 1, width: 1, height: 1, hidden: false }],
++        lights: [],
++        notes: [],
++        regions: [],
++      },
++      walls: [[0, 0, 4, 0, 0]],
++    }));
++    const result = await tools.handlePreviewScene({ scene: 'Cave', text: true, layers: ['tokens'] });
++    expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.preview-scene', { scene: 'Cave', data_only: true }, 60000);
++    expect(result.file).toBeUndefined();
++    expect(result.map).toContain('#########');
++    expect(result.map).toContain('1');
++    expect(result.key.join('\n')).toContain('1 = Wolf at 1,1');
++  });
++
 +  it('fails clearly when Foundry returns no picture', async () => {
 +    const { tools } = makeTools(async () => ({ success: true, scene: { name: 's' } }));
 +    await expect(tools.handlePreviewScene({})).rejects.toThrow('returned no picture');
@@ -16855,16 +18998,17 @@ index 0000000..11f4072
 +});
 diff --git a/packages/mcp-server/src/tools/scene-objects.ts b/packages/mcp-server/src/tools/scene-objects.ts
 new file mode 100644
-index 0000000..653d8d4
+index 0000000..8f2daa6
 --- /dev/null
 +++ b/packages/mcp-server/src/tools/scene-objects.ts
-@@ -0,0 +1,694 @@
+@@ -0,0 +1,735 @@
 +import { promises as fs } from 'fs';
 +import os from 'os';
 +import path from 'path';
 +import { z } from 'zod';
 +import { FoundryClient } from '../foundry-client.js';
 +import { Logger } from '../logger.js';
++import { sceneTextMap } from './scene-text-map.js';
 +
 +export interface SceneObjectToolsOptions {
 +  foundryClient: FoundryClient;
@@ -17076,6 +19220,13 @@ index 0000000..653d8d4
 +    scene: z.string().min(1).optional(),
 +    max_size: z.number().int().min(200).max(3000).optional(),
 +    label_every: z.number().int().min(1).max(50).optional(),
++    layers: z
++      .array(z.enum(['image', 'grid', 'walls', 'doors', 'tokens', 'lights', 'light_radii', 'notes', 'regions']))
++      .min(1)
++      .optional(),
++    labels: z.enum(['numbers', 'names', 'none']).optional(),
++    dim: z.number().min(0).max(0.9).optional(),
++    text: z.boolean().optional(),
 +    region: z
 +      .object({
 +        x: z.number().min(0),
@@ -17297,7 +19448,7 @@ index 0000000..653d8d4
 +      {
 +        name: 'manage-regions',
 +        description:
-+          'Regions are areas of a scene that act when tokens enter, leave or move in them: difficult terrain, traps, pop-up text, teleports. ' +
++          'Regions are areas of a scene that act when tokens enter, leave or move in them: difficult terrain, traps, pop-up text, teleports. A region with hidden:true never runs its behaviors (Foundry skips them), so leave trap regions visible to the GM (not hidden) and do not declare token or actor constants in a trap macro (they clash with the macro\'s own variables; use the event variable instead). ' +
 +          'Shapes are in GRID SQUARES from the top-left corner of the map, like manage-scene-objects. ' +
 +          'create takes regions (up to 100): {name, one of rect:[x,y,width,height] | ellipse:[centreX,centreY,radiusX,radiusY] | polygon:[[x,y],...], color?, hidden?, display_measurements?, behaviors?}. ' +
 +          'A behavior is either {preset:"difficult_terrain", cost?} (movement costs cost times as much, default 2) or a raw Foundry behavior {type, name?, system?, disabled?} such as executeMacro (run a world macro on tokenEnter, e.g. a pit trap that rolls a save and damage), displayScrollingText, pauseGame or teleportToken. ' +
@@ -17358,6 +19509,24 @@ index 0000000..653d8d4
 +            scene: {
 +              type: 'string',
 +              description: 'Scene id or exact name (default: the scene being viewed)',
++            },
++            layers: {
++              type: 'array',
++              items: { type: 'string', enum: ['image', 'grid', 'walls', 'doors', 'tokens', 'lights', 'light_radii', 'notes', 'regions'] },
++              description:
++                'What to draw (default: image, grid, walls, doors, tokens, lights as dots, notes, regions). Pass e.g. ["image","grid","tokens"] to check only the tokens, ["grid","walls","doors"] for just the walls, or add "light_radii" to see how far lights reach.',
++            },
++            labels: {
++              type: 'string',
++              enum: ['numbers', 'names', 'none'],
++              description:
++                'numbers (default): tokens numbered 1, 2, 3..., lights L1..., regions R1..., with the list (names, positions, hidden) in the result so labels never overlap; names: write the names on the picture; none',
++            },
++            dim: { type: 'number', description: 'Darken the map image 0 to 0.9 so the overlay stands out' },
++            text: {
++              type: 'boolean',
++              description:
++                'Return a text map instead of a picture (no image needed): walls #, doors D, secret doors s, tokens as 1-9/A-Z, lights *, pins n, regions : ! ~ on a character grid with column and row numbers, plus a key. Exact and cheap for crowded scenes.',
 +            },
 +            region: {
 +              type: 'object',
@@ -17502,7 +19671,22 @@ index 0000000..653d8d4
 +  }
 +
 +  async handlePreviewScene(args: any): Promise<any> {
-+    const parsed = previewSchema.parse(args ?? {});
++    const { text, ...parsed } = previewSchema.parse(args ?? {});
++
++    if (text) {
++      try {
++        const result = await this.foundryClient.query(
++          'foundry-mcp-bridge.preview-scene',
++          { scene: parsed.scene, data_only: true },
++          PREVIEW_TIMEOUT_MS
++        );
++        if (result?.success === false) throw new Error(result.error || 'Request was refused');
++        const map = sceneTextMap(result);
++        return { success: true, scene: result.scene, grid: result.grid, map: map.text, key: map.key };
++      } catch (error) {
++        throw new Error(`Failed to describe scene: ${error instanceof Error ? error.message : 'Unknown error'}`);
++      }
++    }
 +
 +    try {
 +      const result = await this.foundryClient.query(
@@ -17552,6 +19736,247 @@ index 0000000..653d8d4
 +      // Cleaning up is best effort.
 +    }
 +  }
++}
+diff --git a/packages/mcp-server/src/tools/scene-text-map.test.ts b/packages/mcp-server/src/tools/scene-text-map.test.ts
+new file mode 100644
+index 0000000..231841d
+--- /dev/null
++++ b/packages/mcp-server/src/tools/scene-text-map.test.ts
+@@ -0,0 +1,94 @@
++import { describe, expect, it } from 'vitest';
++import { sceneTextMap, type TextMapData } from './scene-text-map.js';
++
++function data(extra: Partial<TextMapData> = {}): TextMapData {
++  return {
++    grid: { columns: 6, rows: 4 },
++    legend: { tokens: [], lights: [], notes: [], regions: [] },
++    walls: [],
++    ...extra,
++  };
++}
++
++function cell(text: string, col: number, row: number): string {
++  // two header lines, then two lines per square plus the top line; each line has a 3 character label
++  const lines = text.split('\n');
++  return lines[2 + row * 2 + 1]![3 + col * 2 + 1] ?? ' ';
++}
++
++describe('sceneTextMap', () => {
++  it('draws walls on grid lines and doors as D and s', () => {
++    const { text } = sceneTextMap(
++      data({
++        walls: [
++          [0, 0, 6, 0, 0],
++          [3, 0, 4, 0, 1],
++          [0, 4, 2, 4, 2],
++          [0, 0, 0, 4, 0],
++        ],
++      })
++    );
++    const lines = text.split('\n');
++    const top = lines[2]!;
++    expect(top.slice(3, 3 + 13)).toBe('######DDD####');
++    expect(lines[2 + 8]!.slice(3, 3 + 5)).toBe('sssss');
++    expect(lines[2 + 3]![3]).toBe('#');
++  });
++
++  it('puts tokens, lights and pins on square centres and lists them in the key', () => {
++    const { text, key } = sceneTextMap(
++      data({
++        legend: {
++          tokens: [
++            { n: 1, name: 'Wolf', x: 1, y: 1, width: 1, height: 1, hidden: true },
++            { n: 2, name: 'Ogre', x: 3, y: 2, width: 2, height: 2, hidden: false },
++          ],
++          lights: [{ n: 'L1', x: 2, y: 1, bright: 3, dim: 6 }],
++          notes: [{ n: 'N1', x: 0.5, y: 0.5, text: 'Cave' }],
++          regions: [],
++        },
++      })
++    );
++    expect(cell(text, 1, 1)).toBe('1');
++    for (const [c, r] of [[3, 2], [4, 2], [3, 3], [4, 3]] as const) expect(cell(text, c, r)).toBe('2');
++    expect(cell(text, 0, 0)).toBe('n');
++    expect(text.split('\n')[2 + 2]![3 + 4]).toBe('*');
++    expect(key.join('\n')).toContain('1 = Wolf (hidden) at 1,1');
++    expect(key.join('\n')).toContain('2 = Ogre at 3,2 size 2x2');
++    expect(key.join('\n')).toContain('pin "Cave"');
++  });
++
++  it('marks region squares by kind', () => {
++    const { text, key } = sceneTextMap(
++      data({
++        legend: {
++          tokens: [],
++          lights: [],
++          notes: [],
++          regions: [
++            { n: 'R1', name: 'Rubble', kinds: ['dnd5e.difficultTerrain'] },
++            { n: 'R2', name: 'Pit', kinds: ['executeMacro'] },
++          ],
++        },
++        regionShapes: [
++          [{ type: 'poly', points: [[0, 0], [2, 0], [2, 2], [0, 2]] }],
++          [{ type: 'ellipse', cx: 4.5, cy: 3.5, rx: 0.6, ry: 0.6 }],
++        ],
++      })
++    );
++    expect(cell(text, 0, 0)).toBe(':');
++    expect(cell(text, 1, 1)).toBe(':');
++    expect(cell(text, 2, 2)).toBe(' ');
++    expect(cell(text, 4, 3)).toBe('!');
++    expect(key.join('\n')).toContain('R2 region "Pit"');
++  });
++
++  it('numbers the columns and rows and refuses huge scenes', () => {
++    const { text } = sceneTextMap(data({ grid: { columns: 12, rows: 3 } }));
++    const lines = text.split('\n');
++    expect(lines[0]!.replace(/ /g, '')).toBe('01');
++    expect(lines[1]!.replace(/ /g, '')).toBe('012345678901');
++    expect(lines[3]!.startsWith(' 0')).toBe(true);
++    expect(() => sceneTextMap(data({ grid: { columns: 300, rows: 10 } }))).toThrow('up to');
++  });
++});
+diff --git a/packages/mcp-server/src/tools/scene-text-map.ts b/packages/mcp-server/src/tools/scene-text-map.ts
+new file mode 100644
+index 0000000..dcbe47a
+--- /dev/null
++++ b/packages/mcp-server/src/tools/scene-text-map.ts
+@@ -0,0 +1,135 @@
++/**
++ * A text picture of a scene (no image needed): walls, doors, tokens, lights, pins and regions
++ * on a character grid, so a crowded scene can be checked exactly. Every square is two
++ * characters wide and two tall: grid points sit on the even positions and square centres on the
++ * odd ones, so walls (which run along grid lines and half squares) show where they really are.
++ */
++
++export interface TextMapToken {
++  n: number;
++  name: string;
++  x: number;
++  y: number;
++  width: number;
++  height: number;
++  hidden: boolean;
++}
++
++export interface TextMapData {
++  grid: { columns: number; rows: number };
++  legend: {
++    tokens: TextMapToken[];
++    lights: Array<{ n: string; x: number; y: number; bright: number; dim: number }>;
++    notes: Array<{ n: string; x: number; y: number; text: string }>;
++    regions: Array<{ n: string; name: string; kinds: string[] }>;
++  };
++  /** [x1, y1, x2, y2, door] in squares; door 0 wall, 1 door, 2 secret door. */
++  walls: number[][];
++  /** Outlines of the regions in the same order as legend.regions. */
++  regionShapes?: Array<Array<{ type: 'poly'; points: Array<[number, number]> } | { type: 'ellipse'; cx: number; cy: number; rx: number; ry: number }>>;
++}
++
++const MAX_SQUARES = 120;
++const TOKEN_CHARS = '123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
++
++function inPoly(x: number, y: number, pts: Array<[number, number]>): boolean {
++  let inside = false;
++  for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
++    const [xi, yi] = pts[i]!;
++    const [xj, yj] = pts[j]!;
++    if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) inside = !inside;
++  }
++  return inside;
++}
++
++function regionChar(kinds: string[]): string {
++  const k = kinds.join(' ').toLowerCase();
++  if (k.includes('difficult')) return ':';
++  if (k.includes('macro') || k.includes('trap')) return '!';
++  if (k.includes('teleport')) return 'T';
++  return '~';
++}
++
++export function sceneTextMap(data: TextMapData): { text: string; key: string[] } {
++  const { columns, rows } = data.grid;
++  if (columns > MAX_SQUARES || rows > MAX_SQUARES) {
++    throw new Error(`The scene is ${columns} x ${rows} squares; the text map handles up to ${MAX_SQUARES} x ${MAX_SQUARES}`);
++  }
++  const W = columns * 2 + 1;
++  const H = rows * 2 + 1;
++  const cells: string[][] = Array.from({ length: H }, () => Array(W).fill(' '));
++
++  // Regions first (under everything else), on square centres.
++  (data.regionShapes ?? []).forEach((shapes, i) => {
++    const ch = regionChar(data.legend.regions[i]?.kinds ?? []);
++    for (let r = 0; r < rows; r++) {
++      for (let c = 0; c < columns; c++) {
++        const px = c + 0.5;
++        const py = r + 0.5;
++        const hit = shapes.some(s =>
++          s.type === 'poly'
++            ? inPoly(px, py, s.points)
++            : ((px - s.cx) / s.rx) ** 2 + ((py - s.cy) / s.ry) ** 2 <= 1
++        );
++        if (hit) cells[r * 2 + 1]![c * 2 + 1] = ch;
++      }
++    }
++  });
++
++  // Walls: sampled every quarter square.
++  for (const [x1, y1, x2, y2, door] of data.walls as Array<[number, number, number, number, number]>) {
++    const len = Math.hypot(x2 - x1, y2 - y1);
++    const steps = Math.max(1, Math.ceil(len * 4));
++    const ch = door === 2 ? 's' : door === 1 ? 'D' : '#';
++    for (let i = 0; i <= steps; i++) {
++      const x = Math.round((x1 + ((x2 - x1) * i) / steps) * 2);
++      const y = Math.round((y1 + ((y2 - y1) * i) / steps) * 2);
++      if (x < 0 || y < 0 || x >= W || y >= H) continue;
++      const prev = cells[y]![x]!;
++      // A door stays visible where it meets a wall.
++      if (ch === '#' && (prev === 'D' || prev === 's')) continue;
++      cells[y]![x] = ch;
++    }
++  }
++
++  // Lights, pins and tokens on top.
++  for (const l of data.legend.lights) {
++    const x = Math.round(l.x * 2);
++    const y = Math.round(l.y * 2);
++    if (x >= 0 && y >= 0 && x < W && y < H) cells[y]![x] = '*';
++  }
++  for (const n of data.legend.notes) {
++    const x = Math.round(n.x * 2);
++    const y = Math.round(n.y * 2);
++    if (x >= 0 && y >= 0 && x < W && y < H) cells[y]![x] = 'n';
++  }
++  const key: string[] = [];
++  data.legend.tokens.forEach((t, i) => {
++    const ch = TOKEN_CHARS[i] ?? '?';
++    for (let dy = 0; dy < Math.max(1, Math.round(t.height)); dy++) {
++      for (let dx = 0; dx < Math.max(1, Math.round(t.width)); dx++) {
++        const x = (Math.floor(t.x) + dx) * 2 + 1;
++        const y = (Math.floor(t.y) + dy) * 2 + 1;
++        if (x >= 0 && y >= 0 && x < W && y < H) cells[y]![x] = ch;
++      }
++    }
++    key.push(`${ch} = ${t.name}${t.hidden ? ' (hidden)' : ''} at ${t.x},${t.y}${t.width !== 1 || t.height !== 1 ? ` size ${t.width}x${t.height}` : ''}`);
++  });
++  data.legend.lights.forEach(l => key.push(`* ${l.n} light at ${l.x},${l.y} (bright ${l.bright}, dim ${l.dim})`));
++  data.legend.notes.forEach(n => key.push(`n ${n.n} pin "${n.text}" at ${n.x},${n.y}`));
++  data.legend.regions.forEach(r => key.push(`${regionChar(r.kinds)} ${r.n} region "${r.name}"${r.kinds.length ? ` (${r.kinds.join(', ')})` : ''}`));
++
++  // Column ruler: tens and ones above each square centre.
++  const tens: string[] = Array(W + 3).fill(' ');
++  const ones: string[] = Array(W + 3).fill(' ');
++  for (let c = 0; c < columns; c++) {
++    if (c % 10 === 0) tens[3 + c * 2 + 1] = String(Math.floor(c / 10) % 10);
++    ones[3 + c * 2 + 1] = String(c % 10);
++  }
++  const lines = [tens.join('').trimEnd(), ones.join('').trimEnd()];
++  for (let y = 0; y < H; y++) {
++    const label = y % 2 === 1 ? String((y - 1) / 2).padStart(2) : '  ';
++    lines.push(`${label} ${cells[y]!.join('')}`.trimEnd());
++  }
++  return { text: lines.join('\n'), key: ['# wall   D door   s secret door   * light   n pin   : difficult terrain   ! trap region   ~ other region', ...key] };
 +}
 diff --git a/packages/mcp-server/src/tools/scene.test.ts b/packages/mcp-server/src/tools/scene.test.ts
 new file mode 100644

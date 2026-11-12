@@ -120780,6 +120780,109 @@ var import_fs3 = require("fs");
 var import_os2 = __toESM(require("os"), 1);
 var import_path3 = __toESM(require("path"), 1);
 init_zod();
+
+// dist/tools/scene-text-map.js
+var MAX_SQUARES = 120;
+var TOKEN_CHARS = "123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+function inPoly(x, y, pts) {
+  let inside = false;
+  for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+    const [xi, yi] = pts[i];
+    const [xj, yj] = pts[j];
+    if (yi > y !== yj > y && x < (xj - xi) * (y - yi) / (yj - yi) + xi)
+      inside = !inside;
+  }
+  return inside;
+}
+function regionChar(kinds) {
+  const k = kinds.join(" ").toLowerCase();
+  if (k.includes("difficult"))
+    return ":";
+  if (k.includes("macro") || k.includes("trap"))
+    return "!";
+  if (k.includes("teleport"))
+    return "T";
+  return "~";
+}
+function sceneTextMap(data) {
+  const { columns, rows } = data.grid;
+  if (columns > MAX_SQUARES || rows > MAX_SQUARES) {
+    throw new Error(`The scene is ${columns} x ${rows} squares; the text map handles up to ${MAX_SQUARES} x ${MAX_SQUARES}`);
+  }
+  const W = columns * 2 + 1;
+  const H = rows * 2 + 1;
+  const cells = Array.from({ length: H }, () => Array(W).fill(" "));
+  (data.regionShapes ?? []).forEach((shapes, i) => {
+    const ch = regionChar(data.legend.regions[i]?.kinds ?? []);
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < columns; c++) {
+        const px = c + 0.5;
+        const py = r + 0.5;
+        const hit = shapes.some((s) => s.type === "poly" ? inPoly(px, py, s.points) : ((px - s.cx) / s.rx) ** 2 + ((py - s.cy) / s.ry) ** 2 <= 1);
+        if (hit)
+          cells[r * 2 + 1][c * 2 + 1] = ch;
+      }
+    }
+  });
+  for (const [x1, y1, x2, y2, door] of data.walls) {
+    const len = Math.hypot(x2 - x1, y2 - y1);
+    const steps = Math.max(1, Math.ceil(len * 4));
+    const ch = door === 2 ? "s" : door === 1 ? "D" : "#";
+    for (let i = 0; i <= steps; i++) {
+      const x = Math.round((x1 + (x2 - x1) * i / steps) * 2);
+      const y = Math.round((y1 + (y2 - y1) * i / steps) * 2);
+      if (x < 0 || y < 0 || x >= W || y >= H)
+        continue;
+      const prev = cells[y][x];
+      if (ch === "#" && (prev === "D" || prev === "s"))
+        continue;
+      cells[y][x] = ch;
+    }
+  }
+  for (const l of data.legend.lights) {
+    const x = Math.round(l.x * 2);
+    const y = Math.round(l.y * 2);
+    if (x >= 0 && y >= 0 && x < W && y < H)
+      cells[y][x] = "*";
+  }
+  for (const n of data.legend.notes) {
+    const x = Math.round(n.x * 2);
+    const y = Math.round(n.y * 2);
+    if (x >= 0 && y >= 0 && x < W && y < H)
+      cells[y][x] = "n";
+  }
+  const key = [];
+  data.legend.tokens.forEach((t, i) => {
+    const ch = TOKEN_CHARS[i] ?? "?";
+    for (let dy = 0; dy < Math.max(1, Math.round(t.height)); dy++) {
+      for (let dx = 0; dx < Math.max(1, Math.round(t.width)); dx++) {
+        const x = (Math.floor(t.x) + dx) * 2 + 1;
+        const y = (Math.floor(t.y) + dy) * 2 + 1;
+        if (x >= 0 && y >= 0 && x < W && y < H)
+          cells[y][x] = ch;
+      }
+    }
+    key.push(`${ch} = ${t.name}${t.hidden ? " (hidden)" : ""} at ${t.x},${t.y}${t.width !== 1 || t.height !== 1 ? ` size ${t.width}x${t.height}` : ""}`);
+  });
+  data.legend.lights.forEach((l) => key.push(`* ${l.n} light at ${l.x},${l.y} (bright ${l.bright}, dim ${l.dim})`));
+  data.legend.notes.forEach((n) => key.push(`n ${n.n} pin "${n.text}" at ${n.x},${n.y}`));
+  data.legend.regions.forEach((r) => key.push(`${regionChar(r.kinds)} ${r.n} region "${r.name}"${r.kinds.length ? ` (${r.kinds.join(", ")})` : ""}`));
+  const tens = Array(W + 3).fill(" ");
+  const ones = Array(W + 3).fill(" ");
+  for (let c = 0; c < columns; c++) {
+    if (c % 10 === 0)
+      tens[3 + c * 2 + 1] = String(Math.floor(c / 10) % 10);
+    ones[3 + c * 2 + 1] = String(c % 10);
+  }
+  const lines = [tens.join("").trimEnd(), ones.join("").trimEnd()];
+  for (let y = 0; y < H; y++) {
+    const label = y % 2 === 1 ? String((y - 1) / 2).padStart(2) : "  ";
+    lines.push(`${label} ${cells[y].join("")}`.trimEnd());
+  }
+  return { text: lines.join("\n"), key: ["# wall   D door   s secret door   * light   n pin   : difficult terrain   ! trap region   ~ other region", ...key] };
+}
+
+// dist/tools/scene-objects.js
 var PREVIEW_TIMEOUT_MS = 6e4;
 var KEEP_PREVIEWS = 20;
 var measureGridSchema = external_exports.object({
@@ -120934,6 +121037,10 @@ var previewSchema = external_exports.object({
   scene: external_exports.string().min(1).optional(),
   max_size: external_exports.number().int().min(200).max(3e3).optional(),
   label_every: external_exports.number().int().min(1).max(50).optional(),
+  layers: external_exports.array(external_exports.enum(["image", "grid", "walls", "doors", "tokens", "lights", "light_radii", "notes", "regions"])).min(1).optional(),
+  labels: external_exports.enum(["numbers", "names", "none"]).optional(),
+  dim: external_exports.number().min(0).max(0.9).optional(),
+  text: external_exports.boolean().optional(),
   region: external_exports.object({
     x: external_exports.number().min(0),
     y: external_exports.number().min(0),
@@ -121135,7 +121242,7 @@ var SceneObjectTools = class {
       },
       {
         name: "manage-regions",
-        description: 'Regions are areas of a scene that act when tokens enter, leave or move in them: difficult terrain, traps, pop-up text, teleports. Shapes are in GRID SQUARES from the top-left corner of the map, like manage-scene-objects. create takes regions (up to 100): {name, one of rect:[x,y,width,height] | ellipse:[centreX,centreY,radiusX,radiusY] | polygon:[[x,y],...], color?, hidden?, display_measurements?, behaviors?}. A behavior is either {preset:"difficult_terrain", cost?} (movement costs cost times as much, default 2) or a raw Foundry behavior {type, name?, system?, disabled?} such as executeMacro (run a world macro on tokenEnter, e.g. a pit trap that rolls a save and damage), displayScrollingText, pauseGame or teleportToken. Run behavior_types first to see exactly which fields each behavior type of this Foundry accepts. describe lists the regions of a scene; remove needs ids or all_mine:true and only removes regions this tool created. scene is an id or exact name (default: the scene being viewed). Needs the Foundry tab open in a browser.',
+        description: `Regions are areas of a scene that act when tokens enter, leave or move in them: difficult terrain, traps, pop-up text, teleports. A region with hidden:true never runs its behaviors (Foundry skips them), so leave trap regions visible to the GM (not hidden) and do not declare token or actor constants in a trap macro (they clash with the macro's own variables; use the event variable instead). Shapes are in GRID SQUARES from the top-left corner of the map, like manage-scene-objects. create takes regions (up to 100): {name, one of rect:[x,y,width,height] | ellipse:[centreX,centreY,radiusX,radiusY] | polygon:[[x,y],...], color?, hidden?, display_measurements?, behaviors?}. A behavior is either {preset:"difficult_terrain", cost?} (movement costs cost times as much, default 2) or a raw Foundry behavior {type, name?, system?, disabled?} such as executeMacro (run a world macro on tokenEnter, e.g. a pit trap that rolls a save and damage), displayScrollingText, pauseGame or teleportToken. Run behavior_types first to see exactly which fields each behavior type of this Foundry accepts. describe lists the regions of a scene; remove needs ids or all_mine:true and only removes regions this tool created. scene is an id or exact name (default: the scene being viewed). Needs the Foundry tab open in a browser.`,
         inputSchema: {
           type: "object",
           properties: {
@@ -121190,6 +121297,21 @@ var SceneObjectTools = class {
             scene: {
               type: "string",
               description: "Scene id or exact name (default: the scene being viewed)"
+            },
+            layers: {
+              type: "array",
+              items: { type: "string", enum: ["image", "grid", "walls", "doors", "tokens", "lights", "light_radii", "notes", "regions"] },
+              description: 'What to draw (default: image, grid, walls, doors, tokens, lights as dots, notes, regions). Pass e.g. ["image","grid","tokens"] to check only the tokens, ["grid","walls","doors"] for just the walls, or add "light_radii" to see how far lights reach.'
+            },
+            labels: {
+              type: "string",
+              enum: ["numbers", "names", "none"],
+              description: "numbers (default): tokens numbered 1, 2, 3..., lights L1..., regions R1..., with the list (names, positions, hidden) in the result so labels never overlap; names: write the names on the picture; none"
+            },
+            dim: { type: "number", description: "Darken the map image 0 to 0.9 so the overlay stands out" },
+            text: {
+              type: "boolean",
+              description: "Return a text map instead of a picture (no image needed): walls #, doors D, secret doors s, tokens as 1-9/A-Z, lights *, pins n, regions : ! ~ on a character grid with column and row numbers, plus a key. Exact and cheap for crowded scenes."
             },
             region: {
               type: "object",
@@ -121309,7 +121431,18 @@ var SceneObjectTools = class {
     }
   }
   async handlePreviewScene(args) {
-    const parsed = previewSchema.parse(args ?? {});
+    const { text: text2, ...parsed } = previewSchema.parse(args ?? {});
+    if (text2) {
+      try {
+        const result = await this.foundryClient.query("foundry-mcp-bridge.preview-scene", { scene: parsed.scene, data_only: true }, PREVIEW_TIMEOUT_MS);
+        if (result?.success === false)
+          throw new Error(result.error || "Request was refused");
+        const map = sceneTextMap(result);
+        return { success: true, scene: result.scene, grid: result.grid, map: map.text, key: map.key };
+      } catch (error) {
+        throw new Error(`Failed to describe scene: ${error instanceof Error ? error.message : "Unknown error"}`);
+      }
+    }
     try {
       const result = await this.foundryClient.query("foundry-mcp-bridge.preview-scene", parsed, PREVIEW_TIMEOUT_MS);
       if (result?.success === false) {
@@ -121930,11 +122063,6 @@ function legendFor(layout) {
   return `In <Picture 1>: ${parts.join("; ")}.`;
 }
 
-// dist/tools/layout-doc.js
-var import_fs5 = require("fs");
-var import_os3 = __toESM(require("os"), 1);
-var import_path4 = __toESM(require("path"), 1);
-
 // dist/tools/layout-image.js
 var import_fs4 = require("fs");
 var import_jpeg_js = __toESM(require_jpeg_js(), 1);
@@ -121960,7 +122088,491 @@ async function decodeImage(file) {
   return image;
 }
 
+// dist/tools/layout-analysis.js
+var SAMPLES = 4;
+var FILL_NAMES = Object.keys(FILLS);
+var ROCK = FILL_NAMES.indexOf("rock");
+var WATER = FILL_NAMES.indexOf("water");
+function rasterize(layout) {
+  const w = layout.columns * SAMPLES;
+  const h = layout.rows * SAMPLES;
+  const fill = new Uint8Array(w * h);
+  fill.fill(Math.max(0, FILL_NAMES.indexOf(layout.background)));
+  const owner = new Uint16Array(w * h);
+  const doorCut = new Uint8Array(w * h);
+  layout.shapes.forEach((shape, index) => {
+    if (shape.shape === "door") {
+      const [x, y] = shape.at;
+      const len = Math.max(1, shape.size ?? 1);
+      const x0 = shape.dir === "v" ? x - 0.5 : x;
+      const x1 = shape.dir === "v" ? x + 0.5 : x + len;
+      const y0 = shape.dir === "v" ? y : y - 0.5;
+      const y1 = shape.dir === "v" ? y + len : y + 0.5;
+      for (let j = Math.max(0, Math.floor(y0 * SAMPLES)); j < Math.min(h, Math.ceil(y1 * SAMPLES)); j++) {
+        for (let i = Math.max(0, Math.floor(x0 * SAMPLES)); i < Math.min(w, Math.ceil(x1 * SAMPLES)); i++) {
+          doorCut[j * w + i] = 1;
+        }
+      }
+      return;
+    }
+    const value = Math.max(0, FILL_NAMES.indexOf(shape.fill ?? "floor"));
+    for (const poly of shapePolygons(shape, SAMPLES)) {
+      scanPolygon(poly, w, h, (y, x0, x1) => {
+        fill.fill(value, y * w + x0, y * w + x1 + 1);
+        owner.fill(index + 1, y * w + x0, y * w + x1 + 1);
+      });
+    }
+  });
+  return { columns: layout.columns, rows: layout.rows, fill, owner, doorCut, w, h };
+}
+function sampleIndex(r, x, y) {
+  const i = Math.min(r.w - 1, Math.max(0, Math.floor(x * SAMPLES)));
+  const j = Math.min(r.h - 1, Math.max(0, Math.floor(y * SAMPLES)));
+  return j * r.w + i;
+}
+function insideLayout(r, x, y) {
+  return x >= 0 && y >= 0 && x < r.columns && y < r.rows;
+}
+function fillAt(r, x, y) {
+  if (!insideLayout(r, x, y))
+    return "rock";
+  return FILL_NAMES[r.fill[sampleIndex(r, x, y)]];
+}
+function isOpenAt(r, x, y) {
+  return insideLayout(r, x, y) && r.fill[sampleIndex(r, x, y)] !== ROCK;
+}
+function isStandAt(r, x, y) {
+  if (!insideLayout(r, x, y))
+    return false;
+  const v = r.fill[sampleIndex(r, x, y)];
+  return v !== ROCK && v !== WATER;
+}
+function shapeIndexAt(r, x, y) {
+  if (!insideLayout(r, x, y))
+    return -1;
+  return r.owner[sampleIndex(r, x, y)] - 1;
+}
+function shapeTitle(shape) {
+  if (!shape)
+    return "the background";
+  return shape.name ? `"${shape.name}" (shape ${shape.id})` : `shape ${shape.id}`;
+}
+function openAreas(layout, r) {
+  const seen = new Uint8Array(r.w * r.h);
+  const areas = [];
+  const stack = [];
+  const open = (idx) => r.fill[idx] !== ROCK || r.doorCut[idx] === 1;
+  for (let start = 0; start < r.w * r.h; start++) {
+    if (seen[start] || !open(start))
+      continue;
+    let count = 0;
+    let sx = 0;
+    let sy = 0;
+    stack.length = 0;
+    stack.push(start);
+    seen[start] = 1;
+    let kept = [];
+    while (stack.length > 0) {
+      const idx = stack.pop();
+      count++;
+      const i = idx % r.w;
+      const j = (idx - i) / r.w;
+      sx += i;
+      sy += j;
+      if (count % 37 === 0)
+        kept.push(idx);
+      for (const n of [idx - 1, idx + 1, idx - r.w, idx + r.w]) {
+        if (n < 0 || n >= r.w * r.h)
+          continue;
+        if (n === idx - 1 && i === 0 || n === idx + 1 && i === r.w - 1)
+          continue;
+        if (seen[n] || !open(n))
+          continue;
+        seen[n] = 1;
+        stack.push(n);
+      }
+    }
+    if (kept.length === 0)
+      kept = [start];
+    areas.push({ count, sx: sx / count, sy: sy / count, samples: kept });
+  }
+  return areas.map((a) => {
+    let best = a.samples[0];
+    let bestD = Infinity;
+    for (const idx of a.samples) {
+      const i = idx % r.w;
+      const j = (idx - i) / r.w;
+      const d = (i - a.sx) ** 2 + (j - a.sy) ** 2;
+      if (d < bestD) {
+        bestD = d;
+        best = idx;
+      }
+    }
+    const bi = best % r.w;
+    const bj = (best - bi) / r.w;
+    const at = [Math.round((bi + 0.5) / SAMPLES * 10) / 10, Math.round((bj + 0.5) / SAMPLES * 10) / 10];
+    const owner = layout.shapes[shapeIndexAt(r, at[0], at[1])];
+    return { squares: Math.round(a.count / (SAMPLES * SAMPLES)), at, near: shapeTitle(owner) };
+  }).sort((a, b) => b.squares - a.squares);
+}
+function checkLayout(layout) {
+  const r = rasterize(layout);
+  const errors = [];
+  const warnings = [];
+  if (layout.shapes.filter((s) => s.shape !== "door").length === 0) {
+    errors.push("The layout has no shapes yet");
+    return { errors, warnings, areas: [] };
+  }
+  const areas = openAreas(layout, r).filter((a) => a.squares >= 2);
+  if (areas.length > 1) {
+    const main2 = areas[0];
+    for (const a of areas.slice(1)) {
+      warnings.push(`Open area of about ${a.squares} squares around ${a.at[0]},${a.at[1]} (${a.near}) is not connected to the main area of ${main2.squares} squares (${main2.near}): no corridor, door or overlap joins them`);
+    }
+  }
+  layout.shapes.forEach((shape) => {
+    if (shape.shape !== "door")
+      return;
+    const [x, y] = shape.at;
+    const len = Math.max(1, shape.size ?? 1);
+    const n = Math.max(1, Math.round(len * 4));
+    const sideOpen = (px, py, sign) => [0.5, 0.75, 1, 1.25].some((d) => isOpenAt(r, shape.dir === "v" ? px + sign * d : px, shape.dir === "v" ? py : py + sign * d));
+    let both = 0;
+    let anyA = false;
+    let anyB = false;
+    for (let i = 0; i < n; i++) {
+      const t = (i + 0.5) / n * len;
+      const px = shape.dir === "v" ? x : x + t;
+      const py = shape.dir === "v" ? y + t : y;
+      const a = sideOpen(px, py, -1);
+      const b = sideOpen(px, py, 1);
+      anyA ||= a;
+      anyB ||= b;
+      if (a && b)
+        both++;
+    }
+    const title = `Door ${shape.id}${shape.name ? ` "${shape.name}"` : ""} at ${x},${y}`;
+    if (both === 0) {
+      errors.push(`${title} has ${!anyA && !anyB ? "rock on both sides" : `rock on its ${!anyA ? shape.dir === "v" ? "west" : "north" : shape.dir === "v" ? "east" : "south"} side`}: it connects nothing`);
+    } else if (both / n < 0.6) {
+      warnings.push(`${title} is only partly over an opening (${both} of ${n} quarter-squares join two open areas); move it so it sits on the opening`);
+    }
+  });
+  layout.shapes.forEach((shape) => {
+    if (shape.shape === "door")
+      return;
+    let any = false;
+    for (const poly of shapePolygons(shape, 1)) {
+      if (poly.some(([px, py]) => px >= 0 && py >= 0 && px <= layout.columns && py <= layout.rows))
+        any = true;
+    }
+    if (!any)
+      warnings.push(`${shapeTitle(shape)} lies completely outside the layout`);
+  });
+  return { errors, warnings, areas };
+}
+function checkSceneObjects(layout, objects) {
+  const r = rasterize(layout);
+  const problems = [];
+  const taken = /* @__PURE__ */ new Map();
+  for (const t of objects.tokens ?? []) {
+    const cx = t.x + t.width / 2;
+    const cy = t.y + t.height / 2;
+    const where = `${Math.round(t.x * 100) / 100},${Math.round(t.y * 100) / 100}`;
+    if (!insideLayout(r, cx, cy)) {
+      problems.push(`Token "${t.name}" at ${where} is outside the map`);
+      continue;
+    }
+    const fill = fillAt(r, cx, cy);
+    if (fill === "rock")
+      problems.push(`Token "${t.name}" at ${where} stands on solid rock`);
+    else if (fill === "water")
+      problems.push(`Token "${t.name}" at ${where} is in water (fine for a stream, check it is meant)`);
+    else {
+    }
+    const key = `${Math.floor(t.x)},${Math.floor(t.y)}`;
+    const other = taken.get(key);
+    if (other)
+      problems.push(`Tokens "${other}" and "${t.name}" are on the same square (${key})`);
+    else
+      taken.set(key, t.name);
+  }
+  for (const l of objects.lights ?? []) {
+    const near = [0, 0.5, 1].some((d) => [[0, 0], [d, 0], [-d, 0], [0, d], [0, -d]].some(([dx, dy]) => isOpenAt(r, l.x + dx, l.y + dy)));
+    if (!near)
+      problems.push(`Light at ${l.x},${l.y} is deep inside solid rock`);
+  }
+  for (const n of objects.notes ?? []) {
+    if (!isOpenAt(r, n.x, n.y))
+      problems.push(`Pin "${n.text ?? ""}" at ${n.x},${n.y} sits on solid rock`);
+  }
+  return problems;
+}
+function resolveShape(layout, ref) {
+  const shapes = layout.shapes;
+  const non = (s) => s.shape !== "door";
+  const byId = (id) => shapes.findIndex((s) => s.id === id && non(s));
+  if (typeof ref === "number") {
+    let i = byId(ref);
+    if (i < 0)
+      i = shapes.findIndex((s) => s.label === ref && non(s));
+    if (i < 0)
+      throw new Error(`No shape with id or label ${ref}`);
+    return { shape: shapes[i], index: i };
+  }
+  const text2 = ref.trim().toLowerCase();
+  if (/^\d+$/.test(text2))
+    return resolveShape(layout, Number(text2));
+  const named = shapes.map((s, i) => ({ s, i })).filter(({ s }) => non(s) && s.name);
+  const exact = named.filter(({ s }) => s.name.toLowerCase() === text2);
+  const partial = named.filter(({ s }) => s.name.toLowerCase().includes(text2));
+  const pool = exact.length > 0 ? exact : partial;
+  if (pool.length === 0)
+    throw new Error(`No shape named "${ref}"; name shapes when you add them, or use the id`);
+  if (pool.length > 1) {
+    throw new Error(`"${ref}" matches several shapes (${pool.map(({ s }) => `${s.id} "${s.name}"`).join(", ")}); use the id`);
+  }
+  return { shape: pool[0].s, index: pool[0].i };
+}
+function edgeDistance(r) {
+  const { columns, rows } = r;
+  const dist = new Uint8Array(columns * rows);
+  const standCell = (c, row2) => isStandAt(r, c + 0.5, row2 + 0.5);
+  const queue = [];
+  const unset = 255;
+  dist.fill(unset);
+  for (let row2 = 0; row2 < rows; row2++) {
+    for (let c = 0; c < columns; c++) {
+      if (!standCell(c, row2)) {
+        dist[row2 * columns + c] = 0;
+        queue.push(row2 * columns + c);
+      }
+    }
+  }
+  for (let head = 0; head < queue.length; head++) {
+    const idx = queue[head];
+    const c = idx % columns;
+    const row2 = (idx - c) / columns;
+    for (let dy = -1; dy <= 1; dy++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        if (!dx && !dy)
+          continue;
+        const nc = c + dx;
+        const nr = row2 + dy;
+        if (nc < 0 || nr < 0 || nc >= columns || nr >= rows)
+          continue;
+        const n = nr * columns + nc;
+        if (dist[n] !== unset)
+          continue;
+        dist[n] = Math.min(254, dist[idx] + 1);
+        queue.push(n);
+      }
+    }
+  }
+  for (let row2 = 0; row2 < rows; row2++)
+    for (let c = 0; c < columns; c++) {
+      const edge = Math.min(c, row2, columns - 1 - c, rows - 1 - row2) + 1;
+      const idx = row2 * columns + c;
+      if (dist[idx] > edge)
+        dist[idx] = edge;
+    }
+  return dist;
+}
+function pickSpots(layout, r, shapeIndex, count, options = {}) {
+  const fw = Math.max(1, Math.round(options.width ?? 1));
+  const fh = Math.max(1, Math.round(options.height ?? 1));
+  const dist = edgeDistance(r);
+  const taken = options.taken ?? /* @__PURE__ */ new Set();
+  const candidates = [];
+  for (let row2 = 0; row2 + fh <= r.rows; row2++) {
+    for (let c = 0; c + fw <= r.columns; c++) {
+      if (shapeIndexAt(r, c + 0.5, row2 + 0.5) !== shapeIndex)
+        continue;
+      let ok = true;
+      let minD = 255;
+      for (let dy = 0; dy < fh && ok; dy++) {
+        for (let dx = 0; dx < fw && ok; dx++) {
+          if (!isStandAt(r, c + dx + 0.5, row2 + dy + 0.5) || taken.has(`${c + dx},${row2 + dy}`))
+            ok = false;
+          minD = Math.min(minD, dist[(row2 + dy) * r.columns + c + dx]);
+        }
+      }
+      if (ok)
+        candidates.push({ c, row: row2, d: minD });
+    }
+  }
+  if (candidates.length === 0)
+    throw new Error(`No free floor inside ${shapeTitle(layout.shapes[shapeIndex])} for a ${fw}x${fh} footprint`);
+  const preferred = candidates.filter((c) => c.d >= 2);
+  const pool = preferred.length >= count ? preferred : candidates;
+  if (pool.length < count) {
+    throw new Error(`${shapeTitle(layout.shapes[shapeIndex])} has room for only ${pool.length} of ${count}`);
+  }
+  const cx = pool.reduce((a, p) => a + p.c, 0) / pool.length;
+  const cy = pool.reduce((a, p) => a + p.row, 0) / pool.length;
+  const chosen = [];
+  const used = /* @__PURE__ */ new Set();
+  const anchors = [...taken].map((k) => k.split(",").map(Number));
+  const spread3 = options.spread !== false;
+  for (let n = 0; n < count; n++) {
+    let best;
+    let bestScore = -Infinity;
+    for (const p of pool) {
+      const key = `${p.c},${p.row}`;
+      if (used.has(key))
+        continue;
+      if (chosen.some((q) => Math.abs(q.c - p.c) < fw && Math.abs(q.row - p.row) < fh))
+        continue;
+      let score;
+      if (chosen.length === 0) {
+        score = p.d * 4 - Math.hypot(p.c - cx, p.row - cy) * 0.3;
+      } else if (spread3) {
+        let minDist = Infinity;
+        for (const q of chosen)
+          minDist = Math.min(minDist, Math.hypot(q.c - p.c, q.row - p.row));
+        for (const [ax, ay] of anchors)
+          minDist = Math.min(minDist, Math.hypot(ax - p.c, ay - p.row) * 1.5);
+        score = minDist * 3 + p.d;
+      } else {
+        score = -Math.hypot(chosen[0].c - p.c, chosen[0].row - p.row) * 3 + p.d;
+      }
+      if (score > bestScore) {
+        bestScore = score;
+        best = p;
+      }
+    }
+    if (!best)
+      throw new Error(`No room for ${count} in ${shapeTitle(layout.shapes[shapeIndex])}`);
+    chosen.push(best);
+    used.add(`${best.c},${best.row}`);
+  }
+  return chosen.map((p) => ({ x: p.c, y: p.row }));
+}
+function proposeLights(layout, options = {}) {
+  const r = rasterize(layout);
+  const minArea = options.minArea ?? 10;
+  const outdoor = /* @__PURE__ */ new Set(["grass", "road", "sand"]);
+  const out = [];
+  layout.shapes.forEach((shape, index) => {
+    if (shape.shape === "door")
+      return;
+    const fill = shape.fill ?? "floor";
+    if (fill === "rock" || fill === "water")
+      return;
+    if (!options.includeOutdoor && outdoor.has(fill))
+      return;
+    let cells = 0;
+    for (let row2 = 0; row2 < r.rows; row2++)
+      for (let c = 0; c < r.columns; c++) {
+        if (shapeIndexAt(r, c + 0.5, row2 + 0.5) === index)
+          cells++;
+      }
+    if (cells < minArea)
+      return;
+    const count = Math.max(1, Math.round(cells / 40));
+    const bright = options.bright ?? Math.max(2, Math.min(5, Math.round(Math.sqrt(cells) / 2)));
+    const dim = options.dim ?? bright * 2;
+    let spots;
+    try {
+      spots = pickSpots(layout, r, index, count, { spread: true });
+    } catch {
+      return;
+    }
+    for (const s of spots) {
+      const x = s.x + 0.5;
+      const y = s.y + 0.5;
+      if (out.some((o) => Math.hypot(o.x - x, o.y - y) < Math.max(o.bright, bright) * 0.8))
+        continue;
+      out.push({ x, y, bright, dim, shape: shapeTitle(shape) });
+    }
+  });
+  return out;
+}
+function brightnessGrid(image, columns, rows) {
+  const w = columns * SAMPLES;
+  const h = rows * SAMPLES;
+  const out = new Float32Array(w * h);
+  for (let j = 0; j < h; j++) {
+    const y0 = Math.floor(j * image.height / h);
+    const y1 = Math.max(y0 + 1, Math.floor((j + 1) * image.height / h));
+    for (let i = 0; i < w; i++) {
+      const x0 = Math.floor(i * image.width / w);
+      const x1 = Math.max(x0 + 1, Math.floor((i + 1) * image.width / w));
+      let sum = 0;
+      let n = 0;
+      for (let y = y0; y < y1; y += 2) {
+        for (let x = x0; x < x1; x += 2) {
+          const o = (y * image.width + x) * 4;
+          sum += 0.299 * image.data[o] + 0.587 * image.data[o + 1] + 0.114 * image.data[o + 2];
+          n++;
+        }
+      }
+      out[j * w + i] = n ? sum / n : 0;
+    }
+  }
+  return out;
+}
+function alignToImage(layout, image, maxShift = 1.5) {
+  const r = rasterize(layout);
+  const bright = brightnessGrid(image, layout.columns, layout.rows);
+  const mask = new Uint8Array(r.w * r.h);
+  for (let k = 0; k < mask.length; k++)
+    mask[k] = r.fill[k] === ROCK ? 0 : 1;
+  const n = Math.round(maxShift * SAMPLES);
+  const correlate = (sx, sy) => {
+    let count = 0;
+    let sumB = 0;
+    let sumM = 0;
+    let sumBB = 0;
+    let sumMM = 0;
+    let sumBM = 0;
+    const jStart = Math.max(0, sy);
+    const jEnd = Math.min(r.h, r.h + sy);
+    const iStart = Math.max(0, sx);
+    const iEnd = Math.min(r.w, r.w + sx);
+    for (let j = jStart; j < jEnd; j++) {
+      for (let i = iStart; i < iEnd; i++) {
+        const b = bright[j * r.w + i];
+        const m = mask[(j - sy) * r.w + (i - sx)];
+        count++;
+        sumB += b;
+        sumM += m;
+        sumBB += b * b;
+        sumMM += m * m;
+        sumBM += b * m;
+      }
+    }
+    if (count === 0)
+      return -1;
+    const cov = sumBM - sumB * sumM / count;
+    const varB = sumBB - sumB * sumB / count;
+    const varM = sumMM - sumM * sumM / count;
+    if (varB <= 1e-9 || varM <= 1e-9)
+      return 0;
+    return cov / Math.sqrt(varB * varM);
+  };
+  const scoreAtZero = correlate(0, 0);
+  let best = { sx: 0, sy: 0, score: scoreAtZero };
+  for (let sy = -n; sy <= n; sy++) {
+    for (let sx = -n; sx <= n; sx++) {
+      const score = correlate(sx, sy);
+      if (score > best.score + 0.01)
+        best = { sx, sy, score };
+    }
+  }
+  const round = (v) => Math.round(v * 1e3) / 1e3;
+  return {
+    shift: [best.sx / SAMPLES, best.sy / SAMPLES],
+    score: round(best.score),
+    scoreAtZero: round(scoreAtZero),
+    quality: best.score >= 0.35 ? "good" : best.score >= 0.15 ? "weak" : "none"
+  };
+}
+
 // dist/tools/layout-doc.js
+var import_fs5 = require("fs");
+var import_os3 = __toESM(require("os"), 1);
+var import_path4 = __toESM(require("path"), 1);
 var MAX_DOC_SHAPES = 600;
 var MAX_HISTORY = 40;
 function slug(name) {
@@ -122450,7 +123062,7 @@ var region = external_exports.object({
   height: external_exports.number().min(1)
 }).strict();
 var schema = external_exports.object({
-  action: external_exports.enum(["new", "add", "update", "remove", "show", "render", "walls", "apply_walls", "set", "undo", "redo", "list", "delete"]),
+  action: external_exports.enum(["new", "add", "update", "remove", "show", "render", "walls", "apply_walls", "check", "place", "lights", "align", "build", "set", "undo", "redo", "list", "delete"]),
   layout: external_exports.string().min(1).optional(),
   name: external_exports.string().min(1).max(60).optional(),
   columns: external_exports.number().optional(),
@@ -122483,27 +123095,48 @@ var schema = external_exports.object({
   scene: external_exports.string().min(1).optional(),
   replace: external_exports.boolean().optional(),
   shift: external_exports.tuple([external_exports.number(), external_exports.number()]).optional(),
-  dry_run: external_exports.boolean().optional()
+  dry_run: external_exports.boolean().optional(),
+  items: external_exports.array(external_exports.record(external_exports.any())).min(1).max(100).optional(),
+  min_area: external_exports.number().min(1).optional(),
+  bright: external_exports.number().min(0).optional(),
+  dim: external_exports.number().min(0).optional(),
+  color: external_exports.string().optional(),
+  animation: external_exports.string().optional(),
+  include_outdoor: external_exports.boolean().optional(),
+  image: external_exports.string().min(1).optional(),
+  max_shift: external_exports.number().min(0).max(5).optional(),
+  prompt: external_exports.string().min(1).optional(),
+  scene_name: external_exports.string().min(1).optional(),
+  scene_grid_size: external_exports.number().int().min(50).max(1e3).optional(),
+  scene_options: external_exports.record(external_exports.any()).optional(),
+  upload_folder: external_exports.string().optional(),
+  filename: external_exports.string().optional(),
+  auto_align: external_exports.boolean().optional(),
+  walls: external_exports.boolean().optional()
 }).strict();
 var shapeHelp = 'Shapes are in GRID SQUARES from the top-left (column, row) and snap to the layout grid (default 1 square) so everything lines up; set snap 0 on the layout or on a shape for freeform placement. room {at:[col,row], size:[w,h]} (or rect:[x,y,w,h]); ellipse {center:[x,y], radius:[rx,ry]} (or ellipse:[cx,cy,rx,ry]); polygon {polygon:[[x,y],...]} for any outline; path {path:[[x,y],...], width} for a corridor, road or river (default 2 wide); cells {cells:[[col,row] or [col,row,w,h],...]} paints single squares or runs (caves, L-shapes); door {at:[x,y], dir:"h"|"v", size?, secret?} a bar on a wall line (a thin 0.5 wall between rooms: put the door in its middle, e.g. x 7.25). Every shape can have fill (' + fillNames.join(", ") + "; default floor), color #RRGGBB, rotate (degrees about its centre), snap, name (a note) and label (a number shown on previews).";
 var LayoutTools = class {
   logger;
   store;
   foundryClient;
-  constructor({ logger, folder, foundryClient }) {
+  generate;
+  upload;
+  constructor({ logger, folder, foundryClient, generate, upload }) {
     this.logger = logger.child({ component: "LayoutTools" });
     this.store = new LayoutStore(folder);
     this.foundryClient = foundryClient;
+    this.generate = generate;
+    this.upload = upload;
   }
   getToolDefinitions() {
     return [
       {
         name: "layout",
-        description: "Build a map layout step by step (rooms, corridors, roads, rivers, buildings, doors), see it at once as a text map, adjust it, then render a flat-colour sketch for generate-image (reference_images + <Picture 1>) and derive walls and doors for the scene. Layouts are saved, so you can come back to them. " + shapeHelp + " Painting order is the list order: later shapes cover earlier ones (rooms first, then corridors, then doors; paint rock to carve). ACTIONS: new {name, columns, rows, grid_size?(64), background?(rock; grass outdoors), snap?(1), wall_fills?, reference?} starts a layout. add {layout, shapes, after?} adds shapes and returns their ids and the text map. update {layout, id, set?, move?:[cols,rows], front?, back?, after?} changes one shape (set null to clear a field). remove {layout, ids}. show {layout} returns the text map (one character per square with column and row numbers; add region to zoom, shapes_list for every shape and its numbers) or, with png:true, a picture with the numbered grid, shape ids and the reference page showing through, for checking against a book map. reference traces a picture: set {layout, reference:{image, origin:[px,py], cell_px}} where image is a PNG/JPEG on this computer, origin the pixel where square (0,0) starts and cell_px the pixels per square; show png:true then lays your shapes over it (show_reference:false hides it, hide_shapes:true shows only the picture and grid so you can calibrate origin and cell_px). render {layout} writes the clean sketch PNG (no grid or labels) and returns its file path and a legend sentence for the prompt. walls {layout} returns wall and door objects (chains around everything drawn with the wall_fills, default floor, at half-square steps; doors become door walls, with secret and state closed/open/locked). apply_walls {layout, scene?, replace?, shift?, dry_run?} builds them and PLACES them on the scene in one step, once the generated map is the scene background: the scene must have the same number of columns and rows as the layout (the generated picture and the layout line up square for square); replace (default true) first removes the walls this tool placed before, so it can be run again after the layout changes; shift [dx, dy] moves everything by squares to match the picture; dry_run only counts. Then check with preview-scene and nudge anything that is off. set {layout, snap?, background?, wall_fills?, reference?} changes layout settings. undo {layout, steps?} and redo {layout, steps?} step back and forward through the changes (add, update, remove, set; the last 40 are kept and saved with the layout); every change reports how many undo and redo steps there are. list; delete {layout}. Works without Foundry.",
+        description: "Build a map layout step by step (rooms, corridors, roads, rivers, buildings, doors), see it at once as a text map, adjust it, then render a flat-colour sketch for generate-image (reference_images + <Picture 1>) and derive walls and doors for the scene. Layouts are saved, so you can come back to them. " + shapeHelp + ' Painting order is the list order: later shapes cover earlier ones (rooms first, then corridors, then doors; paint rock to carve). ACTIONS: new {name, columns, rows, grid_size?(64), background?(rock; grass outdoors), snap?(1), wall_fills?, reference?} starts a layout. add {layout, shapes, after?} adds shapes and returns their ids and the text map. update {layout, id, set?, move?:[cols,rows], front?, back?, after?} changes one shape (set null to clear a field). remove {layout, ids}. show {layout} returns the text map (one character per square with column and row numbers; add region to zoom, shapes_list for every shape and its numbers) or, with png:true, a picture with the numbered grid, shape ids and the reference page showing through, for checking against a book map. reference traces a picture: set {layout, reference:{image, origin:[px,py], cell_px}} where image is a PNG/JPEG on this computer, origin the pixel where square (0,0) starts and cell_px the pixels per square; show png:true then lays your shapes over it (show_reference:false hides it, hide_shapes:true shows only the picture and grid so you can calibrate origin and cell_px). render {layout} writes the clean sketch PNG (no grid or labels) and returns its file path and a legend sentence for the prompt. walls {layout} returns wall and door objects (chains around everything drawn with the wall_fills, default floor, at half-square steps; doors become door walls, with secret and state closed/open/locked). apply_walls {layout, scene?, replace?, shift?, dry_run?} builds them and PLACES them on the scene in one step, once the generated map is the scene background: the scene must have the same number of columns and rows as the layout (the generated picture and the layout line up square for square); replace (default true) first removes the walls this tool placed before, so it can be run again after the layout changes; shift [dx, dy] moves everything by squares to match the picture; dry_run only counts. Then check with preview-scene and nudge anything that is off. CHECK, PLACE AND LIGHT: check {layout, scene?} finds problems without looking at a picture: open areas that nothing connects, doors with rock on a side and shapes outside the layout; with scene (id or name) it also reads what is on that scene and reports tokens or pins on solid rock, tokens sharing a square and lights buried in rock. place {layout, scene?, items:[...], shift?, dry_run?} puts tokens, lights and pins INSIDE named shapes without you picking coordinates: each item {kind:"token"|"light"|"note", in: shape id, label number or name, count?(1), spread?(true), ...} where a token has actor, name?, hidden?, width?, height?, disposition?; a light has bright, dim, color?, animation?; a pin has journal, page?, text?. Spots are away from walls, spread apart, on floor (not rock or water), and avoid squares already taken on the scene. lights {layout, scene?, dry_run?, min_area?, bright?, dim?, color?(#ffa040), animation?(torch), include_outdoor?, replace?} proposes torch lights for every room or cave big enough (one per ~40 squares, away from walls; outdoors skipped unless include_outdoor) and places them; replace first removes the lights the tools placed. align {layout, image, max_shift?(1.5)} compares a generated picture with the layout and returns the shift in squares that best makes its floor match, for apply_walls shift. build {layout, scene_name, prompt, upload_folder?(maps), filename?, scene_grid_size?(64), scene_options?, auto_align?(true), walls?(true)} does the whole chain in one call: render the sketch, generate the map (prompt is your description of the look; the legend sentence is added), upload it, create the scene (scene_options: darkness, fog_mode, token_vision, initial_view, grid_alpha ... as in manage-scenes), align and place the walls and doors. Needs the layout to have columns and rows whose pixel size is a multiple of 32. set {layout, snap?, background?, wall_fills?, reference?} changes layout settings. undo {layout, steps?} and redo {layout, steps?} step back and forward through the changes (add, update, remove, set; the last 40 are kept and saved with the layout); every change reports how many undo and redo steps there are. list; delete {layout}. Works without Foundry.',
         inputSchema: {
           type: "object",
           properties: {
-            action: { type: "string", enum: ["new", "add", "update", "remove", "show", "render", "walls", "apply_walls", "set", "undo", "redo", "list", "delete"] },
+            action: { type: "string", enum: ["new", "add", "update", "remove", "show", "render", "walls", "apply_walls", "check", "place", "lights", "align", "build", "set", "undo", "redo", "list", "delete"] },
             layout: { type: "string", description: "Layout name or id (new: use name)" },
             name: { type: "string", description: "new: layout name" },
             columns: { type: "number", description: "new: width in squares (4 to 200)" },
@@ -122578,7 +123211,29 @@ var LayoutTools = class {
             scene: { type: "string", description: "apply_walls: scene id or exact name (default the scene being viewed)" },
             replace: { type: "boolean", description: "apply_walls: first remove walls this tool placed (default true)" },
             shift: { type: "array", items: { type: "number" }, minItems: 2, maxItems: 2, description: "apply_walls: shift every wall by [columns, rows]" },
-            dry_run: { type: "boolean", description: "apply_walls: only report what would be placed" }
+            dry_run: { type: "boolean", description: "apply_walls, place, lights: only report what would be placed" },
+            items: {
+              type: "array",
+              maxItems: 100,
+              description: 'place: what to put where. Each: {kind:"token"|"light"|"note", in: shape id, label or name, count?, spread?, actor/name/hidden/width/height/disposition (token), bright/dim/color/animation (light), journal/page/text (note)}',
+              items: { type: "object", additionalProperties: true }
+            },
+            min_area: { type: "number", description: "lights: smallest shape (squares) that gets a light (default 10)" },
+            bright: { type: "number", description: "lights: bright radius in squares (default from the room size)" },
+            dim: { type: "number", description: "lights: dim radius in squares (default twice bright)" },
+            color: { type: "string", description: "lights: #RRGGBB (default #ffa040)" },
+            animation: { type: "string", description: "lights: animation (default torch)" },
+            include_outdoor: { type: "boolean", description: "lights: also light grass, road and sand shapes" },
+            image: { type: "string", description: "align: PNG or JPEG of the generated map on this computer" },
+            max_shift: { type: "number", description: "align: largest shift to try, in squares (default 1.5)" },
+            prompt: { type: "string", description: "build: the look of the map (the legend of the layout is added)" },
+            scene_name: { type: "string", description: "build: name of the scene to create" },
+            scene_grid_size: { type: "number", description: "build: pixels per square in the scene (default 64)" },
+            scene_options: { type: "object", additionalProperties: true, description: "build: extra manage-scenes create fields (darkness, fog_mode, token_vision, initial_view, grid_alpha, ...)" },
+            upload_folder: { type: "string", description: "build: folder below the world uploads (default maps)" },
+            filename: { type: "string", description: "build: file name for the uploaded map" },
+            auto_align: { type: "boolean", description: "build: shift the walls to match the picture (default true)" },
+            walls: { type: "boolean", description: "build: place walls and doors (default true)" }
           },
           required: ["action"],
           additionalProperties: false
@@ -122724,6 +123379,16 @@ var LayoutTools = class {
       }
       case "apply_walls":
         return this.applyWalls(doc, a);
+      case "check":
+        return this.check(doc, a);
+      case "place":
+        return this.place(doc, a);
+      case "lights":
+        return this.lights(doc, a);
+      case "align":
+        return this.align(doc, a);
+      case "build":
+        return this.build(doc, a);
       default:
         throw new Error(`Unknown action: ${a.action}`);
     }
@@ -122804,6 +123469,284 @@ var LayoutTools = class {
       removedOldWalls: removed,
       wallSegmentsCreated: created,
       next: "Open preview-scene to check where the walls fall on the picture; the generated art often draws its walls a little inside or outside the floor edge, so use shift or manage-scene-objects to adjust."
+    };
+  }
+  client() {
+    if (!this.foundryClient)
+      throw new Error("This needs the connection to Foundry, which is not available here");
+    return this.foundryClient;
+  }
+  /** Read what is on a scene (tokens, lights, pins) in grid squares. */
+  async readScene(scene) {
+    const res = await this.client().query("foundry-mcp-bridge.manage-scene-objects", {
+      action: "describe",
+      ...scene ? { scene } : {}
+    });
+    if (res?.success === false)
+      throw new Error(res.error || "Could not read the scene");
+    return res;
+  }
+  async check(doc, a) {
+    const layout = layoutOf(doc);
+    const result = checkLayout(layout);
+    let sceneProblems;
+    let sceneInfo;
+    if (a.scene) {
+      const described = await this.readScene(a.scene);
+      sceneInfo = described.scene;
+      sceneProblems = checkSceneObjects(layout, {
+        tokens: (described.tokens ?? []).map((t) => ({ name: t.name, x: t.x, y: t.y, width: t.width ?? 1, height: t.height ?? 1, hidden: t.hidden })),
+        lights: (described.lights ?? []).map((l) => ({ x: l.x, y: l.y })),
+        notes: (described.notes ?? []).map((n) => ({ x: n.x, y: n.y, text: n.text }))
+      });
+    }
+    const problems = result.errors.length + result.warnings.length + (sceneProblems?.length ?? 0);
+    return {
+      success: true,
+      layout: doc.id,
+      ok: problems === 0,
+      errors: result.errors,
+      warnings: result.warnings,
+      ...sceneProblems ? { scene: sceneInfo, sceneProblems } : {},
+      areas: result.areas.slice(0, 8)
+    };
+  }
+  async place(doc, a) {
+    if (!a.items)
+      throw new Error("place needs items");
+    const layout = layoutOf(doc);
+    const r = rasterize(layout);
+    const taken = /* @__PURE__ */ new Set();
+    if (a.scene || !a.dry_run) {
+      try {
+        const described = await this.readScene(a.scene);
+        for (const t of described.tokens ?? []) {
+          for (let dy = 0; dy < Math.max(1, Math.round(t.height ?? 1)); dy++) {
+            for (let dx = 0; dx < Math.max(1, Math.round(t.width ?? 1)); dx++)
+              taken.add(`${Math.floor(t.x) + dx},${Math.floor(t.y) + dy}`);
+          }
+        }
+      } catch (error) {
+        if (!a.dry_run)
+          throw error;
+      }
+    }
+    const [sx, sy] = a.shift ?? [0, 0];
+    const objects = [];
+    const report = [];
+    for (const [index, item] of a.items.entries()) {
+      const label = `items[${index}]`;
+      const kind = item.kind;
+      if (kind !== "token" && kind !== "light" && kind !== "note")
+        throw new Error(`${label}: kind must be token, light or note`);
+      if (item.in === void 0)
+        throw new Error(`${label}: "in" (a shape id, label or name) is required`);
+      const { shape, index: shapeIndex } = resolveShape(layout, item.in);
+      const count = Math.max(1, Math.min(60, Math.round(Number(item.count ?? 1))));
+      const width = kind === "token" ? Number(item.width ?? 1) : 1;
+      const height = kind === "token" ? Number(item.height ?? 1) : 1;
+      const spots = pickSpots(layout, r, shapeIndex, count, {
+        width,
+        height,
+        taken,
+        spread: item.spread !== false
+      });
+      spots.forEach((spot, n) => {
+        for (let dy = 0; dy < Math.max(1, Math.round(height)); dy++) {
+          for (let dx = 0; dx < Math.max(1, Math.round(width)); dx++)
+            taken.add(`${spot.x + dx},${spot.y + dy}`);
+        }
+        const round = (v) => Math.round(v * 100) / 100;
+        if (kind === "token") {
+          if (!item.actor)
+            throw new Error(`${label}: a token needs actor`);
+          const name = item.name ? count > 1 ? `${item.name} ${n + 1}` : item.name : void 0;
+          objects.push({
+            kind: "token",
+            actor: item.actor,
+            x: round(spot.x + sx),
+            y: round(spot.y + sy),
+            ...name ? { name } : {},
+            ...item.hidden !== void 0 ? { hidden: item.hidden } : {},
+            ...item.width !== void 0 ? { width: item.width } : {},
+            ...item.height !== void 0 ? { height: item.height } : {},
+            ...item.disposition !== void 0 ? { disposition: item.disposition } : {},
+            ...item.elevation !== void 0 ? { elevation: item.elevation } : {}
+          });
+        } else if (kind === "light") {
+          objects.push({
+            kind: "light",
+            x: round(spot.x + 0.5 + sx),
+            y: round(spot.y + 0.5 + sy),
+            bright: Number(item.bright ?? 3),
+            dim: Number(item.dim ?? (item.bright ? Number(item.bright) * 2 : 7)),
+            ...item.color ? { color: item.color } : {},
+            ...item.animation ? { animation: item.animation } : {},
+            ...item.alpha !== void 0 ? { alpha: item.alpha } : {},
+            ...item.hidden !== void 0 ? { hidden: item.hidden } : {}
+          });
+        } else {
+          if (!item.journal)
+            throw new Error(`${label}: a pin needs journal`);
+          objects.push({
+            kind: "note",
+            x: round(spot.x + 0.5 + sx),
+            y: round(spot.y + 0.5 + sy),
+            journal: item.journal,
+            ...item.page ? { page: item.page } : {},
+            ...item.text ? { text: item.text } : {},
+            ...item.global !== void 0 ? { global: item.global } : {}
+          });
+        }
+        report.push({ kind, in: shape.name ?? shape.id, at: [spot.x, spot.y] });
+      });
+    }
+    if (a.dry_run)
+      return { success: true, layout: doc.id, dryRun: true, wouldPlace: objects.length, positions: report };
+    return this.placeObjects(doc, a.scene, objects, report);
+  }
+  async placeObjects(doc, scene, objects, report) {
+    const created = [];
+    for (let i = 0; i < objects.length; i += 150) {
+      const res = await this.client().query("foundry-mcp-bridge.manage-scene-objects", {
+        action: "place",
+        ...scene ? { scene } : {},
+        objects: objects.slice(i, i + 150)
+      });
+      if (res?.success === false)
+        throw new Error(res.error || "Could not place the objects");
+      created.push(...res?.created ?? []);
+    }
+    return { success: true, layout: doc.id, placed: created.length, positions: report, created };
+  }
+  async lights(doc, a) {
+    const layout = layoutOf(doc);
+    const proposals = proposeLights(layout, {
+      ...a.min_area !== void 0 ? { minArea: a.min_area } : {},
+      ...a.bright !== void 0 ? { bright: a.bright } : {},
+      ...a.dim !== void 0 ? { dim: a.dim } : {},
+      ...a.include_outdoor !== void 0 ? { includeOutdoor: a.include_outdoor } : {}
+    });
+    if (proposals.length === 0)
+      throw new Error("No shape is big enough for a light (lower min_area, or use include_outdoor)");
+    const [sx, sy] = a.shift ?? [0, 0];
+    const report = proposals.map((p) => ({ kind: "light", in: p.shape, at: [p.x, p.y], bright: p.bright, dim: p.dim }));
+    if (a.dry_run)
+      return { success: true, layout: doc.id, dryRun: true, wouldPlace: proposals.length, positions: report };
+    if (a.replace) {
+      const out = await this.client().query("foundry-mcp-bridge.manage-scene-objects", {
+        action: "remove",
+        kind: "light",
+        all_mine: true,
+        ...a.scene ? { scene: a.scene } : {}
+      });
+      if (out?.success === false)
+        throw new Error(out.error || "Could not remove the old lights");
+    }
+    const objects = proposals.map((p) => ({
+      kind: "light",
+      x: Math.round((p.x + sx) * 100) / 100,
+      y: Math.round((p.y + sy) * 100) / 100,
+      bright: p.bright,
+      dim: p.dim,
+      color: a.color ?? "#ffa040",
+      animation: a.animation ?? "torch"
+    }));
+    return this.placeObjects(doc, a.scene, objects, report);
+  }
+  async align(doc, a) {
+    if (!a.image)
+      throw new Error("align needs image (the generated map file on this computer)");
+    const image = await decodeImage(a.image);
+    const layout = layoutOf(doc);
+    const result = alignToImage(layout, image, a.max_shift ?? 1.5);
+    return {
+      success: true,
+      layout: doc.id,
+      ...result,
+      advice: result.quality === "none" ? "The picture hardly follows the layout (the shapes may be too loose, or the picture has a different size); check it by eye with preview-scene before trusting any shift." : result.shift[0] === 0 && result.shift[1] === 0 ? "The picture lines up with the layout; no shift needed." : `Pass shift [${result.shift[0]}, ${result.shift[1]}] to apply_walls (or lights/place) so walls and objects match the picture.`
+    };
+  }
+  async build(doc, a) {
+    if (!this.generate || !this.upload)
+      throw new Error("build needs image generation and upload, which are not available here");
+    if (!a.scene_name)
+      throw new Error("build needs scene_name");
+    if (!a.prompt)
+      throw new Error("build needs prompt (describe the look of the map)");
+    const width = doc.columns * doc.size;
+    const height = doc.rows * doc.size;
+    if (width % 32 !== 0 || height % 32 !== 0) {
+      throw new Error(`The picture would be ${width} x ${height} pixels; the image model needs multiples of 32. Change the layout columns, rows or grid_size (set grid_size 32, 64 or pick even columns for 48).`);
+    }
+    const steps = [];
+    const sketch = await this.render(doc);
+    steps.push("sketch rendered");
+    const generated = await this.generate({
+      kind: "map",
+      width,
+      height,
+      upload: false,
+      reference_images: [sketch.file],
+      prompt: `<Picture 1> is the exact floor plan to follow. ${sketch.legend} ${a.prompt} No text, no numbers, no grid lines, no characters.`
+    });
+    if (generated?.success === false)
+      throw new Error(generated.error || "The map could not be generated");
+    const localPath = generated?.local_path;
+    if (!localPath)
+      throw new Error("The image generator returned no file");
+    steps.push(`map generated (${generated.seconds ?? "?"} s)`);
+    const uploaded = await this.upload({
+      file_path: localPath,
+      folder: a.upload_folder ?? "maps",
+      filename: a.filename ?? `${doc.id}-${Date.now().toString(36)}.png`
+    });
+    if (uploaded?.success === false || !uploaded?.path)
+      throw new Error(uploaded?.error || "The map could not be uploaded");
+    steps.push(`uploaded to ${uploaded.path}`);
+    const gridPx = a.scene_grid_size ?? 64;
+    const created = await this.client().query("foundry-mcp-bridge.manage-scenes", {
+      action: "create",
+      name: a.scene_name,
+      background: uploaded.path,
+      width: doc.columns * gridPx,
+      height: doc.rows * gridPx,
+      grid_size: gridPx,
+      padding: 0,
+      ...a.scene_options ?? {}
+    });
+    if (created?.success === false)
+      throw new Error(created.error || "The scene could not be created");
+    const sceneId = created?.scene?.id;
+    if (!sceneId)
+      throw new Error("Foundry did not return the new scene");
+    steps.push(`scene "${a.scene_name}" created`);
+    let shift = a.shift ?? [0, 0];
+    let alignment;
+    if (a.auto_align !== false && !a.shift) {
+      try {
+        alignment = alignToImage(layoutOf(doc), await decodeImage(localPath));
+        if (alignment.quality !== "none")
+          shift = alignment.shift;
+        steps.push(`aligned (shift ${shift[0]}, ${shift[1]}, match ${alignment.score})`);
+      } catch (error) {
+        steps.push(`alignment skipped: ${error instanceof Error ? error.message : "failed"}`);
+      }
+    }
+    let walls;
+    if (a.walls !== false) {
+      walls = await this.applyWalls(doc, { ...a, scene: sceneId, shift });
+      steps.push(`${walls.walls} walls and ${walls.doors} doors placed`);
+    }
+    return {
+      success: true,
+      layout: doc.id,
+      scene: { id: sceneId, name: a.scene_name },
+      image: { local: localPath, uploaded: uploaded.path },
+      ...alignment ? { alignment } : {},
+      ...walls ? { walls: { walls: walls.walls, doors: walls.doors, shift } } : {},
+      steps,
+      next: "Look at the result with preview-scene (layers and text mode help in crowded scenes), then place tokens and lights with layout place and lights."
     };
   }
   /** What every change returns: ids touched and the whole layout as text, so it can be checked at a glance. */
@@ -123805,7 +124748,12 @@ async function startBackend() {
   const journalTools = new JournalTools({ foundryClient, logger });
   const sceneObjectTools = new SceneObjectTools({ foundryClient, logger });
   const playTools = new PlayTools({ foundryClient, logger });
-  const layoutTools = new LayoutTools({ logger, foundryClient });
+  const layoutTools = new LayoutTools({
+    logger,
+    foundryClient,
+    generate: (args) => imageGenerationTools.handleGenerateImage(args),
+    upload: (args) => uploadTools.handleUploadFile(args)
+  });
   const inspectTools = new InspectTools({ foundryClient, logger });
   const playlistTools = new PlaylistTools({ foundryClient, logger });
   const actorCreationTools = new ActorCreationTools({ foundryClient, logger });
