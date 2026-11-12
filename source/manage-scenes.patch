@@ -4413,10 +4413,10 @@ index 0000000..3539e49
 +  });
 +});
 diff --git a/packages/foundry-module/src/data-access.ts b/packages/foundry-module/src/data-access.ts
-index eecda7e..b53e85c 100644
+index eecda7e..e42882a 100644
 --- a/packages/foundry-module/src/data-access.ts
 +++ b/packages/foundry-module/src/data-access.ts
-@@ -1,5 +1,126 @@
+@@ -1,5 +1,127 @@
  import { MODULE_ID, ERROR_MESSAGES, TOKEN_DISPOSITIONS } from './constants.js';
  import { permissionManager } from './permissions.js';
 +import {
@@ -4517,6 +4517,7 @@ index eecda7e..b53e85c 100644
 +  stripForCreate,
 +  summarisePlan,
 +} from './scene-backup-utils.js';
++import { auditSnapshot, type AuditScene, type AuditSnapshot, type AuditTeleport } from './world-audit-utils.js';
 +import { buildTeleportBehavior, linkEndSpec, teleportDestinations, type LinkEnd, type LinkOptions } from './link-utils.js';
 +import { measureGrid as measureGridInPicture } from './grid-measure-utils.js';
 +import {
@@ -4543,7 +4544,7 @@ index eecda7e..b53e85c 100644
  import { transactionManager } from './transaction-manager.js';
  
  // The same five characters foundry.utils.escapeHTML replaces in v14, kept local because
-@@ -4681,12 +4802,28 @@ export class FoundryDataAccess {
+@@ -4681,12 +4803,28 @@ export class FoundryDataAccess {
        type: 'random' | 'grid' | 'center' | 'coordinates';
        coordinates?: { x: number; y: number }[];
      };
@@ -4572,7 +4573,7 @@ index eecda7e..b53e85c 100644
        // Validate inputs
        if (!packId || !itemId) {
          throw new Error('Both packId and itemId are required');
-@@ -4753,10 +4890,33 @@ export class FoundryDataAccess {
+@@ -4753,10 +4891,33 @@ export class FoundryDataAccess {
            }
  
            // Organize created actors in a folder - use "Foundry MCP Creatures" for generic monsters
@@ -4607,7 +4608,7 @@ index eecda7e..b53e85c 100644
  
            // Create the actor
            const newActor = await Actor.create(actorData);
-@@ -6714,7 +6874,7 @@ export class FoundryDataAccess {
+@@ -6714,7 +6875,7 @@ export class FoundryDataAccess {
  
          // Send socket request to GM
          if (game.socket) {
@@ -4616,7 +4617,7 @@ index eecda7e..b53e85c 100644
              type: 'requestMessageUpdate',
              buttonId,
              userId,
-@@ -8101,198 +8261,3247 @@ export class FoundryDataAccess {
+@@ -8101,198 +8262,3330 @@ export class FoundryDataAccess {
      }
    }
  
@@ -5678,6 +5679,89 @@ index eecda7e..b53e85c 100644
 +      };
 +    } catch (error) {
 +      throw new Error(`Failed to browse files: ${error instanceof Error ? error.message : 'Unknown error'}`);
++    }
++  }
++
++  // ===== WORLD AUDIT =====
++
++  /** Read-only checklist of what is missing or broken across the world's scenes, playlists and actors. */
++  async auditWorld(options: { scene?: string; include_backups?: boolean } = {}): Promise<any> {
++    this.validateFoundryState();
++
++    try {
++      const g: any = game;
++      const resolveUuid = (uuid: string): any => {
++        try {
++          return (globalThis as any).fromUuidSync?.(uuid) ?? null;
++        } catch {
++          return null;
++        }
++      };
++      const playlistIds = new Set((((g.playlists?.contents || []) as any[]).map(p => p.id)));
++      const actorIds = new Set((((g.actors?.contents || []) as any[]).map(a => a.id)));
++      let sceneDocs = (g.scenes?.contents || []) as any[];
++      if (options.scene) {
++        const one = this.findSceneByIdentifier(options.scene);
++        sceneDocs = sceneDocs.filter(s => s.id === one.id);
++      }
++      const size = (c: any): number => c?.size ?? c?.contents?.length ?? 0;
++      const scenes: AuditScene[] = sceneDocs.map(scene => {
++        const walls = (scene.walls?.contents || []) as any[];
++        const tokens = (scene.tokens?.contents || []) as any[];
++        const levels = (scene.levels?.contents || []) as any[];
++        const musicPlaylist = scene.playlist?.id ?? (typeof scene.playlist === 'string' ? scene.playlist : null);
++        const teleports: AuditTeleport[] = [];
++        for (const region of (scene.regions?.contents || []) as any[]) {
++          for (const b of (region.behaviors?.contents || []) as any[]) {
++            if (b.type !== 'teleportToken') continue;
++            const destinations = teleportDestinations(b);
++            teleports.push({
++              region: region.name,
++              behaviorId: b.id,
++              hidden: !!region.hidden,
++              disabled: !!b.disabled,
++              destinations,
++              resolved: destinations.map(d => !!resolveUuid(d)),
++            });
++          }
++        }
++        return {
++          id: scene.id,
++          name: scene.name,
++          isBackup: !!readBackupFlag(scene.flags, this.moduleId),
++          active: !!scene.active,
++          navigation: !!scene.navigation,
++          hasBackground: !!(scene.background?.src || levels.some(l => l.background?.src)),
++          walls: walls.length,
++          doors: walls.filter(w => (w.door ?? 0) > 0).length,
++          tokens: tokens.length,
++          tokensWithoutActor: tokens.filter(t => t.actorId && !actorIds.has(t.actorId)).length,
++          lights: size(scene.lights),
++          sounds: size(scene.sounds),
++          notes: size(scene.notes),
++          tiles: size(scene.tiles),
++          regions: size(scene.regions),
++          musicPlaylist,
++          musicPlaylistExists: !musicPlaylist || playlistIds.has(musicPlaylist),
++          teleports,
++        };
++      });
++      const snapshot: AuditSnapshot = {
++        scenes: options.include_backups ? scenes.map(s => ({ ...s, isBackup: false })) : scenes,
++        playlists: (((g.playlists?.contents || []) as any[]).map(p => ({ id: p.id, name: p.name, soundCount: size(p.sounds) }))),
++        actorCount: actorIds.size,
++      };
++      const result = auditSnapshot(snapshot);
++      return {
++        success: true,
++        world: g.world?.title ?? g.world?.id,
++        ...result,
++        ...(scenes.some(s => s.isBackup) && !options.include_backups
++          ? { backupScenesSkipped: scenes.filter(s => s.isBackup).length }
++          : {}),
++      };
++    } catch (error) {
++      throw new Error(`Failed to audit the world: ${error instanceof Error ? error.message : 'Unknown error'}`);
 +    }
 +  }
 +
@@ -8022,7 +8106,7 @@ index eecda7e..b53e85c 100644
          case 'play':
            await pl.playAll();
            return { success: true, action: 'play', playlist: info };
-@@ -8304,20 +11513,48 @@ export class FoundryDataAccess {
+@@ -8304,20 +11597,48 @@ export class FoundryDataAccess {
            return { success: true, action: 'cycle-mode', playlist: info, mode: pl.mode as number };
          case 'play-sound':
          case 'stop-sound': {
@@ -8077,7 +8161,7 @@ index eecda7e..b53e85c 100644
        }
      } catch (error) {
        throw new Error(
-@@ -8468,6 +11705,21 @@ export class FoundryDataAccess {
+@@ -8468,6 +11789,21 @@ export class FoundryDataAccess {
      }
    }
  
@@ -8099,7 +8183,7 @@ index eecda7e..b53e85c 100644
    /**
     * Move a token to a new position on the scene
     */
-@@ -8476,6 +11728,7 @@ export class FoundryDataAccess {
+@@ -8476,6 +11812,7 @@ export class FoundryDataAccess {
      x: number;
      y: number;
      animate?: boolean;
@@ -8107,7 +8191,7 @@ index eecda7e..b53e85c 100644
    }): Promise<any> {
      this.validateFoundryState();
  
-@@ -8489,14 +11742,11 @@ export class FoundryDataAccess {
+@@ -8489,14 +11826,11 @@ export class FoundryDataAccess {
      }
  
      try {
@@ -8124,7 +8208,7 @@ index eecda7e..b53e85c 100644
        }
  
        // Update token position
-@@ -8533,7 +11783,13 @@ export class FoundryDataAccess {
+@@ -8533,7 +11867,13 @@ export class FoundryDataAccess {
    /**
     * Update token properties
     */
@@ -8139,7 +8223,7 @@ index eecda7e..b53e85c 100644
      this.validateFoundryState();
  
      // Use permission system
-@@ -8546,20 +11802,19 @@ export class FoundryDataAccess {
+@@ -8546,20 +11886,19 @@ export class FoundryDataAccess {
      }
  
      try {
@@ -8166,7 +8250,7 @@ index eecda7e..b53e85c 100644
  
        // Apply updates
        await token.update(cleanUpdates);
-@@ -11274,7 +14529,10 @@ export class FoundryDataAccess {
+@@ -11274,7 +14613,10 @@ export class FoundryDataAccess {
        name: string;
        type: string;
        img?: string;
@@ -8177,7 +8261,7 @@ index eecda7e..b53e85c 100644
      }>;
      folder?: string;
    }): Promise<{ created: Array<{ id: string; name: string; type: string }>; total: number }> {
-@@ -11286,6 +14544,19 @@ export class FoundryDataAccess {
+@@ -11286,6 +14628,19 @@ export class FoundryDataAccess {
      const docs = params.actors.map(a => {
        const doc: Record<string, any> = { name: a.name, type: a.type };
        if (a.img) doc.img = a.img;
@@ -8197,7 +8281,7 @@ index eecda7e..b53e85c 100644
  
        // Merge system data, adding safe defaults for systems that require certain
        // fields to exist during data preparation (avoids non-fatal init errors).
-@@ -11471,7 +14742,16 @@ export class FoundryDataAccess {
+@@ -11471,7 +14826,16 @@ export class FoundryDataAccess {
     * Merges supplied fields into the actor (top-level keys overwrite).
     */
    async updateActors(
@@ -8215,7 +8299,7 @@ index eecda7e..b53e85c 100644
    ): Promise<{ updated: Array<{ id: string; name: string }>; total: number }> {
      const updatedActors: Array<{ id: string; name: string }> = [];
  
-@@ -11482,6 +14762,7 @@ export class FoundryDataAccess {
+@@ -11482,6 +14846,7 @@ export class FoundryDataAccess {
        const patch: Record<string, any> = {};
        if (u.name !== undefined) patch.name = u.name;
        if (u.img !== undefined) patch.img = u.img;
@@ -8223,7 +8307,7 @@ index eecda7e..b53e85c 100644
        if (u.system !== undefined) {
          // Build a single patch.system nested object so Foundry deep-merges everything
          // in one pass without flat-key vs nested-key conflicts.
-@@ -11504,6 +14785,19 @@ export class FoundryDataAccess {
+@@ -11504,6 +14869,19 @@ export class FoundryDataAccess {
          }
          patch.system = systemPatch;
        }
@@ -11941,7 +12025,7 @@ index 0000000..542d273
 +  return view ? outSize : { width, height };
 +}
 diff --git a/packages/foundry-module/src/queries.ts b/packages/foundry-module/src/queries.ts
-index 9fe02ba..22a0fe7 100644
+index 9fe02ba..170ce3d 100644
 --- a/packages/foundry-module/src/queries.ts
 +++ b/packages/foundry-module/src/queries.ts
 @@ -1,7 +1,8 @@
@@ -11963,7 +12047,7 @@ index 9fe02ba..22a0fe7 100644
  
      // Character/Actor queries
      CONFIG.queries[`${modulePrefix}.getCharacterInfo`] = this.handleGetCharacterInfo.bind(this);
-@@ -46,6 +47,21 @@ export class QueryHandlers {
+@@ -46,6 +47,22 @@ export class QueryHandlers {
      CONFIG.queries[`${modulePrefix}.list-scenes`] = this.handleListScenes.bind(this);
      CONFIG.queries[`${modulePrefix}.switch-scene`] = this.handleSwitchScene.bind(this);
      CONFIG.queries[`${modulePrefix}.update-scene-music`] = this.handleUpdateSceneMusic.bind(this);
@@ -11981,11 +12065,12 @@ index 9fe02ba..22a0fe7 100644
 +    CONFIG.queries[`${modulePrefix}.manage-modules`] = this.handleManageModules.bind(this);
 +    CONFIG.queries[`${modulePrefix}.browse-files`] = this.handleBrowseFiles.bind(this);
 +    CONFIG.queries[`${modulePrefix}.manage-scene-backups`] = this.handleManageSceneBackups.bind(this);
++    CONFIG.queries[`${modulePrefix}.audit-world`] = this.handleAuditWorld.bind(this);
 +    CONFIG.queries[`${modulePrefix}.inspect-document`] = this.handleInspectDocument.bind(this);
      CONFIG.queries[`${modulePrefix}.manage-playlists`] = this.handleManagePlaylists.bind(this);
      CONFIG.queries[`${modulePrefix}.control-playlist`] = this.handleControlPlaylist.bind(this);
  
-@@ -184,7 +200,7 @@ export class QueryHandlers {
+@@ -184,7 +201,7 @@ export class QueryHandlers {
     * Unregister all query handlers
     */
    unregisterHandlers(): void {
@@ -11994,7 +12079,7 @@ index 9fe02ba..22a0fe7 100644
      const keysToRemove = Object.keys(CONFIG.queries).filter(key => key.startsWith(modulePrefix));
  
      for (const key of keysToRemove) {
-@@ -477,7 +493,7 @@ export class QueryHandlers {
+@@ -477,7 +494,7 @@ export class QueryHandlers {
     * Get list of all registered query methods
     */
    getRegisteredMethods(): string[] {
@@ -12003,7 +12088,7 @@ index 9fe02ba..22a0fe7 100644
      return Object.keys(CONFIG.queries)
        .filter(key => key.startsWith(modulePrefix))
        .map(key => key.replace(`${modulePrefix}.`, ''));
-@@ -487,7 +503,7 @@ export class QueryHandlers {
+@@ -487,7 +504,7 @@ export class QueryHandlers {
     * Test if a specific query handler is registered
     */
    isMethodRegistered(method: string): boolean {
@@ -12012,7 +12097,7 @@ index 9fe02ba..22a0fe7 100644
      return queryKey in CONFIG.queries && typeof CONFIG.queries[queryKey] === 'function';
    }
  
-@@ -530,6 +546,9 @@ export class QueryHandlers {
+@@ -530,6 +547,9 @@ export class QueryHandlers {
        if (data.placement) {
          requestData.placement = data.placement;
        }
@@ -12022,7 +12107,7 @@ index 9fe02ba..22a0fe7 100644
  
        return await this.dataAccess.createActorFromCompendiumEntry(requestData);
      } catch (error) {
-@@ -1218,6 +1237,175 @@ export class QueryHandlers {
+@@ -1218,6 +1238,183 @@ export class QueryHandlers {
      }
    }
  
@@ -12094,6 +12179,14 @@ index 9fe02ba..22a0fe7 100644
 +      return { error: 'Access denied', success: false };
 +    }
 +    return await this.dataAccess.manageSceneBackups(data ?? {});
++  }
++
++  private async handleAuditWorld(data: any): Promise<any> {
++    const gmCheck = this.validateGMAccess();
++    if (!gmCheck.allowed) {
++      return { error: 'Access denied', success: false };
++    }
++    return await this.dataAccess.auditWorld(data ?? {});
 +  }
 +
 +  private async handleManageModules(data: any): Promise<any> {
@@ -12198,7 +12291,7 @@ index 9fe02ba..22a0fe7 100644
    private async handleManagePlaylists(data: any): Promise<any> {
      try {
        const gmCheck = this.validateGMAccess();
-@@ -1241,8 +1429,11 @@ export class QueryHandlers {
+@@ -1241,8 +1438,11 @@ export class QueryHandlers {
        if (!gmCheck.allowed) {
          return { error: 'Access denied', success: false };
        }
@@ -12212,7 +12305,7 @@ index 9fe02ba..22a0fe7 100644
        }
        return await this.dataAccess.controlPlaylist(data);
      } catch (error) {
-@@ -1547,7 +1738,9 @@ export class QueryHandlers {
+@@ -1547,7 +1747,9 @@ export class QueryHandlers {
     */
    private async handleUpdateToken(data: {
      tokenId: string;
@@ -12223,7 +12316,7 @@ index 9fe02ba..22a0fe7 100644
    }): Promise<any> {
      try {
        // SECURITY: Silent GM validation
-@@ -1561,8 +1754,8 @@ export class QueryHandlers {
+@@ -1561,8 +1763,8 @@ export class QueryHandlers {
        if (!data.tokenId) {
          throw new Error('tokenId is required');
        }
@@ -14352,6 +14445,221 @@ index 0000000..7d181c7
 +  }
 +  return bytes;
 +}
+diff --git a/packages/foundry-module/src/world-audit-utils.test.ts b/packages/foundry-module/src/world-audit-utils.test.ts
+new file mode 100644
+index 0000000..203becc
+--- /dev/null
++++ b/packages/foundry-module/src/world-audit-utils.test.ts
+@@ -0,0 +1,70 @@
++import { describe, expect, it } from 'vitest';
++import { auditSnapshot, type AuditScene, type AuditSnapshot } from './world-audit-utils.js';
++
++const scene = (over: Partial<AuditScene> = {}): AuditScene => ({
++  id: 's1', name: 'Cave', isBackup: false, active: true, navigation: true, hasBackground: true,
++  walls: 10, doors: 1, tokens: 3, tokensWithoutActor: 0, lights: 2, sounds: 0, notes: 0, tiles: 0, regions: 0,
++  musicPlaylist: 'p1', musicPlaylistExists: true, teleports: [], ...over,
++});
++const snap = (scenes: AuditScene[], over: Partial<AuditSnapshot> = {}): AuditSnapshot => ({
++  scenes, playlists: [{ id: 'p1', name: 'Mix', soundCount: 2 }], actorCount: 4, ...over,
++});
++
++describe('auditSnapshot', () => {
++  it('has nothing to say about a finished scene', () => {
++    const r = auditSnapshot(snap([scene()]));
++    expect(r.findings).toEqual([]);
++    expect(r.summary).toEqual({ error: 0, warning: 0, info: 0 });
++    expect(r.scenes[0]).toMatchObject({ name: 'Cave', walls: 10, music: true });
++  });
++
++  it('flags a bare scene, worst first', () => {
++    const r = auditSnapshot(snap([scene({ hasBackground: false, walls: 0, lights: 0, tokens: 0, musicPlaylist: null, musicPlaylistExists: true })]));
++    expect(r.findings.map(f => f.severity)).toEqual(['warning', 'info', 'info', 'info']);
++    expect(r.findings[0]!.message).toContain('background');
++    expect(r.summary).toEqual({ error: 0, warning: 1, info: 3 });
++  });
++
++  it('makes missing walls a warning only when there are tokens', () => {
++    expect(auditSnapshot(snap([scene({ walls: 0 })])).findings.find(f => f.message.includes('walls'))!.severity).toBe('warning');
++    expect(auditSnapshot(snap([scene({ walls: 0, tokens: 0 })])).findings.find(f => f.message.includes('walls'))!.severity).toBe('info');
++  });
++
++  it('checks teleports and music bindings', () => {
++    const r = auditSnapshot(snap([
++      scene({
++        musicPlaylist: 'gone', musicPlaylistExists: false,
++        teleports: [
++          { region: 'Door', hidden: false, disabled: false, destinations: ['a', 'b'], resolved: [true, false] },
++          { region: 'Hidden', hidden: true, disabled: true, destinations: ['a'], resolved: [true] },
++          { region: 'Empty', hidden: false, disabled: false, destinations: [], resolved: [] },
++        ],
++      }),
++    ]));
++    const errors = r.findings.filter(f => f.severity === 'error').map(f => f.message);
++    expect(errors).toHaveLength(3);
++    expect(errors.join('|')).toContain('does not exist');
++    expect(errors.join('|')).toContain('hidden regions never run');
++    expect(errors.join('|')).toContain('playlist that no longer exists');
++    expect(r.findings.some(f => f.message.includes('no destination'))).toBe(true);
++    expect(r.findings.some(f => f.message.includes('disabled'))).toBe(true);
++  });
++
++  it('skips backups, notes duplicate names, empty playlists and no active scene', () => {
++    const r = auditSnapshot(snap(
++      [scene({ active: false }), scene({ id: 's2', active: false }), scene({ id: 's3', name: 'Cave (old)', isBackup: true, walls: 0 })],
++      { playlists: [{ id: 'p', name: 'Empty', soundCount: 0 }], actorCount: 0 }
++    ));
++    const text = r.findings.map(f => f.message).join('|');
++    expect(text).toContain('2 scenes are called "cave"');
++    expect(text).toContain('No scene is active');
++    expect(text).toContain('no tracks');
++    expect(text).toContain('no actors');
++    expect(r.scenes).toHaveLength(2);
++  });
++
++  it('warns about tokens whose actor is gone, and about an empty world', () => {
++    expect(auditSnapshot(snap([scene({ tokensWithoutActor: 2 })])).findings[0]!.message).toContain('2 token(s)');
++    expect(auditSnapshot(snap([])).findings[0]!.message).toContain('no scenes');
++  });
++});
+diff --git a/packages/foundry-module/src/world-audit-utils.ts b/packages/foundry-module/src/world-audit-utils.ts
+new file mode 100644
+index 0000000..0561245
+--- /dev/null
++++ b/packages/foundry-module/src/world-audit-utils.ts
+@@ -0,0 +1,133 @@
++/**
++ * Pure checks for audit-world: given a plain snapshot of the world's scenes, playlists and
++ * actors, list what is missing or broken. No Foundry globals, so it can be tested.
++ */
++
++export type AuditSeverity = 'error' | 'warning' | 'info';
++
++export interface AuditTeleport {
++  region: string;
++  behaviorId?: string;
++  hidden: boolean;
++  disabled: boolean;
++  destinations: string[];
++  /** For each destination: does it name a region that exists? Same order as destinations. */
++  resolved: boolean[];
++}
++
++export interface AuditScene {
++  id: string;
++  name: string;
++  isBackup: boolean;
++  active: boolean;
++  navigation: boolean;
++  hasBackground: boolean;
++  walls: number;
++  doors: number;
++  tokens: number;
++  tokensWithoutActor: number;
++  lights: number;
++  sounds: number;
++  notes: number;
++  tiles: number;
++  regions: number;
++  musicPlaylist: string | null;
++  musicPlaylistExists: boolean;
++  teleports: AuditTeleport[];
++}
++
++export interface AuditPlaylist {
++  id: string;
++  name: string;
++  soundCount: number;
++}
++
++export interface AuditSnapshot {
++  scenes: AuditScene[];
++  playlists: AuditPlaylist[];
++  actorCount: number;
++}
++
++export interface AuditFinding {
++  severity: AuditSeverity;
++  scene?: string;
++  playlist?: string;
++  message: string;
++  fix?: string;
++}
++
++const RANK: Record<AuditSeverity, number> = { error: 0, warning: 1, info: 2 };
++
++export function auditSnapshot(snapshot: AuditSnapshot): { summary: Record<AuditSeverity, number>; findings: AuditFinding[]; scenes: any[] } {
++  const findings: AuditFinding[] = [];
++  const add = (f: AuditFinding) => findings.push(f);
++  const scenes = snapshot.scenes.filter(s => !s.isBackup);
++
++  if (scenes.length === 0) add({ severity: 'warning', message: 'The world has no scenes', fix: 'create one with manage-scenes' });
++  else if (!scenes.some(s => s.active)) {
++    add({ severity: 'info', message: 'No scene is active, so players land on nothing', fix: 'manage-scenes set_active, or switch-scene' });
++  }
++
++  const byName = new Map<string, number>();
++  for (const s of scenes) byName.set(s.name.toLowerCase(), (byName.get(s.name.toLowerCase()) ?? 0) + 1);
++  for (const [name, count] of byName) {
++    if (count > 1) add({ severity: 'warning', message: `${count} scenes are called "${name}"; tools that take a name will refuse it`, fix: 'rename one or use ids' });
++  }
++
++  for (const s of scenes) {
++    const here = { scene: s.name };
++    if (!s.hasBackground) add({ severity: 'warning', ...here, message: 'No background image', fix: 'generate-image / upload-file, then manage-scenes' });
++    if (s.walls === 0) {
++      add({ severity: s.tokens > 0 ? 'warning' : 'info', ...here, message: 'No walls, so nothing blocks sight or movement', fix: 'layout apply_walls, or manage-scene-objects' });
++    }
++    if (s.tokens === 0) add({ severity: 'info', ...here, message: 'No tokens', fix: 'layout place, or manage-actors' });
++    if (s.tokensWithoutActor > 0) {
++      add({ severity: 'warning', ...here, message: `${s.tokensWithoutActor} token(s) whose actor no longer exists`, fix: 'delete-tokens or relink' });
++    }
++    if (s.walls > 0 && s.lights === 0) add({ severity: 'info', ...here, message: 'Walls but no lights (fine for a lit map, dark for a dungeon)', fix: 'layout lights' });
++    if (!s.musicPlaylist) add({ severity: 'info', ...here, message: 'No music', fix: 'setup-scene-sound' });
++    else if (!s.musicPlaylistExists) {
++      add({ severity: 'error', ...here, message: `Music is bound to a playlist that no longer exists (${s.musicPlaylist})`, fix: 'setup-scene-sound or update-scene-music' });
++    }
++    for (const t of s.teleports) {
++      const where = `Teleport region "${t.region}"`;
++      if (t.destinations.length === 0) {
++        add({ severity: 'warning', ...here, message: `${where} has no destination`, fix: 'manage-regions link' });
++        continue;
++      }
++      t.destinations.forEach((d, i) => {
++        if (!t.resolved[i]) add({ severity: 'error', ...here, message: `${where} points at ${d}, which does not exist`, fix: 'manage-regions link again' });
++      });
++      if (t.hidden) add({ severity: 'error', ...here, message: `${where} is hidden, and hidden regions never run their behaviors`, fix: 'manage-regions update hidden:false' });
++      if (t.disabled) add({ severity: 'warning', ...here, message: `${where} has a disabled teleport behavior` });
++    }
++  }
++
++  for (const p of snapshot.playlists) {
++    if (p.soundCount === 0) add({ severity: 'warning', playlist: p.name, message: 'Playlist has no tracks', fix: 'manage-playlists add_sounds' });
++  }
++  if (snapshot.actorCount === 0) add({ severity: 'info', message: 'The world has no actors' });
++
++  findings.sort((a, b) => RANK[a.severity] - RANK[b.severity]);
++  const summary: Record<AuditSeverity, number> = { error: 0, warning: 0, info: 0 };
++  for (const f of findings) summary[f.severity]++;
++
++  return {
++    summary,
++    findings,
++    scenes: scenes.map(s => ({
++      id: s.id,
++      name: s.name,
++      active: s.active,
++      walls: s.walls,
++      doors: s.doors,
++      tokens: s.tokens,
++      lights: s.lights,
++      sounds: s.sounds,
++      notes: s.notes,
++      regions: s.regions,
++      music: s.musicPlaylist ? s.musicPlaylistExists : false,
++      teleports: s.teleports.length,
++    })),
++  };
++}
 diff --git a/packages/foundry-module/styles/map-generation.css b/packages/foundry-module/styles/map-generation.css
 new file mode 100644
 index 0000000..5228f12
@@ -14988,10 +15296,10 @@ index 096f27b..903a94e 100644
      "@vitest/coverage-v8": "^3.2.4",
      "esbuild": "^0.19.0",
 diff --git a/packages/mcp-server/src/backend.ts b/packages/mcp-server/src/backend.ts
-index 8967e33..18a1461 100644
+index 8967e33..442f5a8 100644
 --- a/packages/mcp-server/src/backend.ts
 +++ b/packages/mcp-server/src/backend.ts
-@@ -48,6 +48,27 @@ import { DnD5eAddFeatureTool } from './tools/dnd5e/add-feature.js';
+@@ -48,6 +48,28 @@ import { DnD5eAddFeatureTool } from './tools/dnd5e/add-feature.js';
  import { DnD5eNpcTools } from './tools/dnd5e/npc.js';
  import { DnD5eFeaturesFromCompendiumTools } from './tools/dnd5e/features.js';
  import { ChatTools } from './tools/chat.js';
@@ -15013,13 +15321,14 @@ index 8967e33..18a1461 100644
 +import { ModuleTools } from './tools/module-tools.js';
 +import { PropTools } from './tools/prop-tools.js';
 +import { FileBackupTools } from './tools/file-backup-tools.js';
++import { AuditTools } from './tools/audit-tools.js';
 +import { SceneSoundTools } from './tools/scene-sound-tools.js';
 +import { LayoutTools } from './tools/layout.js';
 +import { InspectTools } from './tools/inspect.js';
  
  const CONTROL_HOST = '127.0.0.1';
  
-@@ -174,6 +195,22 @@ let comfyuiProcess: ChildProcess | null = null;
+@@ -174,6 +196,22 @@ let comfyuiProcess: ChildProcess | null = null;
  
  let comfyuiStatus: 'stopped' | 'starting' | 'running' | 'error' = 'stopped';
  
@@ -15042,7 +15351,7 @@ index 8967e33..18a1461 100644
  let lockFd: number | null = null;
  
  function acquireLock(): boolean {
-@@ -350,6 +387,18 @@ async function waitForComfyUIReady(timeoutMs: number = 60000): Promise<void> {
+@@ -350,6 +388,18 @@ async function waitForComfyUIReady(timeoutMs: number = 60000): Promise<void> {
  }
  
  async function startComfyUIService(logger: Logger): Promise<any> {
@@ -15061,7 +15370,7 @@ index 8967e33..18a1461 100644
    if (comfyuiStatus === 'running') {
      return { status: 'already_running', message: 'ComfyUI service is already running' };
    }
-@@ -472,6 +521,14 @@ async function startComfyUIService(logger: Logger): Promise<any> {
+@@ -472,6 +522,14 @@ async function startComfyUIService(logger: Logger): Promise<any> {
  }
  
  async function stopComfyUIService(logger: Logger): Promise<any> {
@@ -15076,7 +15385,7 @@ index 8967e33..18a1461 100644
    if (comfyuiStatus === 'stopped') {
      return { status: 'already_stopped', message: 'ComfyUI service is already stopped' };
    }
-@@ -510,7 +567,7 @@ async function checkComfyUIStatus(): Promise<any> {
+@@ -510,7 +568,7 @@ async function checkComfyUIStatus(): Promise<any> {
    // This handles both spawned processes and externally-started instances
  
    try {
@@ -15085,7 +15394,7 @@ index 8967e33..18a1461 100644
        signal: AbortSignal.timeout(5000),
      });
  
-@@ -520,16 +577,23 @@ async function checkComfyUIStatus(): Promise<any> {
+@@ -520,16 +578,23 @@ async function checkComfyUIStatus(): Promise<any> {
        comfyuiStatus = 'error';
      }
    } catch (error) {
@@ -15111,7 +15420,7 @@ index 8967e33..18a1461 100644
    };
  }
  
-@@ -1131,7 +1195,7 @@ async function processMapGenerationInBackend(
+@@ -1131,7 +1196,7 @@ async function processMapGenerationInBackend(
      );
  
      logger.error('Background map generation processing failed', { jobId, error });
@@ -15120,7 +15429,7 @@ index 8967e33..18a1461 100644
  
      // Emit failure to Foundry module
      foundryClient.sendMessage({
-@@ -1195,6 +1259,42 @@ async function startBackend(): Promise<void> {
+@@ -1195,6 +1260,43 @@ async function startBackend(): Promise<void> {
    const compendiumTools = new CompendiumTools({ foundryClient, logger, systemRegistry });
  
    const sceneTools = new SceneTools({ foundryClient, logger });
@@ -15158,12 +15467,13 @@ index 8967e33..18a1461 100644
 +    upload: args => uploadTools.handleUploadFile(args),
 +  });
 +  const fileBackupTools = new FileBackupTools({ foundryClient, logger });
++  const auditTools = new AuditTools({ foundryClient, logger });
 +  const sceneSoundTools = new SceneSoundTools({ foundryClient, logger });
 +  const inspectTools = new InspectTools({ foundryClient, logger });
    const playlistTools = new PlaylistTools({ foundryClient, logger });
  
    const actorCreationTools = new ActorCreationTools({ foundryClient, logger });
-@@ -1301,6 +1401,13 @@ async function startBackend(): Promise<void> {
+@@ -1301,6 +1403,13 @@ async function startBackend(): Promise<void> {
  
          let result: any;
  
@@ -15177,7 +15487,7 @@ index 8967e33..18a1461 100644
          switch (message.type) {
            case 'start-comfyui-service':
              result = await startComfyUIService(logger);
-@@ -1317,6 +1424,19 @@ async function startBackend(): Promise<void> {
+@@ -1317,6 +1426,19 @@ async function startBackend(): Promise<void> {
  
              break;
  
@@ -15197,7 +15507,7 @@ index 8967e33..18a1461 100644
            // Map generation handlers (following existing tool pattern)
            case 'generate-map-request':
              await fs.appendFile(
-@@ -1429,6 +1549,18 @@ async function startBackend(): Promise<void> {
+@@ -1429,6 +1551,19 @@ async function startBackend(): Promise<void> {
  
      ...sceneTools.getToolDefinitions(),
  
@@ -15209,6 +15519,7 @@ index 8967e33..18a1461 100644
 +    ...moduleTools.getToolDefinitions(),
 +    ...propTools.getToolDefinitions(),
 +    ...fileBackupTools.getToolDefinitions(),
++    ...auditTools.getToolDefinitions(),
 +    ...sceneSoundTools.getToolDefinitions(),
 +    ...layoutTools.getToolDefinitions(),
 +    ...inspectTools.getToolDefinitions(),
@@ -15216,7 +15527,7 @@ index 8967e33..18a1461 100644
      ...actorCreationTools.getToolDefinitions(),
      ...actorManagementTools.getToolDefinitions(),
      ...effectManagementTools.getToolDefinitions(),
-@@ -1456,7 +1588,11 @@ async function startBackend(): Promise<void> {
+@@ -1456,7 +1591,11 @@ async function startBackend(): Promise<void> {
  
      ...tokenManipulationTools.getToolDefinitions(),
  
@@ -15229,7 +15540,7 @@ index 8967e33..18a1461 100644
  
      ...playlistTools.getToolDefinitions(),
    ];
-@@ -1764,19 +1900,11 @@ async function startBackend(): Promise<void> {
+@@ -1764,19 +1903,11 @@ async function startBackend(): Promise<void> {
                  // Map generation tools
  
                  case 'generate-map':
@@ -15252,7 +15563,7 @@ index 8967e33..18a1461 100644
  
                  case 'list-scenes':
                    result = await mapGenerationTools.listScenes(args);
-@@ -1805,6 +1933,84 @@ async function startBackend(): Promise<void> {
+@@ -1805,6 +1936,88 @@ async function startBackend(): Promise<void> {
  
                    break;
  
@@ -15307,6 +15618,10 @@ index 8967e33..18a1461 100644
 +
 +                case 'manage-scene-backups':
 +                  result = await fileBackupTools.handleManageSceneBackups(args);
++                  break;
++
++                case 'audit-world':
++                  result = await auditTools.handleAuditWorld(args);
 +                  break;
 +
 +                case 'setup-scene-sound':
@@ -16966,6 +17281,98 @@ index 8709ffc..1319987 100644
            })
          )
          .min(1),
+diff --git a/packages/mcp-server/src/tools/audit-tools.test.ts b/packages/mcp-server/src/tools/audit-tools.test.ts
+new file mode 100644
+index 0000000..ad50367
+--- /dev/null
++++ b/packages/mcp-server/src/tools/audit-tools.test.ts
+@@ -0,0 +1,25 @@
++import { describe, expect, it, vi } from 'vitest';
++import { AuditTools } from './audit-tools.js';
++
++function makeTools(impl?: (m: string, d: any) => unknown) {
++  const query = vi.fn(impl ?? (async () => ({ success: true, findings: [] })));
++  const logger: any = { info: vi.fn(), debug: vi.fn(), error: vi.fn(), warn: vi.fn(), child: () => logger };
++  return { tools: new AuditTools({ foundryClient: { query } as any, logger }), query };
++}
++
++describe('audit-world', () => {
++  it('is exposed and sends its options', async () => {
++    const { tools, query } = makeTools();
++    expect(tools.getToolDefinitions()[0]!.name).toBe('audit-world');
++    await tools.handleAuditWorld({ scene: 'Cave', include_backups: true });
++    expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.audit-world', { scene: 'Cave', include_backups: true });
++    await tools.handleAuditWorld(undefined);
++    expect(query).toHaveBeenLastCalledWith('foundry-mcp-bridge.audit-world', {});
++  });
++  it('refuses unknown input and reports failures', async () => {
++    const { tools, query } = makeTools(async () => ({ success: false, error: 'no such scene' }));
++    await expect(tools.handleAuditWorld({ bogus: 1 })).rejects.toThrow();
++    expect(query).not.toHaveBeenCalled();
++    await expect(tools.handleAuditWorld({})).rejects.toThrow('Failed to audit the world: no such scene');
++  });
++});
+diff --git a/packages/mcp-server/src/tools/audit-tools.ts b/packages/mcp-server/src/tools/audit-tools.ts
+new file mode 100644
+index 0000000..7d0d680
+--- /dev/null
++++ b/packages/mcp-server/src/tools/audit-tools.ts
+@@ -0,0 +1,55 @@
++import { z } from 'zod';
++import { FoundryClient } from '../foundry-client.js';
++import { Logger } from '../logger.js';
++
++export interface AuditToolsOptions {
++  foundryClient: FoundryClient;
++  logger: Logger;
++}
++
++const schema = z
++  .object({
++    scene: z.string().min(1).optional(),
++    include_backups: z.boolean().optional(),
++  })
++  .strict();
++
++export class AuditTools {
++  private foundryClient: FoundryClient;
++  private logger: Logger;
++
++  constructor({ foundryClient, logger }: AuditToolsOptions) {
++    this.foundryClient = foundryClient;
++    this.logger = logger.child({ component: 'AuditTools' });
++  }
++
++  getToolDefinitions() {
++    return [
++      {
++        name: 'audit-world',
++        description:
++          'Read-only checklist of what is missing or broken in the world, worst first: scenes without a background, walls, tokens, lights or music; tokens whose actor is gone; teleport regions that are hidden (hidden regions never run), have no destination or point at a region that no longer exists; scene music bound to a deleted playlist; empty playlists; duplicate scene names; no active scene. Each finding names the tool that fixes it, and a per-scene table gives the counts. scene limits it to one scene; backup scenes made by manage-scene-backups are skipped unless include_backups is true. Changes nothing. Needs the Foundry tab open in a browser.',
++        inputSchema: {
++          type: 'object',
++          properties: {
++            scene: { type: 'string', description: 'Only audit this scene (id or name)' },
++            include_backups: { type: 'boolean', description: 'Also audit backup scenes (default false)' },
++          },
++          additionalProperties: false,
++        },
++      },
++    ];
++  }
++
++  async handleAuditWorld(args: any): Promise<any> {
++    const a = schema.parse(args ?? {});
++    try {
++      const result = await this.foundryClient.query('foundry-mcp-bridge.audit-world', a);
++      if (result?.success === false) throw new Error(result.error || 'The audit was refused');
++      return result;
++    } catch (error) {
++      this.logger.error('Failed to audit the world', error);
++      throw new Error(`Failed to audit the world: ${error instanceof Error ? error.message : 'Unknown error'}`);
++    }
++  }
++}
 diff --git a/packages/mcp-server/src/tools/file-backup-tools.test.ts b/packages/mcp-server/src/tools/file-backup-tools.test.ts
 new file mode 100644
 index 0000000..e96bd2f
@@ -20404,6 +20811,292 @@ index 0000000..0af03d8
 +    expect(tools().getToolDefinitions().map(d => d.name)).toEqual(['layout']);
 +  });
 +});
+diff --git a/packages/mcp-server/src/tools/layout-town.test.ts b/packages/mcp-server/src/tools/layout-town.test.ts
+new file mode 100644
+index 0000000..0b23198
+--- /dev/null
++++ b/packages/mcp-server/src/tools/layout-town.test.ts
+@@ -0,0 +1,81 @@
++import { describe, expect, it } from 'vitest';
++import { doorPortals, expandShapeSpecs } from './layout-town.js';
++import { createDoc, addShapes, layoutOf } from './layout-doc.js';
++import { wallsFromLayout } from './layout-utils.js';
++
++describe('building', () => {
++  it('becomes a rect plus doors on the chosen sides', () => {
++    const out = expandShapeSpecs([
++      { shape: 'building', rect: [4, 4, 6, 4], label: 3, doors: [{ side: 's' }, { side: 'w', offset: 1, secret: true }, { side: 'n', offset: 0, size: 2 }, { side: 'e', state: 'locked' }] },
++    ]) as any[];
++    expect(out[0]).toMatchObject({ shape: 'rect', rect: [4, 4, 6, 4], fill: 'building', label: 3 });
++    expect(out[1]).toEqual({ shape: 'door', size: 1, at: [6, 8], dir: 'h' });
++    expect(out[2]).toEqual({ shape: 'door', size: 1, at: [4, 5], dir: 'v', secret: true });
++    expect(out[3]).toEqual({ shape: 'door', size: 2, at: [4, 4], dir: 'h' });
++    expect(out[4]).toEqual({ shape: 'door', size: 1, at: [10, 5], dir: 'v', state: 'locked' });
++  });
++  it('accepts at and size and keeps other shapes untouched', () => {
++    const out = expandShapeSpecs([{ shape: 'building', at: [1, 1], size: [3, 3] }, { shape: 'ellipse', center: [5, 5], radius: [1, 1] }]) as any[];
++    expect(out).toHaveLength(2);
++    expect(out[0]).toMatchObject({ shape: 'rect', rect: [1, 1, 3, 3] });
++    expect(out[1].shape).toBe('ellipse');
++  });
++  it('refuses bad buildings and doors', () => {
++    expect(() => expandShapeSpecs([{ shape: 'building' }])).toThrow('rect');
++    expect(() => expandShapeSpecs([{ shape: 'building', rect: [0, 0, 0, 3] }])).toThrow('above 0');
++    expect(() => expandShapeSpecs([{ shape: 'building', rect: [0, 0, 3, 3], doors: [{ side: 'x' }] }])).toThrow('side');
++    expect(() => expandShapeSpecs([{ shape: 'building', rect: [0, 0, 3, 3], doors: [{ side: 'n', offset: 3 }] }])).toThrow('outside the wall');
++    expect(() => expandShapeSpecs([{ shape: 'building', rect: [0, 0, 3, 3], doors: [{ side: 'n', size: 4 }] }])).toThrow('longer');
++    expect(() => expandShapeSpecs([{ shape: 'building', rect: [0, 0, 3, 3], doors: 'n' }])).toThrow('list');
++  });
++});
++
++describe('repeat', () => {
++  it('copies a shape along a step, buildings included', () => {
++    const out = expandShapeSpecs([{ shape: 'building', rect: [2, 2, 4, 3], doors: [{ side: 's' }], repeat: { count: 3, step: [6, 0] } }]) as any[];
++    expect(out).toHaveLength(6);
++    expect(out.filter(s => s.shape === 'rect').map(s => s.rect[0])).toEqual([2, 8, 14]);
++    expect(out.filter(s => s.shape === 'door').map(s => s.at[0])).toEqual([3, 9, 15]);
++  });
++  it('moves every kind of shape', () => {
++    const out = expandShapeSpecs([{ shape: 'path', path: [[0, 0], [2, 0]], repeat: { count: 2, step: [0, 3] } }]) as any[];
++    expect(out[1].path).toEqual([[0, 3], [2, 3]]);
++  });
++  it('checks its arguments', () => {
++    expect(() => expandShapeSpecs([{ shape: 'rect', rect: [0, 0, 1, 1], repeat: { count: 0, step: [1, 0] } }])).toThrow('count');
++    expect(() => expandShapeSpecs([{ shape: 'rect', rect: [0, 0, 1, 1], repeat: { count: 999, step: [1, 0] } }])).toThrow('count');
++    expect(() => expandShapeSpecs([{ shape: 'rect', rect: [0, 0, 1, 1], repeat: { count: 2 } }])).toThrow('step');
++  });
++});
++
++describe('with a real layout', () => {
++  it('turns into walls with the doors cut out', () => {
++    const doc = createDoc({ name: 'Town', columns: 30, rows: 20, background: 'grass', wall_fills: ['building'] } as any);
++    addShapes(doc, expandShapeSpecs([{ shape: 'building', rect: [4, 4, 6, 4], doors: [{ side: 's' }] }]));
++    const { walls } = wallsFromLayout(layoutOf(doc));
++    expect(walls.filter(w => (w as any).preset === 'door')).toHaveLength(1);
++    expect(walls.length).toBeGreaterThan(1);
++  });
++});
++
++describe('doorPortals', () => {
++  const doc = createDoc({ name: 'Town', columns: 30, rows: 20, background: 'grass' } as any);
++  const ids = addShapes(doc, expandShapeSpecs([
++    { shape: 'building', rect: [4, 4, 6, 4], label: 7, doors: [{ side: 's' }, { side: 'w', offset: 1 }, { side: 'n' }, { side: 'e' }] },
++  ]));
++  it('finds the squares each side of every door and the building', () => {
++    const portals = doorPortals(doc.shapes as any);
++    expect(portals).toHaveLength(4);
++    const byCentre = (x: number, y: number) => portals.find(p => p.centre[0] === x && p.centre[1] === y)!;
++    expect(byCentre(6.5, 8)).toMatchObject({ outside: [6.5, 8.5], inside: [6.5, 7.5], building: ids[0], buildingLabel: 7 });
++    expect(byCentre(4, 5.5)).toMatchObject({ outside: [3.5, 5.5], inside: [4.5, 5.5] });
++    expect(byCentre(6.5, 4)).toMatchObject({ outside: [6.5, 3.5], inside: [6.5, 4.5] });
++    expect(byCentre(10, 5.5)).toMatchObject({ outside: [10.5, 5.5], inside: [9.5, 5.5] });
++  });
++  it('still reports a door with no building around it', () => {
++    const d = createDoc({ name: 'x', columns: 10, rows: 10 } as any);
++    addShapes(d, [{ shape: 'door', at: [3, 3], dir: 'h', secret: true }]);
++    const [p] = doorPortals(d.shapes as any);
++    expect(p).toMatchObject({ building: null, secret: true, state: 'closed' });
++  });
++});
+diff --git a/packages/mcp-server/src/tools/layout-town.ts b/packages/mcp-server/src/tools/layout-town.ts
+new file mode 100644
+index 0000000..a492778
+--- /dev/null
++++ b/packages/mcp-server/src/tools/layout-town.ts
+@@ -0,0 +1,193 @@
++/**
++ * Town helpers for the layout tool: a `building` composite (a walled block with doors on chosen
++ * sides), a `repeat` option that copies any shape along a step, and `doorPortals`, which lists
++ * where each door leads in and out so enterable buildings can be linked to interior maps.
++ */
++
++const SIDES = ['n', 's', 'e', 'w'] as const;
++type Side = (typeof SIDES)[number];
++
++export const MAX_REPEAT = 40;
++
++const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
++
++function pair(v: unknown, label: string, what: string): [number, number] {
++  if (!Array.isArray(v) || v.length !== 2 || !isNum(v[0]) || !isNum(v[1])) {
++    throw new Error(`${label}: ${what} must be two numbers`);
++  }
++  return [v[0], v[1]];
++}
++
++/** The door shapes for one building: doors sit on the wall line of the chosen side. */
++function buildingDoors(rect: [number, number, number, number], doors: unknown, label: string): any[] {
++  if (doors === undefined) return [];
++  if (!Array.isArray(doors)) throw new Error(`${label}: doors must be a list`);
++  const [x, y, w, h] = rect;
++  return doors.map((raw, i) => {
++    const where = `${label}.doors[${i}]`;
++    if (!raw || typeof raw !== 'object') throw new Error(`${where}: must be an object`);
++    const d: any = raw;
++    if (!SIDES.includes(d.side)) throw new Error(`${where}: side must be n, s, e or w`);
++    const side: Side = d.side;
++    const size = d.size ?? 1;
++    if (!isNum(size) || size <= 0) throw new Error(`${where}: size must be above 0`);
++    const run = side === 'n' || side === 's' ? w : h;
++    if (size > run) throw new Error(`${where}: the door is longer than the wall`);
++    // offset is measured along the wall from its start (west end or north end); default centred
++    const offset = d.offset ?? Math.floor((run - size) / 2);
++    if (!isNum(offset) || offset < 0 || offset + size > run + 1e-9) {
++      throw new Error(`${where}: offset ${offset} puts the door outside the wall (0 to ${run - size})`);
++    }
++    const door: any = { shape: 'door', size };
++    if (side === 'n') Object.assign(door, { at: [x + offset, y], dir: 'h' });
++    else if (side === 's') Object.assign(door, { at: [x + offset, y + h], dir: 'h' });
++    else if (side === 'w') Object.assign(door, { at: [x, y + offset], dir: 'v' });
++    else Object.assign(door, { at: [x + w, y + offset], dir: 'v' });
++    if (d.secret !== undefined) door.secret = d.secret;
++    if (d.state !== undefined) door.state = d.state;
++    return door;
++  });
++}
++
++function shiftShape(raw: any, dx: number, dy: number): any {
++  const s = { ...raw };
++  const move = (p: unknown) => (Array.isArray(p) ? [p[0] + dx, p[1] + dy] : p);
++  if (s.rect) s.rect = [s.rect[0] + dx, s.rect[1] + dy, s.rect[2], s.rect[3]];
++  if (s.ellipse) s.ellipse = [s.ellipse[0] + dx, s.ellipse[1] + dy, s.ellipse[2], s.ellipse[3]];
++  if (s.center) s.center = move(s.center);
++  if (s.at) s.at = move(s.at);
++  if (s.polygon) s.polygon = s.polygon.map(move);
++  if (s.path) s.path = s.path.map(move);
++  if (s.cells) s.cells = s.cells.map((c: number[]) => [c[0]! + dx, c[1]! + dy, c[2], c[3]]);
++  return s;
++}
++
++/**
++ * Turn the shapes asked for into plain layout shapes. A `building` becomes its walled block plus
++ * its doors; `repeat: {count, step: [dx, dy]}` makes count copies in total, each moved by step.
++ */
++export function expandShapeSpecs(raws: unknown[]): unknown[] {
++  const out: unknown[] = [];
++  raws.forEach((raw, i) => {
++    const label = `shapes[${i}]`;
++    if (!raw || typeof raw !== 'object') {
++      out.push(raw);
++      return;
++    }
++    const { repeat, ...base } = raw as any;
++    let copies: any[] = [base];
++    if (repeat !== undefined) {
++      if (!repeat || typeof repeat !== 'object') throw new Error(`${label}: repeat must be {count, step}`);
++      const count = repeat.count;
++      if (!Number.isInteger(count) || count < 1 || count > MAX_REPEAT) {
++        throw new Error(`${label}: repeat.count must be a whole number from 1 to ${MAX_REPEAT}`);
++      }
++      const [dx, dy] = pair(repeat.step, label, 'repeat.step [dx, dy]');
++      copies = Array.from({ length: count }, (_, k) => shiftShape(base, dx * k, dy * k));
++    }
++    for (const copy of copies) {
++      if (copy.shape !== 'building') {
++        out.push(copy);
++        continue;
++      }
++      const { doors, shape: _shape, ...rest } = copy;
++      let rect = rest.rect;
++      if (!rect && rest.at !== undefined && rest.size !== undefined) {
++        const at = pair(rest.at, label, 'at [column, row]');
++        const size = pair(rest.size, label, 'size [width, height]');
++        rect = [at[0], at[1], size[0], size[1]];
++        delete rest.at;
++        delete rest.size;
++      }
++      if (!Array.isArray(rect) || rect.length !== 4 || !rect.every(isNum)) {
++        throw new Error(`${label}: a building needs rect [x, y, width, height]`);
++      }
++      if (rect[2]! <= 0 || rect[3]! <= 0) throw new Error(`${label}: building width and height must be above 0`);
++      out.push({ ...rest, shape: 'rect', rect, fill: rest.fill ?? 'building' });
++      out.push(...buildingDoors(rect as [number, number, number, number], doors, label));
++    }
++  });
++  return out;
++}
++
++export interface PortalShape {
++  id?: number;
++  shape: string;
++  fill?: string;
++  rect?: number[];
++  at?: number[];
++  dir?: string;
++  size?: number;
++  secret?: boolean;
++  state?: string;
++  label?: number;
++}
++
++export interface Portal {
++  door: number | null;
++  /** Centre of the door, in squares. */
++  centre: [number, number];
++  /** A square just outside the building, and one just inside, as the centre of each square. */
++  outside: [number, number];
++  inside: [number, number];
++  /** The rect shape the door belongs to, when one can be found. */
++  building: number | null;
++  buildingLabel: number | null;
++  secret: boolean;
++  state: string;
++}
++
++const near = (a: number, b: number) => Math.abs(a - b) < 0.3;
++
++/** Where every door leads: the square outside, the square inside and the building it is part of. */
++export function doorPortals(shapes: PortalShape[]): Portal[] {
++  const rects = shapes.filter(s => s.shape === 'rect' && s.rect && s.fill !== 'door');
++  const portals: Portal[] = [];
++  for (const s of shapes) {
++    if (s.shape !== 'door' || !s.at) continue;
++    const len = s.size ?? 1;
++    const horizontal = s.dir === 'h';
++    const [x, y] = s.at as [number, number];
++    const centre: [number, number] = horizontal ? [x + len / 2, y] : [x, y + len / 2];
++    // The building is the last rect whose edge the door sits on, and whose span covers the door.
++    let owner: PortalShape | undefined;
++    let side: Side | undefined;
++    for (const r of rects) {
++      const [rx, ry, rw, rh] = r.rect as number[];
++      const spansX = centre[0] > rx! - 1e-9 && centre[0] < rx! + rw! + 1e-9;
++      const spansY = centre[1] > ry! - 1e-9 && centre[1] < ry! + rh! + 1e-9;
++      let found: Side | undefined;
++      if (horizontal && spansX) {
++        if (near(y, ry!)) found = 'n';
++        else if (near(y, ry! + rh!)) found = 's';
++      } else if (!horizontal && spansY) {
++        if (near(x, rx!)) found = 'w';
++        else if (near(x, rx! + rw!)) found = 'e';
++      }
++      if (found) {
++        owner = r;
++        side = found;
++      }
++    }
++    let outside: [number, number];
++    let inside: [number, number];
++    const cell = (v: number) => Math.floor(v) + 0.5;
++    if (side === 'n') [outside, inside] = [[cell(centre[0]), Math.round(y) - 0.5], [cell(centre[0]), Math.round(y) + 0.5]];
++    else if (side === 's') [outside, inside] = [[cell(centre[0]), Math.round(y) + 0.5], [cell(centre[0]), Math.round(y) - 0.5]];
++    else if (side === 'w') [outside, inside] = [[Math.round(x) - 0.5, cell(centre[1])], [Math.round(x) + 0.5, cell(centre[1])]];
++    else if (side === 'e') [outside, inside] = [[Math.round(x) + 0.5, cell(centre[1])], [Math.round(x) - 0.5, cell(centre[1])]];
++    else if (horizontal) [outside, inside] = [[cell(centre[0]), Math.round(y) - 0.5], [cell(centre[0]), Math.round(y) + 0.5]];
++    else [outside, inside] = [[Math.round(x) - 0.5, cell(centre[1])], [Math.round(x) + 0.5, cell(centre[1])]];
++    portals.push({
++      door: s.id ?? null,
++      centre,
++      outside,
++      inside,
++      building: owner?.id ?? null,
++      buildingLabel: owner?.label ?? null,
++      secret: !!s.secret,
++      state: s.state ?? 'closed',
++    });
++  }
++  return portals;
++}
 diff --git a/packages/mcp-server/src/tools/layout-utils.ts b/packages/mcp-server/src/tools/layout-utils.ts
 new file mode 100644
 index 0000000..ffd0a9f
@@ -21119,10 +21812,10 @@ index 0000000..5b5d028
 +
 diff --git a/packages/mcp-server/src/tools/layout.ts b/packages/mcp-server/src/tools/layout.ts
 new file mode 100644
-index 0000000..24dc381
+index 0000000..aeada17
 --- /dev/null
 +++ b/packages/mcp-server/src/tools/layout.ts
-@@ -0,0 +1,868 @@
+@@ -0,0 +1,875 @@
 +import { promises as fs } from 'fs';
 +import path from 'path';
 +import { z } from 'zod';
@@ -21130,6 +21823,7 @@ index 0000000..24dc381
 +import { Logger } from '../logger.js';
 +import { FILLS, encodePng, legendFor, renderLayout, wallsFromLayout } from './layout-utils.js';
 +import { decodeImage } from './layout-image.js';
++import { doorPortals, expandShapeSpecs } from './layout-town.js';
 +import {
 +  alignToImage,
 +  checkLayout,
@@ -21186,7 +21880,7 @@ index 0000000..24dc381
 +
 +const schema = z
 +  .object({
-+    action: z.enum(['new', 'add', 'update', 'remove', 'show', 'render', 'walls', 'apply_walls', 'check', 'place', 'lights', 'align', 'build', 'set', 'undo', 'redo', 'list', 'delete']),
++    action: z.enum(['new', 'add', 'update', 'remove', 'show', 'render', 'walls', 'apply_walls', 'check', 'place', 'lights', 'align', 'build', 'portals', 'set', 'undo', 'redo', 'list', 'delete']),
 +    layout: z.string().min(1).optional(),
 +    name: z.string().min(1).max(60).optional(),
 +    columns: z.number().optional(),
@@ -21279,7 +21973,7 @@ index 0000000..24dc381
 +        description:
 +          'Build a map layout step by step (rooms, corridors, roads, rivers, buildings, doors), see it at once as a text map, adjust it, then render a flat-colour sketch for generate-image (reference_images + <Picture 1>) and derive walls and doors for the scene. Layouts are saved, so you can come back to them. ' +
 +          shapeHelp +
-+          ' Painting order is the list order: later shapes cover earlier ones (rooms first, then corridors, then doors; paint rock to carve). ' +
++          ' TOWNS: a shape {shape:"building", rect:[x,y,w,h], doors:[{side:"n|s|e|w", offset?(squares along the wall, default centred), size?(1), secret?, state?}], fill?(building), label?} adds a block with its doors in one go (start the layout with wall_fills:["building"] so walls go around buildings instead of inside rooms); any shape accepts repeat:{count, step:[dx,dy]} to make count copies in a row (a street of houses). portals {layout} lists every door with the square outside and inside it and the building it belongs to, ready for linking enterable buildings to interior scenes with manage-regions link. Painting order is the list order: later shapes cover earlier ones (rooms first, then corridors, then doors; paint rock to carve). ' +
 +          'ACTIONS: new {name, columns, rows, grid_size?(64), background?(rock; grass outdoors), snap?(1), wall_fills?, reference?} starts a layout. add {layout, shapes, after?} adds shapes and returns their ids and the text map. update {layout, id, set?, move?:[cols,rows], front?, back?, after?} changes one shape (set null to clear a field). remove {layout, ids}. ' +
 +          'show {layout} returns the text map (one character per square with column and row numbers; add region to zoom, shapes_list for every shape and its numbers) or, with png:true, a picture with the numbered grid, shape ids and the reference page showing through, for checking against a book map. ' +
 +          'reference traces a picture: set {layout, reference:{image, origin:[px,py], cell_px}} where image is a PNG/JPEG on this computer, origin the pixel where square (0,0) starts and cell_px the pixels per square; show png:true then lays your shapes over it (show_reference:false hides it, hide_shapes:true shows only the picture and grid so you can calibrate origin and cell_px). ' +
@@ -21287,7 +21981,7 @@ index 0000000..24dc381
 +        inputSchema: {
 +          type: 'object',
 +          properties: {
-+            action: { type: 'string', enum: ['new', 'add', 'update', 'remove', 'show', 'render', 'walls', 'apply_walls', 'check', 'place', 'lights', 'align', 'build', 'set', 'undo', 'redo', 'list', 'delete'] },
++            action: { type: 'string', enum: ['new', 'add', 'update', 'remove', 'show', 'render', 'walls', 'apply_walls', 'check', 'place', 'lights', 'align', 'build', 'portals', 'set', 'undo', 'redo', 'list', 'delete'] },
 +            layout: { type: 'string', description: 'Layout name or id (new: use name)' },
 +            name: { type: 'string', description: 'new: layout name' },
 +            columns: { type: 'number', description: 'new: width in squares (4 to 200)' },
@@ -21314,7 +22008,7 @@ index 0000000..24dc381
 +              items: {
 +                type: 'object',
 +                properties: {
-+                  shape: { type: 'string', enum: ['room', 'rect', 'ellipse', 'polygon', 'path', 'cells', 'door'] },
++                  shape: { type: 'string', enum: ['room', 'rect', 'ellipse', 'polygon', 'path', 'cells', 'door', 'building'] },
 +                  at: { type: 'array', items: { type: 'number' }, description: 'room: [col, row]; door: [x, y]' },
 +                  size: { description: 'room: [width, height]; door: length in squares' },
 +                  rect: { type: 'array', items: { type: 'number' }, description: '[x, y, width, height]' },
@@ -21334,6 +22028,8 @@ index 0000000..24dc381
 +                  snap: { type: 'number', description: 'snap squares for this shape (0 = free)' },
 +                  name: { type: 'string', description: 'note for yourself' },
 +                  label: { type: 'number', description: 'number shown on previews (default the id)' },
++                  doors: { type: 'array', items: { type: 'object', additionalProperties: true }, description: 'building: [{side:n|s|e|w, offset?, size?, secret?, state?}]' },
++                  repeat: { type: 'object', properties: { count: { type: 'number' }, step: { type: 'array', items: { type: 'number' } } }, description: 'copies: {count, step:[dx,dy]}' },
 +                },
 +                required: ['shape'],
 +              },
@@ -21455,7 +22151,7 @@ index 0000000..24dc381
 +      case 'add': {
 +        if (!a.shapes) throw new Error('add needs shapes');
 +        const before = captureState(doc);
-+        const ids = addShapes(doc, a.shapes, a.after);
++        const ids = addShapes(doc, expandShapeSpecs(a.shapes), a.after);
 +        commitChange(doc, `add ${ids.length} shape${ids.length === 1 ? '' : 's'} (${ids.join(', ')})`, before);
 +        await this.store.save(doc);
 +        return this.summary(doc, 'add', ids);
@@ -21532,6 +22228,10 @@ index 0000000..24dc381
 +        return this.lights(doc, a);
 +      case 'align':
 +        return this.align(doc, a);
++      case 'portals': {
++        const portals = doorPortals(doc.shapes as any);
++        return { success: true, layout: doc.id, portals, count: portals.length };
++      }
 +      case 'build':
 +        return this.build(doc, a);
 +      default:
@@ -24367,10 +25067,10 @@ index 0000000..b29e804
 +}
 diff --git a/packages/mcp-server/src/tools/scene-sound-tools.test.ts b/packages/mcp-server/src/tools/scene-sound-tools.test.ts
 new file mode 100644
-index 0000000..eedbd84
+index 0000000..03e3a40
 --- /dev/null
 +++ b/packages/mcp-server/src/tools/scene-sound-tools.test.ts
-@@ -0,0 +1,147 @@
+@@ -0,0 +1,154 @@
 +import { describe, expect, it, vi } from 'vitest';
 +import { SceneSoundTools, soundNameFromPath } from './scene-sound-tools.js';
 +
@@ -24388,7 +25088,9 @@ index 0000000..eedbd84
 +    if (overrides[name]) return overrides[name](data);
 +    switch (name) {
 +      case 'manage-scenes':
-+        return { success: true, scene: { id: 's1', name: 'Cave', music: { playlist: null, playlistSound: null } } };
++        return { success: true, scene: { id: 's1', name: 'Cave' } };
++      case 'list-scenes':
++        return [{ id: 's1', name: 'Cave', music: { playlist: { id: 'p1', name: 'Existing mix' }, playlistSound: null } }];
 +      case 'manage-playlists':
 +        if (data.action === 'describe' && !data.playlist) return { success: true, playlists: state.playlists };
 +        if (data.action === 'describe') return { success: true, playlist: { id: data.playlist, name: 'Existing mix', sounds: state.playlistSounds } };
@@ -24497,7 +25199,12 @@ index 0000000..eedbd84
 +  it('describes music and ambient sounds', async () => {
 +    const { tools } = makeTools();
 +    const r = await tools.handleSetupSceneSound({ scene: 'Cave', action: 'describe' });
-+    expect(r).toMatchObject({ success: true, scene: { id: 's1', name: 'Cave' }, ambient: [{ id: 'z' }] });
++    expect(r).toMatchObject({
++      success: true,
++      scene: { id: 's1', name: 'Cave' },
++      music: { playlist: { name: 'Existing mix' } },
++      ambient: [{ id: 'z' }],
++    });
 +  });
 +  it('refuses bad combinations', async () => {
 +    const { tools, calls } = makeTools();
@@ -24520,10 +25227,10 @@ index 0000000..eedbd84
 +});
 diff --git a/packages/mcp-server/src/tools/scene-sound-tools.ts b/packages/mcp-server/src/tools/scene-sound-tools.ts
 new file mode 100644
-index 0000000..ef1049e
+index 0000000..4ffc9e0
 --- /dev/null
 +++ b/packages/mcp-server/src/tools/scene-sound-tools.ts
-@@ -0,0 +1,239 @@
+@@ -0,0 +1,241 @@
 +import { z } from 'zod';
 +import { FoundryClient } from '../foundry-client.js';
 +import { Logger } from '../logger.js';
@@ -24659,12 +25366,14 @@ index 0000000..ef1049e
 +  }
 +
 +  private async describeScene(scene: string): Promise<any> {
-+    const info = await this.q('manage-scenes', { action: 'describe', scene_identifier: scene });
++    // list-scenes is where a scene's music binding (playlist and track, by name) is reported.
++    const listed = await this.q('list-scenes', {});
++    const all: any[] = Array.isArray(listed) ? listed : listed?.scenes ?? [];
++    const found = all.find(s => s?.id === scene) ?? all.find(s => String(s?.name).toLowerCase() === scene.toLowerCase());
 +    const sounds = await this.q('manage-scene-objects', { action: 'describe', scene, kind: 'sound' });
-+    const sceneInfo = info?.scene ?? info;
 +    return {
-+      scene: { id: sceneInfo?.id ?? sounds?.scene?.id, name: sceneInfo?.name ?? sounds?.scene?.name },
-+      music: sceneInfo?.music ?? { playlist: sceneInfo?.playlist ?? null, playlistSound: sceneInfo?.playlistSound ?? null },
++      scene: { id: found?.id ?? sounds?.scene?.id, name: found?.name ?? sounds?.scene?.name },
++      music: found?.music ?? { playlist: null, playlistSound: null },
 +      ambient: sounds?.sounds ?? [],
 +    };
 +  }
