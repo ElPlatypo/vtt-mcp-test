@@ -2503,7 +2503,7 @@ index 0000000..8e1aad5
 +});
 diff --git a/packages/foundry-module/src/data-access.combat.test.ts b/packages/foundry-module/src/data-access.combat.test.ts
 new file mode 100644
-index 0000000..f4181c6
+index 0000000..56b875b
 --- /dev/null
 +++ b/packages/foundry-module/src/data-access.combat.test.ts
 @@ -0,0 +1,209 @@
@@ -2649,7 +2649,7 @@ index 0000000..f4181c6
 +      { tokenId: 't1', sceneId: 's1', actorId: 'g1', hidden: true },
 +      { tokenId: 't3', sceneId: 's1', actorId: 'mira', hidden: false },
 +    ]);
-+    expect(combat.rollInitiative).toHaveBeenCalledWith(['c_t1', 'c_t3']);
++    expect(combat.rollInitiative.mock.calls).toEqual([[['c_t1']], [['c_t3']]]);
 +    expect(combat.startCombat).toHaveBeenCalled();
 +    expect(r).toMatchObject({ success: true, added: ['Goblin 1', 'Mira'], rolled: 2 });
 +    expect(r.combat.started).toBe(true);
@@ -6658,7 +6658,7 @@ index 0000000..26e6aab
 +  });
 +});
 diff --git a/packages/foundry-module/src/data-access.ts b/packages/foundry-module/src/data-access.ts
-index eecda7e..cea4cc1 100644
+index eecda7e..26ded74 100644
 --- a/packages/foundry-module/src/data-access.ts
 +++ b/packages/foundry-module/src/data-access.ts
 @@ -1,6 +1,135 @@
@@ -6889,7 +6889,7 @@ index eecda7e..cea4cc1 100644
              type: 'requestMessageUpdate',
              buttonId,
              userId,
-@@ -8101,198 +8281,4171 @@ export class FoundryDataAccess {
+@@ -8101,244 +8281,4268 @@ export class FoundryDataAccess {
      }
    }
  
@@ -6904,6 +6904,24 @@ index eecda7e..cea4cc1 100644
 -  async managePlaylists(options: {
 -    action: 'create' | 'update' | 'delete' | 'describe';
 -    playlist?: string | null;
+-    name?: string;
+-    mode?: number;
+-    fade?: number;
+-    description?: string;
+-    sorting?: 'a' | 'm';
+-    folder?: string | null;
+-    color?: string | null;
+-    sounds?: Array<{
+-      name?: string;
+-      path?: string;
+-      id?: string;
+-      volume?: number;
+-      repeat?: boolean;
+-      fade?: number;
+-    }>;
+-    updates?: Record<string, any>;
+-  }): Promise<any> {
+-    this.validateFoundryState();
 +  private summarizeScene(scene: any): Record<string, any> {
 +    const level = scene.levels?.contents?.[0];
 +    return {
@@ -6939,7 +6957,9 @@ index eecda7e..cea4cc1 100644
 +        : null,
 +    };
 +  }
-+
+ 
+-    try {
+-      const playlists = () => (game as any).playlists?.contents || [];
 +  /**
 +   * Turn manage-scenes options into a Scene update payload, validating ranges.
 +   * The background image is handled separately (it lives on a Level in v14).
@@ -6967,21 +6987,89 @@ index eecda7e..cea4cc1 100644
 +      }
 +      return value;
 +    };
-+
+ 
+-      if (options.action === 'describe') {
+-        const doc = options.playlist
+-          ? this.findMusicDoc((game as any).playlists, options.playlist, 'playlist')
+-          : null;
+-        if (!doc) {
+-          return {
+-            success: true,
+-            playlists: playlists().map((pl: any) => ({
+-              id: pl.id,
+-              name: pl.name,
+-              mode: pl.mode,
+-              playing: pl.playing,
+-              soundCount: pl.sounds?.size || 0,
+-            })),
+-          };
+-        }
+-        return {
+-          success: true,
+-          playlist: {
+-            id: doc.id,
+-            name: doc.name,
+-            mode: doc.mode,
+-            playing: doc.playing,
+-            description: doc.description || '',
+-            folder: doc.folder || null,
+-            sort: doc.sort,
+-            sounds: (doc.sounds?.contents || []).map((s: any) => ({
+-              id: s.id,
+-              name: s.name,
+-              path: s.path,
+-              volume: s.volume,
+-              repeat: s.repeat,
+-              fade: s.fade,
+-              playing: s.playing,
+-            })),
+-          },
+-        };
 +    if (options.name !== undefined) {
 +      if (typeof options.name !== 'string' || !options.name.trim()) {
 +        throw new Error('name must be a non-empty string');
-+      }
+       }
 +      data.name = options.name.trim();
 +    }
-+
+ 
+-      if (options.action === 'create') {
+-        if (!options.name || typeof options.name !== 'string') {
+-          throw new Error('name is required for create');
+-        }
+-        const data: Record<string, any> = { name: options.name };
+-        if (options.mode !== undefined) data.mode = options.mode;
+-        if (options.fade !== undefined) data.fade = options.fade;
+-        if (options.description !== undefined) data.description = options.description;
+-        if (options.sorting !== undefined) data.sorting = options.sorting;
+-        if (options.folder !== undefined) data.folder = options.folder;
+-        if (options.color !== undefined) data.color = options.color;
+-        const pl = await ((game as any).playlists as any).createDocuments([data]);
+-        const doc = Array.isArray(pl) ? pl[0] : pl;
 +    const width = number('width', 'width', 100, 20000, true);
 +    if (width !== undefined) data.width = width;
 +    const height = number('height', 'height', 100, 20000, true);
 +    if (height !== undefined) data.height = height;
 +    const padding = number('padding', 'padding', 0, 0.5, false);
 +    if (padding !== undefined) data.padding = padding;
-+
+ 
+-        let soundsCreated = 0;
+-        for (const s of options.sounds || []) {
+-          if (!s.path) {
+-            throw new Error(`sound entry needs a "path": ${JSON.stringify(s)}`);
+-          }
+-          const sdata: Record<string, any> = { path: s.path };
+-          if (s.name !== undefined) sdata.name = s.name;
+-          if (s.volume !== undefined) sdata.volume = s.volume;
+-          if (s.repeat !== undefined) sdata.repeat = s.repeat;
+-          if (s.fade !== undefined) sdata.fade = s.fade;
+-          await (doc as any).createEmbeddedDocuments('PlaylistSound', [sdata]);
+-          soundsCreated++;
+-        }
+-        return {
+-          success: true,
+-          playlist: { id: doc.id, name: doc.name, mode: doc.mode },
+-          soundsCreated,
+-        };
 +    const grid: Record<string, any> = {};
 +    // 50 is Foundry's CONST.GRID_MIN_SIZE
 +    const gridSize = number('grid_size', 'grid_size', 50, 1000, true);
@@ -6997,13 +7085,62 @@ index eecda7e..cea4cc1 100644
 +    if (options.grid_color !== undefined) {
 +      if (typeof options.grid_color !== 'string' || !/^#[0-9a-fA-F]{6}$/.test(options.grid_color)) {
 +        throw new Error('grid_color must be a #RRGGBB hex string');
-+      }
+       }
 +      grid.color = options.grid_color;
 +    }
 +    const gridAlpha = number('grid_alpha', 'grid_alpha', 0, 1, false);
 +    if (gridAlpha !== undefined) grid.alpha = gridAlpha;
 +    if (Object.keys(grid).length > 0) data.grid = grid;
-+
+ 
+-      if (options.action === 'update') {
+-        const doc = this.findMusicDoc((game as any).playlists, options.playlist, 'playlist');
+-        if (!doc) throw new Error('update requires a playlist identifier');
+-        const patch = { ...(options.updates || {}) } as Record<string, any>;
+-        for (const key of [
+-          'name',
+-          'mode',
+-          'fade',
+-          'description',
+-          'sorting',
+-          'folder',
+-          'color',
+-        ] as const) {
+-          if ((options as any)[key] !== undefined) patch[key] = (options as any)[key];
+-        }
+-        if (Object.keys(patch).length) await doc.update(patch);
+-        // Sound-level ops in the same call
+-        let soundsTouched = 0;
+-        for (const s of options.sounds || []) {
+-          if (!s.path && !s.name && !s.id) continue;
+-          const list = doc.sounds?.contents || [];
+-          let snd: any = null;
+-          if (s.id) snd = list.find((x: any) => x.id === s.id);
+-          else {
+-            const byPath = s.path ? list.filter((x: any) => x.path === s.path) : [];
+-            const byName = s.name ? list.filter((x: any) => x.name === s.name) : [];
+-            snd = byPath.length === 1 ? byPath[0] : byName.length === 1 ? byName[0] : null;
+-          }
+-          if (!snd) {
+-            throw new Error(
+-              `sound not found in playlist "${doc.name}" (need exact id or unique path/name)`
+-            );
+-          }
+-          const spatch: Record<string, any> = {};
+-          if (s.name !== undefined) spatch.name = s.name;
+-          if (s.path !== undefined) spatch.path = s.path;
+-          if (s.volume !== undefined) spatch.volume = s.volume;
+-          if (s.repeat !== undefined) spatch.repeat = s.repeat;
+-          if (s.fade !== undefined) spatch.fade = s.fade;
+-          if (Object.keys(spatch).length) {
+-            await snd.update(spatch);
+-            soundsTouched++;
+-          }
+-        }
+-        return {
+-          success: true,
+-          playlist: { id: doc.id, name: doc.name },
+-          soundsUpdated: soundsTouched,
+-        };
 +    const shiftX = number('grid_shift_x', 'grid_shift_x', -5000, 5000, true);
 +    if (shiftX !== undefined) data.shiftX = shiftX;
 +    const shiftY = number('grid_shift_y', 'grid_shift_y', -5000, 5000, true);
@@ -7015,18 +7152,32 @@ index eecda7e..cea4cc1 100644
 +    if (options.weather !== undefined) {
 +      if (options.weather !== null && (typeof options.weather !== 'string' || options.weather.length > 64)) {
 +        throw new Error('weather must be a weather effect id (such as rain, snow, fog) or null for none');
-+      }
+       }
 +      data.weather = options.weather ?? '';
 +    }
-+
+ 
+-      if (options.action === 'delete') {
+-        // Delete never guesses: exact id or name only.
+-        const doc = this.findMusicDoc((game as any).playlists, options.playlist, 'playlist', {
+-          exact: true,
+-        });
+-        if (!doc) throw new Error('delete requires a playlist identifier');
+-        const name = doc.name;
+-        await doc.delete();
+-        return { success: true, deleted: name };
 +    if (options.background_color !== undefined) {
 +      const color = options.background_color;
 +      if (color !== null && (typeof color !== 'string' || !/^#[0-9a-fA-F]{6}$/.test(color))) {
 +        throw new Error('background_color must be a #RRGGBB hex string or null');
-+      }
+       }
 +      data.backgroundColor = color;
 +    }
-+
+ 
+-      throw new Error(`Unknown action: ${options.action}`);
+-    } catch (error) {
+-      throw new Error(
+-        `Failed to manage playlists: ${error instanceof Error ? error.message : 'Unknown error'}`
+-      );
 +    if (options.token_vision !== undefined) {
 +      if (typeof options.token_vision !== 'boolean')
 +        throw new Error('token_vision must be boolean');
@@ -7046,20 +7197,61 @@ index eecda7e..cea4cc1 100644
 +    if (options.navigation !== undefined) {
 +      if (typeof options.navigation !== 'boolean') throw new Error('navigation must be boolean');
 +      data.navigation = options.navigation;
-+    }
+     }
 +    if (options.nav_name !== undefined) {
 +      if (typeof options.nav_name !== 'string') throw new Error('nav_name must be a string');
 +      data.navName = options.nav_name;
 +    }
 +
 +    return data;
-+  }
-+
-+  /**
+   }
+ 
+   /**
+-   * Playback control. Supports playlist-level play/stop/cycle-mode and
+-   * per-sound play/stop, all through the client Playlist API so the server
+-   * and every connected client stay in sync.
 +   * Set or clear a scene's background image. Foundry v14 removed Scene#background:
 +   * the image lives on the scene's first Level (mirrors socket-bridge's scene creation).
 +   * v13 and earlier use the flat background.src field on the Scene.
-+   */
+    */
+-  async controlPlaylist(options: {
+-    playlist: string;
+-    command: 'play' | 'stop' | 'cycle-mode' | 'play-sound' | 'stop-sound';
+-    sound?: string;
+-  }): Promise<any> {
+-    this.validateFoundryState();
+-
+-    try {
+-      const pl = this.findMusicDoc((game as any).playlists, options.playlist, 'playlist');
+-      if (!pl) throw new Error('playlist identifier is required');
+-      const info = { id: pl.id, name: pl.name, mode: pl.mode };
+-
+-      switch (options.command) {
+-        case 'play':
+-          await pl.playAll();
+-          return { success: true, action: 'play', playlist: info };
+-        case 'stop':
+-          await pl.stopAll();
+-          return { success: true, action: 'stop', playlist: info };
+-        case 'cycle-mode':
+-          await pl.cycleMode();
+-          return { success: true, action: 'cycle-mode', playlist: info, mode: pl.mode as number };
+-        case 'play-sound':
+-        case 'stop-sound': {
+-          if (!options.sound) throw new Error(`command ${options.command} requires "sound"`);
+-          const snd = this.findMusicDoc(pl.sounds, options.sound, 'playlistSound');
+-          if (!snd) throw new Error(`sound not found: "${options.sound}"`);
+-          if (options.command === 'play-sound') await pl.playSound(snd);
+-          else await pl.stopSound(snd);
+-          return {
+-            success: true,
+-            action: options.command,
+-            playlist: info,
+-            sound: { id: snd.id, name: snd.name, path: snd.path },
+-          };
+-        }
+-        default:
+-          throw new Error(`Unknown command: ${options.command}`);
 +  private async applySceneBackground(scene: any, src: string | null): Promise<void> {
 +    const generation = (game as any).release?.generation ?? 0;
 +    if (generation >= 14) {
@@ -7068,12 +7260,17 @@ index eecda7e..cea4cc1 100644
 +        await level.update({ background: { src } });
 +      } else if (src) {
 +        await scene.createEmbeddedDocuments('Level', [{ name: 'Base', background: { src } }]);
-+      }
+       }
+-    } catch (error) {
+-      throw new Error(
+-        `Failed to control playlist: ${error instanceof Error ? error.message : 'Unknown error'}`
+-      );
 +    } else {
 +      await scene.update({ background: { src } });
-+    }
-+  }
-+
+     }
+   }
+ 
+-  // ===== PHASE 7: CHARACTER ENTITY AND TOKEN MANIPULATION METHODS =====
 +  /**
 +   * Set the canvas colour behind the background. Foundry v14 has no Scene#backgroundColor
 +   * field in the document source: the colour lives on the first Level's background
@@ -7088,11 +7285,15 @@ index eecda7e..cea4cc1 100644
 +      await scene.createEmbeddedDocuments('Level', [{ name: 'Base', background: { color } }]);
 +    }
 +  }
-+
-+  /**
+ 
+   /**
+-   * Get detailed information about a specific entity within a character (item, action, or effect)
 +   * Compare what was requested with what the scene reports afterwards, so a write that
 +   * Foundry silently dropped is reported instead of claimed as a success.
-+   */
+    */
+-  async getCharacterEntity(data: {
+-    characterIdentifier: string;
+-    entityIdentifier: string;
 +  private findUnappliedSceneChanges(
 +    options: Record<string, any>,
 +    summary: Record<string, any>
@@ -7157,22 +7358,7 @@ index eecda7e..cea4cc1 100644
 +  async manageScenes(options: {
 +    action: 'create' | 'update' | 'describe';
 +    scene_identifier?: string;
-     name?: string;
--    mode?: number;
--    fade?: number;
--    description?: string;
--    sorting?: 'a' | 'm';
--    folder?: string | null;
--    color?: string | null;
--    sounds?: Array<{
--      name?: string;
--      path?: string;
--      id?: string;
--      volume?: number;
--      repeat?: boolean;
--      fade?: number;
--    }>;
--    updates?: Record<string, any>;
++    name?: string;
 +    background?: string | null;
 +    width?: number;
 +    height?: number;
@@ -7199,55 +7385,16 @@ index eecda7e..cea4cc1 100644
      this.validateFoundryState();
  
      try {
--      const playlists = () => (game as any).playlists?.contents || [];
--
-       if (options.action === 'describe') {
--        const doc = options.playlist
--          ? this.findMusicDoc((game as any).playlists, options.playlist, 'playlist')
--          : null;
--        if (!doc) {
--          return {
--            success: true,
--            playlists: playlists().map((pl: any) => ({
--              id: pl.id,
--              name: pl.name,
--              mode: pl.mode,
--              playing: pl.playing,
--              soundCount: pl.sounds?.size || 0,
--            })),
--          };
+-      const serializeDocument = (document: any): Record<string, any> => {
++      if (options.action === 'describe') {
 +        if (options.scene_identifier) {
 +          const scene = this.findSceneByIdentifier(options.scene_identifier);
 +          return { success: true, scene: this.summarizeScene(scene) };
-         }
--        return {
--          success: true,
--          playlist: {
--            id: doc.id,
--            name: doc.name,
--            mode: doc.mode,
--            playing: doc.playing,
--            description: doc.description || '',
--            folder: doc.folder || null,
--            sort: doc.sort,
--            sounds: (doc.sounds?.contents || []).map((s: any) => ({
--              id: s.id,
--              name: s.name,
--              path: s.path,
--              volume: s.volume,
--              repeat: s.repeat,
--              fade: s.fade,
--              playing: s.playing,
--            })),
--          },
--        };
++        }
 +        const scenes = (game.scenes?.contents || []) as any[];
 +        return { success: true, scenes: scenes.map(scene => this.summarizeScene(scene)) };
-       }
- 
--      if (options.action === 'create') {
--        if (!options.name || typeof options.name !== 'string') {
--          throw new Error('name is required for create');
++      }
++
 +      if (options.action !== 'create' && options.action !== 'update') {
 +        throw new Error(`Unknown action: ${String(options.action)} (create | update | describe)`);
 +      }
@@ -7260,58 +7407,18 @@ index eecda7e..cea4cc1 100644
 +      if (options.background !== undefined && options.background !== null) {
 +        if (typeof options.background !== 'string' || !options.background.trim()) {
 +          throw new Error('background must be a file path string or null to clear it');
-         }
--        const data: Record<string, any> = { name: options.name };
--        if (options.mode !== undefined) data.mode = options.mode;
--        if (options.fade !== undefined) data.fade = options.fade;
--        if (options.description !== undefined) data.description = options.description;
--        if (options.sorting !== undefined) data.sorting = options.sorting;
--        if (options.folder !== undefined) data.folder = options.folder;
--        if (options.color !== undefined) data.color = options.color;
--        const pl = await ((game as any).playlists as any).createDocuments([data]);
--        const doc = Array.isArray(pl) ? pl[0] : pl;
++        }
 +      }
- 
--        let soundsCreated = 0;
--        for (const s of options.sounds || []) {
--          if (!s.path) {
--            throw new Error(`sound entry needs a "path": ${JSON.stringify(s)}`);
--          }
--          const sdata: Record<string, any> = { path: s.path };
--          if (s.name !== undefined) sdata.name = s.name;
--          if (s.volume !== undefined) sdata.volume = s.volume;
--          if (s.repeat !== undefined) sdata.repeat = s.repeat;
--          if (s.fade !== undefined) sdata.fade = s.fade;
--          await (doc as any).createEmbeddedDocuments('PlaylistSound', [sdata]);
--          soundsCreated++;
++
 +      const data = this.buildSceneData(options);
 +      const view = options.initial_view;
 +      if (view !== undefined) {
 +        const bad = (v: unknown) => typeof v !== 'number' || !Number.isFinite(v);
 +        if (!view || bad(view.x) || bad(view.y) || (view.scale !== undefined && (bad(view.scale) || view.scale < 0.25 || view.scale > 3))) {
 +          throw new Error('initial_view must be {x, y, scale?} with x and y in grid squares and scale 0.25 to 3');
-         }
--        return {
--          success: true,
--          playlist: { id: doc.id, name: doc.name, mode: doc.mode },
--          soundsCreated,
--        };
-       }
- 
--      if (options.action === 'update') {
--        const doc = this.findMusicDoc((game as any).playlists, options.playlist, 'playlist');
--        if (!doc) throw new Error('update requires a playlist identifier');
--        const patch = { ...(options.updates || {}) } as Record<string, any>;
--        for (const key of [
--          'name',
--          'mode',
--          'fade',
--          'description',
--          'sorting',
--          'folder',
--          'color',
--        ] as const) {
--          if ((options as any)[key] !== undefined) patch[key] = (options as any)[key];
++        }
++      }
++
 +      // On v14 the canvas colour is a Level property, not a Scene field: split it out
 +      // so it is not sent to Scene.create / scene.update (where it is silently dropped).
 +      let levelColor: string | undefined;
@@ -7324,35 +7431,7 @@ index eecda7e..cea4cc1 100644
 +      if (options.action === 'create') {
 +        if (!data.name) {
 +          throw new Error('name is required for create');
-         }
--        if (Object.keys(patch).length) await doc.update(patch);
--        // Sound-level ops in the same call
--        let soundsTouched = 0;
--        for (const s of options.sounds || []) {
--          if (!s.path && !s.name && !s.id) continue;
--          const list = doc.sounds?.contents || [];
--          let snd: any = null;
--          if (s.id) snd = list.find((x: any) => x.id === s.id);
--          else {
--            const byPath = s.path ? list.filter((x: any) => x.path === s.path) : [];
--            const byName = s.name ? list.filter((x: any) => x.name === s.name) : [];
--            snd = byPath.length === 1 ? byPath[0] : byName.length === 1 ? byName[0] : null;
--          }
--          if (!snd) {
--            throw new Error(
--              `sound not found in playlist "${doc.name}" (need exact id or unique path/name)`
--            );
--          }
--          const spatch: Record<string, any> = {};
--          if (s.name !== undefined) spatch.name = s.name;
--          if (s.path !== undefined) spatch.path = s.path;
--          if (s.volume !== undefined) spatch.volume = s.volume;
--          if (s.repeat !== undefined) spatch.repeat = s.repeat;
--          if (s.fade !== undefined) spatch.fade = s.fade;
--          if (Object.keys(spatch).length) {
--            await snd.update(spatch);
--            soundsTouched++;
--          }
++        }
 +        scene = await (globalThis as any).Scene.create(data);
 +        if (!scene) {
 +          throw new Error('Foundry did not return the created scene');
@@ -7373,18 +7452,9 @@ index eecda7e..cea4cc1 100644
 +        }
 +        if (Object.keys(data).length > 0) {
 +          await scene.update(data);
-         }
--        return {
--          success: true,
--          playlist: { id: doc.id, name: doc.name },
--          soundsUpdated: soundsTouched,
--        };
-       }
- 
--      if (options.action === 'delete') {
--        // Delete never guesses: exact id or name only.
--        const doc = this.findMusicDoc((game as any).playlists, options.playlist, 'playlist', {
--          exact: true,
++        }
++      }
++
 +      if (options.background !== undefined) {
 +        await this.applySceneBackground(scene, options.background);
 +      }
@@ -7397,17 +7467,12 @@ index eecda7e..cea4cc1 100644
 +        const centre = squaresToPixels(geom, view.x, view.y);
 +        await scene.update({
 +          initial: { x: centre.x, y: centre.y, ...(view.scale !== undefined ? { scale: view.scale } : {}) },
-         });
--        if (!doc) throw new Error('delete requires a playlist identifier');
--        const name = doc.name;
--        await doc.delete();
--        return { success: true, deleted: name };
++        });
 +      }
 +      if (options.activate === true) {
 +        await scene.activate();
-       }
- 
--      throw new Error(`Unknown action: ${options.action}`);
++      }
++
 +      this.auditLog(`manageScenes:${options.action}`, options, 'success');
 +
 +      const summary = this.summarizeScene(scene);
@@ -7418,31 +7483,19 @@ index eecda7e..cea4cc1 100644
 +        scene: summary,
 +        ...(warnings.length > 0 ? { warnings } : {}),
 +      };
-     } catch (error) {
++    } catch (error) {
 +      this.auditLog(
 +        `manageScenes:${options?.action}`,
 +        options,
 +        'failure',
 +        error instanceof Error ? error.message : 'Unknown error'
 +      );
-       throw new Error(
--        `Failed to manage playlists: ${error instanceof Error ? error.message : 'Unknown error'}`
++      throw new Error(
 +        `Failed to ${options?.action ?? 'manage'} scene: ${error instanceof Error ? error.message : 'Unknown error'}`
-       );
-     }
-   }
- 
--  /**
--   * Playback control. Supports playlist-level play/stop/cycle-mode and
--   * per-sound play/stop, all through the client Playlist API so the server
--   * and every connected client stay in sync.
--   */
--  async controlPlaylist(options: {
--    playlist: string;
--    command: 'play' | 'stop' | 'cycle-mode' | 'play-sound' | 'stop-sound';
--    sound?: string;
--  }): Promise<any> {
--    this.validateFoundryState();
++      );
++    }
++  }
++
 +  // ===== WORLD HOUSEKEEPING (FOLDERS, MOVE, RENAME, DELETE) =====
 +
 +  private worldCollection(type: string): any {
@@ -8224,6 +8277,24 @@ index eecda7e..cea4cc1 100644
 +
 +  // ===== COMBAT CONTROL =====
 +
++  /** Bring the combat tracker to the front for the GM; says so when the GM is looking at another scene. */
++  private showCombatTracker(combat: any, scene: any): string | undefined {
++    try {
++      const g = globalThis as any;
++      if (combat?.active === false) void combat.activate?.();
++      if (g.ui?.sidebar && g.ui.sidebar.expanded === false) g.ui.sidebar.expand?.();
++      g.ui?.sidebar?.activateTab?.('combat');
++      g.ui?.combat?.render?.({ force: true });
++      const viewed = g.game?.scenes?.viewed ?? g.canvas?.scene;
++      if (viewed && scene && viewed.id !== scene.id) {
++        return `The GM is viewing "${viewed.name}", not "${scene.name}", so the tracker shows this combat only once that scene is open`;
++      }
++    } catch {
++      // showing the tracker is a convenience; the combat itself is already set up
++    }
++    return undefined;
++  }
++
 +  /**
 +   * Run the combat tracker: start an encounter from the tokens on a scene, roll initiative, move
 +   * through turns and rounds, apply damage and healing, mark defeated, end. Uses Foundry's own
@@ -8265,7 +8336,8 @@ index eecda7e..cea4cc1 100644
 +            .filter(c => (which === 'all' ? true : which === 'npcs' ? c.doc.isNPC && c.initiative == null : c.initiative == null))
 +            .map(c => c.id);
 +        }
-+        if (ids.length > 0) await combat.rollInitiative(ids);
++        // one roll per combatant: rolling several ids in one call lets identical monsters share a result
++        for (const id of ids) await combat.rollInitiative([id]);
 +        return ids.length;
 +      };
 +
@@ -8302,6 +8374,10 @@ index eecda7e..cea4cc1 100644
 +          const rollWhich = data.roll ?? 'missing';
 +          if (rollWhich !== 'none') out.rolled = await rollFor(rollWhich);
 +          if (action === 'start' && data.begin !== false && !combat.started) await combat.startCombat();
++          if (action === 'start') {
++            const note = this.showCombatTracker(combat, scene);
++            if (note) out.note = note;
++          }
 +          out.added = fresh.map(t => t.name);
 +          if (picked.length > fresh.length) out.alreadyIn = picked.length - fresh.length;
 +          if (notFound.length) out.notFound = notFound;
@@ -11139,8 +11215,8 @@ index eecda7e..cea4cc1 100644
 +    volume?: number;
 +  }): Promise<any> {
 +    this.validateFoundryState();
- 
-     try {
++
++    try {
 +      const command = options.command;
 +      if (!(PLAYLIST_COMMANDS as readonly string[]).includes(command)) {
 +        throw new Error(`Unknown command: ${String(command)} (${PLAYLIST_COMMANDS.join(', ')})`);
@@ -11184,9 +11260,9 @@ index eecda7e..cea4cc1 100644
 +        return { success: true, action: command, stopped };
 +      }
 +
-       const pl = this.findMusicDoc((game as any).playlists, options.playlist, 'playlist');
-       if (!pl) throw new Error('playlist identifier is required');
-       const info = { id: pl.id, name: pl.name, mode: pl.mode };
++      const pl = this.findMusicDoc((game as any).playlists, options.playlist, 'playlist');
++      if (!pl) throw new Error('playlist identifier is required');
++      const info = { id: pl.id, name: pl.name, mode: pl.mode };
 +      const sounds = ((pl.sounds?.contents || []) as any[]);
 +      const target = (): any => {
 +        if (!options.sound) throw new Error(`command ${command} requires "sound"`);
@@ -11211,31 +11287,29 @@ index eecda7e..cea4cc1 100644
 +        }
 +        return paused;
 +      };
- 
--      switch (options.command) {
++
 +      switch (command) {
-         case 'play':
-           await pl.playAll();
-           return { success: true, action: 'play', playlist: info };
-@@ -8304,20 +12457,48 @@ export class FoundryDataAccess {
-           return { success: true, action: 'cycle-mode', playlist: info, mode: pl.mode as number };
-         case 'play-sound':
-         case 'stop-sound': {
--          if (!options.sound) throw new Error(`command ${options.command} requires "sound"`);
--          const snd = this.findMusicDoc(pl.sounds, options.sound, 'playlistSound');
--          if (!snd) throw new Error(`sound not found: "${options.sound}"`);
--          if (options.command === 'play-sound') await pl.playSound(snd);
++        case 'play':
++          await pl.playAll();
++          return { success: true, action: 'play', playlist: info };
++        case 'stop':
++          await pl.stopAll();
++          return { success: true, action: 'stop', playlist: info };
++        case 'cycle-mode':
++          await pl.cycleMode();
++          return { success: true, action: 'cycle-mode', playlist: info, mode: pl.mode as number };
++        case 'play-sound':
++        case 'stop-sound': {
 +          const snd = target();
 +          if (command === 'play-sound') await pl.playSound(snd);
-           else await pl.stopSound(snd);
-           return {
-             success: true,
--            action: options.command,
++          else await pl.stopSound(snd);
++          return {
++            success: true,
 +            action: command,
-             playlist: info,
-             sound: { id: snd.id, name: snd.name, path: snd.path },
-           };
-         }
++            playlist: info,
++            sound: { id: snd.id, name: snd.name, path: snd.path },
++          };
++        }
 +        case 'pause':
 +        case 'pause-sound': {
 +          const done = await pause(command === 'pause' ? sounds : [target()]);
@@ -11266,13 +11340,33 @@ index eecda7e..cea4cc1 100644
 +          await pl.updateEmbeddedDocuments('PlaylistSound', list.map(s => ({ _id: s.id, volume: options.volume })));
 +          return { success: true, action: command, playlist: info, volume: options.volume, sounds: list.length };
 +        }
-         default:
--          throw new Error(`Unknown command: ${options.command}`);
++        default:
 +          throw new Error(`Unknown command: ${command}`);
-       }
-     } catch (error) {
-       throw new Error(
-@@ -8468,6 +12649,21 @@ export class FoundryDataAccess {
++      }
++    } catch (error) {
++      throw new Error(
++        `Failed to control playlist: ${error instanceof Error ? error.message : 'Unknown error'}`
++      );
++    }
++  }
++
++  // ===== PHASE 7: CHARACTER ENTITY AND TOKEN MANIPULATION METHODS =====
++
++  /**
++   * Get detailed information about a specific entity within a character (item, action, or effect)
++   */
++  async getCharacterEntity(data: {
++    characterIdentifier: string;
++    entityIdentifier: string;
++  }): Promise<any> {
++    this.validateFoundryState();
++
++    try {
++      const serializeDocument = (document: any): Record<string, any> => {
+         const source = document?.toObject?.() ?? document?._source ?? document ?? {};
+         return source as Record<string, any>;
+       };
+@@ -8468,6 +12672,21 @@ export class FoundryDataAccess {
      }
    }
  
@@ -11294,7 +11388,7 @@ index eecda7e..cea4cc1 100644
    /**
     * Move a token to a new position on the scene
     */
-@@ -8476,6 +12672,8 @@ export class FoundryDataAccess {
+@@ -8476,6 +12695,8 @@ export class FoundryDataAccess {
      x: number;
      y: number;
      animate?: boolean;
@@ -11303,7 +11397,7 @@ index eecda7e..cea4cc1 100644
    }): Promise<any> {
      this.validateFoundryState();
  
-@@ -8489,21 +12687,33 @@ export class FoundryDataAccess {
+@@ -8489,21 +12710,33 @@ export class FoundryDataAccess {
      }
  
      try {
@@ -11344,7 +11438,7 @@ index eecda7e..cea4cc1 100644
          },
          { animate: data.animate !== false }
        );
-@@ -8514,7 +12724,9 @@ export class FoundryDataAccess {
+@@ -8514,7 +12747,9 @@ export class FoundryDataAccess {
          success: true,
          tokenId: token.id,
          tokenName: token.name,
@@ -11355,7 +11449,7 @@ index eecda7e..cea4cc1 100644
          animated: data.animate !== false,
        };
      } catch (error) {
-@@ -8533,7 +12745,13 @@ export class FoundryDataAccess {
+@@ -8533,7 +12768,13 @@ export class FoundryDataAccess {
    /**
     * Update token properties
     */
@@ -11370,7 +11464,7 @@ index eecda7e..cea4cc1 100644
      this.validateFoundryState();
  
      // Use permission system
-@@ -8546,20 +12764,19 @@ export class FoundryDataAccess {
+@@ -8546,20 +12787,19 @@ export class FoundryDataAccess {
      }
  
      try {
@@ -11397,7 +11491,7 @@ index eecda7e..cea4cc1 100644
  
        // Apply updates
        await token.update(cleanUpdates);
-@@ -8651,18 +12868,15 @@ export class FoundryDataAccess {
+@@ -8651,18 +12891,15 @@ export class FoundryDataAccess {
    /**
     * Get detailed information about a token
     */
@@ -11420,7 +11514,7 @@ index eecda7e..cea4cc1 100644
        }
  
        // Return flat structure that matches MCP server expectations
-@@ -11274,7 +15488,10 @@ export class FoundryDataAccess {
+@@ -11274,7 +15511,10 @@ export class FoundryDataAccess {
        name: string;
        type: string;
        img?: string;
@@ -11431,7 +11525,7 @@ index eecda7e..cea4cc1 100644
      }>;
      folder?: string;
    }): Promise<{ created: Array<{ id: string; name: string; type: string }>; total: number }> {
-@@ -11286,6 +15503,19 @@ export class FoundryDataAccess {
+@@ -11286,6 +15526,19 @@ export class FoundryDataAccess {
      const docs = params.actors.map(a => {
        const doc: Record<string, any> = { name: a.name, type: a.type };
        if (a.img) doc.img = a.img;
@@ -11451,7 +11545,7 @@ index eecda7e..cea4cc1 100644
  
        // Merge system data, adding safe defaults for systems that require certain
        // fields to exist during data preparation (avoids non-fatal init errors).
-@@ -11471,7 +15701,16 @@ export class FoundryDataAccess {
+@@ -11471,7 +15724,16 @@ export class FoundryDataAccess {
     * Merges supplied fields into the actor (top-level keys overwrite).
     */
    async updateActors(
@@ -11469,7 +11563,7 @@ index eecda7e..cea4cc1 100644
    ): Promise<{ updated: Array<{ id: string; name: string }>; total: number }> {
      const updatedActors: Array<{ id: string; name: string }> = [];
  
-@@ -11482,6 +15721,7 @@ export class FoundryDataAccess {
+@@ -11482,6 +15744,7 @@ export class FoundryDataAccess {
        const patch: Record<string, any> = {};
        if (u.name !== undefined) patch.name = u.name;
        if (u.img !== undefined) patch.img = u.img;
@@ -11477,7 +11571,7 @@ index eecda7e..cea4cc1 100644
        if (u.system !== undefined) {
          // Build a single patch.system nested object so Foundry deep-merges everything
          // in one pass without flat-key vs nested-key conflicts.
-@@ -11504,6 +15744,19 @@ export class FoundryDataAccess {
+@@ -11504,6 +15767,19 @@ export class FoundryDataAccess {
          }
          patch.system = systemPatch;
        }
