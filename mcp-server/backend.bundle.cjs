@@ -116685,6 +116685,12 @@ var TokenManipulationTools = class {
                   description: "Whether to lock the rotation"
                 }
               }
+            },
+            scene: { type: "string", description: "Scene id or exact name (default: found automatically)" },
+            options: {
+              type: "object",
+              description: "Vision, light and other token options: vision, vision_range, vision_mode, sight, light {preset, bright, dim, color, animation...}, detection_modes, lock_rotation, alpha, display_name, display_bars, scale, raw",
+              additionalProperties: true
             }
           },
           required: ["tokenId"]

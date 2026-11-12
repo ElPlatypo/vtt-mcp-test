@@ -2894,10 +2894,10 @@ index 0000000..fd1d7d0
 +});
 diff --git a/packages/foundry-module/src/data-access.playlists.test.ts b/packages/foundry-module/src/data-access.playlists.test.ts
 new file mode 100644
-index 0000000..c12528b
+index 0000000..524b20e
 --- /dev/null
 +++ b/packages/foundry-module/src/data-access.playlists.test.ts
-@@ -0,0 +1,224 @@
+@@ -0,0 +1,246 @@
 +/** control-playlist playback commands, add/remove sounds and audio upload, with Foundry stubbed. */
 +import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 +import { FoundryDataAccess } from './data-access.js';
@@ -3035,6 +3035,28 @@ index 0000000..c12528b
 +    const { da } = setup();
 +    await expect(da.controlPlaylist({ command: 'pause' })).rejects.toThrow('playlist identifier is required');
 +    await expect(da.controlPlaylist({ playlist: 'Battle', command: 'dance' as any })).rejects.toThrow('Unknown command');
++  });
++});
++
++describe('managePlaylists create', () => {
++  beforeEach(() => vi.unstubAllGlobals());
++  afterEach(() => vi.unstubAllGlobals());
++
++  it('creates the playlist through the Playlist class and adds its sounds', async () => {
++    const { da } = setup();
++    const created = makePlaylist('new1', 'Cave', []);
++    const createDocuments = vi.fn(async () => [created]);
++    vi.stubGlobal('Playlist', { createDocuments });
++    const r = await da.managePlaylists({
++      action: 'create',
++      name: 'Cave',
++      sounds: [{ path: 'worlds/w/uploads/audio/drip.mp3', name: 'Drip', volume: 0.3 }],
++    });
++    expect(createDocuments).toHaveBeenCalledWith([{ name: 'Cave' }]);
++    expect(created.createEmbeddedDocuments).toHaveBeenCalledWith('PlaylistSound', [
++      { path: 'worlds/w/uploads/audio/drip.mp3', name: 'Drip', volume: 0.3 },
++    ]);
++    expect(r.success).toBe(true);
 +  });
 +});
 +
@@ -4150,7 +4172,7 @@ index 0000000..3539e49
 +  });
 +});
 diff --git a/packages/foundry-module/src/data-access.ts b/packages/foundry-module/src/data-access.ts
-index eecda7e..aa09cf6 100644
+index eecda7e..e46da12 100644
 --- a/packages/foundry-module/src/data-access.ts
 +++ b/packages/foundry-module/src/data-access.ts
 @@ -1,5 +1,103 @@
@@ -4330,7 +4352,7 @@ index eecda7e..aa09cf6 100644
              type: 'requestMessageUpdate',
              buttonId,
              userId,
-@@ -8101,198 +8238,2953 @@ export class FoundryDataAccess {
+@@ -8101,198 +8238,2955 @@ export class FoundryDataAccess {
      }
    }
  
@@ -4885,7 +4907,9 @@ index eecda7e..aa09cf6 100644
 -  }): Promise<any> {
 -    this.validateFoundryState();
 +  // ===== WORLD HOUSEKEEPING (FOLDERS, MOVE, RENAME, DELETE) =====
-+
+ 
+-    try {
+-      const pl = this.findMusicDoc((game as any).playlists, options.playlist, 'playlist');
 +  private worldCollection(type: string): any {
 +    const g = game as any;
 +    const map: Record<string, any> = {
@@ -7232,7 +7256,9 @@ index eecda7e..aa09cf6 100644
 +        if (options.sorting !== undefined) data.sorting = options.sorting;
 +        if (options.folder !== undefined) data.folder = options.folder;
 +        if (options.color !== undefined) data.color = options.color;
-+        const pl = await ((game as any).playlists as any).createDocuments([data]);
++        const PlaylistClass = (globalThis as any).Playlist ?? (globalThis as any).getDocumentClass?.('Playlist');
++        if (!PlaylistClass?.createDocuments) throw new Error('Foundry Playlist class is not available');
++        const pl = await PlaylistClass.createDocuments([data]);
 +        const doc = Array.isArray(pl) ? pl[0] : pl;
 +
 +        let soundsCreated = 0;
@@ -7406,9 +7432,8 @@ index eecda7e..aa09cf6 100644
 +        }
 +        return { success: true, action: command, stopped };
 +      }
- 
--    try {
-       const pl = this.findMusicDoc((game as any).playlists, options.playlist, 'playlist');
++
++      const pl = this.findMusicDoc((game as any).playlists, options.playlist, 'playlist');
        if (!pl) throw new Error('playlist identifier is required');
        const info = { id: pl.id, name: pl.name, mode: pl.mode };
 +      const sounds = ((pl.sounds?.contents || []) as any[]);
@@ -7441,7 +7466,7 @@ index eecda7e..aa09cf6 100644
          case 'play':
            await pl.playAll();
            return { success: true, action: 'play', playlist: info };
-@@ -8304,20 +11196,48 @@ export class FoundryDataAccess {
+@@ -8304,20 +11198,48 @@ export class FoundryDataAccess {
            return { success: true, action: 'cycle-mode', playlist: info, mode: pl.mode as number };
          case 'play-sound':
          case 'stop-sound': {
@@ -7496,7 +7521,7 @@ index eecda7e..aa09cf6 100644
        }
      } catch (error) {
        throw new Error(
-@@ -8468,6 +11388,21 @@ export class FoundryDataAccess {
+@@ -8468,6 +11390,21 @@ export class FoundryDataAccess {
      }
    }
  
@@ -7518,7 +7543,7 @@ index eecda7e..aa09cf6 100644
    /**
     * Move a token to a new position on the scene
     */
-@@ -8476,6 +11411,7 @@ export class FoundryDataAccess {
+@@ -8476,6 +11413,7 @@ export class FoundryDataAccess {
      x: number;
      y: number;
      animate?: boolean;
@@ -7526,7 +7551,7 @@ index eecda7e..aa09cf6 100644
    }): Promise<any> {
      this.validateFoundryState();
  
-@@ -8489,14 +11425,11 @@ export class FoundryDataAccess {
+@@ -8489,14 +11427,11 @@ export class FoundryDataAccess {
      }
  
      try {
@@ -7543,7 +7568,7 @@ index eecda7e..aa09cf6 100644
        }
  
        // Update token position
-@@ -8533,7 +11466,13 @@ export class FoundryDataAccess {
+@@ -8533,7 +11468,13 @@ export class FoundryDataAccess {
    /**
     * Update token properties
     */
@@ -7558,7 +7583,7 @@ index eecda7e..aa09cf6 100644
      this.validateFoundryState();
  
      // Use permission system
-@@ -8546,20 +11485,19 @@ export class FoundryDataAccess {
+@@ -8546,20 +11487,19 @@ export class FoundryDataAccess {
      }
  
      try {
@@ -7585,7 +7610,7 @@ index eecda7e..aa09cf6 100644
  
        // Apply updates
        await token.update(cleanUpdates);
-@@ -11274,7 +14212,10 @@ export class FoundryDataAccess {
+@@ -11274,7 +14214,10 @@ export class FoundryDataAccess {
        name: string;
        type: string;
        img?: string;
@@ -7596,7 +7621,7 @@ index eecda7e..aa09cf6 100644
      }>;
      folder?: string;
    }): Promise<{ created: Array<{ id: string; name: string; type: string }>; total: number }> {
-@@ -11286,6 +14227,19 @@ export class FoundryDataAccess {
+@@ -11286,6 +14229,19 @@ export class FoundryDataAccess {
      const docs = params.actors.map(a => {
        const doc: Record<string, any> = { name: a.name, type: a.type };
        if (a.img) doc.img = a.img;
@@ -7616,7 +7641,7 @@ index eecda7e..aa09cf6 100644
  
        // Merge system data, adding safe defaults for systems that require certain
        // fields to exist during data preparation (avoids non-fatal init errors).
-@@ -11471,7 +14425,16 @@ export class FoundryDataAccess {
+@@ -11471,7 +14427,16 @@ export class FoundryDataAccess {
     * Merges supplied fields into the actor (top-level keys overwrite).
     */
    async updateActors(
@@ -7634,7 +7659,7 @@ index eecda7e..aa09cf6 100644
    ): Promise<{ updated: Array<{ id: string; name: string }>; total: number }> {
      const updatedActors: Array<{ id: string; name: string }> = [];
  
-@@ -11482,6 +14445,7 @@ export class FoundryDataAccess {
+@@ -11482,6 +14447,7 @@ export class FoundryDataAccess {
        const patch: Record<string, any> = {};
        if (u.name !== undefined) patch.name = u.name;
        if (u.img !== undefined) patch.img = u.img;
@@ -7642,7 +7667,7 @@ index eecda7e..aa09cf6 100644
        if (u.system !== undefined) {
          // Build a single patch.system nested object so Foundry deep-merges everything
          // in one pass without flat-key vs nested-key conflicts.
-@@ -11504,6 +14468,19 @@ export class FoundryDataAccess {
+@@ -11504,6 +14470,19 @@ export class FoundryDataAccess {
          }
          patch.system = systemPatch;
        }
@@ -23761,10 +23786,10 @@ index 1e422bf..956dcab 100644
        id: sceneData.id,
 diff --git a/packages/mcp-server/src/tools/token-manipulation.test.ts b/packages/mcp-server/src/tools/token-manipulation.test.ts
 new file mode 100644
-index 0000000..39df3fd
+index 0000000..75481f8
 --- /dev/null
 +++ b/packages/mcp-server/src/tools/token-manipulation.test.ts
-@@ -0,0 +1,32 @@
+@@ -0,0 +1,41 @@
 +import { describe, expect, it, vi } from 'vitest';
 +import { TokenManipulationTools } from './token-manipulation.js';
 +
@@ -23797,8 +23822,17 @@ index 0000000..39df3fd
 +    expect(def.description).toContain('detection_modes');
 +  });
 +});
++
++describe('update-token schema', () => {
++  it('exposes options and scene to the caller', () => {
++    const def = makeTools().tools.getToolDefinitions().find(d => d.name === 'update-token')!;
++    const props = def.inputSchema.properties as any;
++    expect(props.options.type).toBe('object');
++    expect(props.scene.type).toBe('string');
++  });
++});
 diff --git a/packages/mcp-server/src/tools/token-manipulation.ts b/packages/mcp-server/src/tools/token-manipulation.ts
-index 6afedf1..c0182a3 100644
+index 6afedf1..9c96331 100644
 --- a/packages/mcp-server/src/tools/token-manipulation.ts
 +++ b/packages/mcp-server/src/tools/token-manipulation.ts
 @@ -24,7 +24,7 @@ export class TokenManipulationTools {
@@ -23827,16 +23861,23 @@ index 6afedf1..c0182a3 100644
          inputSchema: {
            type: 'object',
            properties: {
-@@ -108,7 +109,7 @@ export class TokenManipulationTools {
+@@ -107,8 +108,14 @@ export class TokenManipulationTools {
+                 },
                },
              },
++            scene: { type: 'string', description: 'Scene id or exact name (default: found automatically)' },
++            options: {
++              type: 'object',
++              description: 'Vision, light and other token options: vision, vision_range, vision_mode, sight, light {preset, bright, dim, color, animation...}, detection_modes, lock_rotation, alpha, display_name, display_bars, scale, raw',
++              additionalProperties: true,
++            },
            },
 -          required: ['tokenId', 'updates'],
 +          required: ['tokenId'],
          },
        },
        {
-@@ -220,6 +221,8 @@ export class TokenManipulationTools {
+@@ -220,6 +227,8 @@ export class TokenManipulationTools {
    async handleUpdateToken(args: any): Promise<any> {
      const schema = z.object({
        tokenId: z.string(),
@@ -23845,7 +23886,7 @@ index 6afedf1..c0182a3 100644
        updates: z.object({
          x: z.number().optional(),
          y: z.number().optional(),
-@@ -231,10 +234,11 @@ export class TokenManipulationTools {
+@@ -231,10 +240,11 @@ export class TokenManipulationTools {
          name: z.string().optional(),
          elevation: z.number().optional(),
          lockRotation: z.boolean().optional(),
@@ -23859,7 +23900,7 @@ index 6afedf1..c0182a3 100644
  
      this.logger.info('Updating token', { tokenId, updates });
  
-@@ -242,6 +246,8 @@ export class TokenManipulationTools {
+@@ -242,6 +252,8 @@ export class TokenManipulationTools {
        const result = await this.foundryClient.query('foundry-mcp-bridge.update-token', {
          tokenId,
          updates,
