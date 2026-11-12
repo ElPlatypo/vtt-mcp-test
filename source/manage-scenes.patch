@@ -800,10 +800,10 @@ index 0000000..6f83d3d
 +}
 diff --git a/packages/foundry-module/src/annotation-ui.ts b/packages/foundry-module/src/annotation-ui.ts
 new file mode 100644
-index 0000000..42146f3
+index 0000000..376843e
 --- /dev/null
 +++ b/packages/foundry-module/src/annotation-ui.ts
-@@ -0,0 +1,477 @@
+@@ -0,0 +1,496 @@
 +/**
 + * "Notes for Claude": a group in the scene controls (upper left) with a select tool, a rectangle
 + * tool, a polygon tool and a notes list. The GM clicks an object or draws an area, writes what
@@ -860,7 +860,8 @@ index 0000000..42146f3
 +/** A mouse event as grid squares from the top-left of the map. */
 +function eventSquares(event: PointerEvent | MouseEvent): Point | null {
 +  const geom = geometry();
-+  const point = G.canvas?.canvasCoordinates?.({ x: event.clientX, y: event.clientY });
++  const client = { x: event.clientX, y: event.clientY };
++  const point = G.canvas?.canvasCoordinatesFromClient?.(client) ?? G.canvas?.stage?.toLocal?.(new G.PIXI.Point(client.x, client.y));
 +  if (!geom || !point) return null;
 +  return [(point.x - geom.originX) / geom.size, (point.y - geom.originY) / geom.size];
 +}
@@ -888,21 +889,30 @@ index 0000000..42146f3
 +  }
 +}
 +
++/** Draw a closed shape with a soft fill and a line (PixiJS 7 Graphics API, as in Foundry v14). */
++function paint(g: any, color: number, fillAlpha: number, width: number, draw: () => void): void {
++  g.lineStyle(width, color, 0.95);
++  g.beginFill(color, fillAlpha);
++  draw();
++  g.endFill();
++}
++
 +function strokeShape(g: any, geom: any, c: Clickable, color: number): void {
 +  const cv = (p: Point) => toCanvas(geom, p);
-+  const style = { width: 3, color, alpha: 0.95 };
 +  if (c.at) {
 +    const [x, y] = cv(c.at);
-+    g.circle(x, y, geom.size * 0.45).fill({ color, alpha: 0.2 }).stroke(style);
++    paint(g, color, 0.2, 3, () => g.drawCircle(x, y, geom.size * 0.45));
 +  } else if (c.segment) {
 +    const [x1, y1] = cv(c.segment[0]);
 +    const [x2, y2] = cv(c.segment[1]);
-+    g.moveTo(x1, y1).lineTo(x2, y2).stroke({ ...style, width: 6 });
++    g.lineStyle(6, color, 0.95);
++    g.moveTo(x1, y1);
++    g.lineTo(x2, y2);
 +  } else if (c.polygon) {
-+    g.poly(c.polygon.flatMap(p => cv(p))).fill({ color, alpha: 0.12 }).stroke(style);
++    paint(g, color, 0.12, 3, () => g.drawPolygon(c.polygon!.flatMap(p => cv(p))));
 +  } else if (c.x !== undefined && c.y !== undefined && c.width !== undefined && c.height !== undefined) {
 +    const [x, y] = cv([c.x, c.y]);
-+    g.rect(x, y, c.width * geom.size, c.height * geom.size).fill({ color, alpha: 0.12 }).stroke(style);
++    paint(g, color, 0.12, 3, () => g.drawRect(x, y, c.width! * geom.size, c.height! * geom.size));
 +  }
 +}
 +
@@ -913,14 +923,19 @@ index 0000000..42146f3
 +  if (hovered && mode === 'select') strokeShape(overlay, geom, hovered, BLUE);
 +  if (dragStart && dragNow && mode === 'rect') {
 +    const pts = rectPoints(dragStart[0], dragStart[1], dragNow[0], dragNow[1]);
-+    overlay.poly(pts.flatMap(p => toCanvas(geom, p))).fill({ color: BLUE, alpha: 0.18 }).stroke({ width: 3, color: BLUE, alpha: 0.95 });
++    paint(overlay, BLUE, 0.18, 3, () => overlay.drawPolygon(pts.flatMap(p => toCanvas(geom, p))));
 +  }
 +  if (mode === 'polygon' && polygon.length > 0) {
 +    const pts = dragNow ? [...polygon, dragNow] : polygon;
 +    const flat = pts.flatMap(p => toCanvas(geom, p));
-+    if (pts.length >= 3) overlay.poly(flat).fill({ color: BLUE, alpha: 0.15 });
-+    overlay.poly(flat, false).stroke({ width: 3, color: BLUE, alpha: 0.95 });
-+    for (const p of polygon) overlay.circle(...toCanvas(geom, p), 5).fill({ color: BLUE });
++    if (pts.length >= 3) paint(overlay, BLUE, 0.15, 0, () => overlay.drawPolygon(flat));
++    overlay.lineStyle(3, BLUE, 0.95);
++    overlay.moveTo(flat[0], flat[1]);
++    for (let i = 2; i + 1 < flat.length; i += 2) overlay.lineTo(flat[i], flat[i + 1]);
++    for (const p of polygon) {
++      const [px, py] = toCanvas(geom, p);
++      paint(overlay, BLUE, 1, 0, () => overlay.drawCircle(px, py, 5));
++    }
 +  }
 +}
 +
@@ -939,7 +954,7 @@ index 0000000..42146f3
 +    for (const a of open) {
 +      let corner: Point = [0, 0];
 +      if (a.area) {
-+        g.poly(a.area.points.flatMap(p => toCanvas(geom, p))).fill({ color: ORANGE, alpha: 0.1 }).stroke({ width: 2, color: ORANGE, alpha: 0.9 });
++        paint(g, ORANGE, 0.1, 2, () => g.drawPolygon(a.area!.points.flatMap(p => toCanvas(geom, p))));
 +        corner = [a.area.bbox.x, a.area.bbox.y];
 +      } else if (a.target) {
 +        const now = clickables.find(c => c.id === a.target!.id && c.kind === a.target!.kind);
@@ -952,8 +967,11 @@ index 0000000..42146f3
 +        }
 +      }
 +      const [cx, cy] = toCanvas(geom, corner);
-+      g.circle(cx, cy, 11).fill({ color: ORANGE }).stroke({ width: 2, color: 0xffffff });
-+      const label = new G.PIXI.Text({ text: String(a.number), style: { fontSize: 13, fontWeight: 'bold', fill: 0x000000 } });
++      g.lineStyle(2, 0xffffff, 1);
++      g.beginFill(ORANGE, 1);
++      g.drawCircle(cx, cy, 11);
++      g.endFill();
++      const label = new G.PIXI.Text(String(a.number), { fontSize: 13, fontWeight: 'bold', fill: 0x000000 });
 +      label.anchor?.set?.(0.5);
 +      label.position.set(cx, cy);
 +      pins.addChild(label);
@@ -1156,6 +1174,7 @@ index 0000000..42146f3
 +}
 +
 +function setMode(next: Mode | null): void {
++  if (next === mode) return; // the group and the tool both report a change; act once
 +  mode = next;
 +  resetDrawing();
 +  if (next) {
