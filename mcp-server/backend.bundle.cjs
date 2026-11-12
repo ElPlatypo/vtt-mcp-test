@@ -445,8 +445,8 @@ var init_parseUtil = __esm({
     init_errors();
     init_en();
     makeIssue = (params) => {
-      const { data, path: path11, errorMaps, issueData } = params;
-      const fullPath = [...path11, ...issueData.path || []];
+      const { data, path: path12, errorMaps, issueData } = params;
+      const fullPath = [...path12, ...issueData.path || []];
       const fullIssue = {
         ...issueData,
         path: fullPath
@@ -647,30 +647,30 @@ function floatSafeRemainder(val, step) {
   const stepInt = Number.parseInt(step.toFixed(decCount).replace(".", ""));
   return valInt % stepInt / 10 ** decCount;
 }
-function deepPartialify(schema3) {
-  if (schema3 instanceof ZodObject) {
+function deepPartialify(schema4) {
+  if (schema4 instanceof ZodObject) {
     const newShape = {};
-    for (const key in schema3.shape) {
-      const fieldSchema = schema3.shape[key];
+    for (const key in schema4.shape) {
+      const fieldSchema = schema4.shape[key];
       newShape[key] = ZodOptional.create(deepPartialify(fieldSchema));
     }
     return new ZodObject({
-      ...schema3._def,
+      ...schema4._def,
       shape: () => newShape
     });
-  } else if (schema3 instanceof ZodArray) {
+  } else if (schema4 instanceof ZodArray) {
     return new ZodArray({
-      ...schema3._def,
-      type: deepPartialify(schema3.element)
+      ...schema4._def,
+      type: deepPartialify(schema4.element)
     });
-  } else if (schema3 instanceof ZodOptional) {
-    return ZodOptional.create(deepPartialify(schema3.unwrap()));
-  } else if (schema3 instanceof ZodNullable) {
-    return ZodNullable.create(deepPartialify(schema3.unwrap()));
-  } else if (schema3 instanceof ZodTuple) {
-    return ZodTuple.create(schema3.items.map((item) => deepPartialify(item)));
+  } else if (schema4 instanceof ZodOptional) {
+    return ZodOptional.create(deepPartialify(schema4.unwrap()));
+  } else if (schema4 instanceof ZodNullable) {
+    return ZodNullable.create(deepPartialify(schema4.unwrap()));
+  } else if (schema4 instanceof ZodTuple) {
+    return ZodTuple.create(schema4.items.map((item) => deepPartialify(item)));
   } else {
-    return schema3;
+    return schema4;
   }
 }
 function mergeValues(a, b) {
@@ -754,11 +754,11 @@ var init_types = __esm({
     init_parseUtil();
     init_util();
     ParseInputLazyPath = class {
-      constructor(parent, value, path11, key) {
+      constructor(parent, value, path12, key) {
         this._cachedPath = [];
         this.parent = parent;
         this.data = value;
-        this._path = path11;
+        this._path = path12;
         this._key = key;
       }
       get path() {
@@ -2397,9 +2397,9 @@ var init_types = __esm({
         return this.min(1, message);
       }
     };
-    ZodArray.create = (schema3, params) => {
+    ZodArray.create = (schema4, params) => {
       return new ZodArray({
-        type: schema3,
+        type: schema4,
         minLength: null,
         maxLength: null,
         exactLength: null,
@@ -2620,8 +2620,8 @@ var init_types = __esm({
       //   }) as any;
       //   return merged;
       // }
-      setKey(key, schema3) {
-        return this.augment({ [key]: schema3 });
+      setKey(key, schema4) {
+        return this.augment({ [key]: schema4 });
       }
       // merge<Incoming extends AnyZodObject>(
       //   merging: Incoming
@@ -3029,10 +3029,10 @@ var init_types = __esm({
           status.dirty();
         }
         const items = [...ctx.data].map((item, itemIndex) => {
-          const schema3 = this._def.items[itemIndex] || this._def.rest;
-          if (!schema3)
+          const schema4 = this._def.items[itemIndex] || this._def.rest;
+          if (!schema4)
             return null;
-          return schema3._parse(new ParseInputLazyPath(ctx, item, ctx.path, itemIndex));
+          return schema4._parse(new ParseInputLazyPath(ctx, item, ctx.path, itemIndex));
         }).filter((x) => !!x);
         if (ctx.common.async) {
           return Promise.all(items).then((results) => {
@@ -3539,9 +3539,9 @@ var init_types = __esm({
         }));
       }
     };
-    ZodPromise.create = (schema3, params) => {
+    ZodPromise.create = (schema4, params) => {
       return new ZodPromise({
-        type: schema3,
+        type: schema4,
         typeName: ZodFirstPartyTypeKind.ZodPromise,
         ...processCreateParams(params)
       });
@@ -3669,17 +3669,17 @@ var init_types = __esm({
         util.assertNever(effect);
       }
     };
-    ZodEffects.create = (schema3, effect, params) => {
+    ZodEffects.create = (schema4, effect, params) => {
       return new ZodEffects({
-        schema: schema3,
+        schema: schema4,
         typeName: ZodFirstPartyTypeKind.ZodEffects,
         effect,
         ...processCreateParams(params)
       });
     };
-    ZodEffects.createWithPreprocess = (preprocess, schema3, params) => {
+    ZodEffects.createWithPreprocess = (preprocess, schema4, params) => {
       return new ZodEffects({
-        schema: schema3,
+        schema: schema4,
         effect: { type: "preprocess", transform: preprocess },
         typeName: ZodFirstPartyTypeKind.ZodEffects,
         ...processCreateParams(params)
@@ -4210,9 +4210,9 @@ var require_package = __commonJS({
 // ../../node_modules/dotenv/lib/main.js
 var require_main = __commonJS({
   "../../node_modules/dotenv/lib/main.js"(exports2, module2) {
-    var fs11 = require("fs");
-    var path11 = require("path");
-    var os5 = require("os");
+    var fs12 = require("fs");
+    var path12 = require("path");
+    var os6 = require("os");
     var crypto7 = require("crypto");
     var packageJson = require_package();
     var version2 = packageJson.version;
@@ -4319,7 +4319,7 @@ var require_main = __commonJS({
       if (options && options.path && options.path.length > 0) {
         if (Array.isArray(options.path)) {
           for (const filepath of options.path) {
-            if (fs11.existsSync(filepath)) {
+            if (fs12.existsSync(filepath)) {
               possibleVaultPath = filepath.endsWith(".vault") ? filepath : `${filepath}.vault`;
             }
           }
@@ -4327,15 +4327,15 @@ var require_main = __commonJS({
           possibleVaultPath = options.path.endsWith(".vault") ? options.path : `${options.path}.vault`;
         }
       } else {
-        possibleVaultPath = path11.resolve(process.cwd(), ".env.vault");
+        possibleVaultPath = path12.resolve(process.cwd(), ".env.vault");
       }
-      if (fs11.existsSync(possibleVaultPath)) {
+      if (fs12.existsSync(possibleVaultPath)) {
         return possibleVaultPath;
       }
       return null;
     }
     function _resolveHome(envPath) {
-      return envPath[0] === "~" ? path11.join(os5.homedir(), envPath.slice(1)) : envPath;
+      return envPath[0] === "~" ? path12.join(os6.homedir(), envPath.slice(1)) : envPath;
     }
     function _configVault(options) {
       const debug = Boolean(options && options.debug);
@@ -4352,7 +4352,7 @@ var require_main = __commonJS({
       return { parsed };
     }
     function configDotenv(options) {
-      const dotenvPath = path11.resolve(process.cwd(), ".env");
+      const dotenvPath = path12.resolve(process.cwd(), ".env");
       let encoding = "utf8";
       const debug = Boolean(options && options.debug);
       const quiet = options && "quiet" in options ? options.quiet : true;
@@ -4376,13 +4376,13 @@ var require_main = __commonJS({
       }
       let lastError;
       const parsedAll = {};
-      for (const path12 of optionPaths) {
+      for (const path13 of optionPaths) {
         try {
-          const parsed = DotenvModule.parse(fs11.readFileSync(path12, { encoding }));
+          const parsed = DotenvModule.parse(fs12.readFileSync(path13, { encoding }));
           DotenvModule.populate(parsedAll, parsed, options);
         } catch (e) {
           if (debug) {
-            _debug(`Failed to load ${path12} ${e.message}`);
+            _debug(`Failed to load ${path13} ${e.message}`);
           }
           lastError = e;
         }
@@ -4397,7 +4397,7 @@ var require_main = __commonJS({
         const shortPaths = [];
         for (const filePath of optionPaths) {
           try {
-            const relative = path11.relative(process.cwd(), filePath);
+            const relative = path12.relative(process.cwd(), filePath);
             shortPaths.push(relative);
           } catch (e) {
             if (debug) {
@@ -4659,7 +4659,7 @@ var require_has_flag = __commonJS({
 var require_supports_colors = __commonJS({
   "../../node_modules/@colors/colors/lib/system/supports-colors.js"(exports2, module2) {
     "use strict";
-    var os5 = require("os");
+    var os6 = require("os");
     var hasFlag = require_has_flag();
     var env = process.env;
     var forceColor = void 0;
@@ -4697,7 +4697,7 @@ var require_supports_colors = __commonJS({
       }
       var min = forceColor ? 1 : 0;
       if (process.platform === "win32") {
-        var osRelease = os5.release().split(".");
+        var osRelease = os6.release().split(".");
         if (Number(process.versions.node.split(".")[0]) >= 8 && Number(osRelease[0]) >= 10 && Number(osRelease[2]) >= 10586) {
           return Number(osRelease[2]) >= 14931 ? 3 : 2;
         }
@@ -10115,7 +10115,7 @@ var require_winston_transport = __commonJS({
 var require_console = __commonJS({
   "../../node_modules/winston/lib/winston/transports/console.js"(exports2, module2) {
     "use strict";
-    var os5 = require("os");
+    var os6 = require("os");
     var { LEVEL, MESSAGE } = require_triple_beam();
     var TransportStream = require_winston_transport();
     module2.exports = class Console extends TransportStream {
@@ -10129,7 +10129,7 @@ var require_console = __commonJS({
         this.name = options.name || "console";
         this.stderrLevels = this._stringArrayToSet(options.stderrLevels);
         this.consoleWarnLevels = this._stringArrayToSet(options.consoleWarnLevels);
-        this.eol = typeof options.eol === "string" ? options.eol : os5.EOL;
+        this.eol = typeof options.eol === "string" ? options.eol : os6.EOL;
         this.forceConsole = options.forceConsole || false;
         this._consoleLog = console.log.bind(console);
         this._consoleWarn = console.warn.bind(console);
@@ -12421,15 +12421,15 @@ var require_route = __commonJS({
       };
     }
     function wrapConversion(toModel, graph) {
-      var path11 = [graph[toModel].parent, toModel];
+      var path12 = [graph[toModel].parent, toModel];
       var fn = conversions[graph[toModel].parent][toModel];
       var cur = graph[toModel].parent;
       while (graph[cur].parent) {
-        path11.unshift(graph[cur].parent);
+        path12.unshift(graph[cur].parent);
         fn = link(conversions[graph[cur].parent][cur], fn);
         cur = graph[cur].parent;
       }
-      fn.conversion = path11;
+      fn.conversion = path12;
       return fn;
     }
     module2.exports = function(fromModel) {
@@ -13086,7 +13086,7 @@ var require_node2 = __commonJS({
 var require_tail_file = __commonJS({
   "../../node_modules/winston/lib/winston/tail-file.js"(exports2, module2) {
     "use strict";
-    var fs11 = require("fs");
+    var fs12 = require("fs");
     var { StringDecoder } = require("string_decoder");
     var { Stream } = require_readable();
     function noop2() {
@@ -13107,7 +13107,7 @@ var require_tail_file = __commonJS({
         stream4.emit("end");
         stream4.emit("close");
       };
-      fs11.open(options.file, "a+", "0644", (err, fd) => {
+      fs12.open(options.file, "a+", "0644", (err, fd) => {
         if (err) {
           if (!iter) {
             stream4.emit("error", err);
@@ -13119,10 +13119,10 @@ var require_tail_file = __commonJS({
         }
         (function read() {
           if (stream4.destroyed) {
-            fs11.close(fd, noop2);
+            fs12.close(fd, noop2);
             return;
           }
-          return fs11.read(fd, buffer, 0, buffer.length, pos, (error, bytes) => {
+          return fs12.read(fd, buffer, 0, buffer.length, pos, (error, bytes) => {
             if (error) {
               if (!iter) {
                 stream4.emit("error", error);
@@ -13181,15 +13181,15 @@ var require_tail_file = __commonJS({
 var require_file = __commonJS({
   "../../node_modules/winston/lib/winston/transports/file.js"(exports2, module2) {
     "use strict";
-    var fs11 = require("fs");
-    var path11 = require("path");
+    var fs12 = require("fs");
+    var path12 = require("path");
     var asyncSeries = require_series();
     var zlib3 = require("zlib");
     var { MESSAGE } = require_triple_beam();
     var { Stream, PassThrough } = require_readable();
     var TransportStream = require_winston_transport();
     var debug = require_node2()("winston:file");
-    var os5 = require("os");
+    var os6 = require("os");
     var tailFile = require_tail_file();
     module2.exports = class File extends TransportStream {
       /**
@@ -13212,14 +13212,14 @@ var require_file = __commonJS({
         this._onError = this._onError.bind(this);
         if (options.filename || options.dirname) {
           throwIf("filename or dirname", "stream");
-          this._basename = this.filename = options.filename ? path11.basename(options.filename) : "winston.log";
-          this.dirname = options.dirname || path11.dirname(options.filename);
+          this._basename = this.filename = options.filename ? path12.basename(options.filename) : "winston.log";
+          this.dirname = options.dirname || path12.dirname(options.filename);
           this.options = options.options || { flags: "a" };
         } else if (options.stream) {
           console.warn("options.stream will be removed in winston@4. Use winston.transports.Stream");
           throwIf("stream", "filename", "maxsize");
           this._dest = this._stream.pipe(this._setupStream(options.stream));
-          this.dirname = path11.dirname(this._dest.path);
+          this.dirname = path12.dirname(this._dest.path);
         } else {
           throw new Error("Cannot log to file without filename or stream.");
         }
@@ -13227,7 +13227,7 @@ var require_file = __commonJS({
         this.rotationFormat = options.rotationFormat || false;
         this.zippedArchive = options.zippedArchive || false;
         this.maxFiles = options.maxFiles || null;
-        this.eol = typeof options.eol === "string" ? options.eol : os5.EOL;
+        this.eol = typeof options.eol === "string" ? options.eol : os6.EOL;
         this.tailable = options.tailable || false;
         this.lazy = options.lazy || false;
         this._size = 0;
@@ -13362,11 +13362,11 @@ var require_file = __commonJS({
           options = {};
         }
         options = normalizeQuery(options);
-        const file = path11.join(this.dirname, this.filename);
+        const file = path12.join(this.dirname, this.filename);
         let buff = "";
         let results = [];
         let row2 = 0;
-        const stream4 = fs11.createReadStream(file, {
+        const stream4 = fs12.createReadStream(file, {
           encoding: "utf8"
         });
         stream4.on("error", (err) => {
@@ -13468,7 +13468,7 @@ var require_file = __commonJS({
        * TODO: Refactor me.
        */
       stream(options = {}) {
-        const file = path11.join(this.dirname, this.filename);
+        const file = path12.join(this.dirname, this.filename);
         const stream4 = new Stream();
         const tail = {
           file,
@@ -13520,8 +13520,8 @@ var require_file = __commonJS({
        */
       stat(callback) {
         const target = this._getFile();
-        const fullpath = path11.join(this.dirname, target);
-        fs11.stat(fullpath, (err, stat) => {
+        const fullpath = path12.join(this.dirname, target);
+        fs12.stat(fullpath, (err, stat) => {
           if (err && err.code === "ENOENT") {
             debug("ENOENT\xA0ok", fullpath);
             this.filename = target;
@@ -13624,9 +13624,9 @@ var require_file = __commonJS({
        * @returns {WritableStream} Stream that writes to disk for the active file.
        */
       _createStream(source) {
-        const fullpath = path11.join(this.dirname, this.filename);
+        const fullpath = path12.join(this.dirname, this.filename);
         debug("create stream start", fullpath, this.options);
-        const dest = fs11.createWriteStream(fullpath, this.options).on("error", (err) => debug(err)).on("close", () => debug("close", dest.path, dest.bytesWritten)).on("open", () => {
+        const dest = fs12.createWriteStream(fullpath, this.options).on("error", (err) => debug(err)).on("close", () => debug("close", dest.path, dest.bytesWritten)).on("open", () => {
           debug("file open ok", fullpath);
           this.emit("open", fullpath);
           source.pipe(dest);
@@ -13649,16 +13649,16 @@ var require_file = __commonJS({
        */
       _incFile(callback) {
         debug("_incFile", this.filename);
-        const ext = path11.extname(this._basename);
-        const basename2 = path11.basename(this._basename, ext);
+        const ext = path12.extname(this._basename);
+        const basename2 = path12.basename(this._basename, ext);
         const tasks = [];
         if (this.zippedArchive) {
           tasks.push(
             function(cb) {
               const num3 = this._created > 0 && !this.tailable ? this._created : "";
               this._compressFile(
-                path11.join(this.dirname, `${basename2}${num3}${ext}`),
-                path11.join(this.dirname, `${basename2}${num3}${ext}.gz`),
+                path12.join(this.dirname, `${basename2}${num3}${ext}`),
+                path12.join(this.dirname, `${basename2}${num3}${ext}.gz`),
                 cb
               );
             }.bind(this)
@@ -13683,8 +13683,8 @@ var require_file = __commonJS({
        * @private
        */
       _getFile() {
-        const ext = path11.extname(this._basename);
-        const basename2 = path11.basename(this._basename, ext);
+        const ext = path12.extname(this._basename);
+        const basename2 = path12.basename(this._basename, ext);
         const isRotation = this.rotationFormat ? this.rotationFormat() : this._created;
         return !this.tailable && this._created ? `${basename2}${isRotation}${ext}` : `${basename2}${ext}`;
       }
@@ -13704,8 +13704,8 @@ var require_file = __commonJS({
         const isOldest = oldest !== 0 ? oldest : "";
         const isZipped = this.zippedArchive ? ".gz" : "";
         const filePath = `${basename2}${isOldest}${ext}${isZipped}`;
-        const target = path11.join(this.dirname, filePath);
-        fs11.unlink(target, callback);
+        const target = path12.join(this.dirname, filePath);
+        fs12.unlink(target, callback);
       }
       /**
        * Roll files forward based on integer, up to maxFiles. e.g. if base if
@@ -13727,20 +13727,20 @@ var require_file = __commonJS({
         for (let x = this.maxFiles - 1; x > 1; x--) {
           tasks.push(function(i, cb) {
             let fileName = `${basename2}${i - 1}${ext}${isZipped}`;
-            const tmppath = path11.join(this.dirname, fileName);
-            fs11.exists(tmppath, (exists) => {
+            const tmppath = path12.join(this.dirname, fileName);
+            fs12.exists(tmppath, (exists) => {
               if (!exists) {
                 return cb(null);
               }
               fileName = `${basename2}${i}${ext}${isZipped}`;
-              fs11.rename(tmppath, path11.join(this.dirname, fileName), cb);
+              fs12.rename(tmppath, path12.join(this.dirname, fileName), cb);
             });
           }.bind(this, x));
         }
         asyncSeries(tasks, () => {
-          fs11.rename(
-            path11.join(this.dirname, `${basename2}${ext}${isZipped}`),
-            path11.join(this.dirname, `${basename2}1${ext}${isZipped}`),
+          fs12.rename(
+            path12.join(this.dirname, `${basename2}${ext}${isZipped}`),
+            path12.join(this.dirname, `${basename2}1${ext}${isZipped}`),
             callback
           );
         });
@@ -13754,22 +13754,22 @@ var require_file = __commonJS({
        * @private
        */
       _compressFile(src, dest, callback) {
-        fs11.access(src, fs11.F_OK, (err) => {
+        fs12.access(src, fs12.F_OK, (err) => {
           if (err) {
             return callback();
           }
           var gzip = zlib3.createGzip();
-          var inp = fs11.createReadStream(src);
-          var out = fs11.createWriteStream(dest);
+          var inp = fs12.createReadStream(src);
+          var out = fs12.createWriteStream(dest);
           out.on("finish", () => {
-            fs11.unlink(src, callback);
+            fs12.unlink(src, callback);
           });
           inp.pipe(gzip).pipe(out);
         });
       }
       _createLogDirIfNotExist(dirPath) {
-        if (!fs11.existsSync(dirPath)) {
-          fs11.mkdirSync(dirPath, { recursive: true });
+        if (!fs12.existsSync(dirPath)) {
+          fs12.mkdirSync(dirPath, { recursive: true });
         }
       }
     };
@@ -13853,9 +13853,9 @@ var require_http = __commonJS({
         };
         const auth = options.params.auth || null;
         delete options.params.auth;
-        const path11 = options.params.path || null;
+        const path12 = options.params.path || null;
         delete options.params.path;
-        this._request(options, auth, path11, (err, res, body) => {
+        this._request(options, auth, path12, (err, res, body) => {
           if (res && res.statusCode !== 200) {
             err = new Error(`Invalid HTTP Status Code: ${res.statusCode}`);
           }
@@ -13883,12 +13883,12 @@ var require_http = __commonJS({
           method: "stream",
           params: options
         };
-        const path11 = options.params.path || null;
+        const path12 = options.params.path || null;
         delete options.params.path;
         const auth = options.params.auth || null;
         delete options.params.auth;
         let buff = "";
-        const req = this._request(options, auth, path11);
+        const req = this._request(options, auth, path12);
         stream4.destroy = () => req.destroy();
         req.on("data", (data) => {
           data = (buff + data).split(/\n+/);
@@ -13914,14 +13914,14 @@ var require_http = __commonJS({
        * @param {string} path - request path
        * @param {function} callback - Continuation to respond to when complete.
        */
-      _request(options, auth, path11, callback) {
+      _request(options, auth, path12, callback) {
         options = options || {};
         auth = auth || this.auth;
-        path11 = path11 || this.path || "";
+        path12 = path12 || this.path || "";
         if (this.batch) {
-          this._doBatch(options, callback, auth, path11);
+          this._doBatch(options, callback, auth, path12);
         } else {
-          this._doRequest(options, callback, auth, path11);
+          this._doRequest(options, callback, auth, path12);
         }
       }
       /**
@@ -13931,18 +13931,18 @@ var require_http = __commonJS({
        * @param {Object?} auth - authentication options
        * @param {string} path - request path
        */
-      _doBatch(options, callback, auth, path11) {
+      _doBatch(options, callback, auth, path12) {
         this.batchOptions.push(options);
         if (this.batchOptions.length === 1) {
           const me = this;
           this.batchCallback = callback;
           this.batchTimeoutID = setTimeout(function() {
             me.batchTimeoutID = -1;
-            me._doBatchRequest(me.batchCallback, auth, path11);
+            me._doBatchRequest(me.batchCallback, auth, path12);
           }, this.batchInterval);
         }
         if (this.batchOptions.length === this.batchCount) {
-          this._doBatchRequest(this.batchCallback, auth, path11);
+          this._doBatchRequest(this.batchCallback, auth, path12);
         }
       }
       /**
@@ -13951,14 +13951,14 @@ var require_http = __commonJS({
        * @param {Object?} auth - authentication options
        * @param {string} path - request path
        */
-      _doBatchRequest(callback, auth, path11) {
+      _doBatchRequest(callback, auth, path12) {
         if (this.batchTimeoutID > 0) {
           clearTimeout(this.batchTimeoutID);
           this.batchTimeoutID = -1;
         }
         const batchOptionsCopy = this.batchOptions.slice();
         this.batchOptions = [];
-        this._doRequest(batchOptionsCopy, callback, auth, path11);
+        this._doRequest(batchOptionsCopy, callback, auth, path12);
       }
       /**
        * Make a request to a winstond server or any http server which can
@@ -13968,7 +13968,7 @@ var require_http = __commonJS({
        * @param {Object?} auth - authentication options
        * @param {string} path - request path
        */
-      _doRequest(options, callback, auth, path11) {
+      _doRequest(options, callback, auth, path12) {
         const headers = Object.assign({}, this.headers);
         if (auth && auth.bearer) {
           headers.Authorization = `Bearer ${auth.bearer}`;
@@ -13978,7 +13978,7 @@ var require_http = __commonJS({
           method: "POST",
           host: this.host,
           port: this.port,
-          path: `/${path11.replace(/^\//, "")}`,
+          path: `/${path12.replace(/^\//, "")}`,
           headers,
           auth: auth && auth.username && auth.password ? `${auth.username}:${auth.password}` : "",
           agent: this.agent
@@ -14013,7 +14013,7 @@ var require_stream2 = __commonJS({
     "use strict";
     var isStream2 = require_is_stream();
     var { MESSAGE } = require_triple_beam();
-    var os5 = require("os");
+    var os6 = require("os");
     var TransportStream = require_winston_transport();
     module2.exports = class Stream extends TransportStream {
       /**
@@ -14029,7 +14029,7 @@ var require_stream2 = __commonJS({
         this._stream = options.stream;
         this._stream.setMaxListeners(Infinity);
         this.isObjectMode = options.stream._writableState.objectMode;
-        this.eol = typeof options.eol === "string" ? options.eol : os5.EOL;
+        this.eol = typeof options.eol === "string" ? options.eol : os6.EOL;
       }
       /**
        * Core logging method exposed to Winston.
@@ -14415,7 +14415,7 @@ var require_exception_stream = __commonJS({
 var require_exception_handler = __commonJS({
   "../../node_modules/winston/lib/winston/exception-handler.js"(exports2, module2) {
     "use strict";
-    var os5 = require("os");
+    var os6 = require("os");
     var asyncForEach = require_forEach();
     var debug = require_node2()("winston:exception");
     var once = require_one_time();
@@ -14510,8 +14510,8 @@ var require_exception_handler = __commonJS({
        */
       getOsInfo() {
         return {
-          loadavg: os5.loadavg(),
-          uptime: os5.uptime()
+          loadavg: os6.loadavg(),
+          uptime: os6.uptime()
         };
       }
       /**
@@ -14653,7 +14653,7 @@ var require_rejection_stream = __commonJS({
 var require_rejection_handler = __commonJS({
   "../../node_modules/winston/lib/winston/rejection-handler.js"(exports2, module2) {
     "use strict";
-    var os5 = require("os");
+    var os6 = require("os");
     var asyncForEach = require_forEach();
     var debug = require_node2()("winston:rejection");
     var once = require_one_time();
@@ -14750,8 +14750,8 @@ var require_rejection_handler = __commonJS({
        */
       getOsInfo() {
         return {
-          loadavg: os5.loadavg(),
-          uptime: os5.uptime()
+          loadavg: os6.loadavg(),
+          uptime: os6.uptime()
         };
       }
       /**
@@ -22439,7 +22439,7 @@ var require_has_flag2 = __commonJS({
 var require_supports_color = __commonJS({
   "../../node_modules/supports-color/index.js"(exports2, module2) {
     "use strict";
-    var os5 = require("os");
+    var os6 = require("os");
     var tty = require("tty");
     var hasFlag = require_has_flag2();
     var { env } = process;
@@ -22487,7 +22487,7 @@ var require_supports_color = __commonJS({
         return min;
       }
       if (process.platform === "win32") {
-        const osRelease = os5.release().split(".");
+        const osRelease = os6.release().split(".");
         if (Number(osRelease[0]) >= 10 && Number(osRelease[2]) >= 10586) {
           return Number(osRelease[2]) >= 14931 ? 3 : 2;
         }
@@ -22975,7 +22975,7 @@ var require_ip = __commonJS({
   "../../node_modules/ip/lib/ip.js"(exports2) {
     var ip = exports2;
     var { Buffer: Buffer2 } = require("buffer");
-    var os5 = require("os");
+    var os6 = require("os");
     ip.toBuffer = function(ip2, buff, offset) {
       offset = ~~offset;
       var result;
@@ -23248,7 +23248,7 @@ var require_ip = __commonJS({
       return family === "ipv4" ? "127.0.0.1" : "fe80::1";
     };
     ip.address = function(name, family) {
-      var interfaces = os5.networkInterfaces();
+      var interfaces = os6.networkInterfaces();
       family = _normalizeFamily(family);
       if (name && name !== "private" && name !== "public") {
         var res = interfaces[name].filter((details) => {
@@ -28182,8 +28182,8 @@ var require_depacketizer = __commonJS({
     var __1 = require_src4();
     var codec_1 = require_codec();
     var helper_1 = require_helper2();
-    var path11 = `werift-rtp : packages/rtp/src/processor/depacketizer.ts`;
-    var log = (0, debug_1.default)(path11);
+    var path12 = `werift-rtp : packages/rtp/src/processor/depacketizer.ts`;
+    var log = (0, debug_1.default)(path12);
     var DepacketizeBase = class {
       constructor(codec, options = {}) {
         Object.defineProperty(this, "codec", {
@@ -30812,14 +30812,14 @@ var require_webmCallback = __commonJS({
       }
     };
     exports2.WebmCallback = WebmCallback;
-    var saveToFileSystem = (path11) => async (value) => {
+    var saveToFileSystem = (path12) => async (value) => {
       if (value.saveToFile) {
-        await (0, promises_1.appendFile)(path11, value.saveToFile);
+        await (0, promises_1.appendFile)(path12, value.saveToFile);
       } else if (value.eol) {
         const { durationElement } = value.eol;
-        const handler = await (0, promises_1.open)(path11, "r+");
+        const handler = await (0, promises_1.open)(path12, "r+");
         await handler.write(durationElement, 0, durationElement.length, webm_1.DurationPosition);
-        const meta = await (0, promises_1.stat)(path11);
+        const meta = await (0, promises_1.stat)(path12);
         const resize = (0, webm_1.replaceSegmentSize)(meta.size);
         await handler.write(resize, 0, resize.length, webm_1.SegmentSizePosition);
         await handler.close();
@@ -35384,12 +35384,12 @@ var require_writer = __commonJS({
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.MediaWriter = void 0;
     var MediaWriter = class {
-      constructor(path11, options) {
+      constructor(path12, options) {
         Object.defineProperty(this, "path", {
           enumerable: true,
           configurable: true,
           writable: true,
-          value: path11
+          value: path12
         });
         Object.defineProperty(this, "options", {
           enumerable: true,
@@ -35529,7 +35529,7 @@ var require_recorder = __commonJS({
     exports2.MediaRecorder = void 0;
     var webm_1 = require_webm3();
     var MediaRecorder = class {
-      constructor(tracks, path11, options = {}) {
+      constructor(tracks, path12, options = {}) {
         Object.defineProperty(this, "tracks", {
           enumerable: true,
           configurable: true,
@@ -35540,7 +35540,7 @@ var require_recorder = __commonJS({
           enumerable: true,
           configurable: true,
           writable: true,
-          value: path11
+          value: path12
         });
         Object.defineProperty(this, "options", {
           enumerable: true,
@@ -35560,11 +35560,11 @@ var require_recorder = __commonJS({
           writable: true,
           value: void 0
         });
-        this.ext = path11.split(".").slice(-1)[0];
+        this.ext = path12.split(".").slice(-1)[0];
         this.writer = (() => {
           switch (this.ext) {
             case "webm":
-              return new webm_1.WebmFactory(path11, options);
+              return new webm_1.WebmFactory(path12, options);
             default:
               throw new Error();
           }
@@ -35597,18 +35597,18 @@ var require_userMedia = __commonJS({
     var src_1 = require_src();
     var src_2 = require_src4();
     var track_1 = require_track();
-    var getUserMedia = async (path11, loop) => {
+    var getUserMedia = async (path12, loop) => {
       const audioPort = await (0, src_1.randomPort)();
       const videoPort = await (0, src_1.randomPort)();
-      if (path11.endsWith(".mp4")) {
-        return new MediaPlayerMp4(audioPort, videoPort, path11, loop);
+      if (path12.endsWith(".mp4")) {
+        return new MediaPlayerMp4(audioPort, videoPort, path12, loop);
       } else {
-        return new MediaPlayerWebm(audioPort, videoPort, path11, loop);
+        return new MediaPlayerWebm(audioPort, videoPort, path12, loop);
       }
     };
     exports2.getUserMedia = getUserMedia;
     var MediaPlayerMp4 = class {
-      constructor(videoPort, audioPort, path11, loop) {
+      constructor(videoPort, audioPort, path12, loop) {
         Object.defineProperty(this, "videoPort", {
           enumerable: true,
           configurable: true,
@@ -35625,7 +35625,7 @@ var require_userMedia = __commonJS({
           enumerable: true,
           configurable: true,
           writable: true,
-          value: path11
+          value: path12
         });
         Object.defineProperty(this, "loop", {
           enumerable: true,
@@ -35711,7 +35711,7 @@ var require_userMedia = __commonJS({
     };
     exports2.MediaPlayerMp4 = MediaPlayerMp4;
     var MediaPlayerWebm = class {
-      constructor(videoPort, audioPort, path11, loop) {
+      constructor(videoPort, audioPort, path12, loop) {
         Object.defineProperty(this, "videoPort", {
           enumerable: true,
           configurable: true,
@@ -35728,7 +35728,7 @@ var require_userMedia = __commonJS({
           enumerable: true,
           configurable: true,
           writable: true,
-          value: path11
+          value: path12
         });
         Object.defineProperty(this, "loop", {
           enumerable: true,
@@ -42097,13 +42097,13 @@ function __disposeResources(env) {
   }
   return next();
 }
-function __rewriteRelativeImportExtension(path11, preserveJsx) {
-  if (typeof path11 === "string" && /^\.\.?\//.test(path11)) {
-    return path11.replace(/\.(tsx)$|((?:\.d)?)((?:\.[^./]+?)?)\.([cm]?)ts$/i, function(m, tsx, d, ext, cm) {
+function __rewriteRelativeImportExtension(path12, preserveJsx) {
+  if (typeof path12 === "string" && /^\.\.?\//.test(path12)) {
+    return path12.replace(/\.(tsx)$|((?:\.d)?)((?:\.[^./]+?)?)\.([cm]?)ts$/i, function(m, tsx, d, ext, cm) {
       return tsx ? preserveJsx ? ".jsx" : ".js" : d && (!ext || !cm) ? m : d + ext + "." + cm.toLowerCase() + "js";
     });
   }
-  return path11;
+  return path12;
 }
 var extendStatics, __assign, __createBinding, __setModuleDefault, ownKeys, _SuppressedError, tslib_es6_default;
 var init_tslib_es6 = __esm({
@@ -45790,11 +45790,11 @@ var require_converters = __commonJS({
         if (value === null) {
           return new asn1js.Null();
         }
-        const schema3 = asn1js.fromBER(value);
-        if (schema3.result.error) {
-          throw new Error(schema3.result.error);
+        const schema4 = asn1js.fromBER(value);
+        if (schema4.result.error) {
+          throw new Error(schema4.result.error);
         }
-        return schema3.result;
+        return schema4.result;
       }
     };
     exports2.AsnIntegerConverter = {
@@ -45984,35 +45984,35 @@ var require_schema = __commonJS({
         return this.items.has(target);
       }
       get(target, checkSchema = false) {
-        const schema3 = this.items.get(target);
-        if (!schema3) {
+        const schema4 = this.items.get(target);
+        if (!schema4) {
           throw new Error(`Cannot get schema for '${target.prototype.constructor.name}' target`);
         }
-        if (checkSchema && !schema3.schema) {
+        if (checkSchema && !schema4.schema) {
           throw new Error(`Schema '${target.prototype.constructor.name}' doesn't contain ASN.1 schema. Call 'AsnSchemaStorage.cache'.`);
         }
-        return schema3;
+        return schema4;
       }
       cache(target) {
-        const schema3 = this.get(target);
-        if (!schema3.schema) {
-          schema3.schema = this.create(target, true);
+        const schema4 = this.get(target);
+        if (!schema4.schema) {
+          schema4.schema = this.create(target, true);
         }
       }
       createDefault(target) {
-        const schema3 = { type: enums_1.AsnTypeTypes.Sequence, items: {} };
+        const schema4 = { type: enums_1.AsnTypeTypes.Sequence, items: {} };
         const parentSchema = this.findParentSchema(target);
         if (parentSchema) {
-          Object.assign(schema3, parentSchema);
-          schema3.items = Object.assign({}, schema3.items, parentSchema.items);
+          Object.assign(schema4, parentSchema);
+          schema4.items = Object.assign({}, schema4.items, parentSchema.items);
         }
-        return schema3;
+        return schema4;
       }
       create(target, useNames) {
-        const schema3 = this.items.get(target) || this.createDefault(target);
+        const schema4 = this.items.get(target) || this.createDefault(target);
         const asn1Value = [];
-        for (const key in schema3.items) {
-          const item = schema3.items[key];
+        for (const key in schema4.items) {
+          const item = schema4.items[key];
           const name = useNames ? key : "";
           let asn1Item;
           if (typeof item.type === "number") {
@@ -46074,7 +46074,7 @@ var require_schema = __commonJS({
             asn1Value.push(asn1Item);
           }
         }
-        switch (schema3.type) {
+        switch (schema4.type) {
           case enums_1.AsnTypeTypes.Sequence:
             return new asn1js.Sequence({ value: asn1Value, name: "" });
           case enums_1.AsnTypeTypes.Set:
@@ -46085,15 +46085,15 @@ var require_schema = __commonJS({
             throw new Error(`Unsupported ASN1 type in use`);
         }
       }
-      set(target, schema3) {
-        this.items.set(target, schema3);
+      set(target, schema4) {
+        this.items.set(target, schema4);
         return this;
       }
       findParentSchema(target) {
         const parent = Object.getPrototypeOf(target);
         if (parent) {
-          const schema3 = this.items.get(parent);
-          return schema3 || this.findParentSchema(parent);
+          const schema4 = this.items.get(parent);
+          return schema4 || this.findParentSchema(parent);
         }
         return null;
       }
@@ -46123,14 +46123,14 @@ var require_decorators = __commonJS({
     var enums_1 = require_enums();
     var storage_1 = require_storage();
     var AsnType = (options) => (target) => {
-      let schema3;
+      let schema4;
       if (!storage_1.schemaStorage.has(target)) {
-        schema3 = storage_1.schemaStorage.createDefault(target);
-        storage_1.schemaStorage.set(target, schema3);
+        schema4 = storage_1.schemaStorage.createDefault(target);
+        storage_1.schemaStorage.set(target, schema4);
       } else {
-        schema3 = storage_1.schemaStorage.get(target);
+        schema4 = storage_1.schemaStorage.get(target);
       }
-      Object.assign(schema3, options);
+      Object.assign(schema4, options);
     };
     exports2.AsnType = AsnType;
     var AsnChoiceType = () => (0, exports2.AsnType)({ type: enums_1.AsnTypeTypes.Choice });
@@ -46140,12 +46140,12 @@ var require_decorators = __commonJS({
     var AsnSequenceType = (options) => (0, exports2.AsnType)({ type: enums_1.AsnTypeTypes.Sequence, ...options });
     exports2.AsnSequenceType = AsnSequenceType;
     var AsnProp = (options) => (target, propertyKey) => {
-      let schema3;
+      let schema4;
       if (!storage_1.schemaStorage.has(target.constructor)) {
-        schema3 = storage_1.schemaStorage.createDefault(target.constructor);
-        storage_1.schemaStorage.set(target.constructor, schema3);
+        schema4 = storage_1.schemaStorage.createDefault(target.constructor);
+        storage_1.schemaStorage.set(target.constructor, schema4);
       } else {
-        schema3 = storage_1.schemaStorage.get(target.constructor);
+        schema4 = storage_1.schemaStorage.get(target.constructor);
       }
       const copyOptions = Object.assign({}, options);
       if (typeof copyOptions.type === "number" && !copyOptions.converter) {
@@ -46156,7 +46156,7 @@ var require_decorators = __commonJS({
         copyOptions.converter = defaultConverter;
       }
       copyOptions.raw = options.raw;
-      schema3.items[propertyKey] = copyOptions;
+      schema4.items[propertyKey] = copyOptions;
     };
     exports2.AsnProp = AsnProp;
   }
@@ -46215,26 +46215,26 @@ var require_parser = __commonJS({
             const value = new target();
             return value.fromASN(asn1Schema);
           }
-          const schema3 = storage_1.schemaStorage.get(target);
+          const schema4 = storage_1.schemaStorage.get(target);
           storage_1.schemaStorage.cache(target);
-          let targetSchema = schema3.schema;
-          const choiceResult = this.handleChoiceTypes(asn1Schema, schema3, target, targetSchema);
+          let targetSchema = schema4.schema;
+          const choiceResult = this.handleChoiceTypes(asn1Schema, schema4, target, targetSchema);
           if (choiceResult === null || choiceResult === void 0 ? void 0 : choiceResult.result) {
             return choiceResult.result;
           }
           if (choiceResult === null || choiceResult === void 0 ? void 0 : choiceResult.targetSchema) {
             targetSchema = choiceResult.targetSchema;
           }
-          const sequenceResult = this.handleSequenceTypes(asn1Schema, schema3, target, targetSchema);
+          const sequenceResult = this.handleSequenceTypes(asn1Schema, schema4, target, targetSchema);
           if (sequenceResult && "isManualMapping" in sequenceResult) {
             return sequenceResult.result;
           }
           const asn1ComparedSchema = sequenceResult;
           const res = new target();
           if ((0, helper_1.isTypeOfArray)(target)) {
-            return this.handleArrayTypes(asn1Schema, schema3, target);
+            return this.handleArrayTypes(asn1Schema, schema4, target);
           }
-          this.processSchemaItems(schema3, asn1ComparedSchema, res);
+          this.processSchemaItems(schema4, asn1ComparedSchema, res);
           return res;
         } catch (error) {
           if (error instanceof errors_1.AsnSchemaValidationError) {
@@ -46243,10 +46243,10 @@ var require_parser = __commonJS({
           throw error;
         }
       }
-      static handleChoiceTypes(asn1Schema, schema3, target, targetSchema) {
-        if (asn1Schema.constructor === asn1js.Constructed && schema3.type === enums_1.AsnTypeTypes.Choice && asn1Schema.idBlock.tagClass === 3) {
-          for (const key in schema3.items) {
-            const schemaItem = schema3.items[key];
+      static handleChoiceTypes(asn1Schema, schema4, target, targetSchema) {
+        if (asn1Schema.constructor === asn1js.Constructed && schema4.type === enums_1.AsnTypeTypes.Choice && asn1Schema.idBlock.tagClass === 3) {
+          for (const key in schema4.items) {
+            const schemaItem = schema4.items[key];
             if (schemaItem.context === asn1Schema.idBlock.tagNumber && schemaItem.implicit) {
               if (typeof schemaItem.type === "function" && storage_1.schemaStorage.has(schemaItem.type)) {
                 const fieldSchema = storage_1.schemaStorage.get(schemaItem.type);
@@ -46263,29 +46263,29 @@ var require_parser = __commonJS({
               }
             }
           }
-        } else if (asn1Schema.constructor === asn1js.Constructed && schema3.type !== enums_1.AsnTypeTypes.Choice) {
+        } else if (asn1Schema.constructor === asn1js.Constructed && schema4.type !== enums_1.AsnTypeTypes.Choice) {
           const newTargetSchema = new asn1js.Constructed({
             idBlock: {
               tagClass: 3,
               tagNumber: asn1Schema.idBlock.tagNumber
             },
-            value: schema3.schema.valueBlock.value
+            value: schema4.schema.valueBlock.value
           });
-          for (const key in schema3.items) {
+          for (const key in schema4.items) {
             delete asn1Schema[key];
           }
           return { targetSchema: newTargetSchema };
         }
         return null;
       }
-      static handleSequenceTypes(asn1Schema, schema3, target, targetSchema) {
-        if (schema3.type === enums_1.AsnTypeTypes.Sequence) {
-          const optionalChoiceFields = Object.keys(schema3.items).filter((key) => {
-            const item = schema3.items[key];
+      static handleSequenceTypes(asn1Schema, schema4, target, targetSchema) {
+        if (schema4.type === enums_1.AsnTypeTypes.Sequence) {
+          const optionalChoiceFields = Object.keys(schema4.items).filter((key) => {
+            const item = schema4.items[key];
             return item.optional && typeof item.type === "function" && storage_1.schemaStorage.has(item.type) && storage_1.schemaStorage.get(item.type).type === enums_1.AsnTypeTypes.Choice;
           });
           if (optionalChoiceFields.length > 0 && "value" in asn1Schema.valueBlock && Array.isArray(asn1Schema.valueBlock.value) && target.name === "CertReqMsg") {
-            return this.handleManualMapping(asn1Schema, schema3, target);
+            return this.handleManualMapping(asn1Schema, schema4, target);
           }
           const asn1ComparedSchema = asn1js.compareSchema({}, asn1Schema, targetSchema);
           if (!asn1ComparedSchema.verified) {
@@ -46300,14 +46300,14 @@ var require_parser = __commonJS({
           return asn1ComparedSchema;
         }
       }
-      static handleManualMapping(asn1Schema, schema3, target) {
+      static handleManualMapping(asn1Schema, schema4, target) {
         const res = new target();
         const asn1Elements = asn1Schema.valueBlock.value;
-        const schemaKeys = Object.keys(schema3.items);
+        const schemaKeys = Object.keys(schema4.items);
         let asn1Index = 0;
         for (let i = 0; i < schemaKeys.length; i++) {
           const key = schemaKeys[i];
-          const schemaItem = schema3.items[key];
+          const schemaItem = schema4.items[key];
           if (asn1Index >= asn1Elements.length)
             break;
           if (schemaItem.repeated) {
@@ -46378,11 +46378,11 @@ var require_parser = __commonJS({
           throw err;
         }
       }
-      static handleArrayTypes(asn1Schema, schema3, target) {
+      static handleArrayTypes(asn1Schema, schema4, target) {
         if (!("value" in asn1Schema.valueBlock && Array.isArray(asn1Schema.valueBlock.value))) {
           throw new Error(`Cannot get items from the ASN.1 parsed value. ASN.1 object is not constructed.`);
         }
-        const itemType = schema3.itemType;
+        const itemType = schema4.itemType;
         if (typeof itemType === "number") {
           const converter = converters.defaultConverter(itemType);
           if (!converter) {
@@ -46393,13 +46393,13 @@ var require_parser = __commonJS({
           return target.from(asn1Schema.valueBlock.value, (element) => this.fromASN(element, itemType));
         }
       }
-      static processSchemaItems(schema3, asn1ComparedSchema, res) {
-        for (const key in schema3.items) {
+      static processSchemaItems(schema4, asn1ComparedSchema, res) {
+        for (const key in schema4.items) {
           const asn1SchemaValue = asn1ComparedSchema.result[key];
           if (!asn1SchemaValue) {
             continue;
           }
-          const schemaItem = schema3.items[key];
+          const schemaItem = schema4.items[key];
           const schemaItemType = schemaItem.type;
           let parsedValue;
           if (typeof schemaItemType === "number" || (0, helper_1.isConvertible)(schemaItemType)) {
@@ -46495,14 +46495,14 @@ var require_parser = __commonJS({
       }
       static handleImplicitTagging(asn1SchemaValue, schemaItem, schemaItemType) {
         if (schemaItem.implicit && typeof schemaItem.context === "number") {
-          const schema3 = storage_1.schemaStorage.get(schemaItemType);
-          if (schema3.type === enums_1.AsnTypeTypes.Sequence) {
+          const schema4 = storage_1.schemaStorage.get(schemaItemType);
+          if (schema4.type === enums_1.AsnTypeTypes.Sequence) {
             const newSeq = new asn1js.Sequence();
             if ("value" in asn1SchemaValue.valueBlock && Array.isArray(asn1SchemaValue.valueBlock.value) && "value" in newSeq.valueBlock) {
               newSeq.valueBlock.value = asn1SchemaValue.valueBlock.value;
               return newSeq;
             }
-          } else if (schema3.type === enums_1.AsnTypeTypes.Set) {
+          } else if (schema4.type === enums_1.AsnTypeTypes.Set) {
             const newSet = new asn1js.Set();
             if ("value" in asn1SchemaValue.valueBlock && Array.isArray(asn1SchemaValue.valueBlock.value) && "value" in newSet.valueBlock) {
               newSet.valueBlock.value = asn1SchemaValue.valueBlock.value;
@@ -46543,25 +46543,25 @@ var require_serializer = __commonJS({
           throw new TypeError("Parameter 1 should be type of Object.");
         }
         const target = obj.constructor;
-        const schema3 = storage_1.schemaStorage.get(target);
+        const schema4 = storage_1.schemaStorage.get(target);
         storage_1.schemaStorage.cache(target);
         let asn1Value = [];
-        if (schema3.itemType) {
+        if (schema4.itemType) {
           if (!Array.isArray(obj)) {
             throw new TypeError("Parameter 1 should be type of Array.");
           }
-          if (typeof schema3.itemType === "number") {
-            const converter = converters.defaultConverter(schema3.itemType);
+          if (typeof schema4.itemType === "number") {
+            const converter = converters.defaultConverter(schema4.itemType);
             if (!converter) {
               throw new Error(`Cannot get default converter for array item of ${target.name} ASN1 schema`);
             }
             asn1Value = obj.map((o) => converter.toASN(o));
           } else {
-            asn1Value = obj.map((o) => this.toAsnItem({ type: schema3.itemType }, "[]", target, o));
+            asn1Value = obj.map((o) => this.toAsnItem({ type: schema4.itemType }, "[]", target, o));
           }
         } else {
-          for (const key in schema3.items) {
-            const schemaItem = schema3.items[key];
+          for (const key in schema4.items) {
+            const schemaItem = schema4.items[key];
             const objProp = obj[key];
             if (objProp === void 0 || schemaItem.defaultValue === objProp || typeof schemaItem.defaultValue === "object" && typeof objProp === "object" && (0, helper_1.isArrayEqual)(this.serialize(schemaItem.defaultValue), this.serialize(objProp))) {
               continue;
@@ -46608,7 +46608,7 @@ var require_serializer = __commonJS({
           }
         }
         let asnSchema;
-        switch (schema3.type) {
+        switch (schema4.type) {
           case enums_1.AsnTypeTypes.Sequence:
             asnSchema = new asn1js.Sequence({ value: asn1Value });
             break;
@@ -46775,14 +46775,14 @@ var require_build5 = __commonJS({
       }
     };
     var TransformError = class extends JsonError {
-      constructor(schema3, message, innerError) {
+      constructor(schema4, message, innerError) {
         super(message, innerError);
-        this.schema = schema3;
+        this.schema = schema4;
       }
     };
     var ParserError = class extends TransformError {
-      constructor(schema3, message, innerError) {
-        super(schema3, `JSON doesn't match to '${schema3.target.name}' schema. ${message}`, innerError);
+      constructor(schema4, message, innerError) {
+        super(schema4, `JSON doesn't match to '${schema4.target.name}' schema. ${message}`, innerError);
       }
     };
     var ValidationError = class extends JsonError {
@@ -46794,8 +46794,8 @@ var require_build5 = __commonJS({
       }
     };
     var KeyError = class extends ParserError {
-      constructor(schema3, keys, errors = {}) {
-        super(schema3, "Some keys doesn't match to schema");
+      constructor(schema4, keys, errors = {}) {
+        super(schema4, "Some keys doesn't match to schema");
         this.keys = keys;
         this.errors = errors;
       }
@@ -46841,34 +46841,34 @@ var require_build5 = __commonJS({
         return this.items.has(target) || !!this.findParentSchema(target);
       }
       get(target) {
-        const schema3 = this.items.get(target) || this.findParentSchema(target);
-        if (!schema3) {
+        const schema4 = this.items.get(target) || this.findParentSchema(target);
+        if (!schema4) {
           throw new Error("Cannot get schema for current target");
         }
-        return schema3;
+        return schema4;
       }
       create(target) {
-        const schema3 = { names: {} };
+        const schema4 = { names: {} };
         const parentSchema = this.findParentSchema(target);
         if (parentSchema) {
-          Object.assign(schema3, parentSchema);
-          schema3.names = {};
+          Object.assign(schema4, parentSchema);
+          schema4.names = {};
           for (const name in parentSchema.names) {
-            schema3.names[name] = Object.assign({}, parentSchema.names[name]);
+            schema4.names[name] = Object.assign({}, parentSchema.names[name]);
           }
         }
-        schema3.target = target;
-        return schema3;
+        schema4.target = target;
+        return schema4;
       }
-      set(target, schema3) {
-        this.items.set(target, schema3);
+      set(target, schema4) {
+        this.items.set(target, schema4);
         return this;
       }
       findParentSchema(target) {
         const parent = target.__proto__;
         if (parent) {
-          const schema3 = this.items.get(parent);
-          return schema3 || this.findParentSchema(parent);
+          const schema4 = this.items.get(parent);
+          return schema4 || this.findParentSchema(parent);
         }
         return null;
       }
@@ -46977,8 +46977,8 @@ var require_build5 = __commonJS({
           }
         }
       }
-      static getSchemaByName(schema3, name = DEFAULT_SCHEMA) {
-        return { ...schema3.names[DEFAULT_SCHEMA], ...schema3.names[name] };
+      static getSchemaByName(schema4, name = DEFAULT_SCHEMA) {
+        return { ...schema4.names[DEFAULT_SCHEMA], ...schema4.names[name] };
       }
     };
     var JsonSerializer = class extends JsonTransform {
@@ -47004,9 +47004,9 @@ var require_build5 = __commonJS({
           }
           targetSchema = targetSchema || obj.constructor;
           if (schemaStorage.has(targetSchema)) {
-            const schema3 = schemaStorage.get(targetSchema);
+            const schema4 = schemaStorage.get(targetSchema);
             res = {};
-            const namedSchema = this.getSchemaByName(schema3, schemaName);
+            const namedSchema = this.getSchemaByName(schema4, schemaName);
             for (const key in namedSchema) {
               try {
                 const item = namedSchema[key];
@@ -47042,7 +47042,7 @@ var require_build5 = __commonJS({
                 if (e instanceof SerializerError) {
                   throw e;
                 } else {
-                  throw new SerializerError(schema3.target.name, `Property '${key}' is wrong. ${e.message}`, e);
+                  throw new SerializerError(schema4.target.name, `Property '${key}' is wrong. ${e.message}`, e);
                 }
               }
             }
@@ -47070,11 +47070,11 @@ var require_build5 = __commonJS({
         if (isConvertible(obj)) {
           return obj.fromJSON(target);
         }
-        const schema3 = schemaStorage.get(targetSchema);
-        const namedSchema = this.getSchemaByName(schema3, schemaName);
+        const schema4 = schemaStorage.get(targetSchema);
+        const namedSchema = this.getSchemaByName(schema4, schemaName);
         const keyErrors = {};
         if (options.strictProperty && !Array.isArray(target)) {
-          _JsonParser.checkStrictProperty(target, namedSchema, schema3);
+          _JsonParser.checkStrictProperty(target, namedSchema, schema4);
         }
         for (const key in namedSchema) {
           try {
@@ -47085,7 +47085,7 @@ var require_build5 = __commonJS({
               continue;
             }
             if (!item.optional && value === void 0) {
-              throw new ParserError(schema3, `Property '${name}' is required.`);
+              throw new ParserError(schema4, `Property '${name}' is required.`);
             }
             this.checkTypes(value, item);
             this.checkValues(value, item);
@@ -47113,7 +47113,7 @@ var require_build5 = __commonJS({
             }
           } catch (e) {
             if (!(e instanceof ParserError)) {
-              e = new ParserError(schema3, `Property '${key}' is wrong. ${e.message}`, e);
+              e = new ParserError(schema4, `Property '${key}' is wrong. ${e.message}`, e);
             }
             if (options.strictAllKeys) {
               keyErrors[key] = e;
@@ -47124,11 +47124,11 @@ var require_build5 = __commonJS({
         }
         const keys = Object.keys(keyErrors);
         if (keys.length) {
-          throw new KeyError(schema3, keys, keyErrors);
+          throw new KeyError(schema4, keys, keyErrors);
         }
         return obj;
       }
-      static checkStrictProperty(target, namedSchema, schema3) {
+      static checkStrictProperty(target, namedSchema, schema4) {
         const jsonProps = Object.keys(target);
         const schemaProps = Object.keys(namedSchema);
         const keys = [];
@@ -47138,7 +47138,7 @@ var require_build5 = __commonJS({
           }
         }
         if (keys.length) {
-          throw new KeyError(schema3, keys);
+          throw new KeyError(schema4, keys);
         }
       }
     };
@@ -47167,15 +47167,15 @@ var require_build5 = __commonJS({
     }
     var JsonProp = (options = {}) => (target, propertyKey) => {
       const errorMessage = `Cannot set type for ${propertyKey} property of ${target.constructor.name} schema`;
-      let schema3;
+      let schema4;
       if (!schemaStorage.has(target.constructor)) {
-        schema3 = schemaStorage.create(target.constructor);
-        schemaStorage.set(target.constructor, schema3);
+        schema4 = schemaStorage.create(target.constructor);
+        schemaStorage.set(target.constructor, schema4);
       } else {
-        schema3 = schemaStorage.get(target.constructor);
-        if (schema3.target !== target.constructor) {
-          schema3 = schemaStorage.create(target.constructor);
-          schemaStorage.set(target.constructor, schema3);
+        schema4 = schemaStorage.get(target.constructor);
+        if (schema4.target !== target.constructor) {
+          schema4 = schemaStorage.create(target.constructor);
+          schemaStorage.set(target.constructor, schema4);
         }
       }
       const defaultSchema = {
@@ -47196,10 +47196,10 @@ var require_build5 = __commonJS({
         schemaNames = [options.schema || DEFAULT_SCHEMA];
       }
       for (const schemaName of schemaNames) {
-        if (!schema3.names[schemaName]) {
-          schema3.names[schemaName] = {};
+        if (!schema4.names[schemaName]) {
+          schema4.names[schemaName] = {};
         }
-        const namedSchema = schema3.names[schemaName];
+        const namedSchema = schema4.names[schemaName];
         namedSchema[propertyKey] = copyOptions;
       }
     };
@@ -57288,14 +57288,14 @@ var require_dependency_container = __commonJS({
           provider = providerOrConstructor;
         }
         if (providers_1.isTokenProvider(provider)) {
-          const path11 = [token];
+          const path12 = [token];
           let tokenProvider = provider;
           while (tokenProvider != null) {
             const currentToken = tokenProvider.useToken;
-            if (path11.includes(currentToken)) {
-              throw new Error(`Token registration cycle detected! ${[...path11, currentToken].join(" -> ")}`);
+            if (path12.includes(currentToken)) {
+              throw new Error(`Token registration cycle detected! ${[...path12, currentToken].join(" -> ")}`);
             }
-            path11.push(currentToken);
+            path12.push(currentToken);
             const registration = this._registry.get(currentToken);
             if (registration && providers_1.isTokenProvider(registration.provider)) {
               tokenProvider = registration.provider;
@@ -62900,8 +62900,8 @@ var require_decode = __commonJS({
       }
       return decodeSchema(rstream, typeOrSchema, meta);
     }
-    function decodeSchema(rstream, schema3, meta) {
-      assertSchema(schema3);
+    function decodeSchema(rstream, schema4, meta) {
+      assertSchema(schema4);
       const node = /* @__PURE__ */ Object.create(null);
       if (meta.node === void 0) {
         meta.node = node;
@@ -62909,10 +62909,10 @@ var require_decode = __commonJS({
       } else {
         meta.current = node;
       }
-      const keys = Object.keys(schema3);
+      const keys = Object.keys(schema4);
       for (let i = 0; i < keys.length; i += 1) {
         const key = keys[i];
-        const type = schema3[key];
+        const type = schema4[key];
         if (!isDecodeType(type)) {
           node[key] = decodeSchema(rstream, type, meta);
           meta.current = node;
@@ -62927,8 +62927,8 @@ var require_decode = __commonJS({
       }
       return node;
     }
-    function assertSchema(schema3) {
-      if (!isUserType(schema3)) {
+    function assertSchema(schema4) {
+      if (!isUserType(schema4)) {
         throw new TypeError("Argument #2 should be a plain object.");
       }
     }
@@ -62970,18 +62970,18 @@ var require_encode = __commonJS({
         encodeSchema(object, wstream, typeOrSchema, context);
       }
     }
-    function encodeSchema(object, wstream, schema3, context) {
-      assertSchema(schema3);
+    function encodeSchema(object, wstream, schema4, context) {
+      assertSchema(schema4);
       if (context.node === void 0) {
         context.node = object;
         context.current = object;
       } else {
         context.current = object;
       }
-      const keys = Object.keys(schema3);
+      const keys = Object.keys(schema4);
       for (let i = 0; i < keys.length; i += 1) {
         const key = keys[i];
-        const type = schema3[key];
+        const type = schema4[key];
         const value = object[key];
         if (!isEncodeType(type)) {
           encodeSchema(value, wstream, type, context);
@@ -62992,8 +62992,8 @@ var require_encode = __commonJS({
         context[symbols.bytes] += type.encode.bytes;
       }
     }
-    function assertSchema(schema3) {
-      if (!isUserType(schema3)) {
+    function assertSchema(schema4) {
+      if (!isUserType(schema4)) {
         throw new TypeError("Argument `schema` should be a plain object.");
       }
     }
@@ -63011,9 +63011,9 @@ var require_encoding_length = __commonJS({
       encodingLength,
       encodingLengthCommon
     };
-    function encodingLength(obj, schema3) {
+    function encodingLength(obj, schema4) {
       const context = new Metadata();
-      encodingLengthCommon(obj, schema3, context);
+      encodingLengthCommon(obj, schema4, context);
       Metadata.clean(context);
       return context.bytes;
     }
@@ -63024,8 +63024,8 @@ var require_encoding_length = __commonJS({
         encodingLengthSchema(item, typeOrSchema, context);
       }
     }
-    function encodingLengthSchema(item, schema3, context) {
-      if (!isUserType(schema3)) {
+    function encodingLengthSchema(item, schema4, context) {
+      if (!isUserType(schema4)) {
         throw new TypeError("Argument `schema` should be a plain object.");
       }
       if (context.node === void 0) {
@@ -63034,10 +63034,10 @@ var require_encoding_length = __commonJS({
       } else {
         context.current = item;
       }
-      const keys = Object.keys(schema3);
+      const keys = Object.keys(schema4);
       for (let i = 0; i < keys.length; i += 1) {
         const key = keys[i];
-        const type = schema3[key];
+        const type = schema4[key];
         const value = item[key];
         if (!isType(type)) {
           encodingLengthSchema(value, type, context);
@@ -63890,27 +63890,27 @@ var require_src5 = __commonJS({
       types[type] = numbers[type];
     }
     var kschema = Symbol("schema");
-    function createEncodeStream(schema3) {
+    function createEncodeStream(schema4) {
       const stream4 = new BinaryStream({
         readableObjectMode: false,
         writableObjectMode: true,
         transform: transformEncode
       });
-      stream4[kschema] = schema3;
+      stream4[kschema] = schema4;
       return stream4;
     }
     function createDecodeStream(bufOrSchema) {
-      let schema3 = null;
+      let schema4 = null;
       const isBuffer2 = Buffer.isBuffer(bufOrSchema);
       if (!isBuffer2) {
-        schema3 = bufOrSchema;
+        schema4 = bufOrSchema;
       }
       const stream4 = new BinaryStream({
         transform: transformDecode,
         readableObjectMode: true,
         writableObjectMode: false
       });
-      stream4[kschema] = schema3;
+      stream4[kschema] = schema4;
       if (isBuffer2) {
         stream4.append(bufOrSchema);
       }
@@ -85742,2151 +85742,6 @@ var init_comfyui_target = __esm({
   }
 });
 
-// ../../node_modules/jpeg-js/lib/encoder.js
-var require_encoder2 = __commonJS({
-  "../../node_modules/jpeg-js/lib/encoder.js"(exports2, module2) {
-    var btoa2 = btoa2 || function(buf) {
-      return Buffer.from(buf).toString("base64");
-    };
-    function JPEGEncoder(quality) {
-      var self2 = this;
-      var fround = Math.round;
-      var ffloor = Math.floor;
-      var YTable = new Array(64);
-      var UVTable = new Array(64);
-      var fdtbl_Y = new Array(64);
-      var fdtbl_UV = new Array(64);
-      var YDC_HT;
-      var UVDC_HT;
-      var YAC_HT;
-      var UVAC_HT;
-      var bitcode = new Array(65535);
-      var category = new Array(65535);
-      var outputfDCTQuant = new Array(64);
-      var DU = new Array(64);
-      var byteout = [];
-      var bytenew = 0;
-      var bytepos = 7;
-      var YDU = new Array(64);
-      var UDU = new Array(64);
-      var VDU = new Array(64);
-      var clt = new Array(256);
-      var RGB_YUV_TABLE = new Array(2048);
-      var currentQuality;
-      var ZigZag = [
-        0,
-        1,
-        5,
-        6,
-        14,
-        15,
-        27,
-        28,
-        2,
-        4,
-        7,
-        13,
-        16,
-        26,
-        29,
-        42,
-        3,
-        8,
-        12,
-        17,
-        25,
-        30,
-        41,
-        43,
-        9,
-        11,
-        18,
-        24,
-        31,
-        40,
-        44,
-        53,
-        10,
-        19,
-        23,
-        32,
-        39,
-        45,
-        52,
-        54,
-        20,
-        22,
-        33,
-        38,
-        46,
-        51,
-        55,
-        60,
-        21,
-        34,
-        37,
-        47,
-        50,
-        56,
-        59,
-        61,
-        35,
-        36,
-        48,
-        49,
-        57,
-        58,
-        62,
-        63
-      ];
-      var std_dc_luminance_nrcodes = [0, 0, 1, 5, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0];
-      var std_dc_luminance_values = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
-      var std_ac_luminance_nrcodes = [0, 0, 2, 1, 3, 3, 2, 4, 3, 5, 5, 4, 4, 0, 0, 1, 125];
-      var std_ac_luminance_values = [
-        1,
-        2,
-        3,
-        0,
-        4,
-        17,
-        5,
-        18,
-        33,
-        49,
-        65,
-        6,
-        19,
-        81,
-        97,
-        7,
-        34,
-        113,
-        20,
-        50,
-        129,
-        145,
-        161,
-        8,
-        35,
-        66,
-        177,
-        193,
-        21,
-        82,
-        209,
-        240,
-        36,
-        51,
-        98,
-        114,
-        130,
-        9,
-        10,
-        22,
-        23,
-        24,
-        25,
-        26,
-        37,
-        38,
-        39,
-        40,
-        41,
-        42,
-        52,
-        53,
-        54,
-        55,
-        56,
-        57,
-        58,
-        67,
-        68,
-        69,
-        70,
-        71,
-        72,
-        73,
-        74,
-        83,
-        84,
-        85,
-        86,
-        87,
-        88,
-        89,
-        90,
-        99,
-        100,
-        101,
-        102,
-        103,
-        104,
-        105,
-        106,
-        115,
-        116,
-        117,
-        118,
-        119,
-        120,
-        121,
-        122,
-        131,
-        132,
-        133,
-        134,
-        135,
-        136,
-        137,
-        138,
-        146,
-        147,
-        148,
-        149,
-        150,
-        151,
-        152,
-        153,
-        154,
-        162,
-        163,
-        164,
-        165,
-        166,
-        167,
-        168,
-        169,
-        170,
-        178,
-        179,
-        180,
-        181,
-        182,
-        183,
-        184,
-        185,
-        186,
-        194,
-        195,
-        196,
-        197,
-        198,
-        199,
-        200,
-        201,
-        202,
-        210,
-        211,
-        212,
-        213,
-        214,
-        215,
-        216,
-        217,
-        218,
-        225,
-        226,
-        227,
-        228,
-        229,
-        230,
-        231,
-        232,
-        233,
-        234,
-        241,
-        242,
-        243,
-        244,
-        245,
-        246,
-        247,
-        248,
-        249,
-        250
-      ];
-      var std_dc_chrominance_nrcodes = [0, 0, 3, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0];
-      var std_dc_chrominance_values = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
-      var std_ac_chrominance_nrcodes = [0, 0, 2, 1, 2, 4, 4, 3, 4, 7, 5, 4, 4, 0, 1, 2, 119];
-      var std_ac_chrominance_values = [
-        0,
-        1,
-        2,
-        3,
-        17,
-        4,
-        5,
-        33,
-        49,
-        6,
-        18,
-        65,
-        81,
-        7,
-        97,
-        113,
-        19,
-        34,
-        50,
-        129,
-        8,
-        20,
-        66,
-        145,
-        161,
-        177,
-        193,
-        9,
-        35,
-        51,
-        82,
-        240,
-        21,
-        98,
-        114,
-        209,
-        10,
-        22,
-        36,
-        52,
-        225,
-        37,
-        241,
-        23,
-        24,
-        25,
-        26,
-        38,
-        39,
-        40,
-        41,
-        42,
-        53,
-        54,
-        55,
-        56,
-        57,
-        58,
-        67,
-        68,
-        69,
-        70,
-        71,
-        72,
-        73,
-        74,
-        83,
-        84,
-        85,
-        86,
-        87,
-        88,
-        89,
-        90,
-        99,
-        100,
-        101,
-        102,
-        103,
-        104,
-        105,
-        106,
-        115,
-        116,
-        117,
-        118,
-        119,
-        120,
-        121,
-        122,
-        130,
-        131,
-        132,
-        133,
-        134,
-        135,
-        136,
-        137,
-        138,
-        146,
-        147,
-        148,
-        149,
-        150,
-        151,
-        152,
-        153,
-        154,
-        162,
-        163,
-        164,
-        165,
-        166,
-        167,
-        168,
-        169,
-        170,
-        178,
-        179,
-        180,
-        181,
-        182,
-        183,
-        184,
-        185,
-        186,
-        194,
-        195,
-        196,
-        197,
-        198,
-        199,
-        200,
-        201,
-        202,
-        210,
-        211,
-        212,
-        213,
-        214,
-        215,
-        216,
-        217,
-        218,
-        226,
-        227,
-        228,
-        229,
-        230,
-        231,
-        232,
-        233,
-        234,
-        242,
-        243,
-        244,
-        245,
-        246,
-        247,
-        248,
-        249,
-        250
-      ];
-      function initQuantTables(sf) {
-        var YQT = [
-          16,
-          11,
-          10,
-          16,
-          24,
-          40,
-          51,
-          61,
-          12,
-          12,
-          14,
-          19,
-          26,
-          58,
-          60,
-          55,
-          14,
-          13,
-          16,
-          24,
-          40,
-          57,
-          69,
-          56,
-          14,
-          17,
-          22,
-          29,
-          51,
-          87,
-          80,
-          62,
-          18,
-          22,
-          37,
-          56,
-          68,
-          109,
-          103,
-          77,
-          24,
-          35,
-          55,
-          64,
-          81,
-          104,
-          113,
-          92,
-          49,
-          64,
-          78,
-          87,
-          103,
-          121,
-          120,
-          101,
-          72,
-          92,
-          95,
-          98,
-          112,
-          100,
-          103,
-          99
-        ];
-        for (var i = 0; i < 64; i++) {
-          var t = ffloor((YQT[i] * sf + 50) / 100);
-          if (t < 1) {
-            t = 1;
-          } else if (t > 255) {
-            t = 255;
-          }
-          YTable[ZigZag[i]] = t;
-        }
-        var UVQT = [
-          17,
-          18,
-          24,
-          47,
-          99,
-          99,
-          99,
-          99,
-          18,
-          21,
-          26,
-          66,
-          99,
-          99,
-          99,
-          99,
-          24,
-          26,
-          56,
-          99,
-          99,
-          99,
-          99,
-          99,
-          47,
-          66,
-          99,
-          99,
-          99,
-          99,
-          99,
-          99,
-          99,
-          99,
-          99,
-          99,
-          99,
-          99,
-          99,
-          99,
-          99,
-          99,
-          99,
-          99,
-          99,
-          99,
-          99,
-          99,
-          99,
-          99,
-          99,
-          99,
-          99,
-          99,
-          99,
-          99,
-          99,
-          99,
-          99,
-          99,
-          99,
-          99,
-          99,
-          99
-        ];
-        for (var j = 0; j < 64; j++) {
-          var u = ffloor((UVQT[j] * sf + 50) / 100);
-          if (u < 1) {
-            u = 1;
-          } else if (u > 255) {
-            u = 255;
-          }
-          UVTable[ZigZag[j]] = u;
-        }
-        var aasf = [
-          1,
-          1.387039845,
-          1.306562965,
-          1.175875602,
-          1,
-          0.785694958,
-          0.5411961,
-          0.275899379
-        ];
-        var k = 0;
-        for (var row2 = 0; row2 < 8; row2++) {
-          for (var col = 0; col < 8; col++) {
-            fdtbl_Y[k] = 1 / (YTable[ZigZag[k]] * aasf[row2] * aasf[col] * 8);
-            fdtbl_UV[k] = 1 / (UVTable[ZigZag[k]] * aasf[row2] * aasf[col] * 8);
-            k++;
-          }
-        }
-      }
-      function computeHuffmanTbl(nrcodes, std_table) {
-        var codevalue = 0;
-        var pos_in_table = 0;
-        var HT = new Array();
-        for (var k = 1; k <= 16; k++) {
-          for (var j = 1; j <= nrcodes[k]; j++) {
-            HT[std_table[pos_in_table]] = [];
-            HT[std_table[pos_in_table]][0] = codevalue;
-            HT[std_table[pos_in_table]][1] = k;
-            pos_in_table++;
-            codevalue++;
-          }
-          codevalue *= 2;
-        }
-        return HT;
-      }
-      function initHuffmanTbl() {
-        YDC_HT = computeHuffmanTbl(std_dc_luminance_nrcodes, std_dc_luminance_values);
-        UVDC_HT = computeHuffmanTbl(std_dc_chrominance_nrcodes, std_dc_chrominance_values);
-        YAC_HT = computeHuffmanTbl(std_ac_luminance_nrcodes, std_ac_luminance_values);
-        UVAC_HT = computeHuffmanTbl(std_ac_chrominance_nrcodes, std_ac_chrominance_values);
-      }
-      function initCategoryNumber() {
-        var nrlower = 1;
-        var nrupper = 2;
-        for (var cat = 1; cat <= 15; cat++) {
-          for (var nr = nrlower; nr < nrupper; nr++) {
-            category[32767 + nr] = cat;
-            bitcode[32767 + nr] = [];
-            bitcode[32767 + nr][1] = cat;
-            bitcode[32767 + nr][0] = nr;
-          }
-          for (var nrneg = -(nrupper - 1); nrneg <= -nrlower; nrneg++) {
-            category[32767 + nrneg] = cat;
-            bitcode[32767 + nrneg] = [];
-            bitcode[32767 + nrneg][1] = cat;
-            bitcode[32767 + nrneg][0] = nrupper - 1 + nrneg;
-          }
-          nrlower <<= 1;
-          nrupper <<= 1;
-        }
-      }
-      function initRGBYUVTable() {
-        for (var i = 0; i < 256; i++) {
-          RGB_YUV_TABLE[i] = 19595 * i;
-          RGB_YUV_TABLE[i + 256 >> 0] = 38470 * i;
-          RGB_YUV_TABLE[i + 512 >> 0] = 7471 * i + 32768;
-          RGB_YUV_TABLE[i + 768 >> 0] = -11059 * i;
-          RGB_YUV_TABLE[i + 1024 >> 0] = -21709 * i;
-          RGB_YUV_TABLE[i + 1280 >> 0] = 32768 * i + 8421375;
-          RGB_YUV_TABLE[i + 1536 >> 0] = -27439 * i;
-          RGB_YUV_TABLE[i + 1792 >> 0] = -5329 * i;
-        }
-      }
-      function writeBits(bs) {
-        var value = bs[0];
-        var posval = bs[1] - 1;
-        while (posval >= 0) {
-          if (value & 1 << posval) {
-            bytenew |= 1 << bytepos;
-          }
-          posval--;
-          bytepos--;
-          if (bytepos < 0) {
-            if (bytenew == 255) {
-              writeByte(255);
-              writeByte(0);
-            } else {
-              writeByte(bytenew);
-            }
-            bytepos = 7;
-            bytenew = 0;
-          }
-        }
-      }
-      function writeByte(value) {
-        byteout.push(value);
-      }
-      function writeWord(value) {
-        writeByte(value >> 8 & 255);
-        writeByte(value & 255);
-      }
-      function fDCTQuant(data, fdtbl) {
-        var d0, d1, d2, d3, d4, d5, d6, d7;
-        var dataOff = 0;
-        var i;
-        var I8 = 8;
-        var I64 = 64;
-        for (i = 0; i < I8; ++i) {
-          d0 = data[dataOff];
-          d1 = data[dataOff + 1];
-          d2 = data[dataOff + 2];
-          d3 = data[dataOff + 3];
-          d4 = data[dataOff + 4];
-          d5 = data[dataOff + 5];
-          d6 = data[dataOff + 6];
-          d7 = data[dataOff + 7];
-          var tmp0 = d0 + d7;
-          var tmp7 = d0 - d7;
-          var tmp1 = d1 + d6;
-          var tmp6 = d1 - d6;
-          var tmp2 = d2 + d5;
-          var tmp5 = d2 - d5;
-          var tmp3 = d3 + d4;
-          var tmp4 = d3 - d4;
-          var tmp10 = tmp0 + tmp3;
-          var tmp13 = tmp0 - tmp3;
-          var tmp11 = tmp1 + tmp2;
-          var tmp12 = tmp1 - tmp2;
-          data[dataOff] = tmp10 + tmp11;
-          data[dataOff + 4] = tmp10 - tmp11;
-          var z1 = (tmp12 + tmp13) * 0.707106781;
-          data[dataOff + 2] = tmp13 + z1;
-          data[dataOff + 6] = tmp13 - z1;
-          tmp10 = tmp4 + tmp5;
-          tmp11 = tmp5 + tmp6;
-          tmp12 = tmp6 + tmp7;
-          var z5 = (tmp10 - tmp12) * 0.382683433;
-          var z2 = 0.5411961 * tmp10 + z5;
-          var z4 = 1.306562965 * tmp12 + z5;
-          var z3 = tmp11 * 0.707106781;
-          var z11 = tmp7 + z3;
-          var z13 = tmp7 - z3;
-          data[dataOff + 5] = z13 + z2;
-          data[dataOff + 3] = z13 - z2;
-          data[dataOff + 1] = z11 + z4;
-          data[dataOff + 7] = z11 - z4;
-          dataOff += 8;
-        }
-        dataOff = 0;
-        for (i = 0; i < I8; ++i) {
-          d0 = data[dataOff];
-          d1 = data[dataOff + 8];
-          d2 = data[dataOff + 16];
-          d3 = data[dataOff + 24];
-          d4 = data[dataOff + 32];
-          d5 = data[dataOff + 40];
-          d6 = data[dataOff + 48];
-          d7 = data[dataOff + 56];
-          var tmp0p2 = d0 + d7;
-          var tmp7p2 = d0 - d7;
-          var tmp1p2 = d1 + d6;
-          var tmp6p2 = d1 - d6;
-          var tmp2p2 = d2 + d5;
-          var tmp5p2 = d2 - d5;
-          var tmp3p2 = d3 + d4;
-          var tmp4p2 = d3 - d4;
-          var tmp10p2 = tmp0p2 + tmp3p2;
-          var tmp13p2 = tmp0p2 - tmp3p2;
-          var tmp11p2 = tmp1p2 + tmp2p2;
-          var tmp12p2 = tmp1p2 - tmp2p2;
-          data[dataOff] = tmp10p2 + tmp11p2;
-          data[dataOff + 32] = tmp10p2 - tmp11p2;
-          var z1p2 = (tmp12p2 + tmp13p2) * 0.707106781;
-          data[dataOff + 16] = tmp13p2 + z1p2;
-          data[dataOff + 48] = tmp13p2 - z1p2;
-          tmp10p2 = tmp4p2 + tmp5p2;
-          tmp11p2 = tmp5p2 + tmp6p2;
-          tmp12p2 = tmp6p2 + tmp7p2;
-          var z5p2 = (tmp10p2 - tmp12p2) * 0.382683433;
-          var z2p2 = 0.5411961 * tmp10p2 + z5p2;
-          var z4p2 = 1.306562965 * tmp12p2 + z5p2;
-          var z3p2 = tmp11p2 * 0.707106781;
-          var z11p2 = tmp7p2 + z3p2;
-          var z13p2 = tmp7p2 - z3p2;
-          data[dataOff + 40] = z13p2 + z2p2;
-          data[dataOff + 24] = z13p2 - z2p2;
-          data[dataOff + 8] = z11p2 + z4p2;
-          data[dataOff + 56] = z11p2 - z4p2;
-          dataOff++;
-        }
-        var fDCTQuant2;
-        for (i = 0; i < I64; ++i) {
-          fDCTQuant2 = data[i] * fdtbl[i];
-          outputfDCTQuant[i] = fDCTQuant2 > 0 ? fDCTQuant2 + 0.5 | 0 : fDCTQuant2 - 0.5 | 0;
-        }
-        return outputfDCTQuant;
-      }
-      function writeAPP0() {
-        writeWord(65504);
-        writeWord(16);
-        writeByte(74);
-        writeByte(70);
-        writeByte(73);
-        writeByte(70);
-        writeByte(0);
-        writeByte(1);
-        writeByte(1);
-        writeByte(0);
-        writeWord(1);
-        writeWord(1);
-        writeByte(0);
-        writeByte(0);
-      }
-      function writeAPP1(exifBuffer) {
-        if (!exifBuffer)
-          return;
-        writeWord(65505);
-        if (exifBuffer[0] === 69 && exifBuffer[1] === 120 && exifBuffer[2] === 105 && exifBuffer[3] === 102) {
-          writeWord(exifBuffer.length + 2);
-        } else {
-          writeWord(exifBuffer.length + 5 + 2);
-          writeByte(69);
-          writeByte(120);
-          writeByte(105);
-          writeByte(102);
-          writeByte(0);
-        }
-        for (var i = 0; i < exifBuffer.length; i++) {
-          writeByte(exifBuffer[i]);
-        }
-      }
-      function writeSOF0(width, height) {
-        writeWord(65472);
-        writeWord(17);
-        writeByte(8);
-        writeWord(height);
-        writeWord(width);
-        writeByte(3);
-        writeByte(1);
-        writeByte(17);
-        writeByte(0);
-        writeByte(2);
-        writeByte(17);
-        writeByte(1);
-        writeByte(3);
-        writeByte(17);
-        writeByte(1);
-      }
-      function writeDQT() {
-        writeWord(65499);
-        writeWord(132);
-        writeByte(0);
-        for (var i = 0; i < 64; i++) {
-          writeByte(YTable[i]);
-        }
-        writeByte(1);
-        for (var j = 0; j < 64; j++) {
-          writeByte(UVTable[j]);
-        }
-      }
-      function writeDHT() {
-        writeWord(65476);
-        writeWord(418);
-        writeByte(0);
-        for (var i = 0; i < 16; i++) {
-          writeByte(std_dc_luminance_nrcodes[i + 1]);
-        }
-        for (var j = 0; j <= 11; j++) {
-          writeByte(std_dc_luminance_values[j]);
-        }
-        writeByte(16);
-        for (var k = 0; k < 16; k++) {
-          writeByte(std_ac_luminance_nrcodes[k + 1]);
-        }
-        for (var l = 0; l <= 161; l++) {
-          writeByte(std_ac_luminance_values[l]);
-        }
-        writeByte(1);
-        for (var m = 0; m < 16; m++) {
-          writeByte(std_dc_chrominance_nrcodes[m + 1]);
-        }
-        for (var n = 0; n <= 11; n++) {
-          writeByte(std_dc_chrominance_values[n]);
-        }
-        writeByte(17);
-        for (var o = 0; o < 16; o++) {
-          writeByte(std_ac_chrominance_nrcodes[o + 1]);
-        }
-        for (var p = 0; p <= 161; p++) {
-          writeByte(std_ac_chrominance_values[p]);
-        }
-      }
-      function writeCOM(comments) {
-        if (typeof comments === "undefined" || comments.constructor !== Array)
-          return;
-        comments.forEach((e) => {
-          if (typeof e !== "string")
-            return;
-          writeWord(65534);
-          var l = e.length;
-          writeWord(l + 2);
-          var i;
-          for (i = 0; i < l; i++)
-            writeByte(e.charCodeAt(i));
-        });
-      }
-      function writeSOS() {
-        writeWord(65498);
-        writeWord(12);
-        writeByte(3);
-        writeByte(1);
-        writeByte(0);
-        writeByte(2);
-        writeByte(17);
-        writeByte(3);
-        writeByte(17);
-        writeByte(0);
-        writeByte(63);
-        writeByte(0);
-      }
-      function processDU(CDU, fdtbl, DC, HTDC, HTAC) {
-        var EOB = HTAC[0];
-        var M16zeroes = HTAC[240];
-        var pos;
-        var I16 = 16;
-        var I63 = 63;
-        var I64 = 64;
-        var DU_DCT = fDCTQuant(CDU, fdtbl);
-        for (var j = 0; j < I64; ++j) {
-          DU[ZigZag[j]] = DU_DCT[j];
-        }
-        var Diff = DU[0] - DC;
-        DC = DU[0];
-        if (Diff == 0) {
-          writeBits(HTDC[0]);
-        } else {
-          pos = 32767 + Diff;
-          writeBits(HTDC[category[pos]]);
-          writeBits(bitcode[pos]);
-        }
-        var end0pos = 63;
-        for (; end0pos > 0 && DU[end0pos] == 0; end0pos--) {
-        }
-        ;
-        if (end0pos == 0) {
-          writeBits(EOB);
-          return DC;
-        }
-        var i = 1;
-        var lng;
-        while (i <= end0pos) {
-          var startpos = i;
-          for (; DU[i] == 0 && i <= end0pos; ++i) {
-          }
-          var nrzeroes = i - startpos;
-          if (nrzeroes >= I16) {
-            lng = nrzeroes >> 4;
-            for (var nrmarker = 1; nrmarker <= lng; ++nrmarker)
-              writeBits(M16zeroes);
-            nrzeroes = nrzeroes & 15;
-          }
-          pos = 32767 + DU[i];
-          writeBits(HTAC[(nrzeroes << 4) + category[pos]]);
-          writeBits(bitcode[pos]);
-          i++;
-        }
-        if (end0pos != I63) {
-          writeBits(EOB);
-        }
-        return DC;
-      }
-      function initCharLookupTable() {
-        var sfcc = String.fromCharCode;
-        for (var i = 0; i < 256; i++) {
-          clt[i] = sfcc(i);
-        }
-      }
-      this.encode = function(image, quality2) {
-        var time_start = (/* @__PURE__ */ new Date()).getTime();
-        if (quality2)
-          setQuality(quality2);
-        byteout = new Array();
-        bytenew = 0;
-        bytepos = 7;
-        writeWord(65496);
-        writeAPP0();
-        writeCOM(image.comments);
-        writeAPP1(image.exifBuffer);
-        writeDQT();
-        writeSOF0(image.width, image.height);
-        writeDHT();
-        writeSOS();
-        var DCY = 0;
-        var DCU = 0;
-        var DCV = 0;
-        bytenew = 0;
-        bytepos = 7;
-        this.encode.displayName = "_encode_";
-        var imageData = image.data;
-        var width = image.width;
-        var height = image.height;
-        var quadWidth = width * 4;
-        var tripleWidth = width * 3;
-        var x, y = 0;
-        var r, g, b;
-        var start, p, col, row2, pos;
-        while (y < height) {
-          x = 0;
-          while (x < quadWidth) {
-            start = quadWidth * y + x;
-            p = start;
-            col = -1;
-            row2 = 0;
-            for (pos = 0; pos < 64; pos++) {
-              row2 = pos >> 3;
-              col = (pos & 7) * 4;
-              p = start + row2 * quadWidth + col;
-              if (y + row2 >= height) {
-                p -= quadWidth * (y + 1 + row2 - height);
-              }
-              if (x + col >= quadWidth) {
-                p -= x + col - quadWidth + 4;
-              }
-              r = imageData[p++];
-              g = imageData[p++];
-              b = imageData[p++];
-              YDU[pos] = (RGB_YUV_TABLE[r] + RGB_YUV_TABLE[g + 256 >> 0] + RGB_YUV_TABLE[b + 512 >> 0] >> 16) - 128;
-              UDU[pos] = (RGB_YUV_TABLE[r + 768 >> 0] + RGB_YUV_TABLE[g + 1024 >> 0] + RGB_YUV_TABLE[b + 1280 >> 0] >> 16) - 128;
-              VDU[pos] = (RGB_YUV_TABLE[r + 1280 >> 0] + RGB_YUV_TABLE[g + 1536 >> 0] + RGB_YUV_TABLE[b + 1792 >> 0] >> 16) - 128;
-            }
-            DCY = processDU(YDU, fdtbl_Y, DCY, YDC_HT, YAC_HT);
-            DCU = processDU(UDU, fdtbl_UV, DCU, UVDC_HT, UVAC_HT);
-            DCV = processDU(VDU, fdtbl_UV, DCV, UVDC_HT, UVAC_HT);
-            x += 32;
-          }
-          y += 8;
-        }
-        if (bytepos >= 0) {
-          var fillbits = [];
-          fillbits[1] = bytepos + 1;
-          fillbits[0] = (1 << bytepos + 1) - 1;
-          writeBits(fillbits);
-        }
-        writeWord(65497);
-        if (typeof module2 === "undefined")
-          return new Uint8Array(byteout);
-        return Buffer.from(byteout);
-        var jpegDataUri = "data:image/jpeg;base64," + btoa2(byteout.join(""));
-        byteout = [];
-        var duration = (/* @__PURE__ */ new Date()).getTime() - time_start;
-        return jpegDataUri;
-      };
-      function setQuality(quality2) {
-        if (quality2 <= 0) {
-          quality2 = 1;
-        }
-        if (quality2 > 100) {
-          quality2 = 100;
-        }
-        if (currentQuality == quality2)
-          return;
-        var sf = 0;
-        if (quality2 < 50) {
-          sf = Math.floor(5e3 / quality2);
-        } else {
-          sf = Math.floor(200 - quality2 * 2);
-        }
-        initQuantTables(sf);
-        currentQuality = quality2;
-      }
-      function init() {
-        var time_start = (/* @__PURE__ */ new Date()).getTime();
-        if (!quality)
-          quality = 50;
-        initCharLookupTable();
-        initHuffmanTbl();
-        initCategoryNumber();
-        initRGBYUVTable();
-        setQuality(quality);
-        var duration = (/* @__PURE__ */ new Date()).getTime() - time_start;
-      }
-      init();
-    }
-    if (typeof module2 !== "undefined") {
-      module2.exports = encode3;
-    } else if (typeof window !== "undefined") {
-      window["jpeg-js"] = window["jpeg-js"] || {};
-      window["jpeg-js"].encode = encode3;
-    }
-    function encode3(imgData, qu) {
-      if (typeof qu === "undefined")
-        qu = 50;
-      var encoder = new JPEGEncoder(qu);
-      var data = encoder.encode(imgData, qu);
-      return {
-        data,
-        width: imgData.width,
-        height: imgData.height
-      };
-    }
-  }
-});
-
-// ../../node_modules/jpeg-js/lib/decoder.js
-var require_decoder = __commonJS({
-  "../../node_modules/jpeg-js/lib/decoder.js"(exports2, module2) {
-    var JpegImage = function jpegImage() {
-      "use strict";
-      var dctZigZag = new Int32Array([
-        0,
-        1,
-        8,
-        16,
-        9,
-        2,
-        3,
-        10,
-        17,
-        24,
-        32,
-        25,
-        18,
-        11,
-        4,
-        5,
-        12,
-        19,
-        26,
-        33,
-        40,
-        48,
-        41,
-        34,
-        27,
-        20,
-        13,
-        6,
-        7,
-        14,
-        21,
-        28,
-        35,
-        42,
-        49,
-        56,
-        57,
-        50,
-        43,
-        36,
-        29,
-        22,
-        15,
-        23,
-        30,
-        37,
-        44,
-        51,
-        58,
-        59,
-        52,
-        45,
-        38,
-        31,
-        39,
-        46,
-        53,
-        60,
-        61,
-        54,
-        47,
-        55,
-        62,
-        63
-      ]);
-      var dctCos1 = 4017;
-      var dctSin1 = 799;
-      var dctCos3 = 3406;
-      var dctSin3 = 2276;
-      var dctCos6 = 1567;
-      var dctSin6 = 3784;
-      var dctSqrt2 = 5793;
-      var dctSqrt1d2 = 2896;
-      function constructor() {
-      }
-      function buildHuffmanTable(codeLengths, values) {
-        var k = 0, code = [], i, j, length = 16;
-        while (length > 0 && !codeLengths[length - 1])
-          length--;
-        code.push({ children: [], index: 0 });
-        var p = code[0], q;
-        for (i = 0; i < length; i++) {
-          for (j = 0; j < codeLengths[i]; j++) {
-            p = code.pop();
-            p.children[p.index] = values[k];
-            while (p.index > 0) {
-              if (code.length === 0)
-                throw new Error("Could not recreate Huffman Table");
-              p = code.pop();
-            }
-            p.index++;
-            code.push(p);
-            while (code.length <= i) {
-              code.push(q = { children: [], index: 0 });
-              p.children[p.index] = q.children;
-              p = q;
-            }
-            k++;
-          }
-          if (i + 1 < length) {
-            code.push(q = { children: [], index: 0 });
-            p.children[p.index] = q.children;
-            p = q;
-          }
-        }
-        return code[0].children;
-      }
-      function decodeScan(data, offset, frame, components, resetInterval, spectralStart, spectralEnd, successivePrev, successive, opts) {
-        var precision = frame.precision;
-        var samplesPerLine = frame.samplesPerLine;
-        var scanLines = frame.scanLines;
-        var mcusPerLine = frame.mcusPerLine;
-        var progressive = frame.progressive;
-        var maxH = frame.maxH, maxV = frame.maxV;
-        var startOffset = offset, bitsData = 0, bitsCount = 0;
-        function readBit() {
-          if (bitsCount > 0) {
-            bitsCount--;
-            return bitsData >> bitsCount & 1;
-          }
-          bitsData = data[offset++];
-          if (bitsData == 255) {
-            var nextByte = data[offset++];
-            if (nextByte) {
-              throw new Error("unexpected marker: " + (bitsData << 8 | nextByte).toString(16));
-            }
-          }
-          bitsCount = 7;
-          return bitsData >>> 7;
-        }
-        function decodeHuffman(tree) {
-          var node = tree, bit;
-          while ((bit = readBit()) !== null) {
-            node = node[bit];
-            if (typeof node === "number")
-              return node;
-            if (typeof node !== "object")
-              throw new Error("invalid huffman sequence");
-          }
-          return null;
-        }
-        function receive(length) {
-          var n2 = 0;
-          while (length > 0) {
-            var bit = readBit();
-            if (bit === null)
-              return;
-            n2 = n2 << 1 | bit;
-            length--;
-          }
-          return n2;
-        }
-        function receiveAndExtend(length) {
-          var n2 = receive(length);
-          if (n2 >= 1 << length - 1)
-            return n2;
-          return n2 + (-1 << length) + 1;
-        }
-        function decodeBaseline(component2, zz) {
-          var t = decodeHuffman(component2.huffmanTableDC);
-          var diff = t === 0 ? 0 : receiveAndExtend(t);
-          zz[0] = component2.pred += diff;
-          var k2 = 1;
-          while (k2 < 64) {
-            var rs = decodeHuffman(component2.huffmanTableAC);
-            var s = rs & 15, r = rs >> 4;
-            if (s === 0) {
-              if (r < 15)
-                break;
-              k2 += 16;
-              continue;
-            }
-            k2 += r;
-            var z = dctZigZag[k2];
-            zz[z] = receiveAndExtend(s);
-            k2++;
-          }
-        }
-        function decodeDCFirst(component2, zz) {
-          var t = decodeHuffman(component2.huffmanTableDC);
-          var diff = t === 0 ? 0 : receiveAndExtend(t) << successive;
-          zz[0] = component2.pred += diff;
-        }
-        function decodeDCSuccessive(component2, zz) {
-          zz[0] |= readBit() << successive;
-        }
-        var eobrun = 0;
-        function decodeACFirst(component2, zz) {
-          if (eobrun > 0) {
-            eobrun--;
-            return;
-          }
-          var k2 = spectralStart, e = spectralEnd;
-          while (k2 <= e) {
-            var rs = decodeHuffman(component2.huffmanTableAC);
-            var s = rs & 15, r = rs >> 4;
-            if (s === 0) {
-              if (r < 15) {
-                eobrun = receive(r) + (1 << r) - 1;
-                break;
-              }
-              k2 += 16;
-              continue;
-            }
-            k2 += r;
-            var z = dctZigZag[k2];
-            zz[z] = receiveAndExtend(s) * (1 << successive);
-            k2++;
-          }
-        }
-        var successiveACState = 0, successiveACNextValue;
-        function decodeACSuccessive(component2, zz) {
-          var k2 = spectralStart, e = spectralEnd, r = 0;
-          while (k2 <= e) {
-            var z = dctZigZag[k2];
-            var direction = zz[z] < 0 ? -1 : 1;
-            switch (successiveACState) {
-              case 0:
-                var rs = decodeHuffman(component2.huffmanTableAC);
-                var s = rs & 15, r = rs >> 4;
-                if (s === 0) {
-                  if (r < 15) {
-                    eobrun = receive(r) + (1 << r);
-                    successiveACState = 4;
-                  } else {
-                    r = 16;
-                    successiveACState = 1;
-                  }
-                } else {
-                  if (s !== 1)
-                    throw new Error("invalid ACn encoding");
-                  successiveACNextValue = receiveAndExtend(s);
-                  successiveACState = r ? 2 : 3;
-                }
-                continue;
-              case 1:
-              case 2:
-                if (zz[z])
-                  zz[z] += (readBit() << successive) * direction;
-                else {
-                  r--;
-                  if (r === 0)
-                    successiveACState = successiveACState == 2 ? 3 : 0;
-                }
-                break;
-              case 3:
-                if (zz[z])
-                  zz[z] += (readBit() << successive) * direction;
-                else {
-                  zz[z] = successiveACNextValue << successive;
-                  successiveACState = 0;
-                }
-                break;
-              case 4:
-                if (zz[z])
-                  zz[z] += (readBit() << successive) * direction;
-                break;
-            }
-            k2++;
-          }
-          if (successiveACState === 4) {
-            eobrun--;
-            if (eobrun === 0)
-              successiveACState = 0;
-          }
-        }
-        function decodeMcu(component2, decode2, mcu2, row2, col) {
-          var mcuRow = mcu2 / mcusPerLine | 0;
-          var mcuCol = mcu2 % mcusPerLine;
-          var blockRow = mcuRow * component2.v + row2;
-          var blockCol = mcuCol * component2.h + col;
-          if (component2.blocks[blockRow] === void 0 && opts.tolerantDecoding)
-            return;
-          decode2(component2, component2.blocks[blockRow][blockCol]);
-        }
-        function decodeBlock(component2, decode2, mcu2) {
-          var blockRow = mcu2 / component2.blocksPerLine | 0;
-          var blockCol = mcu2 % component2.blocksPerLine;
-          if (component2.blocks[blockRow] === void 0 && opts.tolerantDecoding)
-            return;
-          decode2(component2, component2.blocks[blockRow][blockCol]);
-        }
-        var componentsLength = components.length;
-        var component, i, j, k, n;
-        var decodeFn;
-        if (progressive) {
-          if (spectralStart === 0)
-            decodeFn = successivePrev === 0 ? decodeDCFirst : decodeDCSuccessive;
-          else
-            decodeFn = successivePrev === 0 ? decodeACFirst : decodeACSuccessive;
-        } else {
-          decodeFn = decodeBaseline;
-        }
-        var mcu = 0, marker;
-        var mcuExpected;
-        if (componentsLength == 1) {
-          mcuExpected = components[0].blocksPerLine * components[0].blocksPerColumn;
-        } else {
-          mcuExpected = mcusPerLine * frame.mcusPerColumn;
-        }
-        if (!resetInterval)
-          resetInterval = mcuExpected;
-        var h, v;
-        while (mcu < mcuExpected) {
-          for (i = 0; i < componentsLength; i++)
-            components[i].pred = 0;
-          eobrun = 0;
-          if (componentsLength == 1) {
-            component = components[0];
-            for (n = 0; n < resetInterval; n++) {
-              decodeBlock(component, decodeFn, mcu);
-              mcu++;
-            }
-          } else {
-            for (n = 0; n < resetInterval; n++) {
-              for (i = 0; i < componentsLength; i++) {
-                component = components[i];
-                h = component.h;
-                v = component.v;
-                for (j = 0; j < v; j++) {
-                  for (k = 0; k < h; k++) {
-                    decodeMcu(component, decodeFn, mcu, j, k);
-                  }
-                }
-              }
-              mcu++;
-              if (mcu === mcuExpected)
-                break;
-            }
-          }
-          if (mcu === mcuExpected) {
-            do {
-              if (data[offset] === 255) {
-                if (data[offset + 1] !== 0) {
-                  break;
-                }
-              }
-              offset += 1;
-            } while (offset < data.length - 2);
-          }
-          bitsCount = 0;
-          marker = data[offset] << 8 | data[offset + 1];
-          if (marker < 65280) {
-            throw new Error("marker was not found");
-          }
-          if (marker >= 65488 && marker <= 65495) {
-            offset += 2;
-          } else
-            break;
-        }
-        return offset - startOffset;
-      }
-      function buildComponentData(frame, component) {
-        var lines = [];
-        var blocksPerLine = component.blocksPerLine;
-        var blocksPerColumn = component.blocksPerColumn;
-        var samplesPerLine = blocksPerLine << 3;
-        var R = new Int32Array(64), r = new Uint8Array(64);
-        function quantizeAndInverse(zz, dataOut, dataIn) {
-          var qt = component.quantizationTable;
-          var v0, v12, v2, v32, v42, v52, v6, v7, t;
-          var p = dataIn;
-          var i2;
-          for (i2 = 0; i2 < 64; i2++)
-            p[i2] = zz[i2] * qt[i2];
-          for (i2 = 0; i2 < 8; ++i2) {
-            var row2 = 8 * i2;
-            if (p[1 + row2] == 0 && p[2 + row2] == 0 && p[3 + row2] == 0 && p[4 + row2] == 0 && p[5 + row2] == 0 && p[6 + row2] == 0 && p[7 + row2] == 0) {
-              t = dctSqrt2 * p[0 + row2] + 512 >> 10;
-              p[0 + row2] = t;
-              p[1 + row2] = t;
-              p[2 + row2] = t;
-              p[3 + row2] = t;
-              p[4 + row2] = t;
-              p[5 + row2] = t;
-              p[6 + row2] = t;
-              p[7 + row2] = t;
-              continue;
-            }
-            v0 = dctSqrt2 * p[0 + row2] + 128 >> 8;
-            v12 = dctSqrt2 * p[4 + row2] + 128 >> 8;
-            v2 = p[2 + row2];
-            v32 = p[6 + row2];
-            v42 = dctSqrt1d2 * (p[1 + row2] - p[7 + row2]) + 128 >> 8;
-            v7 = dctSqrt1d2 * (p[1 + row2] + p[7 + row2]) + 128 >> 8;
-            v52 = p[3 + row2] << 4;
-            v6 = p[5 + row2] << 4;
-            t = v0 - v12 + 1 >> 1;
-            v0 = v0 + v12 + 1 >> 1;
-            v12 = t;
-            t = v2 * dctSin6 + v32 * dctCos6 + 128 >> 8;
-            v2 = v2 * dctCos6 - v32 * dctSin6 + 128 >> 8;
-            v32 = t;
-            t = v42 - v6 + 1 >> 1;
-            v42 = v42 + v6 + 1 >> 1;
-            v6 = t;
-            t = v7 + v52 + 1 >> 1;
-            v52 = v7 - v52 + 1 >> 1;
-            v7 = t;
-            t = v0 - v32 + 1 >> 1;
-            v0 = v0 + v32 + 1 >> 1;
-            v32 = t;
-            t = v12 - v2 + 1 >> 1;
-            v12 = v12 + v2 + 1 >> 1;
-            v2 = t;
-            t = v42 * dctSin3 + v7 * dctCos3 + 2048 >> 12;
-            v42 = v42 * dctCos3 - v7 * dctSin3 + 2048 >> 12;
-            v7 = t;
-            t = v52 * dctSin1 + v6 * dctCos1 + 2048 >> 12;
-            v52 = v52 * dctCos1 - v6 * dctSin1 + 2048 >> 12;
-            v6 = t;
-            p[0 + row2] = v0 + v7;
-            p[7 + row2] = v0 - v7;
-            p[1 + row2] = v12 + v6;
-            p[6 + row2] = v12 - v6;
-            p[2 + row2] = v2 + v52;
-            p[5 + row2] = v2 - v52;
-            p[3 + row2] = v32 + v42;
-            p[4 + row2] = v32 - v42;
-          }
-          for (i2 = 0; i2 < 8; ++i2) {
-            var col = i2;
-            if (p[1 * 8 + col] == 0 && p[2 * 8 + col] == 0 && p[3 * 8 + col] == 0 && p[4 * 8 + col] == 0 && p[5 * 8 + col] == 0 && p[6 * 8 + col] == 0 && p[7 * 8 + col] == 0) {
-              t = dctSqrt2 * dataIn[i2 + 0] + 8192 >> 14;
-              p[0 * 8 + col] = t;
-              p[1 * 8 + col] = t;
-              p[2 * 8 + col] = t;
-              p[3 * 8 + col] = t;
-              p[4 * 8 + col] = t;
-              p[5 * 8 + col] = t;
-              p[6 * 8 + col] = t;
-              p[7 * 8 + col] = t;
-              continue;
-            }
-            v0 = dctSqrt2 * p[0 * 8 + col] + 2048 >> 12;
-            v12 = dctSqrt2 * p[4 * 8 + col] + 2048 >> 12;
-            v2 = p[2 * 8 + col];
-            v32 = p[6 * 8 + col];
-            v42 = dctSqrt1d2 * (p[1 * 8 + col] - p[7 * 8 + col]) + 2048 >> 12;
-            v7 = dctSqrt1d2 * (p[1 * 8 + col] + p[7 * 8 + col]) + 2048 >> 12;
-            v52 = p[3 * 8 + col];
-            v6 = p[5 * 8 + col];
-            t = v0 - v12 + 1 >> 1;
-            v0 = v0 + v12 + 1 >> 1;
-            v12 = t;
-            t = v2 * dctSin6 + v32 * dctCos6 + 2048 >> 12;
-            v2 = v2 * dctCos6 - v32 * dctSin6 + 2048 >> 12;
-            v32 = t;
-            t = v42 - v6 + 1 >> 1;
-            v42 = v42 + v6 + 1 >> 1;
-            v6 = t;
-            t = v7 + v52 + 1 >> 1;
-            v52 = v7 - v52 + 1 >> 1;
-            v7 = t;
-            t = v0 - v32 + 1 >> 1;
-            v0 = v0 + v32 + 1 >> 1;
-            v32 = t;
-            t = v12 - v2 + 1 >> 1;
-            v12 = v12 + v2 + 1 >> 1;
-            v2 = t;
-            t = v42 * dctSin3 + v7 * dctCos3 + 2048 >> 12;
-            v42 = v42 * dctCos3 - v7 * dctSin3 + 2048 >> 12;
-            v7 = t;
-            t = v52 * dctSin1 + v6 * dctCos1 + 2048 >> 12;
-            v52 = v52 * dctCos1 - v6 * dctSin1 + 2048 >> 12;
-            v6 = t;
-            p[0 * 8 + col] = v0 + v7;
-            p[7 * 8 + col] = v0 - v7;
-            p[1 * 8 + col] = v12 + v6;
-            p[6 * 8 + col] = v12 - v6;
-            p[2 * 8 + col] = v2 + v52;
-            p[5 * 8 + col] = v2 - v52;
-            p[3 * 8 + col] = v32 + v42;
-            p[4 * 8 + col] = v32 - v42;
-          }
-          for (i2 = 0; i2 < 64; ++i2) {
-            var sample2 = 128 + (p[i2] + 8 >> 4);
-            dataOut[i2] = sample2 < 0 ? 0 : sample2 > 255 ? 255 : sample2;
-          }
-        }
-        requestMemoryAllocation(samplesPerLine * blocksPerColumn * 8);
-        var i, j;
-        for (var blockRow = 0; blockRow < blocksPerColumn; blockRow++) {
-          var scanLine = blockRow << 3;
-          for (i = 0; i < 8; i++)
-            lines.push(new Uint8Array(samplesPerLine));
-          for (var blockCol = 0; blockCol < blocksPerLine; blockCol++) {
-            quantizeAndInverse(component.blocks[blockRow][blockCol], r, R);
-            var offset = 0, sample = blockCol << 3;
-            for (j = 0; j < 8; j++) {
-              var line = lines[scanLine + j];
-              for (i = 0; i < 8; i++)
-                line[sample + i] = r[offset++];
-            }
-          }
-        }
-        return lines;
-      }
-      function clampTo8bit(a) {
-        return a < 0 ? 0 : a > 255 ? 255 : a;
-      }
-      constructor.prototype = {
-        load: function load(path11) {
-          var xhr = new XMLHttpRequest();
-          xhr.open("GET", path11, true);
-          xhr.responseType = "arraybuffer";
-          xhr.onload = function() {
-            var data = new Uint8Array(xhr.response || xhr.mozResponseArrayBuffer);
-            this.parse(data);
-            if (this.onload)
-              this.onload();
-          }.bind(this);
-          xhr.send(null);
-        },
-        parse: function parse2(data) {
-          var maxResolutionInPixels = this.opts.maxResolutionInMP * 1e3 * 1e3;
-          var offset = 0, length = data.length;
-          function readUint16() {
-            var value = data[offset] << 8 | data[offset + 1];
-            offset += 2;
-            return value;
-          }
-          function readDataBlock() {
-            var length2 = readUint16();
-            var array = data.subarray(offset, offset + length2 - 2);
-            offset += array.length;
-            return array;
-          }
-          function prepareComponents(frame2) {
-            var maxH2 = 1, maxV2 = 1;
-            var component2, componentId2;
-            for (componentId2 in frame2.components) {
-              if (frame2.components.hasOwnProperty(componentId2)) {
-                component2 = frame2.components[componentId2];
-                if (maxH2 < component2.h)
-                  maxH2 = component2.h;
-                if (maxV2 < component2.v)
-                  maxV2 = component2.v;
-              }
-            }
-            var mcusPerLine = Math.ceil(frame2.samplesPerLine / 8 / maxH2);
-            var mcusPerColumn = Math.ceil(frame2.scanLines / 8 / maxV2);
-            for (componentId2 in frame2.components) {
-              if (frame2.components.hasOwnProperty(componentId2)) {
-                component2 = frame2.components[componentId2];
-                var blocksPerLine = Math.ceil(Math.ceil(frame2.samplesPerLine / 8) * component2.h / maxH2);
-                var blocksPerColumn = Math.ceil(Math.ceil(frame2.scanLines / 8) * component2.v / maxV2);
-                var blocksPerLineForMcu = mcusPerLine * component2.h;
-                var blocksPerColumnForMcu = mcusPerColumn * component2.v;
-                var blocksToAllocate = blocksPerColumnForMcu * blocksPerLineForMcu;
-                var blocks = [];
-                requestMemoryAllocation(blocksToAllocate * 256);
-                for (var i2 = 0; i2 < blocksPerColumnForMcu; i2++) {
-                  var row2 = [];
-                  for (var j2 = 0; j2 < blocksPerLineForMcu; j2++)
-                    row2.push(new Int32Array(64));
-                  blocks.push(row2);
-                }
-                component2.blocksPerLine = blocksPerLine;
-                component2.blocksPerColumn = blocksPerColumn;
-                component2.blocks = blocks;
-              }
-            }
-            frame2.maxH = maxH2;
-            frame2.maxV = maxV2;
-            frame2.mcusPerLine = mcusPerLine;
-            frame2.mcusPerColumn = mcusPerColumn;
-          }
-          var jfif = null;
-          var adobe = null;
-          var pixels = null;
-          var frame, resetInterval;
-          var quantizationTables = [], frames = [];
-          var huffmanTablesAC = [], huffmanTablesDC = [];
-          var fileMarker = readUint16();
-          var malformedDataOffset = -1;
-          this.comments = [];
-          if (fileMarker != 65496) {
-            throw new Error("SOI not found");
-          }
-          fileMarker = readUint16();
-          while (fileMarker != 65497) {
-            var i, j, l;
-            switch (fileMarker) {
-              case 65280:
-                break;
-              case 65504:
-              case 65505:
-              case 65506:
-              case 65507:
-              case 65508:
-              case 65509:
-              case 65510:
-              case 65511:
-              case 65512:
-              case 65513:
-              case 65514:
-              case 65515:
-              case 65516:
-              case 65517:
-              case 65518:
-              case 65519:
-              case 65534:
-                var appData = readDataBlock();
-                if (fileMarker === 65534) {
-                  var comment = String.fromCharCode.apply(null, appData);
-                  this.comments.push(comment);
-                }
-                if (fileMarker === 65504) {
-                  if (appData[0] === 74 && appData[1] === 70 && appData[2] === 73 && appData[3] === 70 && appData[4] === 0) {
-                    jfif = {
-                      version: { major: appData[5], minor: appData[6] },
-                      densityUnits: appData[7],
-                      xDensity: appData[8] << 8 | appData[9],
-                      yDensity: appData[10] << 8 | appData[11],
-                      thumbWidth: appData[12],
-                      thumbHeight: appData[13],
-                      thumbData: appData.subarray(14, 14 + 3 * appData[12] * appData[13])
-                    };
-                  }
-                }
-                if (fileMarker === 65505) {
-                  if (appData[0] === 69 && appData[1] === 120 && appData[2] === 105 && appData[3] === 102 && appData[4] === 0) {
-                    this.exifBuffer = appData.subarray(5, appData.length);
-                  }
-                }
-                if (fileMarker === 65518) {
-                  if (appData[0] === 65 && appData[1] === 100 && appData[2] === 111 && appData[3] === 98 && appData[4] === 101 && appData[5] === 0) {
-                    adobe = {
-                      version: appData[6],
-                      flags0: appData[7] << 8 | appData[8],
-                      flags1: appData[9] << 8 | appData[10],
-                      transformCode: appData[11]
-                    };
-                  }
-                }
-                break;
-              case 65499:
-                var quantizationTablesLength = readUint16();
-                var quantizationTablesEnd = quantizationTablesLength + offset - 2;
-                while (offset < quantizationTablesEnd) {
-                  var quantizationTableSpec = data[offset++];
-                  requestMemoryAllocation(64 * 4);
-                  var tableData = new Int32Array(64);
-                  if (quantizationTableSpec >> 4 === 0) {
-                    for (j = 0; j < 64; j++) {
-                      var z = dctZigZag[j];
-                      tableData[z] = data[offset++];
-                    }
-                  } else if (quantizationTableSpec >> 4 === 1) {
-                    for (j = 0; j < 64; j++) {
-                      var z = dctZigZag[j];
-                      tableData[z] = readUint16();
-                    }
-                  } else
-                    throw new Error("DQT: invalid table spec");
-                  quantizationTables[quantizationTableSpec & 15] = tableData;
-                }
-                break;
-              case 65472:
-              case 65473:
-              case 65474:
-                readUint16();
-                frame = {};
-                frame.extended = fileMarker === 65473;
-                frame.progressive = fileMarker === 65474;
-                frame.precision = data[offset++];
-                frame.scanLines = readUint16();
-                frame.samplesPerLine = readUint16();
-                frame.components = {};
-                frame.componentsOrder = [];
-                var pixelsInFrame = frame.scanLines * frame.samplesPerLine;
-                if (pixelsInFrame > maxResolutionInPixels) {
-                  var exceededAmount = Math.ceil((pixelsInFrame - maxResolutionInPixels) / 1e6);
-                  throw new Error(`maxResolutionInMP limit exceeded by ${exceededAmount}MP`);
-                }
-                var componentsCount = data[offset++], componentId;
-                var maxH = 0, maxV = 0;
-                for (i = 0; i < componentsCount; i++) {
-                  componentId = data[offset];
-                  var h = data[offset + 1] >> 4;
-                  var v = data[offset + 1] & 15;
-                  var qId = data[offset + 2];
-                  if (h <= 0 || v <= 0) {
-                    throw new Error("Invalid sampling factor, expected values above 0");
-                  }
-                  frame.componentsOrder.push(componentId);
-                  frame.components[componentId] = {
-                    h,
-                    v,
-                    quantizationIdx: qId
-                  };
-                  offset += 3;
-                }
-                prepareComponents(frame);
-                frames.push(frame);
-                break;
-              case 65476:
-                var huffmanLength = readUint16();
-                for (i = 2; i < huffmanLength; ) {
-                  var huffmanTableSpec = data[offset++];
-                  var codeLengths = new Uint8Array(16);
-                  var codeLengthSum = 0;
-                  for (j = 0; j < 16; j++, offset++) {
-                    codeLengthSum += codeLengths[j] = data[offset];
-                  }
-                  requestMemoryAllocation(16 + codeLengthSum);
-                  var huffmanValues = new Uint8Array(codeLengthSum);
-                  for (j = 0; j < codeLengthSum; j++, offset++)
-                    huffmanValues[j] = data[offset];
-                  i += 17 + codeLengthSum;
-                  (huffmanTableSpec >> 4 === 0 ? huffmanTablesDC : huffmanTablesAC)[huffmanTableSpec & 15] = buildHuffmanTable(codeLengths, huffmanValues);
-                }
-                break;
-              case 65501:
-                readUint16();
-                resetInterval = readUint16();
-                break;
-              case 65500:
-                readUint16();
-                readUint16();
-                break;
-              case 65498:
-                var scanLength = readUint16();
-                var selectorsCount = data[offset++];
-                var components = [], component;
-                for (i = 0; i < selectorsCount; i++) {
-                  component = frame.components[data[offset++]];
-                  var tableSpec = data[offset++];
-                  component.huffmanTableDC = huffmanTablesDC[tableSpec >> 4];
-                  component.huffmanTableAC = huffmanTablesAC[tableSpec & 15];
-                  components.push(component);
-                }
-                var spectralStart = data[offset++];
-                var spectralEnd = data[offset++];
-                var successiveApproximation = data[offset++];
-                var processed = decodeScan(
-                  data,
-                  offset,
-                  frame,
-                  components,
-                  resetInterval,
-                  spectralStart,
-                  spectralEnd,
-                  successiveApproximation >> 4,
-                  successiveApproximation & 15,
-                  this.opts
-                );
-                offset += processed;
-                break;
-              case 65535:
-                if (data[offset] !== 255) {
-                  offset--;
-                }
-                break;
-              default:
-                if (data[offset - 3] == 255 && data[offset - 2] >= 192 && data[offset - 2] <= 254) {
-                  offset -= 3;
-                  break;
-                } else if (fileMarker === 224 || fileMarker == 225) {
-                  if (malformedDataOffset !== -1) {
-                    throw new Error(`first unknown JPEG marker at offset ${malformedDataOffset.toString(16)}, second unknown JPEG marker ${fileMarker.toString(16)} at offset ${(offset - 1).toString(16)}`);
-                  }
-                  malformedDataOffset = offset - 1;
-                  const nextOffset = readUint16();
-                  if (data[offset + nextOffset - 2] === 255) {
-                    offset += nextOffset - 2;
-                    break;
-                  }
-                }
-                throw new Error("unknown JPEG marker " + fileMarker.toString(16));
-            }
-            fileMarker = readUint16();
-          }
-          if (frames.length != 1)
-            throw new Error("only single frame JPEGs supported");
-          for (var i = 0; i < frames.length; i++) {
-            var cp = frames[i].components;
-            for (var j in cp) {
-              cp[j].quantizationTable = quantizationTables[cp[j].quantizationIdx];
-              delete cp[j].quantizationIdx;
-            }
-          }
-          this.width = frame.samplesPerLine;
-          this.height = frame.scanLines;
-          this.jfif = jfif;
-          this.adobe = adobe;
-          this.components = [];
-          for (var i = 0; i < frame.componentsOrder.length; i++) {
-            var component = frame.components[frame.componentsOrder[i]];
-            this.components.push({
-              lines: buildComponentData(frame, component),
-              scaleX: component.h / frame.maxH,
-              scaleY: component.v / frame.maxV
-            });
-          }
-        },
-        getData: function getData(width, height) {
-          var scaleX = this.width / width, scaleY = this.height / height;
-          var component1, component2, component3, component4;
-          var component1Line, component2Line, component3Line, component4Line;
-          var x, y;
-          var offset = 0;
-          var Y, Cb, Cr, K, C, M, Ye, R, G, B;
-          var colorTransform;
-          var dataLength = width * height * this.components.length;
-          requestMemoryAllocation(dataLength);
-          var data = new Uint8Array(dataLength);
-          switch (this.components.length) {
-            case 1:
-              component1 = this.components[0];
-              for (y = 0; y < height; y++) {
-                component1Line = component1.lines[0 | y * component1.scaleY * scaleY];
-                for (x = 0; x < width; x++) {
-                  Y = component1Line[0 | x * component1.scaleX * scaleX];
-                  data[offset++] = Y;
-                }
-              }
-              break;
-            case 2:
-              component1 = this.components[0];
-              component2 = this.components[1];
-              for (y = 0; y < height; y++) {
-                component1Line = component1.lines[0 | y * component1.scaleY * scaleY];
-                component2Line = component2.lines[0 | y * component2.scaleY * scaleY];
-                for (x = 0; x < width; x++) {
-                  Y = component1Line[0 | x * component1.scaleX * scaleX];
-                  data[offset++] = Y;
-                  Y = component2Line[0 | x * component2.scaleX * scaleX];
-                  data[offset++] = Y;
-                }
-              }
-              break;
-            case 3:
-              colorTransform = true;
-              if (this.adobe && this.adobe.transformCode)
-                colorTransform = true;
-              else if (typeof this.opts.colorTransform !== "undefined")
-                colorTransform = !!this.opts.colorTransform;
-              component1 = this.components[0];
-              component2 = this.components[1];
-              component3 = this.components[2];
-              for (y = 0; y < height; y++) {
-                component1Line = component1.lines[0 | y * component1.scaleY * scaleY];
-                component2Line = component2.lines[0 | y * component2.scaleY * scaleY];
-                component3Line = component3.lines[0 | y * component3.scaleY * scaleY];
-                for (x = 0; x < width; x++) {
-                  if (!colorTransform) {
-                    R = component1Line[0 | x * component1.scaleX * scaleX];
-                    G = component2Line[0 | x * component2.scaleX * scaleX];
-                    B = component3Line[0 | x * component3.scaleX * scaleX];
-                  } else {
-                    Y = component1Line[0 | x * component1.scaleX * scaleX];
-                    Cb = component2Line[0 | x * component2.scaleX * scaleX];
-                    Cr = component3Line[0 | x * component3.scaleX * scaleX];
-                    R = clampTo8bit(Y + 1.402 * (Cr - 128));
-                    G = clampTo8bit(Y - 0.3441363 * (Cb - 128) - 0.71413636 * (Cr - 128));
-                    B = clampTo8bit(Y + 1.772 * (Cb - 128));
-                  }
-                  data[offset++] = R;
-                  data[offset++] = G;
-                  data[offset++] = B;
-                }
-              }
-              break;
-            case 4:
-              if (!this.adobe)
-                throw new Error("Unsupported color mode (4 components)");
-              colorTransform = false;
-              if (this.adobe && this.adobe.transformCode)
-                colorTransform = true;
-              else if (typeof this.opts.colorTransform !== "undefined")
-                colorTransform = !!this.opts.colorTransform;
-              component1 = this.components[0];
-              component2 = this.components[1];
-              component3 = this.components[2];
-              component4 = this.components[3];
-              for (y = 0; y < height; y++) {
-                component1Line = component1.lines[0 | y * component1.scaleY * scaleY];
-                component2Line = component2.lines[0 | y * component2.scaleY * scaleY];
-                component3Line = component3.lines[0 | y * component3.scaleY * scaleY];
-                component4Line = component4.lines[0 | y * component4.scaleY * scaleY];
-                for (x = 0; x < width; x++) {
-                  if (!colorTransform) {
-                    C = component1Line[0 | x * component1.scaleX * scaleX];
-                    M = component2Line[0 | x * component2.scaleX * scaleX];
-                    Ye = component3Line[0 | x * component3.scaleX * scaleX];
-                    K = component4Line[0 | x * component4.scaleX * scaleX];
-                  } else {
-                    Y = component1Line[0 | x * component1.scaleX * scaleX];
-                    Cb = component2Line[0 | x * component2.scaleX * scaleX];
-                    Cr = component3Line[0 | x * component3.scaleX * scaleX];
-                    K = component4Line[0 | x * component4.scaleX * scaleX];
-                    C = 255 - clampTo8bit(Y + 1.402 * (Cr - 128));
-                    M = 255 - clampTo8bit(Y - 0.3441363 * (Cb - 128) - 0.71413636 * (Cr - 128));
-                    Ye = 255 - clampTo8bit(Y + 1.772 * (Cb - 128));
-                  }
-                  data[offset++] = 255 - C;
-                  data[offset++] = 255 - M;
-                  data[offset++] = 255 - Ye;
-                  data[offset++] = 255 - K;
-                }
-              }
-              break;
-            default:
-              throw new Error("Unsupported color mode");
-          }
-          return data;
-        },
-        copyToImageData: function copyToImageData(imageData, formatAsRGBA) {
-          var width = imageData.width, height = imageData.height;
-          var imageDataArray = imageData.data;
-          var data = this.getData(width, height);
-          var i = 0, j = 0, x, y;
-          var Y, K, C, M, R, G, B;
-          switch (this.components.length) {
-            case 1:
-              for (y = 0; y < height; y++) {
-                for (x = 0; x < width; x++) {
-                  Y = data[i++];
-                  imageDataArray[j++] = Y;
-                  imageDataArray[j++] = Y;
-                  imageDataArray[j++] = Y;
-                  if (formatAsRGBA) {
-                    imageDataArray[j++] = 255;
-                  }
-                }
-              }
-              break;
-            case 3:
-              for (y = 0; y < height; y++) {
-                for (x = 0; x < width; x++) {
-                  R = data[i++];
-                  G = data[i++];
-                  B = data[i++];
-                  imageDataArray[j++] = R;
-                  imageDataArray[j++] = G;
-                  imageDataArray[j++] = B;
-                  if (formatAsRGBA) {
-                    imageDataArray[j++] = 255;
-                  }
-                }
-              }
-              break;
-            case 4:
-              for (y = 0; y < height; y++) {
-                for (x = 0; x < width; x++) {
-                  C = data[i++];
-                  M = data[i++];
-                  Y = data[i++];
-                  K = data[i++];
-                  R = 255 - clampTo8bit(C * (1 - K / 255) + K);
-                  G = 255 - clampTo8bit(M * (1 - K / 255) + K);
-                  B = 255 - clampTo8bit(Y * (1 - K / 255) + K);
-                  imageDataArray[j++] = R;
-                  imageDataArray[j++] = G;
-                  imageDataArray[j++] = B;
-                  if (formatAsRGBA) {
-                    imageDataArray[j++] = 255;
-                  }
-                }
-              }
-              break;
-            default:
-              throw new Error("Unsupported color mode");
-          }
-        }
-      };
-      var totalBytesAllocated = 0;
-      var maxMemoryUsageBytes = 0;
-      function requestMemoryAllocation(increaseAmount = 0) {
-        var totalMemoryImpactBytes = totalBytesAllocated + increaseAmount;
-        if (totalMemoryImpactBytes > maxMemoryUsageBytes) {
-          var exceededAmount = Math.ceil((totalMemoryImpactBytes - maxMemoryUsageBytes) / 1024 / 1024);
-          throw new Error(`maxMemoryUsageInMB limit exceeded by at least ${exceededAmount}MB`);
-        }
-        totalBytesAllocated = totalMemoryImpactBytes;
-      }
-      constructor.resetMaxMemoryUsage = function(maxMemoryUsageBytes_) {
-        totalBytesAllocated = 0;
-        maxMemoryUsageBytes = maxMemoryUsageBytes_;
-      };
-      constructor.getBytesAllocated = function() {
-        return totalBytesAllocated;
-      };
-      constructor.requestMemoryAllocation = requestMemoryAllocation;
-      return constructor;
-    }();
-    if (typeof module2 !== "undefined") {
-      module2.exports = decode;
-    } else if (typeof window !== "undefined") {
-      window["jpeg-js"] = window["jpeg-js"] || {};
-      window["jpeg-js"].decode = decode;
-    }
-    function decode(jpegData, userOpts = {}) {
-      var defaultOpts = {
-        // "undefined" means "Choose whether to transform colors based on the image’s color model."
-        colorTransform: void 0,
-        useTArray: false,
-        formatAsRGBA: true,
-        tolerantDecoding: true,
-        maxResolutionInMP: 100,
-        // Don't decode more than 100 megapixels
-        maxMemoryUsageInMB: 512
-        // Don't decode if memory footprint is more than 512MB
-      };
-      var opts = { ...defaultOpts, ...userOpts };
-      var arr = new Uint8Array(jpegData);
-      var decoder = new JpegImage();
-      decoder.opts = opts;
-      JpegImage.resetMaxMemoryUsage(opts.maxMemoryUsageInMB * 1024 * 1024);
-      decoder.parse(arr);
-      var channels = opts.formatAsRGBA ? 4 : 3;
-      var bytesNeeded = decoder.width * decoder.height * channels;
-      try {
-        JpegImage.requestMemoryAllocation(bytesNeeded);
-        var image = {
-          width: decoder.width,
-          height: decoder.height,
-          exifBuffer: decoder.exifBuffer,
-          data: opts.useTArray ? new Uint8Array(bytesNeeded) : Buffer.alloc(bytesNeeded)
-        };
-        if (decoder.comments.length > 0) {
-          image["comments"] = decoder.comments;
-        }
-      } catch (err) {
-        if (err instanceof RangeError) {
-          throw new Error("Could not allocate enough memory for the image. Required: " + bytesNeeded);
-        }
-        if (err instanceof ReferenceError) {
-          if (err.message === "Buffer is not defined") {
-            throw new Error("Buffer is not globally defined in this environment. Consider setting useTArray to true");
-          }
-        }
-        throw err;
-      }
-      decoder.copyToImageData(image, opts.formatAsRGBA);
-      return image;
-    }
-  }
-});
-
-// ../../node_modules/jpeg-js/index.js
-var require_jpeg_js = __commonJS({
-  "../../node_modules/jpeg-js/index.js"(exports2, module2) {
-    var encode3 = require_encoder2();
-    var decode = require_decoder();
-    module2.exports = {
-      encode: encode3,
-      decode
-    };
-  }
-});
-
 // ../../node_modules/pngjs/lib/chunkstream.js
 var require_chunkstream = __commonJS({
   "../../node_modules/pngjs/lib/chunkstream.js"(exports2, module2) {
@@ -89847,7 +87702,7 @@ var require_png = __commonJS({
     var Parser = require_parser_async();
     var Packer = require_packer_async();
     var PNGSync = require_png_sync();
-    var PNG2 = exports2.PNG = function(options) {
+    var PNG3 = exports2.PNG = function(options) {
       Stream.call(this);
       options = options || {};
       this.width = options.width | 0;
@@ -89876,9 +87731,9 @@ var require_png = __commonJS({
       this._parser.on("close", this._handleClose.bind(this));
       this._packer.on("error", this.emit.bind(this, "error"));
     };
-    util4.inherits(PNG2, Stream);
-    PNG2.sync = PNGSync;
-    PNG2.prototype.pack = function() {
+    util4.inherits(PNG3, Stream);
+    PNG3.sync = PNGSync;
+    PNG3.prototype.pack = function() {
       if (!this.data || !this.data.length) {
         this.emit("error", "No data provided");
         return this;
@@ -89890,7 +87745,7 @@ var require_png = __commonJS({
       );
       return this;
     };
-    PNG2.prototype.parse = function(data, callback) {
+    PNG3.prototype.parse = function(data, callback) {
       if (callback) {
         let onParsed, onError;
         onParsed = function(parsedData) {
@@ -89908,27 +87763,27 @@ var require_png = __commonJS({
       this.end(data);
       return this;
     };
-    PNG2.prototype.write = function(data) {
+    PNG3.prototype.write = function(data) {
       this._parser.write(data);
       return true;
     };
-    PNG2.prototype.end = function(data) {
+    PNG3.prototype.end = function(data) {
       this._parser.end(data);
     };
-    PNG2.prototype._metadata = function(metadata) {
+    PNG3.prototype._metadata = function(metadata) {
       this.width = metadata.width;
       this.height = metadata.height;
       this.emit("metadata", metadata);
     };
-    PNG2.prototype._gamma = function(gamma) {
+    PNG3.prototype._gamma = function(gamma) {
       this.gamma = gamma;
     };
-    PNG2.prototype._handleClose = function() {
+    PNG3.prototype._handleClose = function() {
       if (!this._parser.writable && !this._packer.readable) {
         this.emit("close");
       }
     };
-    PNG2.bitblt = function(src, dst, srcX, srcY, width, height, deltaX, deltaY) {
+    PNG3.bitblt = function(src, dst, srcX, srcY, width, height, deltaX, deltaY) {
       srcX |= 0;
       srcY |= 0;
       width |= 0;
@@ -89950,11 +87805,11 @@ var require_png = __commonJS({
         );
       }
     };
-    PNG2.prototype.bitblt = function(dst, srcX, srcY, width, height, deltaX, deltaY) {
-      PNG2.bitblt(this, dst, srcX, srcY, width, height, deltaX, deltaY);
+    PNG3.prototype.bitblt = function(dst, srcX, srcY, width, height, deltaX, deltaY) {
+      PNG3.bitblt(this, dst, srcX, srcY, width, height, deltaX, deltaY);
       return this;
     };
-    PNG2.adjustGamma = function(src) {
+    PNG3.adjustGamma = function(src) {
       if (src.gamma) {
         for (let y = 0; y < src.height; y++) {
           for (let x = 0; x < src.width; x++) {
@@ -89969,8 +87824,2153 @@ var require_png = __commonJS({
         src.gamma = 0;
       }
     };
-    PNG2.prototype.adjustGamma = function() {
-      PNG2.adjustGamma(this);
+    PNG3.prototype.adjustGamma = function() {
+      PNG3.adjustGamma(this);
+    };
+  }
+});
+
+// ../../node_modules/jpeg-js/lib/encoder.js
+var require_encoder2 = __commonJS({
+  "../../node_modules/jpeg-js/lib/encoder.js"(exports2, module2) {
+    var btoa2 = btoa2 || function(buf) {
+      return Buffer.from(buf).toString("base64");
+    };
+    function JPEGEncoder(quality) {
+      var self2 = this;
+      var fround = Math.round;
+      var ffloor = Math.floor;
+      var YTable = new Array(64);
+      var UVTable = new Array(64);
+      var fdtbl_Y = new Array(64);
+      var fdtbl_UV = new Array(64);
+      var YDC_HT;
+      var UVDC_HT;
+      var YAC_HT;
+      var UVAC_HT;
+      var bitcode = new Array(65535);
+      var category = new Array(65535);
+      var outputfDCTQuant = new Array(64);
+      var DU = new Array(64);
+      var byteout = [];
+      var bytenew = 0;
+      var bytepos = 7;
+      var YDU = new Array(64);
+      var UDU = new Array(64);
+      var VDU = new Array(64);
+      var clt = new Array(256);
+      var RGB_YUV_TABLE = new Array(2048);
+      var currentQuality;
+      var ZigZag = [
+        0,
+        1,
+        5,
+        6,
+        14,
+        15,
+        27,
+        28,
+        2,
+        4,
+        7,
+        13,
+        16,
+        26,
+        29,
+        42,
+        3,
+        8,
+        12,
+        17,
+        25,
+        30,
+        41,
+        43,
+        9,
+        11,
+        18,
+        24,
+        31,
+        40,
+        44,
+        53,
+        10,
+        19,
+        23,
+        32,
+        39,
+        45,
+        52,
+        54,
+        20,
+        22,
+        33,
+        38,
+        46,
+        51,
+        55,
+        60,
+        21,
+        34,
+        37,
+        47,
+        50,
+        56,
+        59,
+        61,
+        35,
+        36,
+        48,
+        49,
+        57,
+        58,
+        62,
+        63
+      ];
+      var std_dc_luminance_nrcodes = [0, 0, 1, 5, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0];
+      var std_dc_luminance_values = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
+      var std_ac_luminance_nrcodes = [0, 0, 2, 1, 3, 3, 2, 4, 3, 5, 5, 4, 4, 0, 0, 1, 125];
+      var std_ac_luminance_values = [
+        1,
+        2,
+        3,
+        0,
+        4,
+        17,
+        5,
+        18,
+        33,
+        49,
+        65,
+        6,
+        19,
+        81,
+        97,
+        7,
+        34,
+        113,
+        20,
+        50,
+        129,
+        145,
+        161,
+        8,
+        35,
+        66,
+        177,
+        193,
+        21,
+        82,
+        209,
+        240,
+        36,
+        51,
+        98,
+        114,
+        130,
+        9,
+        10,
+        22,
+        23,
+        24,
+        25,
+        26,
+        37,
+        38,
+        39,
+        40,
+        41,
+        42,
+        52,
+        53,
+        54,
+        55,
+        56,
+        57,
+        58,
+        67,
+        68,
+        69,
+        70,
+        71,
+        72,
+        73,
+        74,
+        83,
+        84,
+        85,
+        86,
+        87,
+        88,
+        89,
+        90,
+        99,
+        100,
+        101,
+        102,
+        103,
+        104,
+        105,
+        106,
+        115,
+        116,
+        117,
+        118,
+        119,
+        120,
+        121,
+        122,
+        131,
+        132,
+        133,
+        134,
+        135,
+        136,
+        137,
+        138,
+        146,
+        147,
+        148,
+        149,
+        150,
+        151,
+        152,
+        153,
+        154,
+        162,
+        163,
+        164,
+        165,
+        166,
+        167,
+        168,
+        169,
+        170,
+        178,
+        179,
+        180,
+        181,
+        182,
+        183,
+        184,
+        185,
+        186,
+        194,
+        195,
+        196,
+        197,
+        198,
+        199,
+        200,
+        201,
+        202,
+        210,
+        211,
+        212,
+        213,
+        214,
+        215,
+        216,
+        217,
+        218,
+        225,
+        226,
+        227,
+        228,
+        229,
+        230,
+        231,
+        232,
+        233,
+        234,
+        241,
+        242,
+        243,
+        244,
+        245,
+        246,
+        247,
+        248,
+        249,
+        250
+      ];
+      var std_dc_chrominance_nrcodes = [0, 0, 3, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0];
+      var std_dc_chrominance_values = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
+      var std_ac_chrominance_nrcodes = [0, 0, 2, 1, 2, 4, 4, 3, 4, 7, 5, 4, 4, 0, 1, 2, 119];
+      var std_ac_chrominance_values = [
+        0,
+        1,
+        2,
+        3,
+        17,
+        4,
+        5,
+        33,
+        49,
+        6,
+        18,
+        65,
+        81,
+        7,
+        97,
+        113,
+        19,
+        34,
+        50,
+        129,
+        8,
+        20,
+        66,
+        145,
+        161,
+        177,
+        193,
+        9,
+        35,
+        51,
+        82,
+        240,
+        21,
+        98,
+        114,
+        209,
+        10,
+        22,
+        36,
+        52,
+        225,
+        37,
+        241,
+        23,
+        24,
+        25,
+        26,
+        38,
+        39,
+        40,
+        41,
+        42,
+        53,
+        54,
+        55,
+        56,
+        57,
+        58,
+        67,
+        68,
+        69,
+        70,
+        71,
+        72,
+        73,
+        74,
+        83,
+        84,
+        85,
+        86,
+        87,
+        88,
+        89,
+        90,
+        99,
+        100,
+        101,
+        102,
+        103,
+        104,
+        105,
+        106,
+        115,
+        116,
+        117,
+        118,
+        119,
+        120,
+        121,
+        122,
+        130,
+        131,
+        132,
+        133,
+        134,
+        135,
+        136,
+        137,
+        138,
+        146,
+        147,
+        148,
+        149,
+        150,
+        151,
+        152,
+        153,
+        154,
+        162,
+        163,
+        164,
+        165,
+        166,
+        167,
+        168,
+        169,
+        170,
+        178,
+        179,
+        180,
+        181,
+        182,
+        183,
+        184,
+        185,
+        186,
+        194,
+        195,
+        196,
+        197,
+        198,
+        199,
+        200,
+        201,
+        202,
+        210,
+        211,
+        212,
+        213,
+        214,
+        215,
+        216,
+        217,
+        218,
+        226,
+        227,
+        228,
+        229,
+        230,
+        231,
+        232,
+        233,
+        234,
+        242,
+        243,
+        244,
+        245,
+        246,
+        247,
+        248,
+        249,
+        250
+      ];
+      function initQuantTables(sf) {
+        var YQT = [
+          16,
+          11,
+          10,
+          16,
+          24,
+          40,
+          51,
+          61,
+          12,
+          12,
+          14,
+          19,
+          26,
+          58,
+          60,
+          55,
+          14,
+          13,
+          16,
+          24,
+          40,
+          57,
+          69,
+          56,
+          14,
+          17,
+          22,
+          29,
+          51,
+          87,
+          80,
+          62,
+          18,
+          22,
+          37,
+          56,
+          68,
+          109,
+          103,
+          77,
+          24,
+          35,
+          55,
+          64,
+          81,
+          104,
+          113,
+          92,
+          49,
+          64,
+          78,
+          87,
+          103,
+          121,
+          120,
+          101,
+          72,
+          92,
+          95,
+          98,
+          112,
+          100,
+          103,
+          99
+        ];
+        for (var i = 0; i < 64; i++) {
+          var t = ffloor((YQT[i] * sf + 50) / 100);
+          if (t < 1) {
+            t = 1;
+          } else if (t > 255) {
+            t = 255;
+          }
+          YTable[ZigZag[i]] = t;
+        }
+        var UVQT = [
+          17,
+          18,
+          24,
+          47,
+          99,
+          99,
+          99,
+          99,
+          18,
+          21,
+          26,
+          66,
+          99,
+          99,
+          99,
+          99,
+          24,
+          26,
+          56,
+          99,
+          99,
+          99,
+          99,
+          99,
+          47,
+          66,
+          99,
+          99,
+          99,
+          99,
+          99,
+          99,
+          99,
+          99,
+          99,
+          99,
+          99,
+          99,
+          99,
+          99,
+          99,
+          99,
+          99,
+          99,
+          99,
+          99,
+          99,
+          99,
+          99,
+          99,
+          99,
+          99,
+          99,
+          99,
+          99,
+          99,
+          99,
+          99,
+          99,
+          99,
+          99,
+          99,
+          99,
+          99
+        ];
+        for (var j = 0; j < 64; j++) {
+          var u = ffloor((UVQT[j] * sf + 50) / 100);
+          if (u < 1) {
+            u = 1;
+          } else if (u > 255) {
+            u = 255;
+          }
+          UVTable[ZigZag[j]] = u;
+        }
+        var aasf = [
+          1,
+          1.387039845,
+          1.306562965,
+          1.175875602,
+          1,
+          0.785694958,
+          0.5411961,
+          0.275899379
+        ];
+        var k = 0;
+        for (var row2 = 0; row2 < 8; row2++) {
+          for (var col = 0; col < 8; col++) {
+            fdtbl_Y[k] = 1 / (YTable[ZigZag[k]] * aasf[row2] * aasf[col] * 8);
+            fdtbl_UV[k] = 1 / (UVTable[ZigZag[k]] * aasf[row2] * aasf[col] * 8);
+            k++;
+          }
+        }
+      }
+      function computeHuffmanTbl(nrcodes, std_table) {
+        var codevalue = 0;
+        var pos_in_table = 0;
+        var HT = new Array();
+        for (var k = 1; k <= 16; k++) {
+          for (var j = 1; j <= nrcodes[k]; j++) {
+            HT[std_table[pos_in_table]] = [];
+            HT[std_table[pos_in_table]][0] = codevalue;
+            HT[std_table[pos_in_table]][1] = k;
+            pos_in_table++;
+            codevalue++;
+          }
+          codevalue *= 2;
+        }
+        return HT;
+      }
+      function initHuffmanTbl() {
+        YDC_HT = computeHuffmanTbl(std_dc_luminance_nrcodes, std_dc_luminance_values);
+        UVDC_HT = computeHuffmanTbl(std_dc_chrominance_nrcodes, std_dc_chrominance_values);
+        YAC_HT = computeHuffmanTbl(std_ac_luminance_nrcodes, std_ac_luminance_values);
+        UVAC_HT = computeHuffmanTbl(std_ac_chrominance_nrcodes, std_ac_chrominance_values);
+      }
+      function initCategoryNumber() {
+        var nrlower = 1;
+        var nrupper = 2;
+        for (var cat = 1; cat <= 15; cat++) {
+          for (var nr = nrlower; nr < nrupper; nr++) {
+            category[32767 + nr] = cat;
+            bitcode[32767 + nr] = [];
+            bitcode[32767 + nr][1] = cat;
+            bitcode[32767 + nr][0] = nr;
+          }
+          for (var nrneg = -(nrupper - 1); nrneg <= -nrlower; nrneg++) {
+            category[32767 + nrneg] = cat;
+            bitcode[32767 + nrneg] = [];
+            bitcode[32767 + nrneg][1] = cat;
+            bitcode[32767 + nrneg][0] = nrupper - 1 + nrneg;
+          }
+          nrlower <<= 1;
+          nrupper <<= 1;
+        }
+      }
+      function initRGBYUVTable() {
+        for (var i = 0; i < 256; i++) {
+          RGB_YUV_TABLE[i] = 19595 * i;
+          RGB_YUV_TABLE[i + 256 >> 0] = 38470 * i;
+          RGB_YUV_TABLE[i + 512 >> 0] = 7471 * i + 32768;
+          RGB_YUV_TABLE[i + 768 >> 0] = -11059 * i;
+          RGB_YUV_TABLE[i + 1024 >> 0] = -21709 * i;
+          RGB_YUV_TABLE[i + 1280 >> 0] = 32768 * i + 8421375;
+          RGB_YUV_TABLE[i + 1536 >> 0] = -27439 * i;
+          RGB_YUV_TABLE[i + 1792 >> 0] = -5329 * i;
+        }
+      }
+      function writeBits(bs) {
+        var value = bs[0];
+        var posval = bs[1] - 1;
+        while (posval >= 0) {
+          if (value & 1 << posval) {
+            bytenew |= 1 << bytepos;
+          }
+          posval--;
+          bytepos--;
+          if (bytepos < 0) {
+            if (bytenew == 255) {
+              writeByte(255);
+              writeByte(0);
+            } else {
+              writeByte(bytenew);
+            }
+            bytepos = 7;
+            bytenew = 0;
+          }
+        }
+      }
+      function writeByte(value) {
+        byteout.push(value);
+      }
+      function writeWord(value) {
+        writeByte(value >> 8 & 255);
+        writeByte(value & 255);
+      }
+      function fDCTQuant(data, fdtbl) {
+        var d0, d1, d2, d3, d4, d5, d6, d7;
+        var dataOff = 0;
+        var i;
+        var I8 = 8;
+        var I64 = 64;
+        for (i = 0; i < I8; ++i) {
+          d0 = data[dataOff];
+          d1 = data[dataOff + 1];
+          d2 = data[dataOff + 2];
+          d3 = data[dataOff + 3];
+          d4 = data[dataOff + 4];
+          d5 = data[dataOff + 5];
+          d6 = data[dataOff + 6];
+          d7 = data[dataOff + 7];
+          var tmp0 = d0 + d7;
+          var tmp7 = d0 - d7;
+          var tmp1 = d1 + d6;
+          var tmp6 = d1 - d6;
+          var tmp2 = d2 + d5;
+          var tmp5 = d2 - d5;
+          var tmp3 = d3 + d4;
+          var tmp4 = d3 - d4;
+          var tmp10 = tmp0 + tmp3;
+          var tmp13 = tmp0 - tmp3;
+          var tmp11 = tmp1 + tmp2;
+          var tmp12 = tmp1 - tmp2;
+          data[dataOff] = tmp10 + tmp11;
+          data[dataOff + 4] = tmp10 - tmp11;
+          var z1 = (tmp12 + tmp13) * 0.707106781;
+          data[dataOff + 2] = tmp13 + z1;
+          data[dataOff + 6] = tmp13 - z1;
+          tmp10 = tmp4 + tmp5;
+          tmp11 = tmp5 + tmp6;
+          tmp12 = tmp6 + tmp7;
+          var z5 = (tmp10 - tmp12) * 0.382683433;
+          var z2 = 0.5411961 * tmp10 + z5;
+          var z4 = 1.306562965 * tmp12 + z5;
+          var z3 = tmp11 * 0.707106781;
+          var z11 = tmp7 + z3;
+          var z13 = tmp7 - z3;
+          data[dataOff + 5] = z13 + z2;
+          data[dataOff + 3] = z13 - z2;
+          data[dataOff + 1] = z11 + z4;
+          data[dataOff + 7] = z11 - z4;
+          dataOff += 8;
+        }
+        dataOff = 0;
+        for (i = 0; i < I8; ++i) {
+          d0 = data[dataOff];
+          d1 = data[dataOff + 8];
+          d2 = data[dataOff + 16];
+          d3 = data[dataOff + 24];
+          d4 = data[dataOff + 32];
+          d5 = data[dataOff + 40];
+          d6 = data[dataOff + 48];
+          d7 = data[dataOff + 56];
+          var tmp0p2 = d0 + d7;
+          var tmp7p2 = d0 - d7;
+          var tmp1p2 = d1 + d6;
+          var tmp6p2 = d1 - d6;
+          var tmp2p2 = d2 + d5;
+          var tmp5p2 = d2 - d5;
+          var tmp3p2 = d3 + d4;
+          var tmp4p2 = d3 - d4;
+          var tmp10p2 = tmp0p2 + tmp3p2;
+          var tmp13p2 = tmp0p2 - tmp3p2;
+          var tmp11p2 = tmp1p2 + tmp2p2;
+          var tmp12p2 = tmp1p2 - tmp2p2;
+          data[dataOff] = tmp10p2 + tmp11p2;
+          data[dataOff + 32] = tmp10p2 - tmp11p2;
+          var z1p2 = (tmp12p2 + tmp13p2) * 0.707106781;
+          data[dataOff + 16] = tmp13p2 + z1p2;
+          data[dataOff + 48] = tmp13p2 - z1p2;
+          tmp10p2 = tmp4p2 + tmp5p2;
+          tmp11p2 = tmp5p2 + tmp6p2;
+          tmp12p2 = tmp6p2 + tmp7p2;
+          var z5p2 = (tmp10p2 - tmp12p2) * 0.382683433;
+          var z2p2 = 0.5411961 * tmp10p2 + z5p2;
+          var z4p2 = 1.306562965 * tmp12p2 + z5p2;
+          var z3p2 = tmp11p2 * 0.707106781;
+          var z11p2 = tmp7p2 + z3p2;
+          var z13p2 = tmp7p2 - z3p2;
+          data[dataOff + 40] = z13p2 + z2p2;
+          data[dataOff + 24] = z13p2 - z2p2;
+          data[dataOff + 8] = z11p2 + z4p2;
+          data[dataOff + 56] = z11p2 - z4p2;
+          dataOff++;
+        }
+        var fDCTQuant2;
+        for (i = 0; i < I64; ++i) {
+          fDCTQuant2 = data[i] * fdtbl[i];
+          outputfDCTQuant[i] = fDCTQuant2 > 0 ? fDCTQuant2 + 0.5 | 0 : fDCTQuant2 - 0.5 | 0;
+        }
+        return outputfDCTQuant;
+      }
+      function writeAPP0() {
+        writeWord(65504);
+        writeWord(16);
+        writeByte(74);
+        writeByte(70);
+        writeByte(73);
+        writeByte(70);
+        writeByte(0);
+        writeByte(1);
+        writeByte(1);
+        writeByte(0);
+        writeWord(1);
+        writeWord(1);
+        writeByte(0);
+        writeByte(0);
+      }
+      function writeAPP1(exifBuffer) {
+        if (!exifBuffer)
+          return;
+        writeWord(65505);
+        if (exifBuffer[0] === 69 && exifBuffer[1] === 120 && exifBuffer[2] === 105 && exifBuffer[3] === 102) {
+          writeWord(exifBuffer.length + 2);
+        } else {
+          writeWord(exifBuffer.length + 5 + 2);
+          writeByte(69);
+          writeByte(120);
+          writeByte(105);
+          writeByte(102);
+          writeByte(0);
+        }
+        for (var i = 0; i < exifBuffer.length; i++) {
+          writeByte(exifBuffer[i]);
+        }
+      }
+      function writeSOF0(width, height) {
+        writeWord(65472);
+        writeWord(17);
+        writeByte(8);
+        writeWord(height);
+        writeWord(width);
+        writeByte(3);
+        writeByte(1);
+        writeByte(17);
+        writeByte(0);
+        writeByte(2);
+        writeByte(17);
+        writeByte(1);
+        writeByte(3);
+        writeByte(17);
+        writeByte(1);
+      }
+      function writeDQT() {
+        writeWord(65499);
+        writeWord(132);
+        writeByte(0);
+        for (var i = 0; i < 64; i++) {
+          writeByte(YTable[i]);
+        }
+        writeByte(1);
+        for (var j = 0; j < 64; j++) {
+          writeByte(UVTable[j]);
+        }
+      }
+      function writeDHT() {
+        writeWord(65476);
+        writeWord(418);
+        writeByte(0);
+        for (var i = 0; i < 16; i++) {
+          writeByte(std_dc_luminance_nrcodes[i + 1]);
+        }
+        for (var j = 0; j <= 11; j++) {
+          writeByte(std_dc_luminance_values[j]);
+        }
+        writeByte(16);
+        for (var k = 0; k < 16; k++) {
+          writeByte(std_ac_luminance_nrcodes[k + 1]);
+        }
+        for (var l = 0; l <= 161; l++) {
+          writeByte(std_ac_luminance_values[l]);
+        }
+        writeByte(1);
+        for (var m = 0; m < 16; m++) {
+          writeByte(std_dc_chrominance_nrcodes[m + 1]);
+        }
+        for (var n = 0; n <= 11; n++) {
+          writeByte(std_dc_chrominance_values[n]);
+        }
+        writeByte(17);
+        for (var o = 0; o < 16; o++) {
+          writeByte(std_ac_chrominance_nrcodes[o + 1]);
+        }
+        for (var p = 0; p <= 161; p++) {
+          writeByte(std_ac_chrominance_values[p]);
+        }
+      }
+      function writeCOM(comments) {
+        if (typeof comments === "undefined" || comments.constructor !== Array)
+          return;
+        comments.forEach((e) => {
+          if (typeof e !== "string")
+            return;
+          writeWord(65534);
+          var l = e.length;
+          writeWord(l + 2);
+          var i;
+          for (i = 0; i < l; i++)
+            writeByte(e.charCodeAt(i));
+        });
+      }
+      function writeSOS() {
+        writeWord(65498);
+        writeWord(12);
+        writeByte(3);
+        writeByte(1);
+        writeByte(0);
+        writeByte(2);
+        writeByte(17);
+        writeByte(3);
+        writeByte(17);
+        writeByte(0);
+        writeByte(63);
+        writeByte(0);
+      }
+      function processDU(CDU, fdtbl, DC, HTDC, HTAC) {
+        var EOB = HTAC[0];
+        var M16zeroes = HTAC[240];
+        var pos;
+        var I16 = 16;
+        var I63 = 63;
+        var I64 = 64;
+        var DU_DCT = fDCTQuant(CDU, fdtbl);
+        for (var j = 0; j < I64; ++j) {
+          DU[ZigZag[j]] = DU_DCT[j];
+        }
+        var Diff = DU[0] - DC;
+        DC = DU[0];
+        if (Diff == 0) {
+          writeBits(HTDC[0]);
+        } else {
+          pos = 32767 + Diff;
+          writeBits(HTDC[category[pos]]);
+          writeBits(bitcode[pos]);
+        }
+        var end0pos = 63;
+        for (; end0pos > 0 && DU[end0pos] == 0; end0pos--) {
+        }
+        ;
+        if (end0pos == 0) {
+          writeBits(EOB);
+          return DC;
+        }
+        var i = 1;
+        var lng;
+        while (i <= end0pos) {
+          var startpos = i;
+          for (; DU[i] == 0 && i <= end0pos; ++i) {
+          }
+          var nrzeroes = i - startpos;
+          if (nrzeroes >= I16) {
+            lng = nrzeroes >> 4;
+            for (var nrmarker = 1; nrmarker <= lng; ++nrmarker)
+              writeBits(M16zeroes);
+            nrzeroes = nrzeroes & 15;
+          }
+          pos = 32767 + DU[i];
+          writeBits(HTAC[(nrzeroes << 4) + category[pos]]);
+          writeBits(bitcode[pos]);
+          i++;
+        }
+        if (end0pos != I63) {
+          writeBits(EOB);
+        }
+        return DC;
+      }
+      function initCharLookupTable() {
+        var sfcc = String.fromCharCode;
+        for (var i = 0; i < 256; i++) {
+          clt[i] = sfcc(i);
+        }
+      }
+      this.encode = function(image, quality2) {
+        var time_start = (/* @__PURE__ */ new Date()).getTime();
+        if (quality2)
+          setQuality(quality2);
+        byteout = new Array();
+        bytenew = 0;
+        bytepos = 7;
+        writeWord(65496);
+        writeAPP0();
+        writeCOM(image.comments);
+        writeAPP1(image.exifBuffer);
+        writeDQT();
+        writeSOF0(image.width, image.height);
+        writeDHT();
+        writeSOS();
+        var DCY = 0;
+        var DCU = 0;
+        var DCV = 0;
+        bytenew = 0;
+        bytepos = 7;
+        this.encode.displayName = "_encode_";
+        var imageData = image.data;
+        var width = image.width;
+        var height = image.height;
+        var quadWidth = width * 4;
+        var tripleWidth = width * 3;
+        var x, y = 0;
+        var r, g, b;
+        var start, p, col, row2, pos;
+        while (y < height) {
+          x = 0;
+          while (x < quadWidth) {
+            start = quadWidth * y + x;
+            p = start;
+            col = -1;
+            row2 = 0;
+            for (pos = 0; pos < 64; pos++) {
+              row2 = pos >> 3;
+              col = (pos & 7) * 4;
+              p = start + row2 * quadWidth + col;
+              if (y + row2 >= height) {
+                p -= quadWidth * (y + 1 + row2 - height);
+              }
+              if (x + col >= quadWidth) {
+                p -= x + col - quadWidth + 4;
+              }
+              r = imageData[p++];
+              g = imageData[p++];
+              b = imageData[p++];
+              YDU[pos] = (RGB_YUV_TABLE[r] + RGB_YUV_TABLE[g + 256 >> 0] + RGB_YUV_TABLE[b + 512 >> 0] >> 16) - 128;
+              UDU[pos] = (RGB_YUV_TABLE[r + 768 >> 0] + RGB_YUV_TABLE[g + 1024 >> 0] + RGB_YUV_TABLE[b + 1280 >> 0] >> 16) - 128;
+              VDU[pos] = (RGB_YUV_TABLE[r + 1280 >> 0] + RGB_YUV_TABLE[g + 1536 >> 0] + RGB_YUV_TABLE[b + 1792 >> 0] >> 16) - 128;
+            }
+            DCY = processDU(YDU, fdtbl_Y, DCY, YDC_HT, YAC_HT);
+            DCU = processDU(UDU, fdtbl_UV, DCU, UVDC_HT, UVAC_HT);
+            DCV = processDU(VDU, fdtbl_UV, DCV, UVDC_HT, UVAC_HT);
+            x += 32;
+          }
+          y += 8;
+        }
+        if (bytepos >= 0) {
+          var fillbits = [];
+          fillbits[1] = bytepos + 1;
+          fillbits[0] = (1 << bytepos + 1) - 1;
+          writeBits(fillbits);
+        }
+        writeWord(65497);
+        if (typeof module2 === "undefined")
+          return new Uint8Array(byteout);
+        return Buffer.from(byteout);
+        var jpegDataUri = "data:image/jpeg;base64," + btoa2(byteout.join(""));
+        byteout = [];
+        var duration = (/* @__PURE__ */ new Date()).getTime() - time_start;
+        return jpegDataUri;
+      };
+      function setQuality(quality2) {
+        if (quality2 <= 0) {
+          quality2 = 1;
+        }
+        if (quality2 > 100) {
+          quality2 = 100;
+        }
+        if (currentQuality == quality2)
+          return;
+        var sf = 0;
+        if (quality2 < 50) {
+          sf = Math.floor(5e3 / quality2);
+        } else {
+          sf = Math.floor(200 - quality2 * 2);
+        }
+        initQuantTables(sf);
+        currentQuality = quality2;
+      }
+      function init() {
+        var time_start = (/* @__PURE__ */ new Date()).getTime();
+        if (!quality)
+          quality = 50;
+        initCharLookupTable();
+        initHuffmanTbl();
+        initCategoryNumber();
+        initRGBYUVTable();
+        setQuality(quality);
+        var duration = (/* @__PURE__ */ new Date()).getTime() - time_start;
+      }
+      init();
+    }
+    if (typeof module2 !== "undefined") {
+      module2.exports = encode3;
+    } else if (typeof window !== "undefined") {
+      window["jpeg-js"] = window["jpeg-js"] || {};
+      window["jpeg-js"].encode = encode3;
+    }
+    function encode3(imgData, qu) {
+      if (typeof qu === "undefined")
+        qu = 50;
+      var encoder = new JPEGEncoder(qu);
+      var data = encoder.encode(imgData, qu);
+      return {
+        data,
+        width: imgData.width,
+        height: imgData.height
+      };
+    }
+  }
+});
+
+// ../../node_modules/jpeg-js/lib/decoder.js
+var require_decoder = __commonJS({
+  "../../node_modules/jpeg-js/lib/decoder.js"(exports2, module2) {
+    var JpegImage = function jpegImage() {
+      "use strict";
+      var dctZigZag = new Int32Array([
+        0,
+        1,
+        8,
+        16,
+        9,
+        2,
+        3,
+        10,
+        17,
+        24,
+        32,
+        25,
+        18,
+        11,
+        4,
+        5,
+        12,
+        19,
+        26,
+        33,
+        40,
+        48,
+        41,
+        34,
+        27,
+        20,
+        13,
+        6,
+        7,
+        14,
+        21,
+        28,
+        35,
+        42,
+        49,
+        56,
+        57,
+        50,
+        43,
+        36,
+        29,
+        22,
+        15,
+        23,
+        30,
+        37,
+        44,
+        51,
+        58,
+        59,
+        52,
+        45,
+        38,
+        31,
+        39,
+        46,
+        53,
+        60,
+        61,
+        54,
+        47,
+        55,
+        62,
+        63
+      ]);
+      var dctCos1 = 4017;
+      var dctSin1 = 799;
+      var dctCos3 = 3406;
+      var dctSin3 = 2276;
+      var dctCos6 = 1567;
+      var dctSin6 = 3784;
+      var dctSqrt2 = 5793;
+      var dctSqrt1d2 = 2896;
+      function constructor() {
+      }
+      function buildHuffmanTable(codeLengths, values) {
+        var k = 0, code = [], i, j, length = 16;
+        while (length > 0 && !codeLengths[length - 1])
+          length--;
+        code.push({ children: [], index: 0 });
+        var p = code[0], q;
+        for (i = 0; i < length; i++) {
+          for (j = 0; j < codeLengths[i]; j++) {
+            p = code.pop();
+            p.children[p.index] = values[k];
+            while (p.index > 0) {
+              if (code.length === 0)
+                throw new Error("Could not recreate Huffman Table");
+              p = code.pop();
+            }
+            p.index++;
+            code.push(p);
+            while (code.length <= i) {
+              code.push(q = { children: [], index: 0 });
+              p.children[p.index] = q.children;
+              p = q;
+            }
+            k++;
+          }
+          if (i + 1 < length) {
+            code.push(q = { children: [], index: 0 });
+            p.children[p.index] = q.children;
+            p = q;
+          }
+        }
+        return code[0].children;
+      }
+      function decodeScan(data, offset, frame, components, resetInterval, spectralStart, spectralEnd, successivePrev, successive, opts) {
+        var precision = frame.precision;
+        var samplesPerLine = frame.samplesPerLine;
+        var scanLines = frame.scanLines;
+        var mcusPerLine = frame.mcusPerLine;
+        var progressive = frame.progressive;
+        var maxH = frame.maxH, maxV = frame.maxV;
+        var startOffset = offset, bitsData = 0, bitsCount = 0;
+        function readBit() {
+          if (bitsCount > 0) {
+            bitsCount--;
+            return bitsData >> bitsCount & 1;
+          }
+          bitsData = data[offset++];
+          if (bitsData == 255) {
+            var nextByte = data[offset++];
+            if (nextByte) {
+              throw new Error("unexpected marker: " + (bitsData << 8 | nextByte).toString(16));
+            }
+          }
+          bitsCount = 7;
+          return bitsData >>> 7;
+        }
+        function decodeHuffman(tree) {
+          var node = tree, bit;
+          while ((bit = readBit()) !== null) {
+            node = node[bit];
+            if (typeof node === "number")
+              return node;
+            if (typeof node !== "object")
+              throw new Error("invalid huffman sequence");
+          }
+          return null;
+        }
+        function receive(length) {
+          var n2 = 0;
+          while (length > 0) {
+            var bit = readBit();
+            if (bit === null)
+              return;
+            n2 = n2 << 1 | bit;
+            length--;
+          }
+          return n2;
+        }
+        function receiveAndExtend(length) {
+          var n2 = receive(length);
+          if (n2 >= 1 << length - 1)
+            return n2;
+          return n2 + (-1 << length) + 1;
+        }
+        function decodeBaseline(component2, zz) {
+          var t = decodeHuffman(component2.huffmanTableDC);
+          var diff = t === 0 ? 0 : receiveAndExtend(t);
+          zz[0] = component2.pred += diff;
+          var k2 = 1;
+          while (k2 < 64) {
+            var rs = decodeHuffman(component2.huffmanTableAC);
+            var s = rs & 15, r = rs >> 4;
+            if (s === 0) {
+              if (r < 15)
+                break;
+              k2 += 16;
+              continue;
+            }
+            k2 += r;
+            var z = dctZigZag[k2];
+            zz[z] = receiveAndExtend(s);
+            k2++;
+          }
+        }
+        function decodeDCFirst(component2, zz) {
+          var t = decodeHuffman(component2.huffmanTableDC);
+          var diff = t === 0 ? 0 : receiveAndExtend(t) << successive;
+          zz[0] = component2.pred += diff;
+        }
+        function decodeDCSuccessive(component2, zz) {
+          zz[0] |= readBit() << successive;
+        }
+        var eobrun = 0;
+        function decodeACFirst(component2, zz) {
+          if (eobrun > 0) {
+            eobrun--;
+            return;
+          }
+          var k2 = spectralStart, e = spectralEnd;
+          while (k2 <= e) {
+            var rs = decodeHuffman(component2.huffmanTableAC);
+            var s = rs & 15, r = rs >> 4;
+            if (s === 0) {
+              if (r < 15) {
+                eobrun = receive(r) + (1 << r) - 1;
+                break;
+              }
+              k2 += 16;
+              continue;
+            }
+            k2 += r;
+            var z = dctZigZag[k2];
+            zz[z] = receiveAndExtend(s) * (1 << successive);
+            k2++;
+          }
+        }
+        var successiveACState = 0, successiveACNextValue;
+        function decodeACSuccessive(component2, zz) {
+          var k2 = spectralStart, e = spectralEnd, r = 0;
+          while (k2 <= e) {
+            var z = dctZigZag[k2];
+            var direction = zz[z] < 0 ? -1 : 1;
+            switch (successiveACState) {
+              case 0:
+                var rs = decodeHuffman(component2.huffmanTableAC);
+                var s = rs & 15, r = rs >> 4;
+                if (s === 0) {
+                  if (r < 15) {
+                    eobrun = receive(r) + (1 << r);
+                    successiveACState = 4;
+                  } else {
+                    r = 16;
+                    successiveACState = 1;
+                  }
+                } else {
+                  if (s !== 1)
+                    throw new Error("invalid ACn encoding");
+                  successiveACNextValue = receiveAndExtend(s);
+                  successiveACState = r ? 2 : 3;
+                }
+                continue;
+              case 1:
+              case 2:
+                if (zz[z])
+                  zz[z] += (readBit() << successive) * direction;
+                else {
+                  r--;
+                  if (r === 0)
+                    successiveACState = successiveACState == 2 ? 3 : 0;
+                }
+                break;
+              case 3:
+                if (zz[z])
+                  zz[z] += (readBit() << successive) * direction;
+                else {
+                  zz[z] = successiveACNextValue << successive;
+                  successiveACState = 0;
+                }
+                break;
+              case 4:
+                if (zz[z])
+                  zz[z] += (readBit() << successive) * direction;
+                break;
+            }
+            k2++;
+          }
+          if (successiveACState === 4) {
+            eobrun--;
+            if (eobrun === 0)
+              successiveACState = 0;
+          }
+        }
+        function decodeMcu(component2, decode2, mcu2, row2, col) {
+          var mcuRow = mcu2 / mcusPerLine | 0;
+          var mcuCol = mcu2 % mcusPerLine;
+          var blockRow = mcuRow * component2.v + row2;
+          var blockCol = mcuCol * component2.h + col;
+          if (component2.blocks[blockRow] === void 0 && opts.tolerantDecoding)
+            return;
+          decode2(component2, component2.blocks[blockRow][blockCol]);
+        }
+        function decodeBlock(component2, decode2, mcu2) {
+          var blockRow = mcu2 / component2.blocksPerLine | 0;
+          var blockCol = mcu2 % component2.blocksPerLine;
+          if (component2.blocks[blockRow] === void 0 && opts.tolerantDecoding)
+            return;
+          decode2(component2, component2.blocks[blockRow][blockCol]);
+        }
+        var componentsLength = components.length;
+        var component, i, j, k, n;
+        var decodeFn;
+        if (progressive) {
+          if (spectralStart === 0)
+            decodeFn = successivePrev === 0 ? decodeDCFirst : decodeDCSuccessive;
+          else
+            decodeFn = successivePrev === 0 ? decodeACFirst : decodeACSuccessive;
+        } else {
+          decodeFn = decodeBaseline;
+        }
+        var mcu = 0, marker;
+        var mcuExpected;
+        if (componentsLength == 1) {
+          mcuExpected = components[0].blocksPerLine * components[0].blocksPerColumn;
+        } else {
+          mcuExpected = mcusPerLine * frame.mcusPerColumn;
+        }
+        if (!resetInterval)
+          resetInterval = mcuExpected;
+        var h, v;
+        while (mcu < mcuExpected) {
+          for (i = 0; i < componentsLength; i++)
+            components[i].pred = 0;
+          eobrun = 0;
+          if (componentsLength == 1) {
+            component = components[0];
+            for (n = 0; n < resetInterval; n++) {
+              decodeBlock(component, decodeFn, mcu);
+              mcu++;
+            }
+          } else {
+            for (n = 0; n < resetInterval; n++) {
+              for (i = 0; i < componentsLength; i++) {
+                component = components[i];
+                h = component.h;
+                v = component.v;
+                for (j = 0; j < v; j++) {
+                  for (k = 0; k < h; k++) {
+                    decodeMcu(component, decodeFn, mcu, j, k);
+                  }
+                }
+              }
+              mcu++;
+              if (mcu === mcuExpected)
+                break;
+            }
+          }
+          if (mcu === mcuExpected) {
+            do {
+              if (data[offset] === 255) {
+                if (data[offset + 1] !== 0) {
+                  break;
+                }
+              }
+              offset += 1;
+            } while (offset < data.length - 2);
+          }
+          bitsCount = 0;
+          marker = data[offset] << 8 | data[offset + 1];
+          if (marker < 65280) {
+            throw new Error("marker was not found");
+          }
+          if (marker >= 65488 && marker <= 65495) {
+            offset += 2;
+          } else
+            break;
+        }
+        return offset - startOffset;
+      }
+      function buildComponentData(frame, component) {
+        var lines = [];
+        var blocksPerLine = component.blocksPerLine;
+        var blocksPerColumn = component.blocksPerColumn;
+        var samplesPerLine = blocksPerLine << 3;
+        var R = new Int32Array(64), r = new Uint8Array(64);
+        function quantizeAndInverse(zz, dataOut, dataIn) {
+          var qt = component.quantizationTable;
+          var v0, v12, v2, v32, v42, v52, v6, v7, t;
+          var p = dataIn;
+          var i2;
+          for (i2 = 0; i2 < 64; i2++)
+            p[i2] = zz[i2] * qt[i2];
+          for (i2 = 0; i2 < 8; ++i2) {
+            var row2 = 8 * i2;
+            if (p[1 + row2] == 0 && p[2 + row2] == 0 && p[3 + row2] == 0 && p[4 + row2] == 0 && p[5 + row2] == 0 && p[6 + row2] == 0 && p[7 + row2] == 0) {
+              t = dctSqrt2 * p[0 + row2] + 512 >> 10;
+              p[0 + row2] = t;
+              p[1 + row2] = t;
+              p[2 + row2] = t;
+              p[3 + row2] = t;
+              p[4 + row2] = t;
+              p[5 + row2] = t;
+              p[6 + row2] = t;
+              p[7 + row2] = t;
+              continue;
+            }
+            v0 = dctSqrt2 * p[0 + row2] + 128 >> 8;
+            v12 = dctSqrt2 * p[4 + row2] + 128 >> 8;
+            v2 = p[2 + row2];
+            v32 = p[6 + row2];
+            v42 = dctSqrt1d2 * (p[1 + row2] - p[7 + row2]) + 128 >> 8;
+            v7 = dctSqrt1d2 * (p[1 + row2] + p[7 + row2]) + 128 >> 8;
+            v52 = p[3 + row2] << 4;
+            v6 = p[5 + row2] << 4;
+            t = v0 - v12 + 1 >> 1;
+            v0 = v0 + v12 + 1 >> 1;
+            v12 = t;
+            t = v2 * dctSin6 + v32 * dctCos6 + 128 >> 8;
+            v2 = v2 * dctCos6 - v32 * dctSin6 + 128 >> 8;
+            v32 = t;
+            t = v42 - v6 + 1 >> 1;
+            v42 = v42 + v6 + 1 >> 1;
+            v6 = t;
+            t = v7 + v52 + 1 >> 1;
+            v52 = v7 - v52 + 1 >> 1;
+            v7 = t;
+            t = v0 - v32 + 1 >> 1;
+            v0 = v0 + v32 + 1 >> 1;
+            v32 = t;
+            t = v12 - v2 + 1 >> 1;
+            v12 = v12 + v2 + 1 >> 1;
+            v2 = t;
+            t = v42 * dctSin3 + v7 * dctCos3 + 2048 >> 12;
+            v42 = v42 * dctCos3 - v7 * dctSin3 + 2048 >> 12;
+            v7 = t;
+            t = v52 * dctSin1 + v6 * dctCos1 + 2048 >> 12;
+            v52 = v52 * dctCos1 - v6 * dctSin1 + 2048 >> 12;
+            v6 = t;
+            p[0 + row2] = v0 + v7;
+            p[7 + row2] = v0 - v7;
+            p[1 + row2] = v12 + v6;
+            p[6 + row2] = v12 - v6;
+            p[2 + row2] = v2 + v52;
+            p[5 + row2] = v2 - v52;
+            p[3 + row2] = v32 + v42;
+            p[4 + row2] = v32 - v42;
+          }
+          for (i2 = 0; i2 < 8; ++i2) {
+            var col = i2;
+            if (p[1 * 8 + col] == 0 && p[2 * 8 + col] == 0 && p[3 * 8 + col] == 0 && p[4 * 8 + col] == 0 && p[5 * 8 + col] == 0 && p[6 * 8 + col] == 0 && p[7 * 8 + col] == 0) {
+              t = dctSqrt2 * dataIn[i2 + 0] + 8192 >> 14;
+              p[0 * 8 + col] = t;
+              p[1 * 8 + col] = t;
+              p[2 * 8 + col] = t;
+              p[3 * 8 + col] = t;
+              p[4 * 8 + col] = t;
+              p[5 * 8 + col] = t;
+              p[6 * 8 + col] = t;
+              p[7 * 8 + col] = t;
+              continue;
+            }
+            v0 = dctSqrt2 * p[0 * 8 + col] + 2048 >> 12;
+            v12 = dctSqrt2 * p[4 * 8 + col] + 2048 >> 12;
+            v2 = p[2 * 8 + col];
+            v32 = p[6 * 8 + col];
+            v42 = dctSqrt1d2 * (p[1 * 8 + col] - p[7 * 8 + col]) + 2048 >> 12;
+            v7 = dctSqrt1d2 * (p[1 * 8 + col] + p[7 * 8 + col]) + 2048 >> 12;
+            v52 = p[3 * 8 + col];
+            v6 = p[5 * 8 + col];
+            t = v0 - v12 + 1 >> 1;
+            v0 = v0 + v12 + 1 >> 1;
+            v12 = t;
+            t = v2 * dctSin6 + v32 * dctCos6 + 2048 >> 12;
+            v2 = v2 * dctCos6 - v32 * dctSin6 + 2048 >> 12;
+            v32 = t;
+            t = v42 - v6 + 1 >> 1;
+            v42 = v42 + v6 + 1 >> 1;
+            v6 = t;
+            t = v7 + v52 + 1 >> 1;
+            v52 = v7 - v52 + 1 >> 1;
+            v7 = t;
+            t = v0 - v32 + 1 >> 1;
+            v0 = v0 + v32 + 1 >> 1;
+            v32 = t;
+            t = v12 - v2 + 1 >> 1;
+            v12 = v12 + v2 + 1 >> 1;
+            v2 = t;
+            t = v42 * dctSin3 + v7 * dctCos3 + 2048 >> 12;
+            v42 = v42 * dctCos3 - v7 * dctSin3 + 2048 >> 12;
+            v7 = t;
+            t = v52 * dctSin1 + v6 * dctCos1 + 2048 >> 12;
+            v52 = v52 * dctCos1 - v6 * dctSin1 + 2048 >> 12;
+            v6 = t;
+            p[0 * 8 + col] = v0 + v7;
+            p[7 * 8 + col] = v0 - v7;
+            p[1 * 8 + col] = v12 + v6;
+            p[6 * 8 + col] = v12 - v6;
+            p[2 * 8 + col] = v2 + v52;
+            p[5 * 8 + col] = v2 - v52;
+            p[3 * 8 + col] = v32 + v42;
+            p[4 * 8 + col] = v32 - v42;
+          }
+          for (i2 = 0; i2 < 64; ++i2) {
+            var sample2 = 128 + (p[i2] + 8 >> 4);
+            dataOut[i2] = sample2 < 0 ? 0 : sample2 > 255 ? 255 : sample2;
+          }
+        }
+        requestMemoryAllocation(samplesPerLine * blocksPerColumn * 8);
+        var i, j;
+        for (var blockRow = 0; blockRow < blocksPerColumn; blockRow++) {
+          var scanLine = blockRow << 3;
+          for (i = 0; i < 8; i++)
+            lines.push(new Uint8Array(samplesPerLine));
+          for (var blockCol = 0; blockCol < blocksPerLine; blockCol++) {
+            quantizeAndInverse(component.blocks[blockRow][blockCol], r, R);
+            var offset = 0, sample = blockCol << 3;
+            for (j = 0; j < 8; j++) {
+              var line = lines[scanLine + j];
+              for (i = 0; i < 8; i++)
+                line[sample + i] = r[offset++];
+            }
+          }
+        }
+        return lines;
+      }
+      function clampTo8bit(a) {
+        return a < 0 ? 0 : a > 255 ? 255 : a;
+      }
+      constructor.prototype = {
+        load: function load(path12) {
+          var xhr = new XMLHttpRequest();
+          xhr.open("GET", path12, true);
+          xhr.responseType = "arraybuffer";
+          xhr.onload = function() {
+            var data = new Uint8Array(xhr.response || xhr.mozResponseArrayBuffer);
+            this.parse(data);
+            if (this.onload)
+              this.onload();
+          }.bind(this);
+          xhr.send(null);
+        },
+        parse: function parse2(data) {
+          var maxResolutionInPixels = this.opts.maxResolutionInMP * 1e3 * 1e3;
+          var offset = 0, length = data.length;
+          function readUint16() {
+            var value = data[offset] << 8 | data[offset + 1];
+            offset += 2;
+            return value;
+          }
+          function readDataBlock() {
+            var length2 = readUint16();
+            var array = data.subarray(offset, offset + length2 - 2);
+            offset += array.length;
+            return array;
+          }
+          function prepareComponents(frame2) {
+            var maxH2 = 1, maxV2 = 1;
+            var component2, componentId2;
+            for (componentId2 in frame2.components) {
+              if (frame2.components.hasOwnProperty(componentId2)) {
+                component2 = frame2.components[componentId2];
+                if (maxH2 < component2.h)
+                  maxH2 = component2.h;
+                if (maxV2 < component2.v)
+                  maxV2 = component2.v;
+              }
+            }
+            var mcusPerLine = Math.ceil(frame2.samplesPerLine / 8 / maxH2);
+            var mcusPerColumn = Math.ceil(frame2.scanLines / 8 / maxV2);
+            for (componentId2 in frame2.components) {
+              if (frame2.components.hasOwnProperty(componentId2)) {
+                component2 = frame2.components[componentId2];
+                var blocksPerLine = Math.ceil(Math.ceil(frame2.samplesPerLine / 8) * component2.h / maxH2);
+                var blocksPerColumn = Math.ceil(Math.ceil(frame2.scanLines / 8) * component2.v / maxV2);
+                var blocksPerLineForMcu = mcusPerLine * component2.h;
+                var blocksPerColumnForMcu = mcusPerColumn * component2.v;
+                var blocksToAllocate = blocksPerColumnForMcu * blocksPerLineForMcu;
+                var blocks = [];
+                requestMemoryAllocation(blocksToAllocate * 256);
+                for (var i2 = 0; i2 < blocksPerColumnForMcu; i2++) {
+                  var row2 = [];
+                  for (var j2 = 0; j2 < blocksPerLineForMcu; j2++)
+                    row2.push(new Int32Array(64));
+                  blocks.push(row2);
+                }
+                component2.blocksPerLine = blocksPerLine;
+                component2.blocksPerColumn = blocksPerColumn;
+                component2.blocks = blocks;
+              }
+            }
+            frame2.maxH = maxH2;
+            frame2.maxV = maxV2;
+            frame2.mcusPerLine = mcusPerLine;
+            frame2.mcusPerColumn = mcusPerColumn;
+          }
+          var jfif = null;
+          var adobe = null;
+          var pixels = null;
+          var frame, resetInterval;
+          var quantizationTables = [], frames = [];
+          var huffmanTablesAC = [], huffmanTablesDC = [];
+          var fileMarker = readUint16();
+          var malformedDataOffset = -1;
+          this.comments = [];
+          if (fileMarker != 65496) {
+            throw new Error("SOI not found");
+          }
+          fileMarker = readUint16();
+          while (fileMarker != 65497) {
+            var i, j, l;
+            switch (fileMarker) {
+              case 65280:
+                break;
+              case 65504:
+              case 65505:
+              case 65506:
+              case 65507:
+              case 65508:
+              case 65509:
+              case 65510:
+              case 65511:
+              case 65512:
+              case 65513:
+              case 65514:
+              case 65515:
+              case 65516:
+              case 65517:
+              case 65518:
+              case 65519:
+              case 65534:
+                var appData = readDataBlock();
+                if (fileMarker === 65534) {
+                  var comment = String.fromCharCode.apply(null, appData);
+                  this.comments.push(comment);
+                }
+                if (fileMarker === 65504) {
+                  if (appData[0] === 74 && appData[1] === 70 && appData[2] === 73 && appData[3] === 70 && appData[4] === 0) {
+                    jfif = {
+                      version: { major: appData[5], minor: appData[6] },
+                      densityUnits: appData[7],
+                      xDensity: appData[8] << 8 | appData[9],
+                      yDensity: appData[10] << 8 | appData[11],
+                      thumbWidth: appData[12],
+                      thumbHeight: appData[13],
+                      thumbData: appData.subarray(14, 14 + 3 * appData[12] * appData[13])
+                    };
+                  }
+                }
+                if (fileMarker === 65505) {
+                  if (appData[0] === 69 && appData[1] === 120 && appData[2] === 105 && appData[3] === 102 && appData[4] === 0) {
+                    this.exifBuffer = appData.subarray(5, appData.length);
+                  }
+                }
+                if (fileMarker === 65518) {
+                  if (appData[0] === 65 && appData[1] === 100 && appData[2] === 111 && appData[3] === 98 && appData[4] === 101 && appData[5] === 0) {
+                    adobe = {
+                      version: appData[6],
+                      flags0: appData[7] << 8 | appData[8],
+                      flags1: appData[9] << 8 | appData[10],
+                      transformCode: appData[11]
+                    };
+                  }
+                }
+                break;
+              case 65499:
+                var quantizationTablesLength = readUint16();
+                var quantizationTablesEnd = quantizationTablesLength + offset - 2;
+                while (offset < quantizationTablesEnd) {
+                  var quantizationTableSpec = data[offset++];
+                  requestMemoryAllocation(64 * 4);
+                  var tableData = new Int32Array(64);
+                  if (quantizationTableSpec >> 4 === 0) {
+                    for (j = 0; j < 64; j++) {
+                      var z = dctZigZag[j];
+                      tableData[z] = data[offset++];
+                    }
+                  } else if (quantizationTableSpec >> 4 === 1) {
+                    for (j = 0; j < 64; j++) {
+                      var z = dctZigZag[j];
+                      tableData[z] = readUint16();
+                    }
+                  } else
+                    throw new Error("DQT: invalid table spec");
+                  quantizationTables[quantizationTableSpec & 15] = tableData;
+                }
+                break;
+              case 65472:
+              case 65473:
+              case 65474:
+                readUint16();
+                frame = {};
+                frame.extended = fileMarker === 65473;
+                frame.progressive = fileMarker === 65474;
+                frame.precision = data[offset++];
+                frame.scanLines = readUint16();
+                frame.samplesPerLine = readUint16();
+                frame.components = {};
+                frame.componentsOrder = [];
+                var pixelsInFrame = frame.scanLines * frame.samplesPerLine;
+                if (pixelsInFrame > maxResolutionInPixels) {
+                  var exceededAmount = Math.ceil((pixelsInFrame - maxResolutionInPixels) / 1e6);
+                  throw new Error(`maxResolutionInMP limit exceeded by ${exceededAmount}MP`);
+                }
+                var componentsCount = data[offset++], componentId;
+                var maxH = 0, maxV = 0;
+                for (i = 0; i < componentsCount; i++) {
+                  componentId = data[offset];
+                  var h = data[offset + 1] >> 4;
+                  var v = data[offset + 1] & 15;
+                  var qId = data[offset + 2];
+                  if (h <= 0 || v <= 0) {
+                    throw new Error("Invalid sampling factor, expected values above 0");
+                  }
+                  frame.componentsOrder.push(componentId);
+                  frame.components[componentId] = {
+                    h,
+                    v,
+                    quantizationIdx: qId
+                  };
+                  offset += 3;
+                }
+                prepareComponents(frame);
+                frames.push(frame);
+                break;
+              case 65476:
+                var huffmanLength = readUint16();
+                for (i = 2; i < huffmanLength; ) {
+                  var huffmanTableSpec = data[offset++];
+                  var codeLengths = new Uint8Array(16);
+                  var codeLengthSum = 0;
+                  for (j = 0; j < 16; j++, offset++) {
+                    codeLengthSum += codeLengths[j] = data[offset];
+                  }
+                  requestMemoryAllocation(16 + codeLengthSum);
+                  var huffmanValues = new Uint8Array(codeLengthSum);
+                  for (j = 0; j < codeLengthSum; j++, offset++)
+                    huffmanValues[j] = data[offset];
+                  i += 17 + codeLengthSum;
+                  (huffmanTableSpec >> 4 === 0 ? huffmanTablesDC : huffmanTablesAC)[huffmanTableSpec & 15] = buildHuffmanTable(codeLengths, huffmanValues);
+                }
+                break;
+              case 65501:
+                readUint16();
+                resetInterval = readUint16();
+                break;
+              case 65500:
+                readUint16();
+                readUint16();
+                break;
+              case 65498:
+                var scanLength = readUint16();
+                var selectorsCount = data[offset++];
+                var components = [], component;
+                for (i = 0; i < selectorsCount; i++) {
+                  component = frame.components[data[offset++]];
+                  var tableSpec = data[offset++];
+                  component.huffmanTableDC = huffmanTablesDC[tableSpec >> 4];
+                  component.huffmanTableAC = huffmanTablesAC[tableSpec & 15];
+                  components.push(component);
+                }
+                var spectralStart = data[offset++];
+                var spectralEnd = data[offset++];
+                var successiveApproximation = data[offset++];
+                var processed = decodeScan(
+                  data,
+                  offset,
+                  frame,
+                  components,
+                  resetInterval,
+                  spectralStart,
+                  spectralEnd,
+                  successiveApproximation >> 4,
+                  successiveApproximation & 15,
+                  this.opts
+                );
+                offset += processed;
+                break;
+              case 65535:
+                if (data[offset] !== 255) {
+                  offset--;
+                }
+                break;
+              default:
+                if (data[offset - 3] == 255 && data[offset - 2] >= 192 && data[offset - 2] <= 254) {
+                  offset -= 3;
+                  break;
+                } else if (fileMarker === 224 || fileMarker == 225) {
+                  if (malformedDataOffset !== -1) {
+                    throw new Error(`first unknown JPEG marker at offset ${malformedDataOffset.toString(16)}, second unknown JPEG marker ${fileMarker.toString(16)} at offset ${(offset - 1).toString(16)}`);
+                  }
+                  malformedDataOffset = offset - 1;
+                  const nextOffset = readUint16();
+                  if (data[offset + nextOffset - 2] === 255) {
+                    offset += nextOffset - 2;
+                    break;
+                  }
+                }
+                throw new Error("unknown JPEG marker " + fileMarker.toString(16));
+            }
+            fileMarker = readUint16();
+          }
+          if (frames.length != 1)
+            throw new Error("only single frame JPEGs supported");
+          for (var i = 0; i < frames.length; i++) {
+            var cp = frames[i].components;
+            for (var j in cp) {
+              cp[j].quantizationTable = quantizationTables[cp[j].quantizationIdx];
+              delete cp[j].quantizationIdx;
+            }
+          }
+          this.width = frame.samplesPerLine;
+          this.height = frame.scanLines;
+          this.jfif = jfif;
+          this.adobe = adobe;
+          this.components = [];
+          for (var i = 0; i < frame.componentsOrder.length; i++) {
+            var component = frame.components[frame.componentsOrder[i]];
+            this.components.push({
+              lines: buildComponentData(frame, component),
+              scaleX: component.h / frame.maxH,
+              scaleY: component.v / frame.maxV
+            });
+          }
+        },
+        getData: function getData(width, height) {
+          var scaleX = this.width / width, scaleY = this.height / height;
+          var component1, component2, component3, component4;
+          var component1Line, component2Line, component3Line, component4Line;
+          var x, y;
+          var offset = 0;
+          var Y, Cb, Cr, K, C, M, Ye, R, G, B;
+          var colorTransform;
+          var dataLength = width * height * this.components.length;
+          requestMemoryAllocation(dataLength);
+          var data = new Uint8Array(dataLength);
+          switch (this.components.length) {
+            case 1:
+              component1 = this.components[0];
+              for (y = 0; y < height; y++) {
+                component1Line = component1.lines[0 | y * component1.scaleY * scaleY];
+                for (x = 0; x < width; x++) {
+                  Y = component1Line[0 | x * component1.scaleX * scaleX];
+                  data[offset++] = Y;
+                }
+              }
+              break;
+            case 2:
+              component1 = this.components[0];
+              component2 = this.components[1];
+              for (y = 0; y < height; y++) {
+                component1Line = component1.lines[0 | y * component1.scaleY * scaleY];
+                component2Line = component2.lines[0 | y * component2.scaleY * scaleY];
+                for (x = 0; x < width; x++) {
+                  Y = component1Line[0 | x * component1.scaleX * scaleX];
+                  data[offset++] = Y;
+                  Y = component2Line[0 | x * component2.scaleX * scaleX];
+                  data[offset++] = Y;
+                }
+              }
+              break;
+            case 3:
+              colorTransform = true;
+              if (this.adobe && this.adobe.transformCode)
+                colorTransform = true;
+              else if (typeof this.opts.colorTransform !== "undefined")
+                colorTransform = !!this.opts.colorTransform;
+              component1 = this.components[0];
+              component2 = this.components[1];
+              component3 = this.components[2];
+              for (y = 0; y < height; y++) {
+                component1Line = component1.lines[0 | y * component1.scaleY * scaleY];
+                component2Line = component2.lines[0 | y * component2.scaleY * scaleY];
+                component3Line = component3.lines[0 | y * component3.scaleY * scaleY];
+                for (x = 0; x < width; x++) {
+                  if (!colorTransform) {
+                    R = component1Line[0 | x * component1.scaleX * scaleX];
+                    G = component2Line[0 | x * component2.scaleX * scaleX];
+                    B = component3Line[0 | x * component3.scaleX * scaleX];
+                  } else {
+                    Y = component1Line[0 | x * component1.scaleX * scaleX];
+                    Cb = component2Line[0 | x * component2.scaleX * scaleX];
+                    Cr = component3Line[0 | x * component3.scaleX * scaleX];
+                    R = clampTo8bit(Y + 1.402 * (Cr - 128));
+                    G = clampTo8bit(Y - 0.3441363 * (Cb - 128) - 0.71413636 * (Cr - 128));
+                    B = clampTo8bit(Y + 1.772 * (Cb - 128));
+                  }
+                  data[offset++] = R;
+                  data[offset++] = G;
+                  data[offset++] = B;
+                }
+              }
+              break;
+            case 4:
+              if (!this.adobe)
+                throw new Error("Unsupported color mode (4 components)");
+              colorTransform = false;
+              if (this.adobe && this.adobe.transformCode)
+                colorTransform = true;
+              else if (typeof this.opts.colorTransform !== "undefined")
+                colorTransform = !!this.opts.colorTransform;
+              component1 = this.components[0];
+              component2 = this.components[1];
+              component3 = this.components[2];
+              component4 = this.components[3];
+              for (y = 0; y < height; y++) {
+                component1Line = component1.lines[0 | y * component1.scaleY * scaleY];
+                component2Line = component2.lines[0 | y * component2.scaleY * scaleY];
+                component3Line = component3.lines[0 | y * component3.scaleY * scaleY];
+                component4Line = component4.lines[0 | y * component4.scaleY * scaleY];
+                for (x = 0; x < width; x++) {
+                  if (!colorTransform) {
+                    C = component1Line[0 | x * component1.scaleX * scaleX];
+                    M = component2Line[0 | x * component2.scaleX * scaleX];
+                    Ye = component3Line[0 | x * component3.scaleX * scaleX];
+                    K = component4Line[0 | x * component4.scaleX * scaleX];
+                  } else {
+                    Y = component1Line[0 | x * component1.scaleX * scaleX];
+                    Cb = component2Line[0 | x * component2.scaleX * scaleX];
+                    Cr = component3Line[0 | x * component3.scaleX * scaleX];
+                    K = component4Line[0 | x * component4.scaleX * scaleX];
+                    C = 255 - clampTo8bit(Y + 1.402 * (Cr - 128));
+                    M = 255 - clampTo8bit(Y - 0.3441363 * (Cb - 128) - 0.71413636 * (Cr - 128));
+                    Ye = 255 - clampTo8bit(Y + 1.772 * (Cb - 128));
+                  }
+                  data[offset++] = 255 - C;
+                  data[offset++] = 255 - M;
+                  data[offset++] = 255 - Ye;
+                  data[offset++] = 255 - K;
+                }
+              }
+              break;
+            default:
+              throw new Error("Unsupported color mode");
+          }
+          return data;
+        },
+        copyToImageData: function copyToImageData(imageData, formatAsRGBA) {
+          var width = imageData.width, height = imageData.height;
+          var imageDataArray = imageData.data;
+          var data = this.getData(width, height);
+          var i = 0, j = 0, x, y;
+          var Y, K, C, M, R, G, B;
+          switch (this.components.length) {
+            case 1:
+              for (y = 0; y < height; y++) {
+                for (x = 0; x < width; x++) {
+                  Y = data[i++];
+                  imageDataArray[j++] = Y;
+                  imageDataArray[j++] = Y;
+                  imageDataArray[j++] = Y;
+                  if (formatAsRGBA) {
+                    imageDataArray[j++] = 255;
+                  }
+                }
+              }
+              break;
+            case 3:
+              for (y = 0; y < height; y++) {
+                for (x = 0; x < width; x++) {
+                  R = data[i++];
+                  G = data[i++];
+                  B = data[i++];
+                  imageDataArray[j++] = R;
+                  imageDataArray[j++] = G;
+                  imageDataArray[j++] = B;
+                  if (formatAsRGBA) {
+                    imageDataArray[j++] = 255;
+                  }
+                }
+              }
+              break;
+            case 4:
+              for (y = 0; y < height; y++) {
+                for (x = 0; x < width; x++) {
+                  C = data[i++];
+                  M = data[i++];
+                  Y = data[i++];
+                  K = data[i++];
+                  R = 255 - clampTo8bit(C * (1 - K / 255) + K);
+                  G = 255 - clampTo8bit(M * (1 - K / 255) + K);
+                  B = 255 - clampTo8bit(Y * (1 - K / 255) + K);
+                  imageDataArray[j++] = R;
+                  imageDataArray[j++] = G;
+                  imageDataArray[j++] = B;
+                  if (formatAsRGBA) {
+                    imageDataArray[j++] = 255;
+                  }
+                }
+              }
+              break;
+            default:
+              throw new Error("Unsupported color mode");
+          }
+        }
+      };
+      var totalBytesAllocated = 0;
+      var maxMemoryUsageBytes = 0;
+      function requestMemoryAllocation(increaseAmount = 0) {
+        var totalMemoryImpactBytes = totalBytesAllocated + increaseAmount;
+        if (totalMemoryImpactBytes > maxMemoryUsageBytes) {
+          var exceededAmount = Math.ceil((totalMemoryImpactBytes - maxMemoryUsageBytes) / 1024 / 1024);
+          throw new Error(`maxMemoryUsageInMB limit exceeded by at least ${exceededAmount}MB`);
+        }
+        totalBytesAllocated = totalMemoryImpactBytes;
+      }
+      constructor.resetMaxMemoryUsage = function(maxMemoryUsageBytes_) {
+        totalBytesAllocated = 0;
+        maxMemoryUsageBytes = maxMemoryUsageBytes_;
+      };
+      constructor.getBytesAllocated = function() {
+        return totalBytesAllocated;
+      };
+      constructor.requestMemoryAllocation = requestMemoryAllocation;
+      return constructor;
+    }();
+    if (typeof module2 !== "undefined") {
+      module2.exports = decode;
+    } else if (typeof window !== "undefined") {
+      window["jpeg-js"] = window["jpeg-js"] || {};
+      window["jpeg-js"].decode = decode;
+    }
+    function decode(jpegData, userOpts = {}) {
+      var defaultOpts = {
+        // "undefined" means "Choose whether to transform colors based on the image’s color model."
+        colorTransform: void 0,
+        useTArray: false,
+        formatAsRGBA: true,
+        tolerantDecoding: true,
+        maxResolutionInMP: 100,
+        // Don't decode more than 100 megapixels
+        maxMemoryUsageInMB: 512
+        // Don't decode if memory footprint is more than 512MB
+      };
+      var opts = { ...defaultOpts, ...userOpts };
+      var arr = new Uint8Array(jpegData);
+      var decoder = new JpegImage();
+      decoder.opts = opts;
+      JpegImage.resetMaxMemoryUsage(opts.maxMemoryUsageInMB * 1024 * 1024);
+      decoder.parse(arr);
+      var channels = opts.formatAsRGBA ? 4 : 3;
+      var bytesNeeded = decoder.width * decoder.height * channels;
+      try {
+        JpegImage.requestMemoryAllocation(bytesNeeded);
+        var image = {
+          width: decoder.width,
+          height: decoder.height,
+          exifBuffer: decoder.exifBuffer,
+          data: opts.useTArray ? new Uint8Array(bytesNeeded) : Buffer.alloc(bytesNeeded)
+        };
+        if (decoder.comments.length > 0) {
+          image["comments"] = decoder.comments;
+        }
+      } catch (err) {
+        if (err instanceof RangeError) {
+          throw new Error("Could not allocate enough memory for the image. Required: " + bytesNeeded);
+        }
+        if (err instanceof ReferenceError) {
+          if (err.message === "Buffer is not defined") {
+            throw new Error("Buffer is not globally defined in this environment. Consider setting useTArray to true");
+          }
+        }
+        throw err;
+      }
+      decoder.copyToImageData(image, opts.formatAsRGBA);
+      return image;
+    }
+  }
+});
+
+// ../../node_modules/jpeg-js/index.js
+var require_jpeg_js = __commonJS({
+  "../../node_modules/jpeg-js/index.js"(exports2, module2) {
+    var encode3 = require_encoder2();
+    var decode = require_decoder();
+    module2.exports = {
+      encode: encode3,
+      decode
     };
   }
 });
@@ -102643,11 +102643,11 @@ var require_mime_types = __commonJS({
       }
       return exts[0];
     }
-    function lookup(path11) {
-      if (!path11 || typeof path11 !== "string") {
+    function lookup(path12) {
+      if (!path12 || typeof path12 !== "string") {
         return false;
       }
-      var extension2 = extname("x." + path11).toLowerCase().substr(1);
+      var extension2 = extname("x." + path12).toLowerCase().substr(1);
       if (!extension2) {
         return false;
       }
@@ -103752,11 +103752,11 @@ var require_form_data = __commonJS({
     "use strict";
     var CombinedStream = require_combined_stream();
     var util4 = require("util");
-    var path11 = require("path");
+    var path12 = require("path");
     var http2 = require("http");
     var https2 = require("https");
     var parseUrl = require("url").parse;
-    var fs11 = require("fs");
+    var fs12 = require("fs");
     var Stream = require("stream").Stream;
     var crypto7 = require("crypto");
     var mime = require_mime_types();
@@ -103823,7 +103823,7 @@ var require_form_data = __commonJS({
         if (value.end != void 0 && value.end != Infinity && value.start != void 0) {
           callback(null, value.end + 1 - (value.start ? value.start : 0));
         } else {
-          fs11.stat(value.path, function(err, stat) {
+          fs12.stat(value.path, function(err, stat) {
             if (err) {
               callback(err);
               return;
@@ -103880,11 +103880,11 @@ var require_form_data = __commonJS({
     FormData3.prototype._getContentDisposition = function(value, options) {
       var filename;
       if (typeof options.filepath === "string") {
-        filename = path11.normalize(options.filepath).replace(/\\/g, "/");
+        filename = path12.normalize(options.filepath).replace(/\\/g, "/");
       } else if (options.filename || value && (value.name || value.path)) {
-        filename = path11.basename(options.filename || value && (value.name || value.path));
+        filename = path12.basename(options.filename || value && (value.name || value.path));
       } else if (value && value.readable && hasOwn(value, "httpVersion")) {
-        filename = path11.basename(value.client._httpMessage.path || "");
+        filename = path12.basename(value.client._httpMessage.path || "");
       }
       if (filename) {
         return 'filename="' + filename + '"';
@@ -104081,10 +104081,10 @@ function isVisitable(thing) {
 function removeBrackets(key) {
   return utils_default.endsWith(key, "[]") ? key.slice(0, -2) : key;
 }
-function renderKey(path11, key, dots) {
-  if (!path11)
+function renderKey(path12, key, dots) {
+  if (!path12)
     return key;
-  return path11.concat(key).map(function each(token, i) {
+  return path12.concat(key).map(function each(token, i) {
     token = removeBrackets(token);
     return !dots && i ? "[" + token + "]" : token;
   }).join(dots ? "." : "");
@@ -104130,9 +104130,9 @@ function toFormData(obj, formData, options) {
     }
     return value;
   }
-  function defaultVisitor(value, key, path11) {
+  function defaultVisitor(value, key, path12) {
     let arr = value;
-    if (value && !path11 && typeof value === "object") {
+    if (value && !path12 && typeof value === "object") {
       if (utils_default.endsWith(key, "{}")) {
         key = metaTokens ? key : key.slice(0, -2);
         value = JSON.stringify(value);
@@ -104151,7 +104151,7 @@ function toFormData(obj, formData, options) {
     if (isVisitable(value)) {
       return true;
     }
-    formData.append(renderKey(path11, key, dots), convertValue(value));
+    formData.append(renderKey(path12, key, dots), convertValue(value));
     return false;
   }
   const stack = [];
@@ -104160,11 +104160,11 @@ function toFormData(obj, formData, options) {
     convertValue,
     isVisitable
   });
-  function build(value, path11) {
+  function build(value, path12) {
     if (utils_default.isUndefined(value))
       return;
     if (stack.indexOf(value) !== -1) {
-      throw Error("Circular reference detected in " + path11.join("."));
+      throw Error("Circular reference detected in " + path12.join("."));
     }
     stack.push(value);
     utils_default.forEach(value, function each(el, key) {
@@ -104172,11 +104172,11 @@ function toFormData(obj, formData, options) {
         formData,
         el,
         utils_default.isString(key) ? key.trim() : key,
-        path11,
+        path12,
         exposedHelpers
       );
       if (result === true) {
-        build(el, path11 ? path11.concat(key) : [key]);
+        build(el, path12 ? path12.concat(key) : [key]);
       }
     });
     stack.pop();
@@ -104450,7 +104450,7 @@ var init_platform2 = __esm({
 // ../../node_modules/axios/lib/helpers/toURLEncodedForm.js
 function toURLEncodedForm(data, options) {
   return toFormData_default(data, new platform_default.classes.URLSearchParams(), {
-    visitor: function(value, key, path11, helpers) {
+    visitor: function(value, key, path12, helpers) {
       if (platform_default.isNode && utils_default.isBuffer(value)) {
         this.append(key, value.toString("base64"));
         return false;
@@ -104488,12 +104488,12 @@ function arrayToObject(arr) {
   return obj;
 }
 function formDataToJSON(formData) {
-  function buildPath(path11, value, target, index) {
-    let name = path11[index++];
+  function buildPath(path12, value, target, index) {
+    let name = path12[index++];
     if (name === "__proto__")
       return true;
     const isNumericKey = Number.isFinite(+name);
-    const isLast = index >= path11.length;
+    const isLast = index >= path12.length;
     name = !name && utils_default.isArray(target) ? target.length : name;
     if (isLast) {
       if (utils_default.hasOwnProp(target, name)) {
@@ -104506,7 +104506,7 @@ function formDataToJSON(formData) {
     if (!target[name] || !utils_default.isObject(target[name])) {
       target[name] = [];
     }
-    const result = buildPath(path11, value, target[name], index);
+    const result = buildPath(path12, value, target[name], index);
     if (result && utils_default.isArray(target[name])) {
       target[name] = arrayToObject(target[name]);
     }
@@ -106461,9 +106461,9 @@ var init_http = __esm({
           auth = urlUsername + ":" + urlPassword;
         }
         auth && headers.delete("authorization");
-        let path11;
+        let path12;
         try {
-          path11 = buildURL(
+          path12 = buildURL(
             parsed.pathname + parsed.search,
             config2.params,
             config2.paramsSerializer
@@ -106481,7 +106481,7 @@ var init_http = __esm({
           false
         );
         const options = {
-          path: path11,
+          path: path12,
           method,
           headers: headers.toJSON(),
           agents: { http: config2.httpAgent, https: config2.httpsAgent },
@@ -106726,10 +106726,10 @@ var init_cookies = __esm({
     cookies_default = platform_default.hasStandardBrowserEnv ? (
       // Standard browser envs support document.cookie
       {
-        write(name, value, expires, path11, domain, secure) {
+        write(name, value, expires, path12, domain, secure) {
           const cookie = [name + "=" + encodeURIComponent(value)];
           utils_default.isNumber(expires) && cookie.push("expires=" + new Date(expires).toGMTString());
-          utils_default.isString(path11) && cookie.push("path=" + path11);
+          utils_default.isString(path12) && cookie.push("path=" + path12);
           utils_default.isString(domain) && cookie.push("domain=" + domain);
           secure === true && cookie.push("secure");
           document.cookie = cookie.join("; ");
@@ -107512,7 +107512,7 @@ var init_dispatchRequest = __esm({
 });
 
 // ../../node_modules/axios/lib/helpers/validator.js
-function assertOptions(options, schema3, allowUnknown) {
+function assertOptions(options, schema4, allowUnknown) {
   if (typeof options !== "object") {
     throw new AxiosError_default("options must be an object", AxiosError_default.ERR_BAD_OPTION_VALUE);
   }
@@ -107520,7 +107520,7 @@ function assertOptions(options, schema3, allowUnknown) {
   let i = keys.length;
   while (i-- > 0) {
     const opt = keys[i];
-    const validator = schema3[opt];
+    const validator = schema4[opt];
     if (validator) {
       const value = options[opt];
       const result = value === void 0 || validator(value, opt, options);
@@ -108143,8 +108143,8 @@ var init_comfyui_models = __esm({
 // dist/utils/comfyui-paths.js
 function isValidComfyUIPath(dirPath) {
   try {
-    const mainPyPath = path8.join(dirPath, "main.py");
-    return fs9.existsSync(mainPyPath) && fs9.statSync(mainPyPath).isFile();
+    const mainPyPath = path9.join(dirPath, "main.py");
+    return fs10.existsSync(mainPyPath) && fs10.statSync(mainPyPath).isFile();
   } catch (error) {
     return false;
   }
@@ -108187,13 +108187,13 @@ function getDefaultPythonCommand(installPath) {
     return "python/python.exe";
   } else if (isMac()) {
     if (installPath) {
-      const venvPython = path8.join(installPath, "venv", "bin", "python");
-      if (fs9.existsSync(venvPython)) {
+      const venvPython = path9.join(installPath, "venv", "bin", "python");
+      if (fs10.existsSync(venvPython)) {
         return venvPython;
       }
     }
     const systemPython311 = "/Library/Frameworks/Python.framework/Versions/3.11/bin/python3";
-    if (fs9.existsSync(systemPython311)) {
+    if (fs10.existsSync(systemPython311)) {
       return systemPython311;
     }
     return "python3";
@@ -108201,12 +108201,12 @@ function getDefaultPythonCommand(installPath) {
     return "python3";
   }
 }
-var fs9, path8;
+var fs10, path9;
 var init_comfyui_paths = __esm({
   "dist/utils/comfyui-paths.js"() {
     "use strict";
-    fs9 = __toESM(require("fs"), 1);
-    path8 = __toESM(require("path"), 1);
+    fs10 = __toESM(require("fs"), 1);
+    path9 = __toESM(require("path"), 1);
     init_platform();
   }
 });
@@ -108216,13 +108216,13 @@ var comfyui_client_exports = {};
 __export(comfyui_client_exports, {
   ComfyUIClient: () => ComfyUIClient
 });
-var import_child_process2, fss, path9, SIZE_MAPPING, ComfyUIClient;
+var import_child_process2, fss, path10, SIZE_MAPPING, ComfyUIClient;
 var init_comfyui_client = __esm({
   "dist/comfyui-client.js"() {
     "use strict";
     import_child_process2 = require("child_process");
     fss = __toESM(require("fs"), 1);
-    path9 = __toESM(require("path"), 1);
+    path10 = __toESM(require("path"), 1);
     init_axios2();
     init_wrapper();
     init_comfyui_errors();
@@ -108349,7 +108349,7 @@ var init_comfyui_client = __esm({
         this.progressCallbacks.delete(promptId);
       }
       getDefaultInstallPath() {
-        return path9.join(getAppDataDir(), "foundry-mcp-server", "ComfyUI-headless");
+        return path10.join(getAppDataDir(), "foundry-mcp-server", "ComfyUI-headless");
       }
       async checkInstallation() {
         if (!this.config.installPath) {
@@ -108422,8 +108422,8 @@ var init_comfyui_client = __esm({
           pythonCommand: this.config.pythonCommand,
           port: this.config.port
         });
-        const mainPyPath = path9.join(this.config.installPath, "main.py");
-        const logPath = path9.join(getAppDataDir(), "comfyui.log");
+        const mainPyPath = path10.join(this.config.installPath, "main.py");
+        const logPath = path10.join(getAppDataDir(), "comfyui.log");
         this.logStream = fss.createWriteStream(logPath, { flags: "a" });
         const spawnOptions = getHiddenProcessSpawnOptions();
         this.process = (0, import_child_process2.spawn)(this.config.pythonCommand, [
@@ -108849,9 +108849,9 @@ var init_comfyui_client = __esm({
 });
 
 // dist/backend.js
-var fs10 = __toESM(require("fs"), 1);
-var os4 = __toESM(require("os"), 1);
-var path10 = __toESM(require("path"), 1);
+var fs11 = __toESM(require("fs"), 1);
+var os5 = __toESM(require("os"), 1);
+var path11 = __toESM(require("path"), 1);
 var net = __toESM(require("net"), 1);
 var import_child_process3 = require("child_process");
 
@@ -109928,11 +109928,11 @@ var SystemPaths = {
     legendaryActions: null
   }
 };
-function extractSystemValue(data, path11) {
-  if (!path11 || !data) {
+function extractSystemValue(data, path12) {
+  if (!path12 || !data) {
     return void 0;
   }
-  const parts = path11.split(".");
+  const parts = path12.split(".");
   let value = data;
   for (const part of parts) {
     if (value === void 0 || value === null) {
@@ -110239,10 +110239,10 @@ var CharacterTools = class {
     ];
   }
   async handleGetCharacter(args) {
-    const schema3 = external_exports.object({
+    const schema4 = external_exports.object({
       identifier: external_exports.string().min(1, "Character identifier cannot be empty")
     });
-    const { identifier } = schema3.parse(args);
+    const { identifier } = schema4.parse(args);
     this.logger.info("Getting character information", { identifier });
     try {
       const characterData = await this.foundryClient.query("foundry-mcp-bridge.getCharacterInfo", {
@@ -110259,11 +110259,11 @@ var CharacterTools = class {
     }
   }
   async handleGetCharacterEntity(args) {
-    const schema3 = external_exports.object({
+    const schema4 = external_exports.object({
       characterIdentifier: external_exports.string().min(1, "Character identifier cannot be empty"),
       entityIdentifier: external_exports.string().min(1, "Entity identifier cannot be empty")
     });
-    const { characterIdentifier, entityIdentifier } = schema3.parse(args);
+    const { characterIdentifier, entityIdentifier } = schema4.parse(args);
     this.logger.info("Getting character entity", { characterIdentifier, entityIdentifier });
     try {
       const result = await this.foundryClient.query("foundry-mcp-bridge.getCharacterEntity", {
@@ -110328,10 +110328,10 @@ var CharacterTools = class {
     }
   }
   async handleListCharacters(args) {
-    const schema3 = external_exports.object({
+    const schema4 = external_exports.object({
       type: external_exports.string().optional()
     });
-    const { type } = schema3.parse(args);
+    const { type } = schema4.parse(args);
     this.logger.info("Listing characters", { type });
     try {
       const actors = await this.foundryClient.query("foundry-mcp-bridge.listActors", { type });
@@ -110352,7 +110352,7 @@ var CharacterTools = class {
     }
   }
   async handleUseItem(args) {
-    const schema3 = external_exports.object({
+    const schema4 = external_exports.object({
       actorIdentifier: external_exports.string().min(1, "Actor identifier cannot be empty"),
       itemIdentifier: external_exports.string().min(1, "Item identifier cannot be empty"),
       targets: external_exports.array(external_exports.string()).optional(),
@@ -110360,7 +110360,7 @@ var CharacterTools = class {
       spellLevel: external_exports.number().optional(),
       skipDialog: external_exports.boolean().optional()
     });
-    const { actorIdentifier, itemIdentifier, targets, consume, spellLevel, skipDialog } = schema3.parse(args);
+    const { actorIdentifier, itemIdentifier, targets, consume, spellLevel, skipDialog } = schema4.parse(args);
     this.logger.info("Using item", {
       actorIdentifier,
       itemIdentifier,
@@ -110399,11 +110399,11 @@ var CharacterTools = class {
       img: external_exports.string().optional(),
       system: external_exports.record(external_exports.any()).optional()
     });
-    const schema3 = external_exports.object({
+    const schema4 = external_exports.object({
       actorIdentifier: external_exports.string().min(1, "Actor identifier cannot be empty"),
       items: external_exports.array(itemSchema2).min(1, "At least one item is required")
     });
-    const { actorIdentifier, items } = schema3.parse(args);
+    const { actorIdentifier, items } = schema4.parse(args);
     this.logger.info("Adding items to actor", {
       actorIdentifier,
       count: items.length,
@@ -110432,10 +110432,10 @@ var CharacterTools = class {
       system: external_exports.record(external_exports.any()).optional(),
       folder: external_exports.string().optional()
     });
-    const schema3 = external_exports.object({
+    const schema4 = external_exports.object({
       updates: external_exports.array(updateEntrySchema).min(1, "At least one update entry is required")
     });
-    const { updates } = schema3.parse(args);
+    const { updates } = schema4.parse(args);
     this.logger.info("Updating world items", {
       count: updates.length,
       ids: updates.map((u) => u.id)
@@ -110452,12 +110452,12 @@ var CharacterTools = class {
     }
   }
   async handleListWorldItems(args) {
-    const schema3 = external_exports.object({
+    const schema4 = external_exports.object({
       type: external_exports.string().optional(),
       folder: external_exports.string().optional(),
       nameFilter: external_exports.string().optional()
     });
-    const { type, folder, nameFilter } = schema3.parse(args);
+    const { type, folder, nameFilter } = schema4.parse(args);
     this.logger.info("Listing world items", {
       type: type ?? null,
       folder: folder ?? null,
@@ -110500,11 +110500,11 @@ var CharacterTools = class {
       effects: external_exports.array(external_exports.record(external_exports.any())).optional(),
       flags: external_exports.record(external_exports.any()).optional()
     });
-    const schema3 = external_exports.object({
+    const schema4 = external_exports.object({
       items: external_exports.array(itemSchema2).min(1, "At least one item is required"),
       folder: external_exports.string().optional()
     });
-    const { items, folder } = schema3.parse(args);
+    const { items, folder } = schema4.parse(args);
     this.logger.info("Creating world items", {
       count: items.length,
       folder: folder ?? null,
@@ -110555,7 +110555,7 @@ var CharacterTools = class {
     }
   }
   async handleRemoveActorItems(args) {
-    const schema3 = external_exports.object({
+    const schema4 = external_exports.object({
       actorIdentifier: external_exports.string().min(1, "Actor identifier cannot be empty"),
       itemIds: external_exports.array(external_exports.string().min(1)).optional(),
       itemNames: external_exports.array(external_exports.string().min(1)).optional(),
@@ -110563,7 +110563,7 @@ var CharacterTools = class {
     }).refine((v) => (v.itemIds?.length ?? 0) + (v.itemNames?.length ?? 0) > 0, {
       message: "Provide itemIds and/or itemNames identifying the items to remove"
     });
-    const { actorIdentifier, itemIds, itemNames, type } = schema3.parse(args);
+    const { actorIdentifier, itemIds, itemNames, type } = schema4.parse(args);
     this.logger.info("Removing items from actor", {
       actorIdentifier,
       ids: itemIds?.length ?? 0,
@@ -110595,14 +110595,14 @@ var CharacterTools = class {
     }
   }
   async handleSearchCharacterItems(args) {
-    const schema3 = external_exports.object({
+    const schema4 = external_exports.object({
       characterIdentifier: external_exports.string().min(1, "Character identifier cannot be empty"),
       query: external_exports.string().optional(),
       type: external_exports.string().optional(),
       category: external_exports.string().optional(),
       limit: external_exports.number().optional()
     });
-    const { characterIdentifier, query, type, category, limit } = schema3.parse(args);
+    const { characterIdentifier, query, type, category, limit } = schema4.parse(args);
     this.logger.info("Searching character items", {
       characterIdentifier,
       query,
@@ -111345,7 +111345,7 @@ var CompendiumTools = class {
   }
   async handleSearchCompendium(args) {
     const gameSystem = await this.getGameSystem();
-    const schema3 = external_exports.object({
+    const schema4 = external_exports.object({
       query: external_exports.string().min(2, "Search query must be at least 2 characters"),
       packType: external_exports.string().optional(),
       filters: GenericFiltersSchema.optional(),
@@ -111353,14 +111353,14 @@ var CompendiumTools = class {
     });
     let parsedArgs;
     try {
-      parsedArgs = schema3.parse(args);
+      parsedArgs = schema4.parse(args);
     } catch (zodError) {
       if (typeof args === "string") {
-        parsedArgs = schema3.parse({ query: args });
+        parsedArgs = schema4.parse({ query: args });
       } else if (args && typeof args.query === "undefined" && typeof args === "object") {
         const firstKey = Object.keys(args)[0];
         if (firstKey && typeof args[firstKey] === "string") {
-          parsedArgs = schema3.parse({ query: args[firstKey] });
+          parsedArgs = schema4.parse({ query: args[firstKey] });
         } else {
           throw zodError;
         }
@@ -111407,12 +111407,12 @@ var CompendiumTools = class {
     }
   }
   async handleGetCompendiumItem(args) {
-    const schema3 = external_exports.object({
+    const schema4 = external_exports.object({
       packId: external_exports.string().min(1, "Pack ID cannot be empty"),
       itemId: external_exports.string().min(1, "Item ID cannot be empty"),
       compact: external_exports.boolean().default(false)
     });
-    const { packId, itemId, compact } = schema3.parse(args);
+    const { packId, itemId, compact } = schema4.parse(args);
     try {
       const item = await this.foundryClient.query("foundry-mcp-bridge.getCompendiumDocumentFull", {
         packId,
@@ -111462,7 +111462,7 @@ var CompendiumTools = class {
   }
   async handleListCreaturesByCriteria(args) {
     const gameSystem = await this.getGameSystem();
-    const schema3 = external_exports.object({
+    const schema4 = external_exports.object({
       // D&D 5e: challengeRating
       challengeRating: external_exports.union([
         external_exports.object({
@@ -111592,7 +111592,7 @@ var CompendiumTools = class {
     });
     let params;
     try {
-      params = schema3.parse(args);
+      params = schema4.parse(args);
       this.logger.debug("Parsed creature criteria parameters successfully", params);
     } catch (parseError) {
       this.logger.error("Failed to parse creature criteria parameters", { args, parseError });
@@ -111642,10 +111642,10 @@ var CompendiumTools = class {
     }
   }
   async handleListCompendiumPacks(args) {
-    const schema3 = external_exports.object({
+    const schema4 = external_exports.object({
       type: external_exports.string().optional()
     });
-    const { type } = schema3.parse(args);
+    const { type } = schema4.parse(args);
     this.logger.info("Listing compendium packs", { type });
     try {
       const packs = await this.foundryClient.query("foundry-mcp-bridge.getAvailablePacks");
@@ -112349,11 +112349,11 @@ var SceneTools = class {
     ];
   }
   async handleGetCurrentScene(args) {
-    const schema3 = external_exports.object({
+    const schema4 = external_exports.object({
       includeTokens: external_exports.boolean().default(true),
       includeHidden: external_exports.boolean().default(false)
     });
-    const { includeTokens, includeHidden } = schema3.parse(args);
+    const { includeTokens, includeHidden } = schema4.parse(args);
     this.logger.info("Getting current scene information", { includeTokens, includeHidden });
     try {
       const sceneData = await this.foundryClient.query("foundry-mcp-bridge.getActiveScene");
@@ -112383,12 +112383,12 @@ var SceneTools = class {
     }
   }
   async handleUpdateSceneMusic(args) {
-    const schema3 = external_exports.object({
+    const schema4 = external_exports.object({
       scene_identifier: external_exports.string().min(1),
       playlist: external_exports.string().nullable().optional(),
       playlist_sound: external_exports.string().nullable().optional()
     });
-    const parsed = schema3.parse(args);
+    const parsed = schema4.parse(args);
     this.logger.info("Updating scene music", { scene_identifier: parsed.scene_identifier });
     try {
       const result = await this.foundryClient.query("foundry-mcp-bridge.update-scene-music", parsed);
@@ -112400,7 +112400,7 @@ var SceneTools = class {
     }
   }
   async handleManageScenes(args) {
-    const schema3 = external_exports.object({
+    const schema4 = external_exports.object({
       action: external_exports.enum(["create", "update", "describe"]),
       scene_identifier: external_exports.string().min(1).optional(),
       name: external_exports.string().min(1).optional(),
@@ -112431,7 +112431,7 @@ var SceneTools = class {
       }).strict().optional(),
       activate: external_exports.boolean().optional()
     }).strict();
-    const parsed = schema3.parse(args);
+    const parsed = schema4.parse(args);
     if (parsed.action === "create" && !parsed.name) {
       throw new Error("name is required for create");
     }
@@ -112675,7 +112675,7 @@ var PlaylistTools = class {
     ];
   }
   async handleManagePlaylists(args) {
-    const schema3 = external_exports.object({
+    const schema4 = external_exports.object({
       action: external_exports.enum(["create", "update", "delete", "describe"]),
       playlist: external_exports.string().nullable().optional(),
       name: external_exports.string().optional(),
@@ -112688,7 +112688,7 @@ var PlaylistTools = class {
       sounds: external_exports.array(soundEntrySchema).optional(),
       updates: external_exports.record(external_exports.any()).optional()
     });
-    const parsed = schema3.parse(args);
+    const parsed = schema4.parse(args);
     this.logger.info("Managing playlists", { action: parsed.action, playlist: parsed.playlist });
     try {
       const result = await this.foundryClient.query("foundry-mcp-bridge.manage-playlists", parsed);
@@ -112699,12 +112699,12 @@ var PlaylistTools = class {
     }
   }
   async handleControlPlaylist(args) {
-    const schema3 = external_exports.object({
+    const schema4 = external_exports.object({
       playlist: external_exports.string().min(1),
       command: external_exports.enum(["play", "stop", "cycle-mode", "play-sound", "stop-sound"]),
       sound: external_exports.string().optional()
     });
-    const parsed = schema3.parse(args);
+    const parsed = schema4.parse(args);
     if ((parsed.command === "play-sound" || parsed.command === "stop-sound") && !parsed.sound) {
       throw new Error(`command ${parsed.command} requires "sound"`);
     }
@@ -113061,7 +113061,7 @@ var ActorCreationTools = class {
    * Handle actor creation from specific compendium entry
    */
   async handleCreateActorFromCompendium(args) {
-    const schema3 = external_exports.object({
+    const schema4 = external_exports.object({
       packId: external_exports.string().min(1, "Pack ID cannot be empty"),
       itemId: external_exports.string().min(1, "Item ID cannot be empty"),
       names: external_exports.array(external_exports.string().min(1)).min(1, "At least one name is required"),
@@ -113080,7 +113080,7 @@ var ActorCreationTools = class {
         })).optional()
       }).optional()
     });
-    const { packId, itemId, names, quantity, addToScene, placement, folder, hp, token, img, tokenImg } = schema3.parse(args);
+    const { packId, itemId, names, quantity, addToScene, placement, folder, hp, token, img, tokenImg } = schema4.parse(args);
     const finalQuantity = quantity || names.length;
     this.logger.info("Creating actors from specific compendium entry", {
       packId,
@@ -113126,11 +113126,11 @@ var ActorCreationTools = class {
    * Handle getting full compendium entry data
    */
   async handleGetCompendiumEntryFull(args) {
-    const schema3 = external_exports.object({
+    const schema4 = external_exports.object({
       packId: external_exports.string().min(1, "Pack ID cannot be empty"),
       entryId: external_exports.string().min(1, "Entry ID cannot be empty")
     });
-    const { packId, entryId } = schema3.parse(args);
+    const { packId, entryId } = schema4.parse(args);
     this.logger.info("Getting full compendium entry", { packId, entryId });
     try {
       const fullEntry = await this.foundryClient.query("foundry-mcp-bridge.getCompendiumDocumentFull", {
@@ -113420,12 +113420,12 @@ var ActorManagementTools = class {
   }
   // ── place ─────────────────────────────────────────────────────────────────
   async handlePlace(args) {
-    const schema3 = external_exports.object({
+    const schema4 = external_exports.object({
       actorIds: external_exports.array(external_exports.string().min(1)).min(1),
       placement: external_exports.enum(["random", "grid", "center"]).default("random"),
       hidden: external_exports.boolean().default(false)
     });
-    const { actorIds, placement, hidden } = schema3.parse(args);
+    const { actorIds, placement, hidden } = schema4.parse(args);
     this.logger.info("Placing existing actors on scene", {
       count: actorIds.length,
       placement,
@@ -113446,7 +113446,7 @@ var ActorManagementTools = class {
   }
   // ── create ────────────────────────────────────────────────────────────────
   async handleCreate(args) {
-    const schema3 = external_exports.object({
+    const schema4 = external_exports.object({
       actors: external_exports.array(external_exports.object({
         name: external_exports.string().min(1),
         type: external_exports.string().min(1),
@@ -113458,7 +113458,7 @@ var ActorManagementTools = class {
       })).min(1),
       folder: external_exports.string().optional()
     });
-    const { actors, folder } = schema3.parse(args);
+    const { actors, folder } = schema4.parse(args);
     this.logger.info("Creating actors", {
       count: actors.length,
       types: actors.map((a) => a.type)
@@ -113473,7 +113473,7 @@ var ActorManagementTools = class {
   }
   // ── update ────────────────────────────────────────────────────────────────
   async handleUpdate(args) {
-    const schema3 = external_exports.object({
+    const schema4 = external_exports.object({
       updates: external_exports.array(external_exports.object({
         id: external_exports.string().min(1),
         name: external_exports.string().optional(),
@@ -113485,7 +113485,7 @@ var ActorManagementTools = class {
         folder: external_exports.string().min(1).optional()
       })).min(1)
     });
-    const { updates } = schema3.parse(args);
+    const { updates } = schema4.parse(args);
     this.logger.info("Updating actors", { count: updates.length });
     const adapter2 = await this.getAdapter();
     const normalizedUpdates = adapter2?.normalizePayload ? updates.map((u) => u.system !== void 0 ? { ...u, system: adapter2.normalizePayload(u.system) } : u) : updates;
@@ -113496,17 +113496,17 @@ var ActorManagementTools = class {
   }
   // ── delete ────────────────────────────────────────────────────────────────
   async handleDelete(args) {
-    const schema3 = external_exports.object({
+    const schema4 = external_exports.object({
       ids: external_exports.array(external_exports.string().min(1)).min(1)
     });
-    const { ids } = schema3.parse(args);
+    const { ids } = schema4.parse(args);
     this.logger.info("Deleting actors", { count: ids.length });
     const result = await this.foundryClient.query("foundry-mcp-bridge.deleteActors", { ids });
     return result;
   }
   // ── update-items ────────────────────────────────────────────────────────────
   async handleUpdateItems(args) {
-    const schema3 = external_exports.object({
+    const schema4 = external_exports.object({
       actorIdentifier: external_exports.string().min(1),
       itemUpdates: external_exports.array(external_exports.object({
         id: external_exports.string().min(1),
@@ -113524,7 +113524,7 @@ var ActorManagementTools = class {
         }
       })).min(1)
     });
-    const { actorIdentifier, itemUpdates } = schema3.parse(args);
+    const { actorIdentifier, itemUpdates } = schema4.parse(args);
     this.logger.info("Updating actor embedded items", {
       actorIdentifier,
       count: itemUpdates.length
@@ -113537,11 +113537,11 @@ var ActorManagementTools = class {
   }
   // ── delete-items ────────────────────────────────────────────────────────────
   async handleDeleteItems(args) {
-    const schema3 = external_exports.object({
+    const schema4 = external_exports.object({
       actorIdentifier: external_exports.string().min(1),
       itemIds: external_exports.array(external_exports.string().min(1)).min(1)
     });
-    const { actorIdentifier, itemIds } = schema3.parse(args);
+    const { actorIdentifier, itemIds } = schema4.parse(args);
     this.logger.info("Deleting actor embedded items", {
       actorIdentifier,
       count: itemIds.length
@@ -114894,7 +114894,7 @@ var DiceRollTools = class {
     ];
   }
   async handleRequestPlayerRolls(args) {
-    const schema3 = external_exports.object({
+    const schema4 = external_exports.object({
       rollType: external_exports.enum(["ability", "skill", "save", "attack", "initiative", "custom"]),
       rollTarget: external_exports.string(),
       targetPlayer: external_exports.string(),
@@ -114904,7 +114904,7 @@ var DiceRollTools = class {
       flavor: external_exports.string().default("")
     });
     try {
-      const params = schema3.parse(args);
+      const params = schema4.parse(args);
       if (typeof params.isPublic !== "boolean") {
         return 'Please specify whether you want this to be a PUBLIC roll (visible to all players) or PRIVATE roll (visible only to the target player and GM). You must provide either "true" for public or "false" for private.';
       }
@@ -116701,13 +116701,13 @@ var TokenManipulationTools = class {
     ];
   }
   async handleMoveToken(args) {
-    const schema3 = external_exports.object({
+    const schema4 = external_exports.object({
       tokenId: external_exports.string(),
       x: external_exports.number(),
       y: external_exports.number(),
       animate: external_exports.boolean().optional().default(false)
     });
-    const { tokenId, x, y, animate } = schema3.parse(args);
+    const { tokenId, x, y, animate } = schema4.parse(args);
     this.logger.info("Moving token", { tokenId, x, y, animate });
     try {
       const result = await this.foundryClient.query("foundry-mcp-bridge.move-token", {
@@ -116729,7 +116729,7 @@ var TokenManipulationTools = class {
     }
   }
   async handleUpdateToken(args) {
-    const schema3 = external_exports.object({
+    const schema4 = external_exports.object({
       tokenId: external_exports.string(),
       updates: external_exports.object({
         x: external_exports.number().optional(),
@@ -116744,7 +116744,7 @@ var TokenManipulationTools = class {
         lockRotation: external_exports.boolean().optional()
       })
     });
-    const { tokenId, updates } = schema3.parse(args);
+    const { tokenId, updates } = schema4.parse(args);
     this.logger.info("Updating token", { tokenId, updates });
     try {
       const result = await this.foundryClient.query("foundry-mcp-bridge.update-token", {
@@ -116764,10 +116764,10 @@ var TokenManipulationTools = class {
     }
   }
   async handleDeleteTokens(args) {
-    const schema3 = external_exports.object({
+    const schema4 = external_exports.object({
       tokenIds: external_exports.array(external_exports.string()).min(1)
     });
-    const { tokenIds } = schema3.parse(args);
+    const { tokenIds } = schema4.parse(args);
     this.logger.info("Deleting tokens", { count: tokenIds.length, tokenIds });
     try {
       const result = await this.foundryClient.query("foundry-mcp-bridge.delete-tokens", {
@@ -116789,10 +116789,10 @@ var TokenManipulationTools = class {
     }
   }
   async handleGetTokenDetails(args) {
-    const schema3 = external_exports.object({
+    const schema4 = external_exports.object({
       tokenId: external_exports.string()
     });
-    const { tokenId } = schema3.parse(args);
+    const { tokenId } = schema4.parse(args);
     this.logger.info("Getting token details", { tokenId });
     try {
       const tokenData = await this.foundryClient.query("foundry-mcp-bridge.get-token-details", {
@@ -116854,12 +116854,12 @@ var TokenManipulationTools = class {
     }
   }
   async handleToggleTokenCondition(args) {
-    const schema3 = external_exports.object({
+    const schema4 = external_exports.object({
       tokenId: external_exports.string(),
       conditionId: external_exports.string(),
       active: external_exports.boolean().optional()
     });
-    const { tokenId, conditionId, active } = schema3.parse(args);
+    const { tokenId, conditionId, active } = schema4.parse(args);
     this.logger.info("Toggling token condition", { tokenId, conditionId, active });
     try {
       const result = await this.foundryClient.query("foundry-mcp-bridge.toggle-token-condition", {
@@ -117016,7 +117016,7 @@ var DSA5CharacterCreator = class {
    * Handle DSA5 character creation from archetype
    */
   async handleCreateCharacterFromArchetype(args) {
-    const schema3 = external_exports.object({
+    const schema4 = external_exports.object({
       archetypePackId: external_exports.string().min(1, "Archetype pack ID cannot be empty"),
       archetypeId: external_exports.string().min(1, "Archetype ID cannot be empty"),
       characterName: external_exports.string().min(1, "Character name cannot be empty"),
@@ -117034,7 +117034,7 @@ var DSA5CharacterCreator = class {
       }).optional(),
       addToWorld: external_exports.boolean().default(true)
     });
-    const { archetypePackId, archetypeId, characterName, customization, addToWorld } = schema3.parse(args);
+    const { archetypePackId, archetypeId, characterName, customization, addToWorld } = schema4.parse(args);
     this.logger.info("Creating DSA5 character from archetype", {
       archetypePackId,
       archetypeId,
@@ -117074,12 +117074,12 @@ var DSA5CharacterCreator = class {
    * Handle listing DSA5 archetypes
    */
   async handleListArchetypes(args) {
-    const schema3 = external_exports.object({
+    const schema4 = external_exports.object({
       packId: external_exports.string().optional(),
       filterBySpecies: external_exports.string().optional(),
       filterByProfession: external_exports.string().optional()
     });
-    const { packId, filterBySpecies, filterByProfession } = schema3.parse(args);
+    const { packId, filterBySpecies, filterByProfession } = schema4.parse(args);
     this.logger.info("Listing DSA5 archetypes", { packId, filterBySpecies, filterByProfession });
     try {
       const packs = await this.foundryClient.query("foundry-mcp-bridge.getAvailablePacks");
@@ -117279,8 +117279,8 @@ var getByKeys = (source, keys) => {
   }
   return void 0;
 };
-var getNested = (source, path11) => {
-  const parts = path11.split(".");
+var getNested = (source, path12) => {
+  const parts = path12.split(".");
   let current = source;
   for (const part of parts) {
     if (!isRecord(current) || !(part in current))
@@ -118130,7 +118130,7 @@ var DSA5JsonActorImporter = class {
     ];
   }
   async handleImportActorFromJson(args) {
-    const schema3 = external_exports.object({
+    const schema4 = external_exports.object({
       jsonPayload: external_exports.union([external_exports.string(), external_exports.record(external_exports.unknown())]).optional(),
       filePath: external_exports.string().optional(),
       strategy: external_exports.enum(["auto", "custom_dsa5", "optolith_like", "raw_foundry", "darkaid"]).default("auto"),
@@ -118142,7 +118142,7 @@ var DSA5JsonActorImporter = class {
     }).refine((value) => Boolean(value.jsonPayload) || Boolean(value.filePath), {
       message: "Either jsonPayload or filePath is required."
     });
-    const { jsonPayload, filePath, strategy, resolveItems, addToScene, updateExisting, existingActorIdentifier, strict } = schema3.parse(args);
+    const { jsonPayload, filePath, strategy, resolveItems, addToScene, updateExisting, existingActorIdentifier, strict } = schema4.parse(args);
     try {
       await this.assertDsa5World();
       const payload = await extractPayload(jsonPayload, filePath);
@@ -118695,7 +118695,7 @@ var DnD5eAddFeatureTool = class {
   // passive
   // ---------------------------------------------------------------------------
   async handlePassive(args) {
-    const schema3 = external_exports.object({
+    const schema4 = external_exports.object({
       featureType: external_exports.literal("passive"),
       actorIdentifier: external_exports.string().min(1, "actorIdentifier cannot be empty"),
       featureName: external_exports.string().min(1, "featureName cannot be empty"),
@@ -118705,7 +118705,7 @@ var DnD5eAddFeatureTool = class {
       sourceBook: external_exports.string().default(""),
       sourcePage: external_exports.string().default("")
     });
-    const parsed = schema3.parse(args);
+    const parsed = schema4.parse(args);
     this.logger.info("Adding passive feature to D&D 5e actor", {
       actorIdentifier: parsed.actorIdentifier,
       featureName: parsed.featureName
@@ -118747,7 +118747,7 @@ ${details}`
   // save
   // ---------------------------------------------------------------------------
   async handleSave(args) {
-    const schema3 = external_exports.object({
+    const schema4 = external_exports.object({
       featureType: external_exports.literal("save"),
       actorIdentifier: external_exports.string().min(1, "actorIdentifier cannot be empty"),
       featureName: external_exports.string().min(1, "featureName cannot be empty"),
@@ -118771,7 +118771,7 @@ ${details}`
         });
       }
     });
-    const parsed = schema3.parse(args);
+    const parsed = schema4.parse(args);
     this.logger.info("Adding save feature to D&D 5e actor", {
       actorIdentifier: parsed.actorIdentifier,
       featureName: parsed.featureName,
@@ -118821,7 +118821,7 @@ ${details}`
   // attack
   // ---------------------------------------------------------------------------
   async handleAttack(args) {
-    const schema3 = external_exports.object({
+    const schema4 = external_exports.object({
       featureType: external_exports.literal("attack"),
       actorIdentifier: external_exports.string().min(1, "actorIdentifier cannot be empty"),
       featureName: external_exports.string().min(1, "featureName cannot be empty"),
@@ -118858,7 +118858,7 @@ ${details}`
         });
       }
     });
-    const parsed = schema3.parse(args);
+    const parsed = schema4.parse(args);
     const effectiveAbility = parsed.abilityModifier ?? (parsed.attackType === "melee" ? "str" : "dex");
     const warnings = [];
     for (const part of parsed.damageParts) {
@@ -118932,7 +118932,7 @@ ${details}${warningSection}`
   // attack-with-save
   // ---------------------------------------------------------------------------
   async handleAttackWithSave(args) {
-    const schema3 = external_exports.object({
+    const schema4 = external_exports.object({
       featureType: external_exports.literal("attack-with-save"),
       actorIdentifier: external_exports.string().min(1, "actorIdentifier cannot be empty"),
       featureName: external_exports.string().min(1, "featureName cannot be empty"),
@@ -118973,7 +118973,7 @@ ${details}${warningSection}`
         });
       }
     });
-    const parsed = schema3.parse(args);
+    const parsed = schema4.parse(args);
     const effectiveAbility = parsed.abilityModifier ?? (parsed.attackType === "melee" ? "str" : "dex");
     const warnings = [];
     for (const part of [...parsed.damageParts, ...parsed.saveDamageParts]) {
@@ -119042,7 +119042,7 @@ ${details}${warningSection}`
   // aura
   // ---------------------------------------------------------------------------
   async handleAura(args) {
-    const schema3 = external_exports.object({
+    const schema4 = external_exports.object({
       featureType: external_exports.literal("aura"),
       actorIdentifier: external_exports.string().min(1, "actorIdentifier cannot be empty"),
       featureName: external_exports.string().min(1, "featureName cannot be empty"),
@@ -119058,7 +119058,7 @@ ${details}${warningSection}`
       sourceBook: external_exports.string().default(""),
       sourcePage: external_exports.string().default("")
     });
-    const parsed = schema3.parse(args);
+    const parsed = schema4.parse(args);
     const warnings = [];
     for (const part of parsed.damageParts) {
       if (!DAMAGE_CANONICAL.has(part.type)) {
@@ -119119,7 +119119,7 @@ ${details}${warningSection}`
   // spellcasting
   // ---------------------------------------------------------------------------
   async handleSpellcasting(args) {
-    const schema3 = external_exports.object({
+    const schema4 = external_exports.object({
       featureType: external_exports.literal("spellcasting"),
       actorIdentifier: external_exports.string().min(1, "actorIdentifier cannot be empty"),
       spellcastingClass: external_exports.enum([
@@ -119137,7 +119137,7 @@ ${details}${warningSection}`
       spellcastingAbility: external_exports.enum(["str", "dex", "con", "int", "wis", "cha"]).optional(),
       sourceRules: external_exports.enum(["2014", "2024"]).default("2014")
     });
-    const parsed = schema3.parse(args);
+    const parsed = schema4.parse(args);
     const effectiveAbility = parsed.spellcastingAbility ?? CLASS_DEFAULT_ABILITY[parsed.spellcastingClass];
     this.logger.info("Setting actor spellcasting", {
       actorIdentifier: parsed.actorIdentifier,
@@ -119189,13 +119189,13 @@ ${details}${warningSection}`
   // spells
   // ---------------------------------------------------------------------------
   async handleSpells(args) {
-    const schema3 = external_exports.object({
+    const schema4 = external_exports.object({
       featureType: external_exports.literal("spells"),
       actorIdentifier: external_exports.string().min(1, "actorIdentifier cannot be empty"),
       spellNames: external_exports.array(external_exports.string().min(1)).min(1).max(50),
       compendiumPacks: external_exports.array(external_exports.string().min(1)).default(["dnd5e.spells"])
     });
-    const parsed = schema3.parse(args);
+    const parsed = schema4.parse(args);
     this.logger.info("Adding spells to D&D 5e actor", {
       actorIdentifier: parsed.actorIdentifier,
       spellCount: parsed.spellNames.length,
@@ -119628,7 +119628,7 @@ var DnD5eNpcTools = class {
     ];
   }
   async handleCreateNpc(args) {
-    const schema3 = external_exports.object({
+    const schema4 = external_exports.object({
       // Identity
       name: external_exports.string().min(1, "name cannot be empty"),
       creatureType: external_exports.enum([
@@ -119730,7 +119730,7 @@ var DnD5eNpcTools = class {
         });
       }
     });
-    const parsed = schema3.parse(args);
+    const parsed = schema4.parse(args);
     const warnings = [];
     const allDamageValues = [
       ...parsed.damageImmunities.map((v) => ({ field: "damageImmunities", value: v })),
@@ -119845,12 +119845,12 @@ var DnD5eFeaturesFromCompendiumTools = class {
     ];
   }
   async handleAddFeaturesFromCompendium(args) {
-    const schema3 = external_exports.object({
+    const schema4 = external_exports.object({
       actorIdentifier: external_exports.string().min(1, "actorIdentifier cannot be empty"),
       featureNames: external_exports.array(external_exports.string().min(1)).min(1).max(50),
       compendiumPacks: external_exports.array(external_exports.string().min(1)).default(["dnd5e.monsterfeatures", "dnd5e.classfeatures"])
     });
-    const parsed = schema3.parse(args);
+    const parsed = schema4.parse(args);
     this.logger.info("Adding features to D&D 5e actor from compendium", {
       actorIdentifier: parsed.actorIdentifier,
       featureCount: parsed.featureNames.length,
@@ -119992,7 +119992,7 @@ var ChatTools = class {
     ];
   }
   async handleCreateChatMessage(args) {
-    const schema3 = external_exports.object({
+    const schema4 = external_exports.object({
       actorIdentifier: external_exports.string().optional(),
       tokenId: external_exports.string().optional(),
       content: external_exports.string().min(1),
@@ -120002,7 +120002,7 @@ var ChatTools = class {
     }).refine((v) => v.actorIdentifier || v.tokenId, {
       message: "Either actorIdentifier or tokenId is required"
     });
-    const parsed = schema3.parse(args);
+    const parsed = schema4.parse(args);
     this.logger.info("Creating chat message", {
       speaker: parsed.tokenId ?? parsed.actorIdentifier,
       whispered: !!parsed.whisperTo?.length
@@ -120078,13 +120078,13 @@ var UploadTools = class {
     ];
   }
   async handleUploadFile(args) {
-    const schema3 = external_exports.object({
+    const schema4 = external_exports.object({
       file_path: external_exports.string().min(1),
       folder: external_exports.string().optional(),
       filename: external_exports.string().min(1).optional(),
       overwrite: external_exports.boolean().optional()
     }).strict();
-    const parsed = schema3.parse(args);
+    const parsed = schema4.parse(args);
     if (!import_path.default.isAbsolute(parsed.file_path)) {
       throw new Error("file_path must be an absolute path");
     }
@@ -121012,6 +121012,16 @@ var regionSchema = external_exports.object({
   display_measurements: external_exports.boolean().optional(),
   behaviors: external_exports.array(behaviorSchema).max(10).optional()
 }).strict();
+var linkEndSchema = external_exports.object({
+  scene: external_exports.string().min(1).optional(),
+  name: external_exports.string().min(1).max(100).optional(),
+  rect: external_exports.array(external_exports.number()).length(4).optional(),
+  ellipse: external_exports.array(external_exports.number()).length(4).optional(),
+  polygon: external_exports.array(external_exports.array(external_exports.number()).length(2)).min(3).max(200).optional(),
+  color: external_exports.string().regex(/^#[0-9a-fA-F]{6}$/).optional()
+}).strict().refine((end) => [end.rect, end.ellipse, end.polygon].filter((v) => v !== void 0).length === 1, {
+  message: "give exactly one of rect, ellipse or polygon"
+});
 var worldTypes = ["Actor", "Scene", "JournalEntry", "Item", "RollTable", "Playlist", "Macro", "Folder"];
 var manageWorldSchema = external_exports.object({
   action: external_exports.enum(["list_folders", "create_folder", "rename", "move", "delete"]),
@@ -121027,11 +121037,20 @@ var manageWorldSchema = external_exports.object({
   confirm: external_exports.boolean().optional()
 }).strict();
 var manageRegionsSchema = external_exports.object({
-  action: external_exports.enum(["create", "describe", "remove", "behavior_types"]),
+  action: external_exports.enum(["create", "describe", "remove", "behavior_types", "link"]),
   scene: external_exports.string().min(1).optional(),
   regions: external_exports.array(regionSchema).min(1).max(100).optional(),
   ids: external_exports.array(external_exports.string().min(1)).max(500).optional(),
-  all_mine: external_exports.boolean().optional()
+  all_mine: external_exports.boolean().optional(),
+  from: linkEndSchema.optional(),
+  to: linkEndSchema.optional(),
+  two_way: external_exports.boolean().optional(),
+  name: external_exports.string().min(1).max(100).optional(),
+  placement: external_exports.enum(["center", "random", "relative"]).optional(),
+  choice: external_exports.boolean().optional(),
+  snap: external_exports.boolean().optional(),
+  transition: external_exports.string().min(1).max(41).optional(),
+  duration: external_exports.number().min(0).max(1e4).optional()
 }).strict();
 var previewSchema = external_exports.object({
   scene: external_exports.string().min(1).optional(),
@@ -121048,6 +121067,21 @@ var previewSchema = external_exports.object({
     height: external_exports.number().min(2)
   }).strict().optional()
 }).strict();
+function linkEndProperties(description) {
+  return {
+    type: "object",
+    description,
+    properties: {
+      scene: { type: "string", description: "Scene id or exact name (default: the scene being viewed)" },
+      name: { type: "string" },
+      rect: { type: "array", items: { type: "number" }, description: "[x, y, width, height] in grid squares" },
+      ellipse: { type: "array", items: { type: "number" }, description: "[centreX, centreY, radiusX, radiusY] in grid squares" },
+      polygon: { type: "array", items: { type: "array", items: { type: "number" } }, description: "[[x, y], ...] corners in grid squares" },
+      color: { type: "string", description: "#RRGGBB (default purple)" }
+    },
+    additionalProperties: false
+  };
+}
 var SceneObjectTools = class {
   foundryClient;
   logger;
@@ -121242,12 +121276,21 @@ var SceneObjectTools = class {
       },
       {
         name: "manage-regions",
-        description: `Regions are areas of a scene that act when tokens enter, leave or move in them: difficult terrain, traps, pop-up text, teleports. A region with hidden:true never runs its behaviors (Foundry skips them), so leave trap regions visible to the GM (not hidden) and do not declare token or actor constants in a trap macro (they clash with the macro's own variables; use the event variable instead). Shapes are in GRID SQUARES from the top-left corner of the map, like manage-scene-objects. create takes regions (up to 100): {name, one of rect:[x,y,width,height] | ellipse:[centreX,centreY,radiusX,radiusY] | polygon:[[x,y],...], color?, hidden?, display_measurements?, behaviors?}. A behavior is either {preset:"difficult_terrain", cost?} (movement costs cost times as much, default 2) or a raw Foundry behavior {type, name?, system?, disabled?} such as executeMacro (run a world macro on tokenEnter, e.g. a pit trap that rolls a save and damage), displayScrollingText, pauseGame or teleportToken. Run behavior_types first to see exactly which fields each behavior type of this Foundry accepts. describe lists the regions of a scene; remove needs ids or all_mine:true and only removes regions this tool created. scene is an id or exact name (default: the scene being viewed). Needs the Foundry tab open in a browser.`,
+        description: `Regions are areas of a scene that act when tokens enter, leave or move in them: difficult terrain, traps, pop-up text, teleports. A region with hidden:true never runs its behaviors (Foundry skips them), so leave trap regions visible to the GM (not hidden) and do not declare token or actor constants in a trap macro (they clash with the macro's own variables; use the event variable instead). Shapes are in GRID SQUARES from the top-left corner of the map, like manage-scene-objects. create takes regions (up to 100): {name, one of rect:[x,y,width,height] | ellipse:[centreX,centreY,radiusX,radiusY] | polygon:[[x,y],...], color?, hidden?, display_measurements?, behaviors?}. A behavior is either {preset:"difficult_terrain", cost?} (movement costs cost times as much, default 2) or a raw Foundry behavior {type, name?, system?, disabled?} such as executeMacro (run a world macro on tokenEnter, e.g. a pit trap that rolls a save and damage), displayScrollingText, pauseGame or teleportToken. Run behavior_types first to see exactly which fields each behavior type of this Foundry accepts. link {from, to, two_way?(true), name?, placement?(center|random|relative), choice?, snap?, transition?, duration?} joins two places with a teleport, in the same scene or in two scenes (stairs, doors, cave mouths): from and to are each {scene?, name?, one of rect | ellipse | polygon in grid squares of THAT scene}. It makes a region at each end (purple) with a teleportToken behavior pointing at the other, so a token moved into one appears in the other; two_way:false makes only from -> to (to is just an arrival area). choice:true asks the player first; placement center puts the token in the middle of the destination, random anywhere in it, relative keeps its offset. Make arrival areas a little larger than a token. describe shows where each teleport leads. describe lists the regions of a scene; remove needs ids or all_mine:true and only removes regions this tool created. scene is an id or exact name (default: the scene being viewed). Needs the Foundry tab open in a browser.`,
         inputSchema: {
           type: "object",
           properties: {
-            action: { type: "string", enum: ["create", "describe", "remove", "behavior_types"] },
+            action: { type: "string", enum: ["create", "describe", "remove", "behavior_types", "link"] },
             scene: { type: "string", description: "Scene id or exact name (default: the scene being viewed)" },
+            from: linkEndProperties("link: the first end"),
+            to: linkEndProperties("link: the second end"),
+            two_way: { type: "boolean", description: "link: teleport both ways (default true)" },
+            name: { type: "string", description: "link: base name of the two regions" },
+            placement: { type: "string", enum: ["center", "random", "relative"], description: "link: where arriving tokens appear" },
+            choice: { type: "boolean", description: "link: ask the player before teleporting" },
+            snap: { type: "boolean", description: "link: snap arriving tokens to the grid (default true)" },
+            transition: { type: "string", description: "link: transition name such as fade (default none)" },
+            duration: { type: "number", description: "link: transition length in milliseconds" },
             regions: {
               type: "array",
               description: "Regions to create (action create)",
@@ -121405,6 +121448,9 @@ var SceneObjectTools = class {
     }
     if (parsed.action === "remove" && !parsed.all_mine && !(parsed.ids && parsed.ids.length)) {
       throw new Error("remove needs ids or all_mine: true");
+    }
+    if (parsed.action === "link" && (!parsed.from || !parsed.to)) {
+      throw new Error("link needs from and to");
     }
     try {
       const result = await this.foundryClient.query("foundry-mcp-bridge.manage-regions", parsed);
@@ -121692,9 +121738,360 @@ var ModuleTools = class {
   }
 };
 
+// dist/tools/prop-tools.js
+var import_fs5 = require("fs");
+var import_os3 = __toESM(require("os"), 1);
+var import_path4 = __toESM(require("path"), 1);
+var import_pngjs2 = __toESM(require_png(), 1);
+init_zod();
+
+// dist/tools/layout-image.js
+var import_fs4 = require("fs");
+var import_jpeg_js = __toESM(require_jpeg_js(), 1);
+var import_pngjs = __toESM(require_png(), 1);
+var cached = null;
+async function decodeImage(file) {
+  const stat = await import_fs4.promises.stat(file);
+  const key = `${file}:${stat.mtimeMs}:${stat.size}`;
+  if (cached?.key === key)
+    return cached.image;
+  const buf = await import_fs4.promises.readFile(file);
+  let image;
+  if (buf[0] === 137 && buf[1] === 80) {
+    const png = import_pngjs.PNG.sync.read(buf);
+    image = { width: png.width, height: png.height, data: png.data };
+  } else if (buf[0] === 255 && buf[1] === 216) {
+    const raw = import_jpeg_js.default.decode(buf, { useTArray: true, maxMemoryUsageInMB: 512 });
+    image = { width: raw.width, height: raw.height, data: raw.data };
+  } else {
+    throw new Error("The reference image must be a PNG or JPEG file");
+  }
+  cached = { key, image };
+  return image;
+}
+
+// dist/tools/prop-keying.js
+var dist = (data, i, bg) => {
+  const dr = data[i] - bg[0];
+  const dg = data[i + 1] - bg[1];
+  const db = data[i + 2] - bg[2];
+  return Math.sqrt(dr * dr + dg * dg + db * db);
+};
+function median(values) {
+  const sorted = [...values].sort((a, b) => a - b);
+  return sorted[Math.floor(sorted.length / 2)] ?? 0;
+}
+function borderColour(img) {
+  const { width, height, data } = img;
+  const reds = [];
+  const greens = [];
+  const blues = [];
+  const add = (x, y) => {
+    const i = (y * width + x) * 4;
+    reds.push(data[i]);
+    greens.push(data[i + 1]);
+    blues.push(data[i + 2]);
+  };
+  for (let x = 0; x < width; x++) {
+    add(x, 0);
+    add(x, height - 1);
+  }
+  for (let y = 1; y < height - 1; y++) {
+    add(0, y);
+    add(width - 1, y);
+  }
+  const colour = [median(reds), median(greens), median(blues)];
+  let near = 0;
+  for (let k = 0; k < reds.length; k++) {
+    const dr = reds[k] - colour[0];
+    const dg = greens[k] - colour[1];
+    const db = blues[k] - colour[2];
+    if (Math.sqrt(dr * dr + dg * dg + db * db) <= 60)
+      near++;
+  }
+  return { colour, spread: 1 - near / reds.length };
+}
+function keyOutBackground(img, options = {}) {
+  const { width, height } = img;
+  if (!(width > 0 && height > 0) || img.data.length < width * height * 4)
+    throw new Error("The picture is empty");
+  const tolerance = options.tolerance ?? 60;
+  if (!(tolerance >= 1 && tolerance <= 200))
+    throw new Error("tolerance must be from 1 to 200");
+  const soft = tolerance * 2.2;
+  const warnings = [];
+  const { colour: bg, spread: spread3 } = borderColour(img);
+  if (spread3 > 0.35) {
+    throw new Error(`The border of the picture is not one flat colour (${Math.round(spread3 * 100)}% of it differs from ${bg.join(",")}); the object touches the edge or the background is patterned. Generate it again with more empty space around the object.`);
+  }
+  if (spread3 > 0.1)
+    warnings.push(`${Math.round(spread3 * 100)}% of the border differs from the background colour; the object may touch the edge`);
+  const src = img.data;
+  const out = new Uint8Array(width * height * 4);
+  out.set(src.subarray(0, width * height * 4));
+  const reached = new Uint8Array(width * height);
+  const queue = new Int32Array(width * height);
+  let head = 0;
+  let tail = 0;
+  const push = (x, y) => {
+    const p = y * width + x;
+    if (reached[p])
+      return;
+    if (dist(src, p * 4, bg) > soft)
+      return;
+    reached[p] = 1;
+    queue[tail++] = p;
+  };
+  for (let x = 0; x < width; x++) {
+    push(x, 0);
+    push(x, height - 1);
+  }
+  for (let y = 0; y < height; y++) {
+    push(0, y);
+    push(width - 1, y);
+  }
+  while (head < tail) {
+    const p = queue[head++];
+    const x = p % width;
+    const y = (p - x) / width;
+    if (x > 0)
+      push(x - 1, y);
+    if (x < width - 1)
+      push(x + 1, y);
+    if (y > 0)
+      push(x, y - 1);
+    if (y < height - 1)
+      push(x, y + 1);
+  }
+  let opaque = 0;
+  let minX = width;
+  let minY = height;
+  let maxX = -1;
+  let maxY = -1;
+  for (let p = 0; p < width * height; p++) {
+    const i = p * 4;
+    let alpha = 255;
+    if (reached[p]) {
+      const d = dist(src, i, bg);
+      alpha = d <= tolerance ? 0 : Math.round((d - tolerance) / (soft - tolerance) * 255);
+      if (alpha > 0 && alpha < 255) {
+        const a = alpha / 255;
+        for (let c = 0; c < 3; c++) {
+          const v = (src[i + c] - bg[c] * (1 - a)) / a;
+          out[i + c] = Math.max(0, Math.min(255, Math.round(v)));
+        }
+      }
+    }
+    out[i + 3] = alpha;
+    if (alpha > 0)
+      opaque++;
+    if (alpha > 8) {
+      const x = p % width;
+      const y = (p - x) / width;
+      if (x < minX)
+        minX = x;
+      if (x > maxX)
+        maxX = x;
+      if (y < minY)
+        minY = y;
+      if (y > maxY)
+        maxY = y;
+    }
+  }
+  const share = opaque / (width * height);
+  if (maxX < 0)
+    throw new Error("Nothing is left after removing the background; the object has the background colour");
+  if (share > 0.97)
+    warnings.push("Almost nothing was removed; the background may not be a flat colour that differs from the object");
+  if (share < 0.01)
+    warnings.push("Very little is left; the tolerance may be too high or the object too small");
+  const box = { x: minX, y: minY, width: maxX - minX + 1, height: maxY - minY + 1 };
+  if (options.crop === false) {
+    return { width, height, data: out, background: bg, opaqueShare: share, borderSpread: spread3, box, warnings };
+  }
+  const pad = Math.max(0, options.padding ?? 2);
+  const x0 = Math.max(0, box.x - pad);
+  const y0 = Math.max(0, box.y - pad);
+  const x1 = Math.min(width, box.x + box.width + pad);
+  const y1 = Math.min(height, box.y + box.height + pad);
+  const w = x1 - x0;
+  const h = y1 - y0;
+  const cropped = new Uint8Array(w * h * 4);
+  for (let y = 0; y < h; y++) {
+    const from = ((y0 + y) * width + x0) * 4;
+    cropped.set(out.subarray(from, from + w * 4), y * w * 4);
+  }
+  return { width: w, height: h, data: cropped, background: bg, opaqueShare: share, borderSpread: spread3, box, warnings };
+}
+
+// dist/tools/prop-tools.js
+var KEYS = {
+  magenta: { hex: "#FF00FF", words: "pure magenta (#FF00FF)" },
+  green: { hex: "#00FF00", words: "pure green (#00FF00)" },
+  blue: { hex: "#0000FF", words: "pure blue (#0000FF)" }
+};
+var schema2 = external_exports.object({
+  name: external_exports.string().min(1).max(60),
+  prompt: external_exports.string().min(3).max(2e3).optional(),
+  image: external_exports.string().min(1).optional(),
+  key: external_exports.enum(["magenta", "green", "blue"]).optional(),
+  image_size: external_exports.number().int().min(256).max(2048).optional(),
+  tolerance: external_exports.number().min(1).max(200).optional(),
+  seed: external_exports.number().int().optional(),
+  negative_prompt: external_exports.string().max(500).optional(),
+  folder: external_exports.string().min(1).max(100).optional(),
+  scene: external_exports.string().min(1).optional(),
+  x: external_exports.number().min(0).optional(),
+  y: external_exports.number().min(0).optional(),
+  width: external_exports.number().positive().max(100).optional(),
+  height: external_exports.number().positive().max(100).optional(),
+  rotation: external_exports.number().optional(),
+  alpha: external_exports.number().min(0).max(1).optional(),
+  elevation: external_exports.number().optional(),
+  hidden: external_exports.boolean().optional()
+}).strict();
+function propFileName(name) {
+  const base = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40);
+  return base || "prop";
+}
+var PropTools = class {
+  foundryClient;
+  logger;
+  generate;
+  upload;
+  folder = import_path4.default.join(import_os3.default.tmpdir(), "foundry-mcp-props");
+  constructor({ foundryClient, logger, generate, upload }) {
+    this.foundryClient = foundryClient;
+    this.logger = logger.child({ component: "PropTools" });
+    this.generate = generate;
+    this.upload = upload;
+  }
+  getToolDefinitions() {
+    return [
+      {
+        name: "make-prop",
+        description: `Make a prop (a table, crate, rug, statue, campfire, door in the floor...) as a picture with a transparent background and, if you give a position, lay it on a scene as a tile. With prompt it generates the object seen from above on a flat coloured background (key: magenta default, green or blue; pick a colour the object does not contain), removes that background, crops to the object and uploads the PNG to the Foundry files (folder default props). With image (a PNG or JPEG on this computer, for example the local_path of an earlier generate-image) it skips generating and only removes the background, so you can retry with another tolerance (default 60; raise it if a coloured fringe is left, lower it if the object is eaten into). Give x and y (grid squares, top-left corner of the tile) to place it on scene (id or name, default the scene being viewed) with width in squares (default 2; the height keeps the picture's proportions unless you give height) and optional rotation (degrees), alpha, elevation, hidden. Without x and y it only makes and uploads the picture and returns its path for manage-scene-objects {kind:"tile", src}. Generation takes a couple of minutes. Tiles it places are removed with manage-scene-objects remove.`,
+        inputSchema: {
+          type: "object",
+          properties: {
+            name: { type: "string", description: "Short name, used for the file" },
+            prompt: { type: "string", description: "What the object is and looks like (the tool adds the top-down view and the flat background)" },
+            image: { type: "string", description: "Existing picture on this computer to remove the background from, instead of generating" },
+            key: { type: "string", enum: ["magenta", "green", "blue"], description: "Background colour to generate on (default magenta)" },
+            image_size: { type: "number", description: "Generated picture size in pixels, a multiple of 32 (default 1024)" },
+            tolerance: { type: "number", description: "How different from the background a pixel must be to stay (default 60)" },
+            seed: { type: "number" },
+            negative_prompt: { type: "string" },
+            folder: { type: "string", description: "Folder under the world uploads (default props)" },
+            scene: { type: "string", description: "Scene id or exact name for placing (default: the scene being viewed)" },
+            x: { type: "number", description: "Grid square of the left edge (with y: place the tile)" },
+            y: { type: "number", description: "Grid square of the top edge" },
+            width: { type: "number", description: "Tile width in squares (default 2)" },
+            height: { type: "number", description: "Tile height in squares (default keeps proportions)" },
+            rotation: { type: "number" },
+            alpha: { type: "number" },
+            elevation: { type: "number" },
+            hidden: { type: "boolean" }
+          },
+          required: ["name"],
+          additionalProperties: false
+        }
+      }
+    ];
+  }
+  async handleMakeProp(args) {
+    const a = schema2.parse(args ?? {});
+    if (!a.prompt && !a.image)
+      throw new Error("Give prompt (to generate the object) or image (a picture to remove the background from)");
+    if (a.x === void 0 !== (a.y === void 0))
+      throw new Error("Give both x and y to place the tile, or neither");
+    const size = a.image_size ?? 1024;
+    if (size % 32 !== 0)
+      throw new Error("image_size must be a multiple of 32");
+    const steps = [];
+    let source = a.image;
+    let generated;
+    if (!source) {
+      if (!this.generate)
+        throw new Error("Image generation is not available here");
+      const key = KEYS[a.key ?? "magenta"];
+      generated = await this.generate({
+        kind: "token",
+        name: `prop-${propFileName(a.name)}`,
+        width: size,
+        height: size,
+        upload: false,
+        ...a.seed !== void 0 ? { seed: a.seed } : {},
+        negative_prompt: `shadow on the background, floor, ground, table surface, gradient background, vignette, text, watermark, ${a.negative_prompt ?? ""}`.replace(/,\s*$/, ""),
+        prompt: `${a.prompt}. A single object seen straight from above (top-down, overhead), centred in the picture with plenty of empty space all around it and nothing touching the edges, isolated on a perfectly flat, uniform ${key.words} background. No floor, no shadow cast on the background, no other objects.`
+      });
+      if (generated?.success === false)
+        throw new Error(generated.error || "The object could not be generated");
+      source = generated?.local_path;
+      if (!source)
+        throw new Error("The image generator returned no file");
+      steps.push(`generated (${generated.seconds ?? "?"} s)`);
+    }
+    const picture = await decodeImage(source);
+    const keyed = keyOutBackground({ width: picture.width, height: picture.height, data: picture.data }, { ...a.tolerance !== void 0 ? { tolerance: a.tolerance } : {} });
+    steps.push(`background removed (was rgb ${keyed.background.join(",")}), cropped to ${keyed.width} x ${keyed.height}`);
+    const png = new import_pngjs2.PNG({ width: keyed.width, height: keyed.height });
+    png.data = Buffer.from(keyed.data);
+    await import_fs5.promises.mkdir(this.folder, { recursive: true });
+    const fileName = `${propFileName(a.name)}-${Date.now().toString(36)}.png`;
+    const local = import_path4.default.join(this.folder, fileName);
+    await import_fs5.promises.writeFile(local, import_pngjs2.PNG.sync.write(png));
+    const result = {
+      success: true,
+      name: a.name,
+      local_path: local,
+      pixels: { width: keyed.width, height: keyed.height },
+      ...keyed.warnings.length > 0 ? { warnings: keyed.warnings } : {}
+    };
+    if (!this.upload) {
+      result.steps = steps;
+      return result;
+    }
+    const uploaded = await this.upload({ file_path: local, folder: a.folder ?? "props", filename: fileName });
+    if (uploaded?.success === false || !uploaded?.path)
+      throw new Error(uploaded?.error || "The prop could not be uploaded");
+    result.uploaded = uploaded.path;
+    steps.push(`uploaded to ${uploaded.path}`);
+    if (a.x !== void 0 && a.y !== void 0) {
+      const width = a.width ?? 2;
+      const height = a.height ?? Math.round(width * keyed.height / keyed.width * 100) / 100;
+      const placed = await this.foundryClient.query("foundry-mcp-bridge.manage-scene-objects", {
+        action: "place",
+        ...a.scene ? { scene: a.scene } : {},
+        objects: [
+          {
+            kind: "tile",
+            x: a.x,
+            y: a.y,
+            width,
+            height,
+            src: uploaded.path,
+            ...a.rotation !== void 0 ? { rotation: a.rotation } : {},
+            ...a.alpha !== void 0 ? { alpha: a.alpha } : {},
+            ...a.elevation !== void 0 ? { elevation: a.elevation } : {},
+            ...a.hidden !== void 0 ? { hidden: a.hidden } : {}
+          }
+        ]
+      });
+      if (placed?.success === false)
+        throw new Error(placed.error || "The tile could not be placed");
+      result.tile = { ...placed?.created?.[0] ?? {}, width, height, scene: placed?.scene };
+      steps.push(`placed as a ${width} x ${height} tile`);
+    }
+    result.steps = steps;
+    this.logger.info("Prop made", { name: a.name, placed: a.x !== void 0 });
+    return result;
+  }
+};
+
 // dist/tools/layout.js
-var import_fs6 = require("fs");
-var import_path5 = __toESM(require("path"), 1);
+var import_fs7 = require("fs");
+var import_path6 = __toESM(require("path"), 1);
 init_zod();
 
 // dist/tools/layout-utils.js
@@ -122141,31 +122538,6 @@ function legendFor(layout) {
   return `In <Picture 1>: ${parts.join("; ")}.`;
 }
 
-// dist/tools/layout-image.js
-var import_fs4 = require("fs");
-var import_jpeg_js = __toESM(require_jpeg_js(), 1);
-var import_pngjs = __toESM(require_png(), 1);
-var cached = null;
-async function decodeImage(file) {
-  const stat = await import_fs4.promises.stat(file);
-  const key = `${file}:${stat.mtimeMs}:${stat.size}`;
-  if (cached?.key === key)
-    return cached.image;
-  const buf = await import_fs4.promises.readFile(file);
-  let image;
-  if (buf[0] === 137 && buf[1] === 80) {
-    const png = import_pngjs.PNG.sync.read(buf);
-    image = { width: png.width, height: png.height, data: png.data };
-  } else if (buf[0] === 255 && buf[1] === 216) {
-    const raw = import_jpeg_js.default.decode(buf, { useTArray: true, maxMemoryUsageInMB: 512 });
-    image = { width: raw.width, height: raw.height, data: raw.data };
-  } else {
-    throw new Error("The reference image must be a PNG or JPEG file");
-  }
-  cached = { key, image };
-  return image;
-}
-
 // dist/tools/layout-analysis.js
 var SAMPLES = 4;
 var FILL_NAMES = Object.keys(FILLS);
@@ -122414,15 +122786,15 @@ function resolveShape(layout, ref) {
 }
 function edgeDistance(r) {
   const { columns, rows } = r;
-  const dist = new Uint8Array(columns * rows);
+  const dist2 = new Uint8Array(columns * rows);
   const standCell = (c, row2) => isStandAt(r, c + 0.5, row2 + 0.5);
   const queue = [];
   const unset = 255;
-  dist.fill(unset);
+  dist2.fill(unset);
   for (let row2 = 0; row2 < rows; row2++) {
     for (let c = 0; c < columns; c++) {
       if (!standCell(c, row2)) {
-        dist[row2 * columns + c] = 0;
+        dist2[row2 * columns + c] = 0;
         queue.push(row2 * columns + c);
       }
     }
@@ -122440,9 +122812,9 @@ function edgeDistance(r) {
         if (nc < 0 || nr < 0 || nc >= columns || nr >= rows)
           continue;
         const n = nr * columns + nc;
-        if (dist[n] !== unset)
+        if (dist2[n] !== unset)
           continue;
-        dist[n] = Math.min(254, dist[idx] + 1);
+        dist2[n] = Math.min(254, dist2[idx] + 1);
         queue.push(n);
       }
     }
@@ -122451,15 +122823,15 @@ function edgeDistance(r) {
     for (let c = 0; c < columns; c++) {
       const edge = Math.min(c, row2, columns - 1 - c, rows - 1 - row2) + 1;
       const idx = row2 * columns + c;
-      if (dist[idx] > edge)
-        dist[idx] = edge;
+      if (dist2[idx] > edge)
+        dist2[idx] = edge;
     }
-  return dist;
+  return dist2;
 }
 function pickSpots(layout, r, shapeIndex, count, options = {}) {
   const fw = Math.max(1, Math.round(options.width ?? 1));
   const fh = Math.max(1, Math.round(options.height ?? 1));
-  const dist = edgeDistance(r);
+  const dist2 = edgeDistance(r);
   const taken = options.taken ?? /* @__PURE__ */ new Set();
   const candidates = [];
   for (let row2 = 0; row2 + fh <= r.rows; row2++) {
@@ -122472,7 +122844,7 @@ function pickSpots(layout, r, shapeIndex, count, options = {}) {
         for (let dx = 0; dx < fw && ok; dx++) {
           if (!isStandAt(r, c + dx + 0.5, row2 + dy + 0.5) || taken.has(`${c + dx},${row2 + dy}`))
             ok = false;
-          minD = Math.min(minD, dist[(row2 + dy) * r.columns + c + dx]);
+          minD = Math.min(minD, dist2[(row2 + dy) * r.columns + c + dx]);
         }
       }
       if (ok)
@@ -122648,9 +123020,9 @@ function alignToImage(layout, image, maxShift = 1.5) {
 }
 
 // dist/tools/layout-doc.js
-var import_fs5 = require("fs");
-var import_os3 = __toESM(require("os"), 1);
-var import_path4 = __toESM(require("path"), 1);
+var import_fs6 = require("fs");
+var import_os4 = __toESM(require("os"), 1);
+var import_path5 = __toESM(require("path"), 1);
 var MAX_DOC_SHAPES = 600;
 var MAX_HISTORY = 40;
 function slug(name) {
@@ -122660,13 +123032,13 @@ var LayoutStore = class {
   dir;
   cache = /* @__PURE__ */ new Map();
   constructor(dir) {
-    this.dir = dir ?? import_path4.default.join(import_os3.default.tmpdir(), "foundry-mcp-layouts");
+    this.dir = dir ?? import_path5.default.join(import_os4.default.tmpdir(), "foundry-mcp-layouts");
   }
   get folder() {
     return this.dir;
   }
   file(id2) {
-    return import_path4.default.join(this.dir, `${id2}.layout.json`);
+    return import_path5.default.join(this.dir, `${id2}.layout.json`);
   }
   async load(id2) {
     const key = slug(id2);
@@ -122674,7 +123046,7 @@ var LayoutStore = class {
     if (hit)
       return hit;
     try {
-      const doc = JSON.parse(await import_fs5.promises.readFile(this.file(key), "utf8"));
+      const doc = JSON.parse(await import_fs6.promises.readFile(this.file(key), "utf8"));
       this.cache.set(key, doc);
       return doc;
     } catch {
@@ -122682,13 +123054,13 @@ var LayoutStore = class {
     }
   }
   async save(doc) {
-    await import_fs5.promises.mkdir(this.dir, { recursive: true });
+    await import_fs6.promises.mkdir(this.dir, { recursive: true });
     this.cache.set(doc.id, doc);
-    await import_fs5.promises.writeFile(this.file(doc.id), JSON.stringify(doc));
+    await import_fs6.promises.writeFile(this.file(doc.id), JSON.stringify(doc));
   }
   async exists(id2) {
     try {
-      await import_fs5.promises.access(this.file(slug(id2)));
+      await import_fs6.promises.access(this.file(slug(id2)));
       return true;
     } catch {
       return false;
@@ -122696,7 +123068,7 @@ var LayoutStore = class {
   }
   async list() {
     try {
-      const files = (await import_fs5.promises.readdir(this.dir)).filter((f) => f.endsWith(".layout.json"));
+      const files = (await import_fs6.promises.readdir(this.dir)).filter((f) => f.endsWith(".layout.json"));
       const out = [];
       for (const f of files) {
         const doc = await this.load(f.replace(".layout.json", ""));
@@ -122710,7 +123082,7 @@ var LayoutStore = class {
   async remove(id2) {
     const key = slug(id2);
     this.cache.delete(key);
-    await import_fs5.promises.rm(this.file(key), { force: true });
+    await import_fs6.promises.rm(this.file(key), { force: true });
   }
 };
 function layoutOf(doc) {
@@ -123139,7 +123511,7 @@ var region = external_exports.object({
   width: external_exports.number().min(1),
   height: external_exports.number().min(1)
 }).strict();
-var schema2 = external_exports.object({
+var schema3 = external_exports.object({
   action: external_exports.enum(["new", "add", "update", "remove", "show", "render", "walls", "apply_walls", "check", "place", "lights", "align", "build", "set", "undo", "redo", "list", "delete"]),
   layout: external_exports.string().min(1).optional(),
   name: external_exports.string().min(1).max(60).optional(),
@@ -123320,7 +123692,7 @@ var LayoutTools = class {
     ];
   }
   async handleLayout(args) {
-    const a = schema2.parse(args ?? {});
+    const a = schema3.parse(args ?? {});
     switch (a.action) {
       case "list":
         return { success: true, layouts: await this.store.list(), folder: this.store.folder };
@@ -123902,21 +124274,21 @@ var LayoutTools = class {
     };
   }
   async writePicture(doc, kind, png) {
-    await import_fs6.promises.mkdir(this.store.folder, { recursive: true });
-    const file = import_path5.default.join(this.store.folder, `${doc.id}-${kind}-${Date.now()}.png`);
-    await import_fs6.promises.writeFile(file, png);
+    await import_fs7.promises.mkdir(this.store.folder, { recursive: true });
+    const file = import_path6.default.join(this.store.folder, `${doc.id}-${kind}-${Date.now()}.png`);
+    await import_fs7.promises.writeFile(file, png);
     await this.prune();
     return file;
   }
   async prune() {
     try {
-      const files = (await import_fs6.promises.readdir(this.store.folder)).filter((f) => f.endsWith(".png"));
+      const files = (await import_fs7.promises.readdir(this.store.folder)).filter((f) => f.endsWith(".png"));
       if (files.length <= KEEP_PICTURES)
         return;
-      const stats = await Promise.all(files.map(async (f) => ({ f, t: (await import_fs6.promises.stat(import_path5.default.join(this.store.folder, f))).mtimeMs })));
+      const stats = await Promise.all(files.map(async (f) => ({ f, t: (await import_fs7.promises.stat(import_path6.default.join(this.store.folder, f))).mtimeMs })));
       stats.sort((x, y) => x.t - y.t);
       for (const { f } of stats.slice(0, files.length - KEEP_PICTURES)) {
-        await import_fs6.promises.rm(import_path5.default.join(this.store.folder, f), { force: true });
+        await import_fs7.promises.rm(import_path6.default.join(this.store.folder, f), { force: true });
       }
     } catch {
     }
@@ -124039,11 +124411,11 @@ var InspectTools = class {
 var DISABLED_LEGACY_MAP_TOOLS = ["generate-map", "check-map-status", "cancel-map-job"];
 var CONTROL_HOST = "127.0.0.1";
 var CONTROL_PORT = 31414;
-var LOCK_FILE = path10.join(os4.tmpdir(), "foundry-mcp-backend.lock");
+var LOCK_FILE = path11.join(os5.tmpdir(), "foundry-mcp-backend.lock");
 function getBundledPythonPath() {
-  let installDir = path10.join(os4.homedir(), "AppData", "Local", "FoundryMCPServer");
+  let installDir = path11.join(os5.homedir(), "AppData", "Local", "FoundryMCPServer");
   const currentDir = process.cwd();
-  const execDir = path10.dirname(process.execPath);
+  const execDir = path11.dirname(process.execPath);
   if (currentDir.includes("FoundryMCPServer") || execDir.includes("FoundryMCPServer")) {
     const foundryMcpIndex = currentDir.indexOf("FoundryMCPServer");
     if (foundryMcpIndex !== -1) {
@@ -124055,30 +124427,30 @@ function getBundledPythonPath() {
       }
     }
   }
-  const nestedComfyUIPythonPath = path10.join(installDir, "ComfyUI", "ComfyUI", "python_embeded", "python.exe");
-  if (fs10.existsSync(nestedComfyUIPythonPath)) {
+  const nestedComfyUIPythonPath = path11.join(installDir, "ComfyUI", "ComfyUI", "python_embeded", "python.exe");
+  if (fs11.existsSync(nestedComfyUIPythonPath)) {
     return nestedComfyUIPythonPath;
   }
-  const portablePythonPath = path10.join(installDir, "ComfyUI", "python_embeded", "python.exe");
-  if (fs10.existsSync(portablePythonPath)) {
+  const portablePythonPath = path11.join(installDir, "ComfyUI", "python_embeded", "python.exe");
+  if (fs11.existsSync(portablePythonPath)) {
     return portablePythonPath;
   }
-  const bundledPythonPath = path10.join(installDir, "ComfyUI-env", "Scripts", "python.exe");
-  if (fs10.existsSync(bundledPythonPath)) {
+  const bundledPythonPath = path11.join(installDir, "ComfyUI-env", "Scripts", "python.exe");
+  if (fs11.existsSync(bundledPythonPath)) {
     return bundledPythonPath;
   }
   const fallbackPaths = [
-    path10.join(os4.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI", "ComfyUI", "python_embeded", "python.exe"),
-    path10.join(os4.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI-headless", "ComfyUI", "python_embeded", "python.exe"),
-    path10.join(os4.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI", "python_embeded", "python.exe"),
-    path10.join(os4.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI-headless", "python_embeded", "python.exe"),
-    path10.join(os4.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI-env", "Scripts", "python.exe"),
-    path10.join(process.cwd(), "..", "..", "ComfyUI-env", "Scripts", "python.exe"),
-    path10.join(__dirname, "..", "..", "..", "ComfyUI-env", "Scripts", "python.exe"),
-    path10.join(os4.homedir(), "AppData", "Local", "FoundryMCPServer", "Python", "python.exe")
+    path11.join(os5.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI", "ComfyUI", "python_embeded", "python.exe"),
+    path11.join(os5.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI-headless", "ComfyUI", "python_embeded", "python.exe"),
+    path11.join(os5.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI", "python_embeded", "python.exe"),
+    path11.join(os5.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI-headless", "python_embeded", "python.exe"),
+    path11.join(os5.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI-env", "Scripts", "python.exe"),
+    path11.join(process.cwd(), "..", "..", "ComfyUI-env", "Scripts", "python.exe"),
+    path11.join(__dirname, "..", "..", "..", "ComfyUI-env", "Scripts", "python.exe"),
+    path11.join(os5.homedir(), "AppData", "Local", "FoundryMCPServer", "Python", "python.exe")
   ];
   for (const fallbackPath of fallbackPaths) {
-    if (fs10.existsSync(fallbackPath)) {
+    if (fs11.existsSync(fallbackPath)) {
       return fallbackPath;
     }
   }
@@ -124103,39 +124475,39 @@ var lockFd = null;
 function acquireLock() {
   try {
     try {
-      lockFd = fs10.openSync(LOCK_FILE, "wx");
+      lockFd = fs11.openSync(LOCK_FILE, "wx");
     } catch (err) {
       if (err && err.code === "EEXIST") {
         try {
-          const lockData = fs10.readFileSync(LOCK_FILE, "utf8");
+          const lockData = fs11.readFileSync(LOCK_FILE, "utf8");
           const lockPid = parseInt(lockData.trim(), 10);
           try {
             process.kill(lockPid, 0);
             if (evaluateLockFile(lockPid, LOCK_FILE) === "orphaned") {
               console.error(`Removing orphaned backend lock for PID ${lockPid} (process is not node.exe or lock file is stale)`);
               try {
-                fs10.unlinkSync(LOCK_FILE);
+                fs11.unlinkSync(LOCK_FILE);
               } catch {
               }
-              lockFd = fs10.openSync(LOCK_FILE, "wx");
+              lockFd = fs11.openSync(LOCK_FILE, "wx");
             } else {
               return false;
             }
           } catch {
             console.error(`Removing stale backend lock for PID ${lockPid}`);
             try {
-              fs10.unlinkSync(LOCK_FILE);
+              fs11.unlinkSync(LOCK_FILE);
             } catch {
             }
-            lockFd = fs10.openSync(LOCK_FILE, "wx");
+            lockFd = fs11.openSync(LOCK_FILE, "wx");
           }
         } catch (readErr) {
           console.error("Corrupt backend lock file, removing:", readErr);
           try {
-            fs10.unlinkSync(LOCK_FILE);
+            fs11.unlinkSync(LOCK_FILE);
           } catch {
           }
-          lockFd = fs10.openSync(LOCK_FILE, "wx");
+          lockFd = fs11.openSync(LOCK_FILE, "wx");
         }
       } else {
         console.error("Failed to open backend lock file:", err);
@@ -124144,9 +124516,9 @@ function acquireLock() {
     }
     if (lockFd === null)
       return false;
-    fs10.writeFileSync(lockFd, String(process.pid));
+    fs11.writeFileSync(lockFd, String(process.pid));
     try {
-      fs10.fsyncSync(lockFd);
+      fs11.fsyncSync(lockFd);
     } catch {
     }
     console.error(`Acquired backend lock with PID ${process.pid}`);
@@ -124160,14 +124532,14 @@ function releaseLock() {
   try {
     if (lockFd !== null) {
       try {
-        fs10.closeSync(lockFd);
+        fs11.closeSync(lockFd);
       } catch {
       }
       lockFd = null;
     }
-    if (fs10.existsSync(LOCK_FILE)) {
+    if (fs11.existsSync(LOCK_FILE)) {
       try {
-        fs10.unlinkSync(LOCK_FILE);
+        fs11.unlinkSync(LOCK_FILE);
       } catch {
       }
     }
@@ -124176,20 +124548,20 @@ function releaseLock() {
   }
 }
 async function findComfyUIPath() {
-  const nestedComfyUIPath = path10.join(os4.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI", "ComfyUI");
-  if (fs10.existsSync(path10.join(nestedComfyUIPath, "main.py"))) {
+  const nestedComfyUIPath = path11.join(os5.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI", "ComfyUI");
+  if (fs11.existsSync(path11.join(nestedComfyUIPath, "main.py"))) {
     return nestedComfyUIPath;
   }
-  const nestedHeadlessPath = path10.join(os4.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI-headless", "ComfyUI");
-  if (fs10.existsSync(path10.join(nestedHeadlessPath, "main.py"))) {
+  const nestedHeadlessPath = path11.join(os5.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI-headless", "ComfyUI");
+  if (fs11.existsSync(path11.join(nestedHeadlessPath, "main.py"))) {
     return nestedHeadlessPath;
   }
-  const flatPath = path10.join(os4.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI");
-  if (fs10.existsSync(path10.join(flatPath, "main.py"))) {
+  const flatPath = path11.join(os5.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI");
+  if (fs11.existsSync(path11.join(flatPath, "main.py"))) {
     return flatPath;
   }
-  const legacyFlatPath = path10.join(os4.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI-headless");
-  if (fs10.existsSync(path10.join(legacyFlatPath, "main.py"))) {
+  const legacyFlatPath = path11.join(os5.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI-headless");
+  if (fs11.existsSync(path11.join(legacyFlatPath, "main.py"))) {
     return legacyFlatPath;
   }
   throw new Error("ComfyUI installation not found");
@@ -124229,7 +124601,7 @@ async function startComfyUIService(logger) {
     logger.info("Starting ComfyUI service...");
     const comfyUIPath = await findComfyUIPath();
     logger.info("ComfyUI found", { path: comfyUIPath });
-    logger.info("Starting ComfyUI process", { path: path10.join(comfyUIPath, "main.py") });
+    logger.info("Starting ComfyUI process", { path: path11.join(comfyUIPath, "main.py") });
     const pythonExe = getBundledPythonPath();
     logger.info("Using bundled Python", { pythonPath: pythonExe });
     comfyuiProcess = (0, import_child_process3.spawn)(pythonExe, [
@@ -124630,9 +125002,9 @@ async function processMapGenerationInBackend(jobId, jobQueue, comfyuiClient, log
 `);
     await fs22.appendFile(processDebugLog, `[${(/* @__PURE__ */ new Date()).toISOString()}] About to import fs/path/os for upload...
 `);
-    const fs11 = await import("fs").then((m) => m.promises);
-    const path11 = await import("path");
-    const os5 = await import("os");
+    const fs12 = await import("fs").then((m) => m.promises);
+    const path12 = await import("path");
+    const os6 = await import("os");
     await fs22.appendFile(processDebugLog, `[${(/* @__PURE__ */ new Date()).toISOString()}] Imports complete
 `);
     await fs22.appendFile(processDebugLog, `[${(/* @__PURE__ */ new Date()).toISOString()}] Creating filename and checking connection type...
@@ -124657,8 +125029,8 @@ async function processMapGenerationInBackend(jobId, jobQueue, comfyuiClient, log
     await fs22.appendFile(processDebugLog, `[${(/* @__PURE__ */ new Date()).toISOString()}] Using upload method for all connections
 `);
     const debugLog = async (msg) => {
-      const logPath = path11.join(os5.tmpdir(), "foundry-mcp-upload-debug.log");
-      await fs11.appendFile(logPath, `[${(/* @__PURE__ */ new Date()).toISOString()}] ${msg}
+      const logPath = path12.join(os6.tmpdir(), "foundry-mcp-upload-debug.log");
+      await fs12.appendFile(logPath, `[${(/* @__PURE__ */ new Date()).toISOString()}] ${msg}
 `);
     };
     await debugLog(`=== MAP GENERATION DEBUG START ===`);
@@ -124777,7 +125149,7 @@ async function startBackend() {
     format: config.logFormat,
     enableConsole: false,
     enableFile: true,
-    filePath: path10.join(os4.tmpdir(), "foundry-mcp-server", "mcp-server.log")
+    filePath: path11.join(os5.tmpdir(), "foundry-mcp-server", "mcp-server.log")
   });
   logger.info("Starting Foundry MCP Backend", {
     version: config.server.version,
@@ -124830,6 +125202,12 @@ async function startBackend() {
   const layoutTools = new LayoutTools({
     logger,
     foundryClient,
+    generate: (args) => imageGenerationTools.handleGenerateImage(args),
+    upload: (args) => uploadTools.handleUploadFile(args)
+  });
+  const propTools = new PropTools({
+    foundryClient,
+    logger,
     generate: (args) => imageGenerationTools.handleGenerateImage(args),
     upload: (args) => uploadTools.handleUploadFile(args)
   });
@@ -124886,11 +125264,11 @@ async function startBackend() {
   }
   globalThis.backendComfyUIHandlers = {
     handleMessage: async (message) => {
-      const fs11 = await import("fs").then((m) => m.promises);
-      const path11 = await import("path");
-      const os5 = await import("os");
-      const debugLog = path11.join(os5.tmpdir(), "backend-handler-debug.log");
-      await fs11.appendFile(debugLog, `[${(/* @__PURE__ */ new Date()).toISOString()}] handleMessage called - type: ${message?.type}, requestId: ${message?.requestId}
+      const fs12 = await import("fs").then((m) => m.promises);
+      const path12 = await import("path");
+      const os6 = await import("os");
+      const debugLog = path12.join(os6.tmpdir(), "backend-handler-debug.log");
+      await fs12.appendFile(debugLog, `[${(/* @__PURE__ */ new Date()).toISOString()}] handleMessage called - type: ${message?.type}, requestId: ${message?.requestId}
 `);
       logger.info("Handling ComfyUI message", {
         requestId: message.requestId,
@@ -124898,11 +125276,11 @@ async function startBackend() {
         hasData: !!message.data
       });
       try {
-        const fs12 = await import("fs").then((m) => m.promises);
-        const path12 = await import("path");
-        const os6 = await import("os");
-        const debugLog2 = path12.join(os6.tmpdir(), "backend-handler-debug.log");
-        await fs12.appendFile(debugLog2, `[${(/* @__PURE__ */ new Date()).toISOString()}] About to switch on message.type: "${message.type}"
+        const fs13 = await import("fs").then((m) => m.promises);
+        const path13 = await import("path");
+        const os7 = await import("os");
+        const debugLog2 = path13.join(os7.tmpdir(), "backend-handler-debug.log");
+        await fs13.appendFile(debugLog2, `[${(/* @__PURE__ */ new Date()).toISOString()}] About to switch on message.type: "${message.type}"
 `);
         let result;
         try {
@@ -124931,10 +125309,10 @@ async function startBackend() {
             }
             break;
           case "generate-map-request":
-            await fs12.appendFile(debugLog2, `[${(/* @__PURE__ */ new Date()).toISOString()}] Matched generate-map-request case, calling handler...
+            await fs13.appendFile(debugLog2, `[${(/* @__PURE__ */ new Date()).toISOString()}] Matched generate-map-request case, calling handler...
 `);
             result = await handleGenerateMapRequest(message, mapGenerationJobQueue, mapGenerationComfyUIClient, logger, foundryClient);
-            await fs12.appendFile(debugLog2, `[${(/* @__PURE__ */ new Date()).toISOString()}] Handler returned: ${JSON.stringify(result)}
+            await fs13.appendFile(debugLog2, `[${(/* @__PURE__ */ new Date()).toISOString()}] Handler returned: ${JSON.stringify(result)}
 `);
             break;
           case "check-map-status-request":
@@ -125000,6 +125378,7 @@ async function startBackend() {
     ...sceneObjectTools.getToolDefinitions(),
     ...playTools.getToolDefinitions(),
     ...moduleTools.getToolDefinitions(),
+    ...propTools.getToolDefinitions(),
     ...layoutTools.getToolDefinitions(),
     ...inspectTools.getToolDefinitions(),
     ...actorCreationTools.getToolDefinitions(),
@@ -125237,6 +125616,9 @@ async function startBackend() {
                   break;
                 case "manage-modules":
                   result = await moduleTools.handleManageModules(args);
+                  break;
+                case "make-prop":
+                  result = await propTools.handleMakeProp(args);
                   break;
                 case "manage-world":
                   result = await sceneObjectTools.handleManageWorld(args);

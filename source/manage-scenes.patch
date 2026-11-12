@@ -1278,6 +1278,162 @@ index 0000000..f442fc4
 +    );
 +  });
 +});
+diff --git a/packages/foundry-module/src/data-access.links.test.ts b/packages/foundry-module/src/data-access.links.test.ts
+new file mode 100644
+index 0000000..beeb75a
+--- /dev/null
++++ b/packages/foundry-module/src/data-access.links.test.ts
+@@ -0,0 +1,150 @@
++/** manage-regions link: two regions joined by teleports, across scenes. Foundry is stubbed. */
++import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
++import { FoundryDataAccess } from './data-access.js';
++
++const MODULE = 'foundry-mcp-bridge-scenes';
++
++function makeScene(id: string, name: string, failBehaviors = false) {
++  const behaviorCalls: Array<{ region: string; data: any[] }> = [];
++  const scene: any = {
++    id,
++    name,
++    width: 4000,
++    height: 3000,
++    padding: 0,
++    grid: { size: 100, distance: 5, units: 'ft' },
++    dimensions: { sceneX: 0, sceneY: 0, sceneWidth: 4000, sceneHeight: 3000 },
++    regions: { contents: [] as any[] },
++    behaviorCalls,
++    createEmbeddedDocuments: vi.fn(async (type: string, data: any[]) =>
++      data.map((d, i) => {
++        const regionId = `${id}-r${i}`;
++        return {
++          id: regionId,
++          uuid: `Scene.${id}.Region.${regionId}`,
++          name: d.name,
++          createEmbeddedDocuments: vi.fn(async (_t: string, b: any[]) => {
++            if (failBehaviors) throw new Error('behavior failed');
++            behaviorCalls.push({ region: regionId, data: b });
++            return b;
++          }),
++        };
++      })
++    ),
++    deleteEmbeddedDocuments: vi.fn(async () => []),
++  };
++  return scene;
++}
++
++function setup(options: { allow?: boolean; failSecond?: boolean } = {}) {
++  const a = makeScene('sa', 'Cragmaw Hideout');
++  const b = makeScene('sb', 'Goblin Trail', options.failSecond);
++  vi.stubGlobal('Hooks', { on: vi.fn(), callAll: vi.fn() });
++  vi.stubGlobal('CONFIG', {
++    RegionBehavior: { dataModels: { modifyMovementCost: { schema: { fields: { difficulties: { fields: { walk: {} } } } } } } },
++  });
++  vi.stubGlobal('game', {
++    ready: true,
++    world: { id: 'w', getFlag: vi.fn(() => []), setFlag: vi.fn() },
++    user: { id: 'gm', name: 'GM' },
++    scenes: { contents: [a, b], viewed: a, current: a },
++    actors: { contents: [] },
++    settings: { get: (_m: string, key: string) => (key === 'allowWriteOperations' ? (options.allow ?? true) : undefined) },
++  });
++  return { da: new FoundryDataAccess(), a, b };
++}
++
++describe('manageRegions link', () => {
++  beforeEach(() => vi.unstubAllGlobals());
++  afterEach(() => vi.unstubAllGlobals());
++
++  it('joins two scenes both ways', async () => {
++    const { da, a, b } = setup();
++    const r = await da.manageRegions({
++      action: 'link',
++      from: { scene: 'Cragmaw Hideout', rect: [2, 3, 2, 1], name: 'Cave mouth' },
++      to: { scene: 'sb', rect: [10, 10, 2, 2] },
++    });
++    expect(r).toMatchObject({
++      success: true,
++      twoWay: true,
++      from: { scene: { id: 'sa' }, region: { uuid: 'Scene.sa.Region.sa-r0', name: 'Cave mouth' } },
++      to: { scene: { id: 'sb' }, region: { uuid: 'Scene.sb.Region.sb-r0', name: 'To Cragmaw Hideout' } },
++    });
++    const [type, data] = a.createEmbeddedDocuments.mock.calls[0];
++    expect(type).toBe('Region');
++    expect(data[0]).toMatchObject({
++      name: 'Cave mouth',
++      color: '#bf5af2',
++      shapes: [{ type: 'rectangle', x: 200, y: 300, width: 200, height: 100 }],
++      flags: { [MODULE]: { sceneObjectsTool: true } },
++    });
++    expect(b.createEmbeddedDocuments.mock.calls[0][1][0].shapes[0]).toMatchObject({ x: 1000, y: 1000, width: 200, height: 200 });
++
++    expect(a.behaviorCalls).toHaveLength(1);
++    expect(a.behaviorCalls[0]!.data[0]).toMatchObject({
++      type: 'teleportToken',
++      name: 'Teleport to Goblin Trail',
++      system: { destinations: ['Scene.sb.Region.sb-r0'], placement: 'center' },
++    });
++    expect(b.behaviorCalls[0]!.data[0]).toMatchObject({
++      type: 'teleportToken',
++      name: 'Teleport to Cragmaw Hideout',
++      system: { destinations: ['Scene.sa.Region.sa-r0'] },
++    });
++  });
++
++  it('one way puts a teleport only on the first region', async () => {
++    const { da, a, b } = setup();
++    const r = await da.manageRegions({
++      action: 'link',
++      two_way: false,
++      placement: 'random',
++      choice: true,
++      from: { scene: 'sa', ellipse: [5, 5, 1, 1] },
++      to: { scene: 'sb', polygon: [[1, 1], [4, 1], [4, 4]] },
++    });
++    expect(r.twoWay).toBe(false);
++    expect(a.behaviorCalls[0]!.data[0].system).toMatchObject({ placement: 'random', choice: true });
++    expect(b.behaviorCalls).toHaveLength(0);
++  });
++
++  it('links two spots of the same scene and names them', async () => {
++    const { da, a } = setup();
++    await da.manageRegions({ action: 'link', from: { scene: 'sa', rect: [1, 1, 1, 1] }, to: { scene: 'sa', rect: [8, 8, 1, 1] } });
++    const names = a.createEmbeddedDocuments.mock.calls.map((c: any) => c[1][0].name);
++    expect(names).toEqual(['Teleport A', 'Teleport B']);
++    const named = setup();
++    await named.da.manageRegions({ action: 'link', name: 'Stairs', from: { scene: 'sa', rect: [1, 1, 1, 1] }, to: { scene: 'sb', rect: [1, 1, 1, 1] } });
++    expect(named.a.createEmbeddedDocuments.mock.calls[0][1][0].name).toBe('Stairs (A)');
++    expect(named.b.createEmbeddedDocuments.mock.calls[0][1][0].name).toBe('Stairs (B)');
++  });
++
++  it('removes what it made when a step fails', async () => {
++    const { da, a, b } = setup({ failSecond: true });
++    await expect(
++      da.manageRegions({ action: 'link', from: { scene: 'sa', rect: [1, 1, 1, 1] }, to: { scene: 'sb', rect: [1, 1, 1, 1] } })
++    ).rejects.toThrow('behavior failed');
++    expect(a.deleteEmbeddedDocuments).toHaveBeenCalledWith('Region', ['sa-r0']);
++    expect(b.deleteEmbeddedDocuments).toHaveBeenCalledWith('Region', ['sb-r0']);
++  });
++
++  it('checks the input and the write gate', async () => {
++    const { da, a } = setup();
++    await expect(da.manageRegions({ action: 'link', from: { scene: 'sa', rect: [1, 1, 1, 1] } })).rejects.toThrow('needs from and to');
++    await expect(
++      da.manageRegions({ action: 'link', from: { scene: 'sa', rect: [1, 1, 1, 1] }, to: { scene: 'sb', rect: [99, 99, 5, 5] } })
++    ).rejects.toThrow('outside the scene');
++    await expect(
++      da.manageRegions({ action: 'link', from: { scene: 'sa', rect: [1, 1, 1, 1] }, to: { scene: 'nope', rect: [1, 1, 1, 1] } })
++    ).rejects.toThrow('Scene not found');
++    await expect(
++      da.manageRegions({ action: 'link', placement: 'up' as any, from: { scene: 'sa', rect: [1, 1, 1, 1] }, to: { scene: 'sb', rect: [1, 1, 1, 1] } })
++    ).rejects.toThrow('placement');
++    expect(a.createEmbeddedDocuments).not.toHaveBeenCalled();
++    const off = setup({ allow: false });
++    await expect(
++      off.da.manageRegions({ action: 'link', from: { scene: 'sa', rect: [1, 1, 1, 1] }, to: { scene: 'sb', rect: [1, 1, 1, 1] } })
++    ).rejects.toThrow();
++  });
++});
 diff --git a/packages/foundry-module/src/data-access.manage-journals.test.ts b/packages/foundry-module/src/data-access.manage-journals.test.ts
 new file mode 100644
 index 0000000..bad3cea
@@ -3424,10 +3580,10 @@ index 0000000..313055c
 +  });
 +});
 diff --git a/packages/foundry-module/src/data-access.ts b/packages/foundry-module/src/data-access.ts
-index eecda7e..5ee54c0 100644
+index eecda7e..a9f9df8 100644
 --- a/packages/foundry-module/src/data-access.ts
 +++ b/packages/foundry-module/src/data-access.ts
-@@ -1,5 +1,81 @@
+@@ -1,5 +1,82 @@
  import { MODULE_ID, ERROR_MESSAGES, TOKEN_DISPOSITIONS } from './constants.js';
  import { permissionManager } from './permissions.js';
 +import {
@@ -3488,6 +3644,7 @@ index eecda7e..5ee54c0 100644
 +  MAX_REGIONS_PER_CALL,
 +  type RegionSpec,
 +} from './region-utils.js';
++import { buildTeleportBehavior, linkEndSpec, teleportDestinations, type LinkEnd, type LinkOptions } from './link-utils.js';
 +import { measureGrid as measureGridInPicture } from './grid-measure-utils.js';
 +import {
 +  OWNERSHIP_LEVELS,
@@ -3509,7 +3666,7 @@ index eecda7e..5ee54c0 100644
  import { transactionManager } from './transaction-manager.js';
  
  // The same five characters foundry.utils.escapeHTML replaces in v14, kept local because
-@@ -4681,12 +4757,28 @@ export class FoundryDataAccess {
+@@ -4681,12 +4758,28 @@ export class FoundryDataAccess {
        type: 'random' | 'grid' | 'center' | 'coordinates';
        coordinates?: { x: number; y: number }[];
      };
@@ -3538,7 +3695,7 @@ index eecda7e..5ee54c0 100644
        // Validate inputs
        if (!packId || !itemId) {
          throw new Error('Both packId and itemId are required');
-@@ -4753,10 +4845,33 @@ export class FoundryDataAccess {
+@@ -4753,10 +4846,33 @@ export class FoundryDataAccess {
            }
  
            // Organize created actors in a folder - use "Foundry MCP Creatures" for generic monsters
@@ -3573,7 +3730,7 @@ index eecda7e..5ee54c0 100644
  
            // Create the actor
            const newActor = await Actor.create(actorData);
-@@ -6714,7 +6829,7 @@ export class FoundryDataAccess {
+@@ -6714,7 +6830,7 @@ export class FoundryDataAccess {
  
          // Send socket request to GM
          if (game.socket) {
@@ -3582,7 +3739,7 @@ index eecda7e..5ee54c0 100644
              type: 'requestMessageUpdate',
              buttonId,
              userId,
-@@ -7941,162 +8056,2685 @@ export class FoundryDataAccess {
+@@ -7941,162 +8057,2766 @@ export class FoundryDataAccess {
  
        return {
          success: true,
@@ -5260,18 +5417,22 @@ index eecda7e..5ee54c0 100644
 +   * regions this tool made) / behavior_types (what each behaviour type accepts).
 +   */
 +  async manageRegions(options: {
-+    action: 'create' | 'describe' | 'remove' | 'behavior_types';
++    action: 'create' | 'describe' | 'remove' | 'behavior_types' | 'link';
 +    scene?: string;
 +    regions?: RegionSpec[];
 +    ids?: string[];
 +    all_mine?: boolean;
-+  }): Promise<any> {
++    from?: LinkEnd;
++    to?: LinkEnd;
++    two_way?: boolean;
++    name?: string;
++  } & LinkOptions): Promise<any> {
 +    this.validateFoundryState();
 +
 +    try {
 +      const action = options.action;
-+      if (action !== 'create' && action !== 'describe' && action !== 'remove' && action !== 'behavior_types') {
-+        throw new Error(`Unknown action: ${String(action)} (create | describe | remove | behavior_types)`);
++      if (!['create', 'describe', 'remove', 'behavior_types', 'link'].includes(action)) {
++        throw new Error(`Unknown action: ${String(action)} (create | describe | remove | behavior_types | link)`);
 +      }
 +
 +      if (action === 'behavior_types') {
@@ -5314,7 +5475,9 @@ index eecda7e..5ee54c0 100644
 +              type: b.type,
 +              name: b.name,
 +              disabled: !!b.disabled,
++              ...(b.type === 'teleportToken' ? { teleportsTo: teleportDestinations(b) } : {}),
 +            })),
++            uuid: region.uuid,
 +            createdByTool: this.isToolObject(region),
 +          })),
 +        };
@@ -5323,6 +5486,10 @@ index eecda7e..5ee54c0 100644
 +      const permissionCheck = permissionManager.checkWritePermission('modifyScene', {});
 +      if (!permissionCheck.allowed) {
 +        throw new Error(`${ERROR_MESSAGES.ACCESS_DENIED}: ${permissionCheck.reason}`);
++      }
++
++      if (action === 'link') {
++        return await this.linkRegions(options);
 +      }
 +
 +      if (action === 'create') {
@@ -5380,6 +5547,77 @@ index eecda7e..5ee54c0 100644
 +        `Failed to manage regions: ${error instanceof Error ? error.message : 'Unknown error'}`
 +      );
 +    }
++  }
++
++  /**
++   * Two regions joined by teleports, in the same scene or in two scenes: tokens entering one
++   * appear in the other (and back, unless two_way is false). Both regions are made by this tool.
++   */
++  private async linkRegions(options: {
++    from?: LinkEnd;
++    to?: LinkEnd;
++    two_way?: boolean;
++    name?: string;
++  } & LinkOptions): Promise<any> {
++    if (!options.from || !options.to) {
++      throw new Error('link needs from and to, each {scene?, rect | ellipse | polygon, name?}');
++    }
++    const ends = [options.from, options.to].map(end => {
++      const scene = this.resolveSceneForObjects(end.scene);
++      return { end, scene, geom: getGridGeometry(scene) };
++    });
++    const [a, b] = ends as [(typeof ends)[number], (typeof ends)[number]];
++    const sameScene = a.scene.id === b.scene.id;
++    const base = options.name?.trim();
++    const fallback = (side: number) =>
++      base
++        ? `${base} ${side === 0 ? '(A)' : '(B)'}`
++        : sameScene
++          ? `Teleport ${side === 0 ? 'A' : 'B'}`
++          : `To ${(side === 0 ? b : a).scene.name}`;
++    const keys = this.movementCostKeys();
++    const flags = { [this.moduleId]: { [CREATED_BY_FLAG]: true } };
++    const datas = ends.map((e, i) => ({
++      ...buildRegionData(linkEndSpec(e.end, fallback(i), i === 0 ? 'from' : 'to'), e.geom, keys, i === 0 ? 'from' : 'to', false),
++      flags,
++    }));
++    // Check the behaviours before anything is created.
++    buildTeleportBehavior(['Scene.x.Region.y'], options, 'check', 'link');
++
++    const created: any[] = [];
++    try {
++      for (let i = 0; i < 2; i++) {
++        const docs = (await ends[i]!.scene.createEmbeddedDocuments('Region', [datas[i]])) as any[];
++        created.push(docs[0]);
++      }
++      const twoWay = options.two_way !== false;
++      const behaviours: Array<{ region: any; destination: any }> = [{ region: created[0], destination: created[1] }];
++      if (twoWay) behaviours.push({ region: created[1], destination: created[0] });
++      for (const { region, destination } of behaviours) {
++        const destScene = destination === created[0] ? a.scene : b.scene;
++        await region.createEmbeddedDocuments('RegionBehavior', [
++          buildTeleportBehavior([destination.uuid], options, `Teleport to ${destScene.name}`, 'link'),
++        ]);
++      }
++    } catch (error) {
++      for (let i = 0; i < created.length; i++) {
++        try {
++          await ends[i]!.scene.deleteEmbeddedDocuments('Region', [created[i].id]);
++        } catch {
++          /* best effort */
++        }
++      }
++      throw error;
++    }
++    this.auditLog('manageRegions:link', { from: a.scene.id, to: b.scene.id }, 'success');
++    return {
++      success: true,
++      action: 'link',
++      twoWay: options.two_way !== false,
++      from: { scene: { id: a.scene.id, name: a.scene.name }, region: { id: created[0].id, name: created[0].name, uuid: created[0].uuid } },
++      to: { scene: { id: b.scene.id, name: b.scene.name }, region: { id: created[1].id, name: created[1].name, uuid: created[1].uuid } },
++      note: 'Tokens that enter a linked region are moved to the other one. The teleport runs when a token is moved there, so test it by moving a token.',
++    };
 +  }
 +
 +  /**
@@ -6386,7 +6624,7 @@ index eecda7e..5ee54c0 100644
        );
      }
    }
-@@ -11274,7 +13912,10 @@ export class FoundryDataAccess {
+@@ -11274,7 +13994,10 @@ export class FoundryDataAccess {
        name: string;
        type: string;
        img?: string;
@@ -6397,7 +6635,7 @@ index eecda7e..5ee54c0 100644
      }>;
      folder?: string;
    }): Promise<{ created: Array<{ id: string; name: string; type: string }>; total: number }> {
-@@ -11286,6 +13927,19 @@ export class FoundryDataAccess {
+@@ -11286,6 +14009,19 @@ export class FoundryDataAccess {
      const docs = params.actors.map(a => {
        const doc: Record<string, any> = { name: a.name, type: a.type };
        if (a.img) doc.img = a.img;
@@ -6417,7 +6655,7 @@ index eecda7e..5ee54c0 100644
  
        // Merge system data, adding safe defaults for systems that require certain
        // fields to exist during data preparation (avoids non-fatal init errors).
-@@ -11471,7 +14125,16 @@ export class FoundryDataAccess {
+@@ -11471,7 +14207,16 @@ export class FoundryDataAccess {
     * Merges supplied fields into the actor (top-level keys overwrite).
     */
    async updateActors(
@@ -6435,7 +6673,7 @@ index eecda7e..5ee54c0 100644
    ): Promise<{ updated: Array<{ id: string; name: string }>; total: number }> {
      const updatedActors: Array<{ id: string; name: string }> = [];
  
-@@ -11482,6 +14145,7 @@ export class FoundryDataAccess {
+@@ -11482,6 +14227,7 @@ export class FoundryDataAccess {
        const patch: Record<string, any> = {};
        if (u.name !== undefined) patch.name = u.name;
        if (u.img !== undefined) patch.img = u.img;
@@ -6443,7 +6681,7 @@ index eecda7e..5ee54c0 100644
        if (u.system !== undefined) {
          // Build a single patch.system nested object so Foundry deep-merges everything
          // in one pass without flat-key vs nested-key conflicts.
-@@ -11504,6 +14168,19 @@ export class FoundryDataAccess {
+@@ -11504,6 +14250,19 @@ export class FoundryDataAccess {
          }
          patch.system = systemPatch;
        }
@@ -8352,6 +8590,155 @@ index 0000000..cbd8013
 +    }
 +  );
 +  return { html: out, warnings };
++}
+diff --git a/packages/foundry-module/src/link-utils.test.ts b/packages/foundry-module/src/link-utils.test.ts
+new file mode 100644
+index 0000000..13433b0
+--- /dev/null
++++ b/packages/foundry-module/src/link-utils.test.ts
+@@ -0,0 +1,55 @@
++import { describe, expect, it } from 'vitest';
++import { buildTeleportBehavior, linkEndSpec, teleportDestinations, LINK_COLOR } from './link-utils.js';
++
++describe('linkEndSpec', () => {
++  it('keeps the shape, names it and colours it purple', () => {
++    expect(linkEndSpec({ rect: [1, 2, 3, 1], name: ' Stairs ' }, 'fallback', 'from')).toEqual({
++      name: 'Stairs',
++      rect: [1, 2, 3, 1],
++      color: LINK_COLOR,
++    });
++    expect(linkEndSpec({ ellipse: [4, 4, 1, 1], color: '#112233' }, 'To Cave', 'to')).toEqual({
++      name: 'To Cave',
++      ellipse: [4, 4, 1, 1],
++      color: '#112233',
++    });
++  });
++  it('refuses something that is not an object', () => {
++    expect(() => linkEndSpec(null as any, 'x', 'from')).toThrow('must be an object');
++    expect(() => linkEndSpec([] as any, 'x', 'from')).toThrow('must be an object');
++  });
++});
++
++describe('buildTeleportBehavior', () => {
++  it('builds a teleportToken with defaults', () => {
++    expect(buildTeleportBehavior(['Scene.a.Region.b'], {}, 'Teleport', 'link')).toEqual({
++      type: 'teleportToken',
++      name: 'Teleport',
++      system: {
++        destinations: ['Scene.a.Region.b'],
++        placement: 'center',
++        snap: true,
++        choice: false,
++        transition: { type: null, duration: 1500 },
++      },
++    });
++  });
++  it('passes the options through', () => {
++    const b = buildTeleportBehavior(['x'], { placement: 'random', choice: true, snap: false, transition: 'fade', duration: 500 }, 'T', 'link');
++    expect(b.system).toMatchObject({ placement: 'random', choice: true, snap: false, transition: { type: 'fade', duration: 500 } });
++  });
++  it('rejects bad input', () => {
++    expect(() => buildTeleportBehavior([], {}, 'T', 'link')).toThrow('destinations');
++    expect(() => buildTeleportBehavior(['x'], { placement: 'up' as any }, 'T', 'link')).toThrow('placement');
++    expect(() => buildTeleportBehavior(['x'], { transition: 'a b' }, 'T', 'link')).toThrow('transition');
++    expect(() => buildTeleportBehavior(['x'], { duration: -1 }, 'T', 'link')).toThrow('duration');
++  });
++});
++
++describe('teleportDestinations', () => {
++  it('reads sets and arrays', () => {
++    expect(teleportDestinations({ system: { destinations: new Set(['a', 'b']) } })).toEqual(['a', 'b']);
++    expect(teleportDestinations({ system: { destinations: ['a', 3] } })).toEqual(['a']);
++    expect(teleportDestinations({})).toEqual([]);
++  });
++});
+diff --git a/packages/foundry-module/src/link-utils.ts b/packages/foundry-module/src/link-utils.ts
+new file mode 100644
+index 0000000..d51ec37
+--- /dev/null
++++ b/packages/foundry-module/src/link-utils.ts
+@@ -0,0 +1,82 @@
++/**
++ * Pure helpers for linking two regions with teleports (also across scenes): the region spec for
++ * each end and the teleportToken behaviour that points at the other end.
++ */
++
++import type { RegionSpec } from './region-utils.js';
++
++export const LINK_PLACEMENTS = ['center', 'random', 'relative'] as const;
++export const LINK_COLOR = '#bf5af2';
++
++/** One end of a link: where the region is, and what to call it. The scene is an id or name. */
++export interface LinkEnd {
++  scene?: string;
++  name?: string;
++  rect?: number[];
++  ellipse?: number[];
++  polygon?: number[][];
++  color?: string;
++}
++
++export interface LinkOptions {
++  /** Where arriving tokens appear in the destination region (default center). */
++  placement?: (typeof LINK_PLACEMENTS)[number];
++  /** Ask the player before teleporting. */
++  choice?: boolean;
++  /** Snap arriving tokens to the grid (default true). */
++  snap?: boolean;
++  /** Foundry transition type (a key of CONFIG.Canvas.transitionTypes, e.g. fade); none by default. */
++  transition?: string;
++  /** Transition length in milliseconds. */
++  duration?: number;
++}
++
++/** The region spec for one end of a link (no behaviours yet; they need the other end's uuid). */
++export function linkEndSpec(end: LinkEnd, fallbackName: string, label: string): RegionSpec {
++  if (!end || typeof end !== 'object' || Array.isArray(end)) throw new Error(`${label}: must be an object`);
++  const name = typeof end.name === 'string' && end.name.trim() ? end.name.trim() : fallbackName;
++  return {
++    name,
++    ...(end.rect ? { rect: end.rect } : {}),
++    ...(end.ellipse ? { ellipse: end.ellipse } : {}),
++    ...(end.polygon ? { polygon: end.polygon } : {}),
++    color: end.color ?? LINK_COLOR,
++  };
++}
++
++/** The teleportToken behaviour data that sends tokens to the given region uuids. */
++export function buildTeleportBehavior(destinations: string[], options: LinkOptions, name: string, label: string): any {
++  if (!Array.isArray(destinations) || destinations.length === 0 || destinations.some(d => typeof d !== 'string' || !d)) {
++    throw new Error(`${label}: destinations must be a non-empty list of region uuids`);
++  }
++  const placement = options.placement ?? 'center';
++  if (!(LINK_PLACEMENTS as readonly string[]).includes(placement)) {
++    throw new Error(`${label}: placement must be one of ${LINK_PLACEMENTS.join(', ')}`);
++  }
++  const transition = options.transition ?? 'none';
++  if (typeof transition !== 'string' || !/^[A-Za-z][A-Za-z0-9_-]{0,40}$/.test(transition)) {
++    throw new Error(`${label}: transition must be a transition name such as fade, or none`);
++  }
++  const duration = options.duration ?? 1500;
++  if (typeof duration !== 'number' || !Number.isFinite(duration) || duration < 0 || duration > 10000) {
++    throw new Error(`${label}: duration must be 0 to 10000 milliseconds`);
++  }
++  return {
++    type: 'teleportToken',
++    name,
++    system: {
++      destinations,
++      placement,
++      snap: options.snap ?? true,
++      choice: !!options.choice,
++      transition: { type: transition === 'none' ? null : transition, duration },
++    },
++  };
++}
++
++/** The region uuids a teleportToken behaviour sends to, for describe. */
++export function teleportDestinations(behavior: any): string[] {
++  const value = behavior?.system?.destinations;
++  const list: unknown[] = value instanceof Set ? [...value] : Array.isArray(value) ? value : [];
++  return list.filter((d): d is string => typeof d === 'string');
 +}
 diff --git a/packages/foundry-module/src/main.ts b/packages/foundry-module/src/main.ts
 index 9024ead..26cc5c1 100644
@@ -12467,10 +12854,10 @@ index 096f27b..903a94e 100644
      "@vitest/coverage-v8": "^3.2.4",
      "esbuild": "^0.19.0",
 diff --git a/packages/mcp-server/src/backend.ts b/packages/mcp-server/src/backend.ts
-index 8967e33..f113cec 100644
+index 8967e33..f3c636f 100644
 --- a/packages/mcp-server/src/backend.ts
 +++ b/packages/mcp-server/src/backend.ts
-@@ -48,6 +48,24 @@ import { DnD5eAddFeatureTool } from './tools/dnd5e/add-feature.js';
+@@ -48,6 +48,25 @@ import { DnD5eAddFeatureTool } from './tools/dnd5e/add-feature.js';
  import { DnD5eNpcTools } from './tools/dnd5e/npc.js';
  import { DnD5eFeaturesFromCompendiumTools } from './tools/dnd5e/features.js';
  import { ChatTools } from './tools/chat.js';
@@ -12490,12 +12877,13 @@ index 8967e33..f113cec 100644
 +import { SceneObjectTools } from './tools/scene-objects.js';
 +import { PlayTools } from './tools/play-tools.js';
 +import { ModuleTools } from './tools/module-tools.js';
++import { PropTools } from './tools/prop-tools.js';
 +import { LayoutTools } from './tools/layout.js';
 +import { InspectTools } from './tools/inspect.js';
  
  const CONTROL_HOST = '127.0.0.1';
  
-@@ -174,6 +192,22 @@ let comfyuiProcess: ChildProcess | null = null;
+@@ -174,6 +193,22 @@ let comfyuiProcess: ChildProcess | null = null;
  
  let comfyuiStatus: 'stopped' | 'starting' | 'running' | 'error' = 'stopped';
  
@@ -12518,7 +12906,7 @@ index 8967e33..f113cec 100644
  let lockFd: number | null = null;
  
  function acquireLock(): boolean {
-@@ -350,6 +384,18 @@ async function waitForComfyUIReady(timeoutMs: number = 60000): Promise<void> {
+@@ -350,6 +385,18 @@ async function waitForComfyUIReady(timeoutMs: number = 60000): Promise<void> {
  }
  
  async function startComfyUIService(logger: Logger): Promise<any> {
@@ -12537,7 +12925,7 @@ index 8967e33..f113cec 100644
    if (comfyuiStatus === 'running') {
      return { status: 'already_running', message: 'ComfyUI service is already running' };
    }
-@@ -472,6 +518,14 @@ async function startComfyUIService(logger: Logger): Promise<any> {
+@@ -472,6 +519,14 @@ async function startComfyUIService(logger: Logger): Promise<any> {
  }
  
  async function stopComfyUIService(logger: Logger): Promise<any> {
@@ -12552,7 +12940,7 @@ index 8967e33..f113cec 100644
    if (comfyuiStatus === 'stopped') {
      return { status: 'already_stopped', message: 'ComfyUI service is already stopped' };
    }
-@@ -510,7 +564,7 @@ async function checkComfyUIStatus(): Promise<any> {
+@@ -510,7 +565,7 @@ async function checkComfyUIStatus(): Promise<any> {
    // This handles both spawned processes and externally-started instances
  
    try {
@@ -12561,7 +12949,7 @@ index 8967e33..f113cec 100644
        signal: AbortSignal.timeout(5000),
      });
  
-@@ -520,16 +574,23 @@ async function checkComfyUIStatus(): Promise<any> {
+@@ -520,16 +575,23 @@ async function checkComfyUIStatus(): Promise<any> {
        comfyuiStatus = 'error';
      }
    } catch (error) {
@@ -12587,7 +12975,7 @@ index 8967e33..f113cec 100644
    };
  }
  
-@@ -1131,7 +1192,7 @@ async function processMapGenerationInBackend(
+@@ -1131,7 +1193,7 @@ async function processMapGenerationInBackend(
      );
  
      logger.error('Background map generation processing failed', { jobId, error });
@@ -12596,7 +12984,7 @@ index 8967e33..f113cec 100644
  
      // Emit failure to Foundry module
      foundryClient.sendMessage({
-@@ -1195,6 +1256,34 @@ async function startBackend(): Promise<void> {
+@@ -1195,6 +1257,40 @@ async function startBackend(): Promise<void> {
    const compendiumTools = new CompendiumTools({ foundryClient, logger, systemRegistry });
  
    const sceneTools = new SceneTools({ foundryClient, logger });
@@ -12627,11 +13015,17 @@ index 8967e33..f113cec 100644
 +    generate: args => imageGenerationTools.handleGenerateImage(args),
 +    upload: args => uploadTools.handleUploadFile(args),
 +  });
++  const propTools = new PropTools({
++    foundryClient,
++    logger,
++    generate: args => imageGenerationTools.handleGenerateImage(args),
++    upload: args => uploadTools.handleUploadFile(args),
++  });
 +  const inspectTools = new InspectTools({ foundryClient, logger });
    const playlistTools = new PlaylistTools({ foundryClient, logger });
  
    const actorCreationTools = new ActorCreationTools({ foundryClient, logger });
-@@ -1301,6 +1390,13 @@ async function startBackend(): Promise<void> {
+@@ -1301,6 +1397,13 @@ async function startBackend(): Promise<void> {
  
          let result: any;
  
@@ -12645,7 +13039,7 @@ index 8967e33..f113cec 100644
          switch (message.type) {
            case 'start-comfyui-service':
              result = await startComfyUIService(logger);
-@@ -1317,6 +1413,19 @@ async function startBackend(): Promise<void> {
+@@ -1317,6 +1420,19 @@ async function startBackend(): Promise<void> {
  
              break;
  
@@ -12665,7 +13059,7 @@ index 8967e33..f113cec 100644
            // Map generation handlers (following existing tool pattern)
            case 'generate-map-request':
              await fs.appendFile(
-@@ -1429,6 +1538,15 @@ async function startBackend(): Promise<void> {
+@@ -1429,6 +1545,16 @@ async function startBackend(): Promise<void> {
  
      ...sceneTools.getToolDefinitions(),
  
@@ -12675,13 +13069,14 @@ index 8967e33..f113cec 100644
 +    ...sceneObjectTools.getToolDefinitions(),
 +    ...playTools.getToolDefinitions(),
 +    ...moduleTools.getToolDefinitions(),
++    ...propTools.getToolDefinitions(),
 +    ...layoutTools.getToolDefinitions(),
 +    ...inspectTools.getToolDefinitions(),
 +
      ...actorCreationTools.getToolDefinitions(),
      ...actorManagementTools.getToolDefinitions(),
      ...effectManagementTools.getToolDefinitions(),
-@@ -1456,7 +1574,11 @@ async function startBackend(): Promise<void> {
+@@ -1456,7 +1582,11 @@ async function startBackend(): Promise<void> {
  
      ...tokenManipulationTools.getToolDefinitions(),
  
@@ -12694,7 +13089,7 @@ index 8967e33..f113cec 100644
  
      ...playlistTools.getToolDefinitions(),
    ];
-@@ -1764,19 +1886,11 @@ async function startBackend(): Promise<void> {
+@@ -1764,19 +1894,11 @@ async function startBackend(): Promise<void> {
                  // Map generation tools
  
                  case 'generate-map':
@@ -12717,7 +13112,7 @@ index 8967e33..f113cec 100644
  
                  case 'list-scenes':
                    result = await mapGenerationTools.listScenes(args);
-@@ -1805,6 +1919,68 @@ async function startBackend(): Promise<void> {
+@@ -1805,6 +1927,72 @@ async function startBackend(): Promise<void> {
  
                    break;
  
@@ -12760,6 +13155,10 @@ index 8967e33..f113cec 100644
 +
 +                case 'manage-modules':
 +                  result = await moduleTools.handleManageModules(args);
++                  break;
++
++                case 'make-prop':
++                  result = await propTools.handleMakeProp(args);
 +                  break;
 +
 +                case 'manage-world':
@@ -19648,12 +20047,607 @@ index 0000000..06e09dd
 +    }
 +  }
 +}
+diff --git a/packages/mcp-server/src/tools/prop-keying.ts b/packages/mcp-server/src/tools/prop-keying.ts
+new file mode 100644
+index 0000000..c7d6d06
+--- /dev/null
++++ b/packages/mcp-server/src/tools/prop-keying.ts
+@@ -0,0 +1,183 @@
++/**
++ * Turns a picture of an object on a flat coloured background into a picture with a transparent
++ * background (a prop that can be laid on a map as a tile). Pure pixel work, no files.
++ *
++ * The background colour is read from the picture's border. Only background that touches the
++ * border is removed, so a part of the object that happens to have the same colour is kept.
++ */
++
++export interface Pixels {
++  width: number;
++  height: number;
++  /** RGBA, 4 bytes per pixel */
++  data: Uint8Array;
++}
++
++export interface KeyOptions {
++  /** Colour distance (0-441) up to which a pixel is fully background. Default 60. */
++  tolerance?: number;
++  /** Extra transparent pixels kept around the object after cropping. Default 2. */
++  padding?: number;
++  /** Crop to the object (default true). */
++  crop?: boolean;
++}
++
++export interface KeyResult extends Pixels {
++  background: [number, number, number];
++  /** Share of the picture that is left opaque (0 to 1). */
++  opaqueShare: number;
++  /** How much the border colour varies; high means the background was not flat. */
++  borderSpread: number;
++  /** Box of the object in the original picture. */
++  box: { x: number; y: number; width: number; height: number };
++  warnings: string[];
++}
++
++const dist = (data: Uint8Array, i: number, bg: number[]): number => {
++  const dr = data[i]! - bg[0]!;
++  const dg = data[i + 1]! - bg[1]!;
++  const db = data[i + 2]! - bg[2]!;
++  return Math.sqrt(dr * dr + dg * dg + db * db);
++};
++
++function median(values: number[]): number {
++  const sorted = [...values].sort((a, b) => a - b);
++  return sorted[Math.floor(sorted.length / 2)] ?? 0;
++}
++
++/** The colour that most of the border has, and how far the border pixels stray from it. */
++export function borderColour(img: Pixels): { colour: [number, number, number]; spread: number } {
++  const { width, height, data } = img;
++  const reds: number[] = [];
++  const greens: number[] = [];
++  const blues: number[] = [];
++  const add = (x: number, y: number) => {
++    const i = (y * width + x) * 4;
++    reds.push(data[i]!);
++    greens.push(data[i + 1]!);
++    blues.push(data[i + 2]!);
++  };
++  for (let x = 0; x < width; x++) {
++    add(x, 0);
++    add(x, height - 1);
++  }
++  for (let y = 1; y < height - 1; y++) {
++    add(0, y);
++    add(width - 1, y);
++  }
++  const colour: [number, number, number] = [median(reds), median(greens), median(blues)];
++  let near = 0;
++  for (let k = 0; k < reds.length; k++) {
++    const dr = reds[k]! - colour[0];
++    const dg = greens[k]! - colour[1];
++    const db = blues[k]! - colour[2];
++    if (Math.sqrt(dr * dr + dg * dg + db * db) <= 60) near++;
++  }
++  return { colour, spread: 1 - near / reds.length };
++}
++
++export function keyOutBackground(img: Pixels, options: KeyOptions = {}): KeyResult {
++  const { width, height } = img;
++  if (!(width > 0 && height > 0) || img.data.length < width * height * 4) throw new Error('The picture is empty');
++  const tolerance = options.tolerance ?? 60;
++  if (!(tolerance >= 1 && tolerance <= 200)) throw new Error('tolerance must be from 1 to 200');
++  const soft = tolerance * 2.2;
++  const warnings: string[] = [];
++
++  const { colour: bg, spread } = borderColour(img);
++  if (spread > 0.35) {
++    throw new Error(
++      `The border of the picture is not one flat colour (${Math.round(spread * 100)}% of it differs from ${bg.join(',')}); the object touches the edge or the background is patterned. Generate it again with more empty space around the object.`
++    );
++  }
++  if (spread > 0.1) warnings.push(`${Math.round(spread * 100)}% of the border differs from the background colour; the object may touch the edge`);
++
++  const src = img.data;
++  const out = new Uint8Array(width * height * 4);
++  out.set(src.subarray(0, width * height * 4));
++
++  // Flood from the border over everything that looks like background.
++  const reached = new Uint8Array(width * height);
++  const queue = new Int32Array(width * height);
++  let head = 0;
++  let tail = 0;
++  const push = (x: number, y: number) => {
++    const p = y * width + x;
++    if (reached[p]) return;
++    if (dist(src, p * 4, bg) > soft) return;
++    reached[p] = 1;
++    queue[tail++] = p;
++  };
++  for (let x = 0; x < width; x++) {
++    push(x, 0);
++    push(x, height - 1);
++  }
++  for (let y = 0; y < height; y++) {
++    push(0, y);
++    push(width - 1, y);
++  }
++  while (head < tail) {
++    const p = queue[head++]!;
++    const x = p % width;
++    const y = (p - x) / width;
++    if (x > 0) push(x - 1, y);
++    if (x < width - 1) push(x + 1, y);
++    if (y > 0) push(x, y - 1);
++    if (y < height - 1) push(x, y + 1);
++  }
++
++  let opaque = 0;
++  let minX = width;
++  let minY = height;
++  let maxX = -1;
++  let maxY = -1;
++  for (let p = 0; p < width * height; p++) {
++    const i = p * 4;
++    let alpha = 255;
++    if (reached[p]) {
++      const d = dist(src, i, bg);
++      alpha = d <= tolerance ? 0 : Math.round(((d - tolerance) / (soft - tolerance)) * 255);
++      if (alpha > 0 && alpha < 255) {
++        // Take the background colour out of the edge pixel.
++        const a = alpha / 255;
++        for (let c = 0; c < 3; c++) {
++          const v = (src[i + c]! - bg[c]! * (1 - a)) / a;
++          out[i + c] = Math.max(0, Math.min(255, Math.round(v)));
++        }
++      }
++    }
++    out[i + 3] = alpha;
++    if (alpha > 0) opaque++;
++    if (alpha > 8) {
++      const x = p % width;
++      const y = (p - x) / width;
++      if (x < minX) minX = x;
++      if (x > maxX) maxX = x;
++      if (y < minY) minY = y;
++      if (y > maxY) maxY = y;
++    }
++  }
++
++  const share = opaque / (width * height);
++  if (maxX < 0) throw new Error('Nothing is left after removing the background; the object has the background colour');
++  if (share > 0.97) warnings.push('Almost nothing was removed; the background may not be a flat colour that differs from the object');
++  if (share < 0.01) warnings.push('Very little is left; the tolerance may be too high or the object too small');
++
++  const box = { x: minX, y: minY, width: maxX - minX + 1, height: maxY - minY + 1 };
++  if (options.crop === false) {
++    return { width, height, data: out, background: bg, opaqueShare: share, borderSpread: spread, box, warnings };
++  }
++  const pad = Math.max(0, options.padding ?? 2);
++  const x0 = Math.max(0, box.x - pad);
++  const y0 = Math.max(0, box.y - pad);
++  const x1 = Math.min(width, box.x + box.width + pad);
++  const y1 = Math.min(height, box.y + box.height + pad);
++  const w = x1 - x0;
++  const h = y1 - y0;
++  const cropped = new Uint8Array(w * h * 4);
++  for (let y = 0; y < h; y++) {
++    const from = ((y0 + y) * width + x0) * 4;
++    cropped.set(out.subarray(from, from + w * 4), y * w * 4);
++  }
++  return { width: w, height: h, data: cropped, background: bg, opaqueShare: share, borderSpread: spread, box, warnings };
++}
+diff --git a/packages/mcp-server/src/tools/prop-tools.test.ts b/packages/mcp-server/src/tools/prop-tools.test.ts
+new file mode 100644
+index 0000000..24b9cd1
+--- /dev/null
++++ b/packages/mcp-server/src/tools/prop-tools.test.ts
+@@ -0,0 +1,191 @@
++import { afterAll, describe, expect, it, vi } from 'vitest';
++import { promises as fs } from 'fs';
++import os from 'os';
++import path from 'path';
++import { PNG } from 'pngjs';
++import { borderColour, keyOutBackground, type Pixels } from './prop-keying.js';
++import { PropTools, propFileName } from './prop-tools.js';
++
++/** A picture filled with `bg` and a rectangle of `fg`, with an optional hole of bg colour inside. */
++function picture(w: number, h: number, bg: number[], rect: [number, number, number, number], fg: number[], hole?: [number, number, number, number]): Pixels {
++  const data = new Uint8Array(w * h * 4);
++  for (let y = 0; y < h; y++) {
++    for (let x = 0; x < w; x++) {
++      const i = (y * w + x) * 4;
++      const inRect = x >= rect[0] && x < rect[0] + rect[2] && y >= rect[1] && y < rect[1] + rect[3];
++      const inHole = hole && x >= hole[0] && x < hole[0] + hole[2] && y >= hole[1] && y < hole[1] + hole[3];
++      const c = inRect && !inHole ? fg : bg;
++      data[i] = c[0]!;
++      data[i + 1] = c[1]!;
++      data[i + 2] = c[2]!;
++      data[i + 3] = 255;
++    }
++  }
++  return { width: w, height: h, data };
++}
++
++const alphaAt = (img: Pixels, x: number, y: number) => img.data[(y * img.width + x) * 4 + 3];
++
++describe('keyOutBackground', () => {
++  it('removes a flat background and crops to the object', () => {
++    const img = picture(40, 30, [255, 0, 255], [10, 8, 12, 10], [120, 80, 40]);
++    const out = keyOutBackground(img, { padding: 1 });
++    expect(out.background).toEqual([255, 0, 255]);
++    expect(out.box).toEqual({ x: 10, y: 8, width: 12, height: 10 });
++    expect(out.width).toBe(14);
++    expect(out.height).toBe(12);
++    expect(alphaAt(out, 0, 0)).toBe(0);
++    expect(alphaAt(out, 7, 6)).toBe(255);
++    expect(out.opaqueShare).toBeCloseTo(120 / 1200, 5);
++  });
++
++  it('keeps background-coloured parts of the object that do not touch the border', () => {
++    const img = picture(40, 40, [0, 255, 0], [8, 8, 24, 24], [200, 50, 50], [16, 16, 8, 8]);
++    const out = keyOutBackground(img, { crop: false });
++    expect(alphaAt(out, 20, 20)).toBe(255);
++    expect(alphaAt(out, 2, 2)).toBe(0);
++  });
++
++  it('softens edge pixels and takes the background colour out of them', () => {
++    const img = picture(20, 20, [255, 0, 255], [5, 5, 10, 10], [10, 10, 10]);
++    // An edge pixel half way between the background and the object.
++    const i = (5 * 20 + 4) * 4;
++    img.data[i] = 190;
++    img.data[i + 1] = 5;
++    img.data[i + 2] = 190;
++    const out = keyOutBackground(img, { crop: false });
++    const a = out.data[i + 3]!;
++    expect(a).toBeGreaterThan(0);
++    expect(a).toBeLessThan(255);
++    expect(out.data[i]!).toBeLessThan(190);
++  });
++
++  it('refuses a patterned border and a picture that is all background', () => {
++    const noisy = picture(20, 20, [255, 0, 255], [5, 5, 10, 10], [10, 10, 10]);
++    for (let x = 0; x < 20; x += 2) {
++      const i = x * 4;
++      noisy.data[i] = 0;
++      noisy.data[i + 1] = 0;
++      noisy.data[i + 2] = 0;
++    }
++    for (let y = 0; y < 20; y += 2) {
++      const i = (y * 20 + 19) * 4;
++      noisy.data[i] = 0;
++      noisy.data[i + 1] = 255;
++      noisy.data[i + 2] = 0;
++    }
++    for (let x = 0; x < 20; x += 2) {
++      const i = (19 * 20 + x) * 4;
++      noisy.data[i] = 0;
++      noisy.data[i + 1] = 255;
++      noisy.data[i + 2] = 255;
++    }
++    expect(() => keyOutBackground(noisy)).toThrow('not one flat colour');
++    const blank = picture(10, 10, [255, 0, 255], [0, 0, 0, 0], [0, 0, 0]);
++    expect(() => keyOutBackground(blank)).toThrow('Nothing is left');
++    expect(() => keyOutBackground(picture(10, 10, [0, 0, 0], [3, 3, 4, 4], [9, 9, 9]), { tolerance: 0 })).toThrow('tolerance');
++  });
++
++  it('reads the border colour', () => {
++    const c = borderColour(picture(10, 10, [10, 20, 30], [4, 4, 2, 2], [200, 200, 200]));
++    expect(c.colour).toEqual([10, 20, 30]);
++    expect(c.spread).toBe(0);
++  });
++});
++
++describe('propFileName', () => {
++  it('makes a safe file name', () => {
++    expect(propFileName('Old Oak Table!')).toBe('old-oak-table');
++    expect(propFileName('???')).toBe('prop');
++  });
++});
++
++const tmp: string[] = [];
++afterAll(async () => {
++  for (const f of tmp) await fs.rm(f, { force: true });
++});
++
++async function writeSource(): Promise<string> {
++  const img = picture(64, 48, [255, 0, 255], [16, 12, 32, 24], [90, 60, 30]);
++  const png = new PNG({ width: 64, height: 48 });
++  png.data = Buffer.from(img.data);
++  const file = path.join(os.tmpdir(), `prop-test-${Date.now()}-${Math.random().toString(36).slice(2)}.png`);
++  await fs.writeFile(file, PNG.sync.write(png));
++  tmp.push(file);
++  return file;
++}
++
++function makeTools(overrides: { generate?: any; upload?: any; query?: any } = {}) {
++  const query = vi.fn(overrides.query ?? (async () => ({ success: true, scene: { id: 's', name: 'S' }, created: [{ kind: 'tile', id: 't1', x: 3, y: 4 }] })));
++  const logger: any = { info: vi.fn(), debug: vi.fn(), error: vi.fn(), warn: vi.fn(), child: () => logger };
++  const upload = overrides.upload ?? vi.fn(async (a: any) => ({ success: true, path: `worlds/w/uploads/props/${a.filename}` }));
++  const tools = new PropTools({ foundryClient: { query } as any, logger, generate: overrides.generate, upload });
++  return { tools, query, upload };
++}
++
++describe('make-prop', () => {
++  it('is exposed with a required name', () => {
++    const def = makeTools().tools.getToolDefinitions()[0]!;
++    expect(def.name).toBe('make-prop');
++    expect(def.inputSchema.required).toEqual(['name']);
++  });
++
++  it('removes the background of an existing picture, uploads it and places the tile', async () => {
++    const source = await writeSource();
++    const { tools, query, upload } = makeTools();
++    const r = await tools.handleMakeProp({ name: 'Crate', image: source, x: 3, y: 4, width: 2, scene: 'Cave', rotation: 15 });
++    expect(r.success).toBe(true);
++    expect(r.pixels).toEqual({ width: 36, height: 28 });
++    tmp.push(r.local_path);
++    const out = PNG.sync.read(await fs.readFile(r.local_path));
++    expect(out.data[3]).toBe(0);
++    expect(out.data[(14 * 36 + 18) * 4 + 3]).toBe(255);
++    expect(upload).toHaveBeenCalledWith(expect.objectContaining({ folder: 'props', file_path: r.local_path }));
++    const call = query.mock.calls[0]!;
++    expect(call[0]).toBe('foundry-mcp-bridge.manage-scene-objects');
++    expect(call[1]).toMatchObject({
++      action: 'place',
++      scene: 'Cave',
++      objects: [{ kind: 'tile', x: 3, y: 4, width: 2, height: 1.56, rotation: 15 }],
++    });
++    expect(call[1].objects[0].src).toMatch(/^worlds\/w\/uploads\/props\/crate-.*\.png$/);
++    expect(r.tile).toMatchObject({ id: 't1', width: 2, height: 1.56 });
++  });
++
++  it('only uploads when no position is given', async () => {
++    const source = await writeSource();
++    const { tools, query } = makeTools();
++    const r = await tools.handleMakeProp({ name: 'Rug', image: source });
++    tmp.push(r.local_path);
++    expect(r.uploaded).toContain('props/rug-');
++    expect(query).not.toHaveBeenCalled();
++    expect(r.tile).toBeUndefined();
++  });
++
++  it('generates on a flat background when given a prompt', async () => {
++    const source = await writeSource();
++    const generate = vi.fn(async () => ({ success: true, local_path: source, seconds: 12 }));
++    const { tools } = makeTools({ generate });
++    const r = await tools.handleMakeProp({ name: 'Barrel', prompt: 'an oak barrel', key: 'green', image_size: 512 });
++    tmp.push(r.local_path);
++    const sent = (generate.mock.calls as any[][])[0]![0];
++    expect(sent).toMatchObject({ kind: 'token', width: 512, height: 512, upload: false });
++    expect(sent.prompt).toContain('an oak barrel');
++    expect(sent.prompt).toContain('pure green (#00FF00)');
++    expect(r.steps[0]).toContain('generated');
++  });
++
++  it('checks its input and reports failures', async () => {
++    const source = await writeSource();
++    const { tools } = makeTools();
++    await expect(tools.handleMakeProp({ name: 'x' })).rejects.toThrow('prompt');
++    await expect(tools.handleMakeProp({ name: 'x', image: source, x: 1 })).rejects.toThrow('both x and y');
++    await expect(tools.handleMakeProp({ name: 'x', prompt: 'a barrel', image_size: 500 })).rejects.toThrow('multiple of 32');
++    await expect(tools.handleMakeProp({ name: 'x', prompt: 'a barrel' })).rejects.toThrow('not available');
++    await expect(tools.handleMakeProp({ name: 'x', image: source, bogus: 1 })).rejects.toThrow();
++    const failing = makeTools({ upload: async () => ({ success: false, error: 'disk full' }) });
++    await expect(failing.tools.handleMakeProp({ name: 'x', image: source })).rejects.toThrow('disk full');
++    const badTile = makeTools({ query: async () => ({ success: false, error: 'outside the scene' }) });
++    await expect(badTile.tools.handleMakeProp({ name: 'x', image: source, x: 1, y: 1 })).rejects.toThrow('outside the scene');
++  });
++});
+diff --git a/packages/mcp-server/src/tools/prop-tools.ts b/packages/mcp-server/src/tools/prop-tools.ts
+new file mode 100644
+index 0000000..aaf77a2
+--- /dev/null
++++ b/packages/mcp-server/src/tools/prop-tools.ts
+@@ -0,0 +1,203 @@
++import { promises as fs } from 'fs';
++import os from 'os';
++import path from 'path';
++import { PNG } from 'pngjs';
++import { z } from 'zod';
++import { FoundryClient } from '../foundry-client.js';
++import { Logger } from '../logger.js';
++import { decodeImage } from './layout-image.js';
++import { keyOutBackground } from './prop-keying.js';
++
++export interface PropToolsOptions {
++  foundryClient: FoundryClient;
++  logger: Logger;
++  /** generate-image */
++  generate?: (args: any) => Promise<any>;
++  /** upload-file */
++  upload?: (args: any) => Promise<any>;
++}
++
++const KEYS = {
++  magenta: { hex: '#FF00FF', words: 'pure magenta (#FF00FF)' },
++  green: { hex: '#00FF00', words: 'pure green (#00FF00)' },
++  blue: { hex: '#0000FF', words: 'pure blue (#0000FF)' },
++} as const;
++
++const schema = z
++  .object({
++    name: z.string().min(1).max(60),
++    prompt: z.string().min(3).max(2000).optional(),
++    image: z.string().min(1).optional(),
++    key: z.enum(['magenta', 'green', 'blue']).optional(),
++    image_size: z.number().int().min(256).max(2048).optional(),
++    tolerance: z.number().min(1).max(200).optional(),
++    seed: z.number().int().optional(),
++    negative_prompt: z.string().max(500).optional(),
++    folder: z.string().min(1).max(100).optional(),
++    scene: z.string().min(1).optional(),
++    x: z.number().min(0).optional(),
++    y: z.number().min(0).optional(),
++    width: z.number().positive().max(100).optional(),
++    height: z.number().positive().max(100).optional(),
++    rotation: z.number().optional(),
++    alpha: z.number().min(0).max(1).optional(),
++    elevation: z.number().optional(),
++    hidden: z.boolean().optional(),
++  })
++  .strict();
++
++/** A name safe to use as a file name. */
++export function propFileName(name: string): string {
++  const base = name
++    .toLowerCase()
++    .replace(/[^a-z0-9]+/g, '-')
++    .replace(/^-+|-+$/g, '')
++    .slice(0, 40);
++  return base || 'prop';
++}
++
++export class PropTools {
++  private foundryClient: FoundryClient;
++  private logger: Logger;
++  private generate: ((args: any) => Promise<any>) | undefined;
++  private upload: ((args: any) => Promise<any>) | undefined;
++  private folder = path.join(os.tmpdir(), 'foundry-mcp-props');
++
++  constructor({ foundryClient, logger, generate, upload }: PropToolsOptions) {
++    this.foundryClient = foundryClient;
++    this.logger = logger.child({ component: 'PropTools' });
++    this.generate = generate;
++    this.upload = upload;
++  }
++
++  getToolDefinitions() {
++    return [
++      {
++        name: 'make-prop',
++        description:
++          'Make a prop (a table, crate, rug, statue, campfire, door in the floor...) as a picture with a transparent background and, if you give a position, lay it on a scene as a tile. ' +
++          'With prompt it generates the object seen from above on a flat coloured background (key: magenta default, green or blue; pick a colour the object does not contain), removes that background, crops to the object and uploads the PNG to the Foundry files (folder default props). ' +
++          'With image (a PNG or JPEG on this computer, for example the local_path of an earlier generate-image) it skips generating and only removes the background, so you can retry with another tolerance (default 60; raise it if a coloured fringe is left, lower it if the object is eaten into). ' +
++          'Give x and y (grid squares, top-left corner of the tile) to place it on scene (id or name, default the scene being viewed) with width in squares (default 2; the height keeps the picture\'s proportions unless you give height) and optional rotation (degrees), alpha, elevation, hidden. Without x and y it only makes and uploads the picture and returns its path for manage-scene-objects {kind:"tile", src}. ' +
++          'Generation takes a couple of minutes. Tiles it places are removed with manage-scene-objects remove.',
++        inputSchema: {
++          type: 'object',
++          properties: {
++            name: { type: 'string', description: 'Short name, used for the file' },
++            prompt: { type: 'string', description: 'What the object is and looks like (the tool adds the top-down view and the flat background)' },
++            image: { type: 'string', description: 'Existing picture on this computer to remove the background from, instead of generating' },
++            key: { type: 'string', enum: ['magenta', 'green', 'blue'], description: 'Background colour to generate on (default magenta)' },
++            image_size: { type: 'number', description: 'Generated picture size in pixels, a multiple of 32 (default 1024)' },
++            tolerance: { type: 'number', description: 'How different from the background a pixel must be to stay (default 60)' },
++            seed: { type: 'number' },
++            negative_prompt: { type: 'string' },
++            folder: { type: 'string', description: 'Folder under the world uploads (default props)' },
++            scene: { type: 'string', description: 'Scene id or exact name for placing (default: the scene being viewed)' },
++            x: { type: 'number', description: 'Grid square of the left edge (with y: place the tile)' },
++            y: { type: 'number', description: 'Grid square of the top edge' },
++            width: { type: 'number', description: 'Tile width in squares (default 2)' },
++            height: { type: 'number', description: 'Tile height in squares (default keeps proportions)' },
++            rotation: { type: 'number' },
++            alpha: { type: 'number' },
++            elevation: { type: 'number' },
++            hidden: { type: 'boolean' },
++          },
++          required: ['name'],
++          additionalProperties: false,
++        },
++      },
++    ];
++  }
++
++  async handleMakeProp(args: unknown): Promise<any> {
++    const a = schema.parse(args ?? {});
++    if (!a.prompt && !a.image) throw new Error('Give prompt (to generate the object) or image (a picture to remove the background from)');
++    if ((a.x === undefined) !== (a.y === undefined)) throw new Error('Give both x and y to place the tile, or neither');
++    const size = a.image_size ?? 1024;
++    if (size % 32 !== 0) throw new Error('image_size must be a multiple of 32');
++
++    const steps: string[] = [];
++    let source = a.image;
++    let generated: any;
++    if (!source) {
++      if (!this.generate) throw new Error('Image generation is not available here');
++      const key = KEYS[a.key ?? 'magenta'];
++      generated = await this.generate({
++        kind: 'token',
++        name: `prop-${propFileName(a.name)}`,
++        width: size,
++        height: size,
++        upload: false,
++        ...(a.seed !== undefined ? { seed: a.seed } : {}),
++        negative_prompt: `shadow on the background, floor, ground, table surface, gradient background, vignette, text, watermark, ${a.negative_prompt ?? ''}`.replace(/,\s*$/, ''),
++        prompt:
++          `${a.prompt}. A single object seen straight from above (top-down, overhead), centred in the picture with plenty of empty space all around it and nothing touching the edges, ` +
++          `isolated on a perfectly flat, uniform ${key.words} background. No floor, no shadow cast on the background, no other objects.`,
++      });
++      if (generated?.success === false) throw new Error(generated.error || 'The object could not be generated');
++      source = generated?.local_path;
++      if (!source) throw new Error('The image generator returned no file');
++      steps.push(`generated (${generated.seconds ?? '?'} s)`);
++    }
++
++    const picture = await decodeImage(source);
++    const keyed = keyOutBackground(
++      { width: picture.width, height: picture.height, data: picture.data },
++      { ...(a.tolerance !== undefined ? { tolerance: a.tolerance } : {}) }
++    );
++    steps.push(`background removed (was rgb ${keyed.background.join(',')}), cropped to ${keyed.width} x ${keyed.height}`);
++
++    const png = new PNG({ width: keyed.width, height: keyed.height });
++    png.data = Buffer.from(keyed.data);
++    await fs.mkdir(this.folder, { recursive: true });
++    const fileName = `${propFileName(a.name)}-${Date.now().toString(36)}.png`;
++    const local = path.join(this.folder, fileName);
++    await fs.writeFile(local, PNG.sync.write(png));
++
++    const result: Record<string, any> = {
++      success: true,
++      name: a.name,
++      local_path: local,
++      pixels: { width: keyed.width, height: keyed.height },
++      ...(keyed.warnings.length > 0 ? { warnings: keyed.warnings } : {}),
++    };
++
++    if (!this.upload) {
++      result.steps = steps;
++      return result;
++    }
++    const uploaded = await this.upload({ file_path: local, folder: a.folder ?? 'props', filename: fileName });
++    if (uploaded?.success === false || !uploaded?.path) throw new Error(uploaded?.error || 'The prop could not be uploaded');
++    result.uploaded = uploaded.path;
++    steps.push(`uploaded to ${uploaded.path}`);
++
++    if (a.x !== undefined && a.y !== undefined) {
++      const width = a.width ?? 2;
++      const height = a.height ?? Math.round(((width * keyed.height) / keyed.width) * 100) / 100;
++      const placed = await this.foundryClient.query('foundry-mcp-bridge.manage-scene-objects', {
++        action: 'place',
++        ...(a.scene ? { scene: a.scene } : {}),
++        objects: [
++          {
++            kind: 'tile',
++            x: a.x,
++            y: a.y,
++            width,
++            height,
++            src: uploaded.path,
++            ...(a.rotation !== undefined ? { rotation: a.rotation } : {}),
++            ...(a.alpha !== undefined ? { alpha: a.alpha } : {}),
++            ...(a.elevation !== undefined ? { elevation: a.elevation } : {}),
++            ...(a.hidden !== undefined ? { hidden: a.hidden } : {}),
++          },
++        ],
++      });
++      if (placed?.success === false) throw new Error(placed.error || 'The tile could not be placed');
++      result.tile = { ...(placed?.created?.[0] ?? {}), width, height, scene: placed?.scene };
++      steps.push(`placed as a ${width} x ${height} tile`);
++    }
++    result.steps = steps;
++    this.logger.info('Prop made', { name: a.name, placed: a.x !== undefined });
++    return result;
++  }
++}
 diff --git a/packages/mcp-server/src/tools/scene-objects.test.ts b/packages/mcp-server/src/tools/scene-objects.test.ts
 new file mode 100644
-index 0000000..5b9f701
+index 0000000..eb8f72a
 --- /dev/null
 +++ b/packages/mcp-server/src/tools/scene-objects.test.ts
-@@ -0,0 +1,359 @@
+@@ -0,0 +1,393 @@
 +import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 +import { promises as fs } from 'fs';
 +import { SceneObjectTools } from './scene-objects.js';
@@ -20013,12 +21007,46 @@ index 0000000..5b9f701
 +    expect(query).not.toHaveBeenCalled();
 +  });
 +});
++
++describe('manage-regions link', () => {
++  const from = { scene: 'Cragmaw Hideout', rect: [2, 3, 2, 1], name: 'Cave mouth' };
++  const to = { scene: 'Goblin Trail', rect: [10, 10, 2, 2] };
++
++  it('sends a link to the module', async () => {
++    const { tools, query } = makeTools();
++    await tools.handleManageRegions({ action: 'link', from, to, placement: 'random', two_way: false });
++    expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.manage-regions', {
++      action: 'link',
++      from,
++      to,
++      placement: 'random',
++      two_way: false,
++    });
++  });
++
++  it('is described and offered', () => {
++    const def = makeTools().tools.getToolDefinitions().find(d => d.name === 'manage-regions')!;
++    expect((def.inputSchema.properties as any).action.enum).toContain('link');
++    expect(def.description).toContain('link {from, to');
++  });
++
++  it('checks both ends', async () => {
++    const { tools, query } = makeTools();
++    await expect(tools.handleManageRegions({ action: 'link', from })).rejects.toThrow('link needs from and to');
++    await expect(tools.handleManageRegions({ action: 'link', from, to: { scene: 'x' } })).rejects.toThrow();
++    await expect(
++      tools.handleManageRegions({ action: 'link', from, to: { rect: [1, 1, 1, 1], ellipse: [1, 1, 1, 1] } })
++    ).rejects.toThrow();
++    await expect(tools.handleManageRegions({ action: 'link', from, to, placement: 'up' })).rejects.toThrow();
++    expect(query).not.toHaveBeenCalled();
++  });
++});
 diff --git a/packages/mcp-server/src/tools/scene-objects.ts b/packages/mcp-server/src/tools/scene-objects.ts
 new file mode 100644
-index 0000000..8f2daa6
+index 0000000..a897bdf
 --- /dev/null
 +++ b/packages/mcp-server/src/tools/scene-objects.ts
-@@ -0,0 +1,735 @@
+@@ -0,0 +1,787 @@
 +import { promises as fs } from 'fs';
 +import os from 'os';
 +import path from 'path';
@@ -20204,6 +21232,20 @@ index 0000000..8f2daa6
 +  })
 +  .strict();
 +
++const linkEndSchema = z
++  .object({
++    scene: z.string().min(1).optional(),
++    name: z.string().min(1).max(100).optional(),
++    rect: z.array(z.number()).length(4).optional(),
++    ellipse: z.array(z.number()).length(4).optional(),
++    polygon: z.array(z.array(z.number()).length(2)).min(3).max(200).optional(),
++    color: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
++  })
++  .strict()
++  .refine(end => [end.rect, end.ellipse, end.polygon].filter(v => v !== undefined).length === 1, {
++    message: 'give exactly one of rect, ellipse or polygon',
++  });
++
 +const worldTypes = ['Actor', 'Scene', 'JournalEntry', 'Item', 'RollTable', 'Playlist', 'Macro', 'Folder'] as const;
 +
 +const manageWorldSchema = z
@@ -20224,11 +21266,20 @@ index 0000000..8f2daa6
 +
 +const manageRegionsSchema = z
 +  .object({
-+    action: z.enum(['create', 'describe', 'remove', 'behavior_types']),
++    action: z.enum(['create', 'describe', 'remove', 'behavior_types', 'link']),
 +    scene: z.string().min(1).optional(),
 +    regions: z.array(regionSchema).min(1).max(100).optional(),
 +    ids: z.array(z.string().min(1)).max(500).optional(),
 +    all_mine: z.boolean().optional(),
++    from: linkEndSchema.optional(),
++    to: linkEndSchema.optional(),
++    two_way: z.boolean().optional(),
++    name: z.string().min(1).max(100).optional(),
++    placement: z.enum(['center', 'random', 'relative']).optional(),
++    choice: z.boolean().optional(),
++    snap: z.boolean().optional(),
++    transition: z.string().min(1).max(41).optional(),
++    duration: z.number().min(0).max(10000).optional(),
 +  })
 +  .strict();
 +
@@ -20255,6 +21306,22 @@ index 0000000..8f2daa6
 +      .optional(),
 +  })
 +  .strict();
++
++function linkEndProperties(description: string) {
++  return {
++    type: 'object',
++    description,
++    properties: {
++      scene: { type: 'string', description: 'Scene id or exact name (default: the scene being viewed)' },
++      name: { type: 'string' },
++      rect: { type: 'array', items: { type: 'number' }, description: '[x, y, width, height] in grid squares' },
++      ellipse: { type: 'array', items: { type: 'number' }, description: '[centreX, centreY, radiusX, radiusY] in grid squares' },
++      polygon: { type: 'array', items: { type: 'array', items: { type: 'number' } }, description: '[[x, y], ...] corners in grid squares' },
++      color: { type: 'string', description: '#RRGGBB (default purple)' },
++    },
++    additionalProperties: false,
++  };
++}
 +
 +export class SceneObjectTools {
 +  private foundryClient: FoundryClient;
@@ -20470,12 +21537,22 @@ index 0000000..8f2daa6
 +          'create takes regions (up to 100): {name, one of rect:[x,y,width,height] | ellipse:[centreX,centreY,radiusX,radiusY] | polygon:[[x,y],...], color?, hidden?, display_measurements?, behaviors?}. ' +
 +          'A behavior is either {preset:"difficult_terrain", cost?} (movement costs cost times as much, default 2) or a raw Foundry behavior {type, name?, system?, disabled?} such as executeMacro (run a world macro on tokenEnter, e.g. a pit trap that rolls a save and damage), displayScrollingText, pauseGame or teleportToken. ' +
 +          'Run behavior_types first to see exactly which fields each behavior type of this Foundry accepts. ' +
++          'link {from, to, two_way?(true), name?, placement?(center|random|relative), choice?, snap?, transition?, duration?} joins two places with a teleport, in the same scene or in two scenes (stairs, doors, cave mouths): from and to are each {scene?, name?, one of rect | ellipse | polygon in grid squares of THAT scene}. It makes a region at each end (purple) with a teleportToken behavior pointing at the other, so a token moved into one appears in the other; two_way:false makes only from -> to (to is just an arrival area). choice:true asks the player first; placement center puts the token in the middle of the destination, random anywhere in it, relative keeps its offset. Make arrival areas a little larger than a token. describe shows where each teleport leads. ' +
 +          'describe lists the regions of a scene; remove needs ids or all_mine:true and only removes regions this tool created. scene is an id or exact name (default: the scene being viewed). Needs the Foundry tab open in a browser.',
 +        inputSchema: {
 +          type: 'object',
 +          properties: {
-+            action: { type: 'string', enum: ['create', 'describe', 'remove', 'behavior_types'] },
++            action: { type: 'string', enum: ['create', 'describe', 'remove', 'behavior_types', 'link'] },
 +            scene: { type: 'string', description: 'Scene id or exact name (default: the scene being viewed)' },
++            from: linkEndProperties('link: the first end'),
++            to: linkEndProperties('link: the second end'),
++            two_way: { type: 'boolean', description: 'link: teleport both ways (default true)' },
++            name: { type: 'string', description: 'link: base name of the two regions' },
++            placement: { type: 'string', enum: ['center', 'random', 'relative'], description: 'link: where arriving tokens appear' },
++            choice: { type: 'boolean', description: 'link: ask the player before teleporting' },
++            snap: { type: 'boolean', description: 'link: snap arriving tokens to the grid (default true)' },
++            transition: { type: 'string', description: 'link: transition name such as fade (default none)' },
++            duration: { type: 'number', description: 'link: transition length in milliseconds' },
 +            regions: {
 +              type: 'array',
 +              description: 'Regions to create (action create)',
@@ -20652,6 +21729,9 @@ index 0000000..8f2daa6
 +    }
 +    if (parsed.action === 'remove' && !parsed.all_mine && !(parsed.ids && parsed.ids.length)) {
 +      throw new Error('remove needs ids or all_mine: true');
++    }
++    if (parsed.action === 'link' && (!parsed.from || !parsed.to)) {
++      throw new Error('link needs from and to');
 +    }
 +    try {
 +      const result = await this.foundryClient.query('foundry-mcp-bridge.manage-regions', parsed);
