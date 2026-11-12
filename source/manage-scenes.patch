@@ -10998,10 +10998,10 @@ index 0000000..3adf228
 +  </div>
 +</form>
 diff --git a/packages/mcp-server/src/backend.ts b/packages/mcp-server/src/backend.ts
-index 8967e33..e865147 100644
+index 8967e33..dc32d61 100644
 --- a/packages/mcp-server/src/backend.ts
 +++ b/packages/mcp-server/src/backend.ts
-@@ -48,6 +48,22 @@ import { DnD5eAddFeatureTool } from './tools/dnd5e/add-feature.js';
+@@ -48,6 +48,23 @@ import { DnD5eAddFeatureTool } from './tools/dnd5e/add-feature.js';
  import { DnD5eNpcTools } from './tools/dnd5e/npc.js';
  import { DnD5eFeaturesFromCompendiumTools } from './tools/dnd5e/features.js';
  import { ChatTools } from './tools/chat.js';
@@ -11020,11 +11020,12 @@ index 8967e33..e865147 100644
 +} from './comfyui-target.js';
 +import { SceneObjectTools } from './tools/scene-objects.js';
 +import { PlayTools } from './tools/play-tools.js';
++import { LayoutTools } from './tools/layout.js';
 +import { InspectTools } from './tools/inspect.js';
  
  const CONTROL_HOST = '127.0.0.1';
  
-@@ -174,6 +190,22 @@ let comfyuiProcess: ChildProcess | null = null;
+@@ -174,6 +191,22 @@ let comfyuiProcess: ChildProcess | null = null;
  
  let comfyuiStatus: 'stopped' | 'starting' | 'running' | 'error' = 'stopped';
  
@@ -11047,7 +11048,7 @@ index 8967e33..e865147 100644
  let lockFd: number | null = null;
  
  function acquireLock(): boolean {
-@@ -350,6 +382,18 @@ async function waitForComfyUIReady(timeoutMs: number = 60000): Promise<void> {
+@@ -350,6 +383,18 @@ async function waitForComfyUIReady(timeoutMs: number = 60000): Promise<void> {
  }
  
  async function startComfyUIService(logger: Logger): Promise<any> {
@@ -11066,7 +11067,7 @@ index 8967e33..e865147 100644
    if (comfyuiStatus === 'running') {
      return { status: 'already_running', message: 'ComfyUI service is already running' };
    }
-@@ -472,6 +516,14 @@ async function startComfyUIService(logger: Logger): Promise<any> {
+@@ -472,6 +517,14 @@ async function startComfyUIService(logger: Logger): Promise<any> {
  }
  
  async function stopComfyUIService(logger: Logger): Promise<any> {
@@ -11081,7 +11082,7 @@ index 8967e33..e865147 100644
    if (comfyuiStatus === 'stopped') {
      return { status: 'already_stopped', message: 'ComfyUI service is already stopped' };
    }
-@@ -510,7 +562,7 @@ async function checkComfyUIStatus(): Promise<any> {
+@@ -510,7 +563,7 @@ async function checkComfyUIStatus(): Promise<any> {
    // This handles both spawned processes and externally-started instances
  
    try {
@@ -11090,7 +11091,7 @@ index 8967e33..e865147 100644
        signal: AbortSignal.timeout(5000),
      });
  
-@@ -520,16 +572,23 @@ async function checkComfyUIStatus(): Promise<any> {
+@@ -520,16 +573,23 @@ async function checkComfyUIStatus(): Promise<any> {
        comfyuiStatus = 'error';
      }
    } catch (error) {
@@ -11116,7 +11117,7 @@ index 8967e33..e865147 100644
    };
  }
  
-@@ -1131,7 +1190,7 @@ async function processMapGenerationInBackend(
+@@ -1131,7 +1191,7 @@ async function processMapGenerationInBackend(
      );
  
      logger.error('Background map generation processing failed', { jobId, error });
@@ -11125,7 +11126,7 @@ index 8967e33..e865147 100644
  
      // Emit failure to Foundry module
      foundryClient.sendMessage({
-@@ -1195,6 +1254,27 @@ async function startBackend(): Promise<void> {
+@@ -1195,6 +1255,28 @@ async function startBackend(): Promise<void> {
    const compendiumTools = new CompendiumTools({ foundryClient, logger, systemRegistry });
  
    const sceneTools = new SceneTools({ foundryClient, logger });
@@ -11149,11 +11150,12 @@ index 8967e33..e865147 100644
 +  const journalTools = new JournalTools({ foundryClient, logger });
 +  const sceneObjectTools = new SceneObjectTools({ foundryClient, logger });
 +  const playTools = new PlayTools({ foundryClient, logger });
++  const layoutTools = new LayoutTools({ logger });
 +  const inspectTools = new InspectTools({ foundryClient, logger });
    const playlistTools = new PlaylistTools({ foundryClient, logger });
  
    const actorCreationTools = new ActorCreationTools({ foundryClient, logger });
-@@ -1301,6 +1381,13 @@ async function startBackend(): Promise<void> {
+@@ -1301,6 +1383,13 @@ async function startBackend(): Promise<void> {
  
          let result: any;
  
@@ -11167,7 +11169,7 @@ index 8967e33..e865147 100644
          switch (message.type) {
            case 'start-comfyui-service':
              result = await startComfyUIService(logger);
-@@ -1317,6 +1404,19 @@ async function startBackend(): Promise<void> {
+@@ -1317,6 +1406,19 @@ async function startBackend(): Promise<void> {
  
              break;
  
@@ -11187,7 +11189,7 @@ index 8967e33..e865147 100644
            // Map generation handlers (following existing tool pattern)
            case 'generate-map-request':
              await fs.appendFile(
-@@ -1429,6 +1529,13 @@ async function startBackend(): Promise<void> {
+@@ -1429,6 +1531,14 @@ async function startBackend(): Promise<void> {
  
      ...sceneTools.getToolDefinitions(),
  
@@ -11196,12 +11198,13 @@ index 8967e33..e865147 100644
 +    ...journalTools.getToolDefinitions(),
 +    ...sceneObjectTools.getToolDefinitions(),
 +    ...playTools.getToolDefinitions(),
++    ...layoutTools.getToolDefinitions(),
 +    ...inspectTools.getToolDefinitions(),
 +
      ...actorCreationTools.getToolDefinitions(),
      ...actorManagementTools.getToolDefinitions(),
      ...effectManagementTools.getToolDefinitions(),
-@@ -1456,7 +1563,11 @@ async function startBackend(): Promise<void> {
+@@ -1456,7 +1566,11 @@ async function startBackend(): Promise<void> {
  
      ...tokenManipulationTools.getToolDefinitions(),
  
@@ -11214,7 +11217,7 @@ index 8967e33..e865147 100644
  
      ...playlistTools.getToolDefinitions(),
    ];
-@@ -1764,19 +1875,11 @@ async function startBackend(): Promise<void> {
+@@ -1764,19 +1878,11 @@ async function startBackend(): Promise<void> {
                  // Map generation tools
  
                  case 'generate-map':
@@ -11237,7 +11240,7 @@ index 8967e33..e865147 100644
  
                  case 'list-scenes':
                    result = await mapGenerationTools.listScenes(args);
-@@ -1805,6 +1908,60 @@ async function startBackend(): Promise<void> {
+@@ -1805,6 +1911,64 @@ async function startBackend(): Promise<void> {
  
                    break;
  
@@ -11268,6 +11271,10 @@ index 8967e33..e865147 100644
 +
 +                case 'manage-roll-tables':
 +                  result = await playTools.handleManageRollTables(args);
++                  break;
++
++                case 'draw-layout':
++                  result = await layoutTools.handleDrawLayout(args);
 +                  break;
 +
 +                case 'manage-macros':
@@ -14033,6 +14040,817 @@ index 0000000..942a444
 +      throw new Error(
 +        `Failed to manage journals: ${error instanceof Error ? error.message : 'Unknown error'}`
 +      );
++    }
++  }
++}
+diff --git a/packages/mcp-server/src/tools/layout-utils.ts b/packages/mcp-server/src/tools/layout-utils.ts
+new file mode 100644
+index 0000000..db20004
+--- /dev/null
++++ b/packages/mcp-server/src/tools/layout-utils.ts
+@@ -0,0 +1,467 @@
++/**
++ * Layout sketches for map generation: draw rooms, corridors, roads, rivers and doors as flat
++ * colour shapes in grid squares, write a PNG, and optionally derive wall lines from the floor.
++ * Pure TypeScript (no drawing library): a small scanline rasterizer and PNG encoder.
++ */
++
++import zlib from 'zlib';
++
++type RGB = [number, number, number];
++
++/** Flat colours per fill type, and how to describe them to the image model. */
++export const FILLS: Record<string, { color: RGB; colorName: string; meaning: string }> = {
++  floor: { color: [225, 225, 225], colorName: 'light grey', meaning: 'floor' },
++  rock: { color: [20, 20, 20], colorName: 'near-black', meaning: 'solid rock, impassable' },
++  grass: { color: [150, 190, 120], colorName: 'light green', meaning: 'grass' },
++  road: { color: [190, 160, 110], colorName: 'tan', meaning: 'dirt road' },
++  water: { color: [90, 140, 210], colorName: 'blue', meaning: 'water' },
++  building: { color: [120, 70, 50], colorName: 'dark brown', meaning: 'building roof' },
++  stone: { color: [130, 130, 130], colorName: 'mid grey', meaning: 'stonework' },
++  sand: { color: [235, 215, 150], colorName: 'pale yellow', meaning: 'sand' },
++  wood: { color: [170, 120, 30], colorName: 'amber', meaning: 'wooden planks' },
++  door: { color: [230, 120, 20], colorName: 'orange', meaning: 'door' },
++};
++
++export const SHAPE_KINDS = ['rect', 'ellipse', 'polygon', 'path', 'door'] as const;
++export const MAX_SHAPES = 300;
++export const MAX_PIXELS = 4096 * 4096;
++
++export interface LayoutShape {
++  shape: (typeof SHAPE_KINDS)[number];
++  fill?: string;
++  color?: string;
++  rect?: number[];
++  ellipse?: number[];
++  polygon?: number[][];
++  path?: number[][];
++  /** path: width in squares (default 2). */
++  width?: number;
++  /** door: start point of the door on a wall line, in squares. */
++  at?: number[];
++  /** door: h runs along x, v runs along y. */
++  dir?: 'h' | 'v';
++  /** door: length in squares (default 1). */
++  size?: number;
++  /** door: secret door. */
++  secret?: boolean;
++  name?: string;
++}
++
++export interface LayoutSpec {
++  columns: number;
++  rows: number;
++  grid_size?: number;
++  background?: string;
++  shapes: LayoutShape[];
++  wall_fills?: string[];
++}
++
++export interface NormalizedLayout {
++  columns: number;
++  rows: number;
++  size: number;
++  background: string;
++  shapes: LayoutShape[];
++  wallFills: string[];
++}
++
++const HEX = /^#[0-9a-fA-F]{6}$/;
++
++function num(v: unknown): v is number {
++  return typeof v === 'number' && Number.isFinite(v);
++}
++
++function nums(v: unknown, count: number, label: string, what: string): number[] {
++  if (!Array.isArray(v) || v.length !== count || !v.every(num)) {
++    throw new Error(`${label}: ${what} must be ${count} numbers`);
++  }
++  return v as number[];
++}
++
++function points(v: unknown, min: number, label: string): number[][] {
++  if (!Array.isArray(v) || v.length < min || v.length > 500) {
++    throw new Error(`${label}: needs ${min} to 500 points [[x, y], ...]`);
++  }
++  return v.map((p, i) => nums(p, 2, `${label}[${i}]`, 'a point [x, y]'));
++}
++
++export function colorFor(shape: { fill?: string; color?: string }): RGB {
++  if (shape.color) {
++    const n = parseInt(shape.color.slice(1), 16);
++    return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
++  }
++  return FILLS[shape.fill ?? 'floor']!.color;
++}
++
++/** Check a layout request and fill in defaults. Throws a readable error. */
++export function normalizeLayout(spec: LayoutSpec): NormalizedLayout {
++  const intIn = (v: unknown, min: number, max: number, name: string): number => {
++    if (!Number.isInteger(v) || (v as number) < min || (v as number) > max) {
++      throw new Error(`${name} must be a whole number from ${min} to ${max}`);
++    }
++    return v as number;
++  };
++  const columns = intIn(spec.columns, 4, 200, 'columns');
++  const rows = intIn(spec.rows, 4, 200, 'rows');
++  const size = spec.grid_size === undefined ? 64 : intIn(spec.grid_size, 8, 256, 'grid_size');
++  if (columns * size * rows * size > MAX_PIXELS) {
++    throw new Error('The picture would be larger than 4096 x 4096 pixels; lower grid_size or the map size');
++  }
++  const background = spec.background ?? 'rock';
++  if (!FILLS[background]) throw new Error(`background must be one of ${Object.keys(FILLS).join(', ')}`);
++  const wallFills = spec.wall_fills ?? ['floor'];
++  for (const f of wallFills) {
++    if (!FILLS[f]) throw new Error(`wall_fills: unknown fill "${f}"`);
++  }
++  if (!Array.isArray(spec.shapes) || spec.shapes.length === 0 || spec.shapes.length > MAX_SHAPES) {
++    throw new Error(`shapes must be a list of 1 to ${MAX_SHAPES}`);
++  }
++
++  const shapes = spec.shapes.map((raw, i) => {
++    const label = `shapes[${i}]`;
++    if (!raw || typeof raw !== 'object') throw new Error(`${label}: must be an object`);
++    const s = { ...raw } as LayoutShape;
++    if (!(SHAPE_KINDS as readonly string[]).includes(s.shape)) {
++      throw new Error(`${label}: shape must be one of ${SHAPE_KINDS.join(', ')}`);
++    }
++    if (s.color !== undefined && !HEX.test(s.color)) throw new Error(`${label}: color must look like #RRGGBB`);
++    if (s.fill !== undefined && !FILLS[s.fill]) {
++      throw new Error(`${label}: fill must be one of ${Object.keys(FILLS).join(', ')}`);
++    }
++    if (s.shape === 'door') {
++      s.fill = 'door';
++      s.at = nums(s.at, 2, label, 'at [x, y]');
++      if (s.dir !== 'h' && s.dir !== 'v') throw new Error(`${label}: dir must be "h" or "v"`);
++      if (s.size !== undefined && (!num(s.size) || s.size <= 0 || s.size > 20)) {
++        throw new Error(`${label}: size must be a number of squares from 0 to 20`);
++      }
++      return s;
++    }
++    s.fill = s.fill ?? 'floor';
++    const given = [s.rect, s.ellipse, s.polygon, s.path].filter(v => v !== undefined).length;
++    if (given !== 1 || s[s.shape] === undefined) {
++      throw new Error(`${label}: a ${s.shape} needs exactly its own ${s.shape} field`);
++    }
++    if (s.shape === 'rect') {
++      const [, , w, h] = nums(s.rect, 4, label, 'rect [x, y, width, height]') as [number, number, number, number];
++      if (w <= 0 || h <= 0) throw new Error(`${label}: rect width and height must be above 0`);
++    } else if (s.shape === 'ellipse') {
++      const [, , rx, ry] = nums(s.ellipse, 4, label, 'ellipse [centreX, centreY, radiusX, radiusY]') as [
++        number,
++        number,
++        number,
++        number,
++      ];
++      if (rx <= 0 || ry <= 0) throw new Error(`${label}: ellipse radii must be above 0`);
++    } else if (s.shape === 'polygon') {
++      s.polygon = points(s.polygon, 3, `${label} polygon`);
++    } else {
++      s.path = points(s.path, 2, `${label} path`);
++      if (s.width !== undefined && (!num(s.width) || s.width <= 0 || s.width > 50)) {
++        throw new Error(`${label}: width must be a number of squares from 0 to 50`);
++      }
++    }
++    return s;
++  });
++
++  return { columns, rows, size, background, shapes, wallFills };
++}
++
++// ===== Rasterizer =====
++
++type Poly = Array<[number, number]>;
++
++/** The polygons (in pixels at `scale` pixels per square) that make up a drawn shape. */
++export function shapePolygons(shape: LayoutShape, scale: number): Poly[] {
++  const px = (v: number) => v * scale;
++  if (shape.shape === 'rect') {
++    const [x, y, w, h] = shape.rect!;
++    return [[[px(x), px(y)], [px(x + w), px(y)], [px(x + w), px(y + h)], [px(x), px(y + h)]]];
++  }
++  if (shape.shape === 'ellipse') {
++    const [cx, cy, rx, ry] = shape.ellipse!;
++    const n = Math.max(48, Math.min(256, Math.ceil(Math.max(rx, ry) * scale)));
++    const poly: Poly = [];
++    for (let i = 0; i < n; i++) {
++      const a = (i / n) * Math.PI * 2;
++      poly.push([px(cx + Math.cos(a) * rx), px(cy + Math.sin(a) * ry)]);
++    }
++    return [poly];
++  }
++  if (shape.shape === 'polygon') {
++    return [shape.polygon!.map(p => [px(p[0]!), px(p[1]!)] as [number, number])];
++  }
++  if (shape.shape === 'path') {
++    const half = ((shape.width ?? 2) * scale) / 2;
++    const pts = shape.path!.map(p => [px(p[0]!), px(p[1]!)] as [number, number]);
++    const polys: Poly[] = [];
++    for (let i = 0; i + 1 < pts.length; i++) {
++      const [x1, y1] = pts[i]!;
++      const [x2, y2] = pts[i + 1]!;
++      const len = Math.hypot(x2 - x1, y2 - y1);
++      if (len === 0) continue;
++      const nx = ((y2 - y1) / len) * half;
++      const ny = (-(x2 - x1) / len) * half;
++      polys.push([[x1 + nx, y1 + ny], [x2 + nx, y2 + ny], [x2 - nx, y2 - ny], [x1 - nx, y1 - ny]]);
++    }
++    // Flat ends; round joins only where the path bends.
++    for (const [x, y] of pts.slice(1, -1)) {
++      const n = Math.max(16, Math.min(64, Math.ceil(half)));
++      const c: Poly = [];
++      for (let i = 0; i < n; i++) {
++        const a = (i / n) * Math.PI * 2;
++        c.push([x + Math.cos(a) * half, y + Math.sin(a) * half]);
++      }
++      polys.push(c);
++    }
++    return polys;
++  }
++  // door: a thin bar centred on the wall line
++  const [x, y] = shape.at as [number, number];
++  const len = shape.size ?? 1;
++  const t = 0.2;
++  return shape.dir === 'h'
++    ? [[[px(x), px(y - t)], [px(x + len), px(y - t)], [px(x + len), px(y + t)], [px(x), px(y + t)]]]
++    : [[[px(x - t), px(y)], [px(x + t), px(y)], [px(x + t), px(y + len)], [px(x - t), px(y + len)]]];
++}
++
++/** Call fill(y, xStart, xEnd) for every pixel span inside the polygon (even-odd, pixel centres). */
++function scanPolygon(poly: Poly, width: number, height: number, fill: (y: number, x0: number, x1: number) => void) {
++  let minY = Infinity;
++  let maxY = -Infinity;
++  for (const [, y] of poly) {
++    minY = Math.min(minY, y);
++    maxY = Math.max(maxY, y);
++  }
++  const yStart = Math.max(0, Math.ceil(minY - 0.5));
++  const yEnd = Math.min(height - 1, Math.floor(maxY - 0.5));
++  for (let y = yStart; y <= yEnd; y++) {
++    const cy = y + 0.5;
++    const xs: number[] = [];
++    for (let i = 0; i < poly.length; i++) {
++      const [x1, y1] = poly[i]!;
++      const [x2, y2] = poly[(i + 1) % poly.length]!;
++      if ((y1 <= cy && y2 > cy) || (y2 <= cy && y1 > cy)) {
++        xs.push(x1 + ((cy - y1) / (y2 - y1)) * (x2 - x1));
++      }
++    }
++    xs.sort((a, b) => a - b);
++    for (let i = 0; i + 1 < xs.length; i += 2) {
++      const x0 = Math.max(0, Math.ceil(xs[i]! - 0.5));
++      const x1 = Math.min(width - 1, Math.floor(xs[i + 1]! - 0.5));
++      if (x1 >= x0) fill(y, x0, x1);
++    }
++  }
++}
++
++/** Render the layout as RGB pixels. */
++export function renderLayout(layout: NormalizedLayout): { width: number; height: number; rgb: Uint8Array } {
++  const width = layout.columns * layout.size;
++  const height = layout.rows * layout.size;
++  const rgb = new Uint8Array(width * height * 3);
++  const bg = colorFor({ fill: layout.background });
++  for (let i = 0; i < width * height; i++) {
++    rgb[i * 3] = bg[0];
++    rgb[i * 3 + 1] = bg[1];
++    rgb[i * 3 + 2] = bg[2];
++  }
++  for (const shape of layout.shapes) {
++    const [r, g, b] = colorFor(shape);
++    for (const poly of shapePolygons(shape, layout.size)) {
++      scanPolygon(poly, width, height, (y, x0, x1) => {
++        let o = (y * width + x0) * 3;
++        for (let x = x0; x <= x1; x++) {
++          rgb[o++] = r;
++          rgb[o++] = g;
++          rgb[o++] = b;
++        }
++      });
++    }
++  }
++  return { width, height, rgb };
++}
++
++// ===== PNG =====
++
++const CRC_TABLE = (() => {
++  const table = new Uint32Array(256);
++  for (let n = 0; n < 256; n++) {
++    let c = n;
++    for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
++    table[n] = c >>> 0;
++  }
++  return table;
++})();
++
++function crc32(buf: Buffer): number {
++  let c = 0xffffffff;
++  for (let i = 0; i < buf.length; i++) c = CRC_TABLE[(c ^ buf[i]!) & 255]! ^ (c >>> 8);
++  return (c ^ 0xffffffff) >>> 0;
++}
++
++function chunk(type: string, data: Buffer): Buffer {
++  const out = Buffer.alloc(12 + data.length);
++  out.writeUInt32BE(data.length, 0);
++  out.write(type, 4, 'ascii');
++  data.copy(out, 8);
++  out.writeUInt32BE(crc32(out.subarray(4, 8 + data.length)), 8 + data.length);
++  return out;
++}
++
++export function encodePng(width: number, height: number, rgb: Uint8Array): Buffer {
++  const stride = width * 3;
++  const raw = Buffer.alloc((stride + 1) * height);
++  for (let y = 0; y < height; y++) {
++    raw[y * (stride + 1)] = 0;
++    Buffer.from(rgb.buffer, rgb.byteOffset + y * stride, stride).copy(raw, y * (stride + 1) + 1);
++  }
++  const header = Buffer.alloc(13);
++  header.writeUInt32BE(width, 0);
++  header.writeUInt32BE(height, 4);
++  header[8] = 8; // bit depth
++  header[9] = 2; // RGB
++  return Buffer.concat([
++    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
++    chunk('IHDR', header),
++    chunk('IDAT', zlib.deflateSync(raw, { level: 6 })),
++    chunk('IEND', Buffer.alloc(0)),
++  ]);
++}
++
++// ===== Walls from the floor =====
++
++export interface WallObject {
++  kind: 'wall';
++  points: number[][];
++  closed?: boolean;
++  preset?: 'door' | 'secret_door';
++  door_state?: 'closed';
++}
++
++const CELL = 2; // wall resolution: half a square
++
++/**
++ * Wall chains around the areas drawn with the wall fills (floors by default), at half-square
++ * resolution, ready for manage-scene-objects. Doors drawn in the layout become door walls and
++ * cut the wall where they sit.
++ */
++export function wallsFromLayout(layout: NormalizedLayout): { walls: WallObject[]; segments: number } {
++  const w = layout.columns * CELL;
++  const h = layout.rows * CELL;
++  const inside = new Uint8Array(w * h);
++  const isWall = new Set(layout.wallFills);
++  if (isWall.has(layout.background)) inside.fill(1);
++  for (const shape of layout.shapes) {
++    if (shape.shape === 'door') continue;
++    const value = isWall.has(shape.fill ?? 'floor') ? 1 : 0;
++    for (const poly of shapePolygons(shape, CELL)) {
++      scanPolygon(poly, w, h, (y, x0, x1) => inside.fill(value, y * w + x0, y * w + x1 + 1));
++    }
++  }
++
++  // Unit edges on cell boundaries: horizontal key "h,x,y" (from x to x+1 on line y), vertical "v,x,y".
++  const edges = new Set<string>();
++  const at = (x: number, y: number) => (x < 0 || y < 0 || x >= w || y >= h ? 0 : inside[y * w + x]!);
++  for (let y = 0; y < h; y++) {
++    for (let x = 0; x < w; x++) {
++      if (!inside[y * w + x]) continue;
++      if (!at(x, y - 1)) edges.add(`h,${x},${y}`);
++      if (!at(x, y + 1)) edges.add(`h,${x},${y + 1}`);
++      if (!at(x - 1, y)) edges.add(`v,${x},${y}`);
++      if (!at(x + 1, y)) edges.add(`v,${x + 1},${y}`);
++    }
++  }
++
++  // Doors cut the wall where they sit.
++  const doors: WallObject[] = [];
++  for (const s of layout.shapes) {
++    if (s.shape !== 'door') continue;
++    const [x, y] = s.at as [number, number];
++    const len = s.size ?? 1;
++    const steps = Math.max(1, Math.round(len * CELL));
++    for (let i = 0; i < steps; i++) {
++      if (s.dir === 'h') edges.delete(`h,${Math.round(x * CELL) + i},${Math.round(y * CELL)}`);
++      else edges.delete(`v,${Math.round(x * CELL)},${Math.round(y * CELL) + i}`);
++    }
++    doors.push({
++      kind: 'wall',
++      points: s.dir === 'h' ? [[x, y], [x + len, y]] : [[x, y], [x, y + len]],
++      preset: s.secret ? 'secret_door' : 'door',
++      door_state: 'closed',
++    });
++  }
++
++  // Merge unit edges into straight runs.
++  const runs: Array<[number, number, number, number]> = [];
++  const used = new Set<string>();
++  for (const key of edges) {
++    if (used.has(key)) continue;
++    const [kind, xs, ys] = key.split(',');
++    let x = Number(xs);
++    let y = Number(ys);
++    const horizontal = kind === 'h';
++    const step = (cx: number, cy: number, d: number) => (horizontal ? `h,${cx + d},${cy}` : `v,${cx},${cy + d}`);
++    while (edges.has(step(x, y, -1))) {
++      if (horizontal) x--;
++      else y--;
++    }
++    const sx = x;
++    const sy = y;
++    while (edges.has(horizontal ? `h,${x},${y}` : `v,${x},${y}`)) {
++      used.add(horizontal ? `h,${x},${y}` : `v,${x},${y}`);
++      if (horizontal) x++;
++      else y++;
++    }
++    runs.push([sx / CELL, sy / CELL, x / CELL, y / CELL]);
++  }
++
++  // Chain runs that share end points into polylines.
++  const unused = new Set(runs.map((_, i) => i));
++  const byPoint = new Map<string, number[]>();
++  const pk = (x: number, y: number) => `${x},${y}`;
++  runs.forEach((r, i) => {
++    for (const k of [pk(r[0], r[1]), pk(r[2], r[3])]) {
++      if (!byPoint.has(k)) byPoint.set(k, []);
++      byPoint.get(k)!.push(i);
++    }
++  });
++  const walls: WallObject[] = [];
++  for (let i = 0; i < runs.length; i++) {
++    if (!unused.has(i)) continue;
++    unused.delete(i);
++    const r = runs[i]!;
++    const chain: number[][] = [[r[0], r[1]], [r[2], r[3]]];
++    let extended = true;
++    while (extended) {
++      extended = false;
++      const end = chain[chain.length - 1]!;
++      const next = (byPoint.get(pk(end[0]!, end[1]!)) ?? []).find(j => unused.has(j));
++      if (next !== undefined) {
++        unused.delete(next);
++        const n = runs[next]!;
++        chain.push(n[0] === end[0] && n[1] === end[1] ? [n[2], n[3]] : [n[0], n[1]]);
++        extended = true;
++      }
++    }
++    const first = chain[0]!;
++    const last = chain[chain.length - 1]!;
++    if (chain.length > 3 && first[0] === last[0] && first[1] === last[1]) {
++      chain.pop();
++      walls.push({ kind: 'wall', points: chain, closed: true });
++    } else {
++      walls.push({ kind: 'wall', points: chain });
++    }
++  }
++
++  return { walls: [...walls, ...doors], segments: edges.size };
++}
++
++/** A sentence for the image prompt that says what each colour in the sketch means. */
++export function legendFor(layout: NormalizedLayout): string {
++  const used = new Set<string>([layout.background]);
++  for (const s of layout.shapes) {
++    if (!s.color && s.fill) used.add(s.fill);
++  }
++  const parts = [...used].map(f => `${FILLS[f]!.colorName} = ${FILLS[f]!.meaning}`);
++  return `In <Picture 1>: ${parts.join('; ')}.`;
++}
+diff --git a/packages/mcp-server/src/tools/layout.test.ts b/packages/mcp-server/src/tools/layout.test.ts
+new file mode 100644
+index 0000000..0eb01e8
+--- /dev/null
++++ b/packages/mcp-server/src/tools/layout.test.ts
+@@ -0,0 +1,159 @@
++import { afterAll, describe, expect, it, vi } from 'vitest';
++import { promises as fs } from 'fs';
++import zlib from 'zlib';
++import { LayoutTools } from './layout.js';
++import { encodePng, normalizeLayout, renderLayout, wallsFromLayout } from './layout-utils.js';
++
++const created: string[] = [];
++afterAll(async () => {
++  for (const f of created) await fs.rm(f, { force: true });
++});
++
++function tools() {
++  const logger: any = { info: vi.fn(), debug: vi.fn(), error: vi.fn(), warn: vi.fn(), child: () => logger };
++  return new LayoutTools({ logger });
++}
++
++const px = (img: { width: number; rgb: Uint8Array }, x: number, y: number) => {
++  const o = (y * img.width + x) * 3;
++  return [img.rgb[o], img.rgb[o + 1], img.rgb[o + 2]];
++};
++
++describe('renderLayout', () => {
++  const layout = normalizeLayout({
++    columns: 10,
++    rows: 10,
++    grid_size: 10,
++    shapes: [
++      { shape: 'rect', rect: [1, 1, 4, 3] },
++      { shape: 'ellipse', ellipse: [7, 7, 2, 2], fill: 'water' },
++      { shape: 'path', path: [[5, 2], [8, 2]], width: 2, fill: 'road' },
++      { shape: 'door', at: [5, 1], dir: 'v', size: 2 },
++    ],
++  });
++  const img = renderLayout(layout);
++
++  it('paints shapes in order over the background', () => {
++    expect(img.width).toBe(100);
++    expect(px(img, 5, 5)).toEqual([20, 20, 20]); // rock
++    expect(px(img, 25, 20)).toEqual([225, 225, 225]); // floor
++    expect(px(img, 70, 70)).toEqual([90, 140, 210]); // water
++    expect(px(img, 65, 20)).toEqual([190, 160, 110]); // road
++    expect(px(img, 50, 15)).toEqual([230, 120, 20]); // door bar
++    expect(px(img, 70, 95)).toEqual([20, 20, 20]);
++  });
++
++  it('writes a valid PNG', () => {
++    const png = encodePng(img.width, img.height, img.rgb);
++    expect([...png.subarray(0, 8)]).toEqual([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
++    const idatAt = png.indexOf('IDAT');
++    const len = png.readUInt32BE(idatAt - 4);
++    const raw = zlib.inflateSync(png.subarray(idatAt + 4, idatAt + 4 + len));
++    expect(raw.length).toBe((100 * 3 + 1) * 100);
++  });
++});
++
++describe('normalizeLayout', () => {
++  const ok = { columns: 8, rows: 8, shapes: [{ shape: 'rect' as const, rect: [0, 0, 2, 2] }] };
++
++  it.each([
++    ['tiny map', { ...ok, columns: 2 }],
++    ['huge picture', { ...ok, columns: 200, rows: 200, grid_size: 64 }],
++    ['unknown background', { ...ok, background: 'lava' }],
++    ['unknown fill', { ...ok, shapes: [{ shape: 'rect' as const, rect: [0, 0, 1, 1], fill: 'lava' }] }],
++    ['rect with the wrong field', { ...ok, shapes: [{ shape: 'rect' as const, ellipse: [1, 1, 1, 1] }] }],
++    ['empty rect', { ...ok, shapes: [{ shape: 'rect' as const, rect: [0, 0, 0, 2] }] }],
++    ['two-point polygon', { ...ok, shapes: [{ shape: 'polygon' as const, polygon: [[0, 0], [1, 1]] }] }],
++    ['door without a direction', { ...ok, shapes: [{ shape: 'door' as const, at: [1, 1] }] }],
++    ['bad colour', { ...ok, shapes: [{ shape: 'rect' as const, rect: [0, 0, 1, 1], color: 'red' }] }],
++  ])('rejects %s', (_l, spec) => {
++    expect(() => normalizeLayout(spec as any)).toThrow();
++  });
++});
++
++describe('wallsFromLayout', () => {
++  it('walls a single room with one closed chain at its edges', () => {
++    const layout = normalizeLayout({
++      columns: 10,
++      rows: 10,
++      shapes: [{ shape: 'rect', rect: [2, 3, 4, 2] }],
++    });
++    const { walls } = wallsFromLayout(layout);
++    expect(walls).toHaveLength(1);
++    expect(walls[0]!.closed).toBe(true);
++    const xs = walls[0]!.points.map(p => p[0]);
++    const ys = walls[0]!.points.map(p => p[1]);
++    expect(Math.min(...xs!)).toBe(2);
++    expect(Math.max(...xs!)).toBe(6);
++    expect(Math.min(...ys!)).toBe(3);
++    expect(Math.max(...ys!)).toBe(5);
++    expect(walls[0]!.points).toHaveLength(4);
++  });
++
++  it('opens the wall where a corridor joins and adds door walls', () => {
++    const layout = normalizeLayout({
++      columns: 20,
++      rows: 10,
++      shapes: [
++        { shape: 'rect', rect: [1, 1, 4, 4] },
++        { shape: 'rect', rect: [10, 1, 4, 4] },
++        { shape: 'rect', rect: [5, 2, 5, 2] },
++        { shape: 'door', at: [5, 2], dir: 'v', size: 2 },
++      ],
++    });
++    const { walls } = wallsFromLayout(layout);
++    const door = walls.find(w => w.preset === 'door')!;
++    expect(door.points).toEqual([[5, 2], [5, 4]]);
++    // Everything is one connected outline: no wall crosses the open joins.
++    const crossing = walls.some(
++      w => !w.preset && w.points.some((p, i) => i > 0 && p[0] === w.points[i - 1]![0] && p[0] === 5 && Math.min(p[1]!, w.points[i - 1]![1]!) < 4 && Math.max(p[1]!, w.points[i - 1]![1]!) > 2)
++    );
++    expect(crossing).toBe(false);
++  });
++
++  it('follows an ellipse in half-square steps and cuts a pillar out of a room', () => {
++    const layout = normalizeLayout({
++      columns: 12,
++      rows: 12,
++      shapes: [
++        { shape: 'ellipse', ellipse: [6, 6, 4, 4] },
++        { shape: 'rect', rect: [5, 5, 2, 2], fill: 'rock' },
++      ],
++    });
++    const { walls } = wallsFromLayout(layout);
++    expect(walls).toHaveLength(2); // outer ring and the pillar
++    expect(walls.every(w => w.points.every(p => (p[0]! * 2) % 1 === 0 && (p[1]! * 2) % 1 === 0))).toBe(true);
++  });
++});
++
++describe('draw-layout tool', () => {
++  it('writes the PNG and returns the legend, and walls on request', async () => {
++    const result = await tools().handleDrawLayout({
++      columns: 8,
++      rows: 8,
++      grid_size: 16,
++      name: 'unit test',
++      walls: true,
++      shapes: [
++        { shape: 'rect', rect: [1, 1, 5, 4] },
++        { shape: 'door', at: [3, 5], dir: 'h', size: 1 },
++      ],
++    });
++    created.push(result.file);
++    expect(result.file).toMatch(/foundry-mcp-layouts[\\/]unit_test-\d+\.png$/);
++    expect(result.width).toBe(128);
++    expect(result.legend).toContain('light grey = floor');
++    expect(result.legend).toContain('near-black = solid rock');
++    expect((await fs.readFile(result.file)).subarray(1, 4).toString()).toBe('PNG');
++    expect(result.walls.some((w: any) => w.preset === 'door')).toBe(true);
++  });
++
++  it('rejects a bad request before writing anything', async () => {
++    await expect(tools().handleDrawLayout({ columns: 8, rows: 8, shapes: [] })).rejects.toThrow();
++    await expect(tools().handleDrawLayout({ columns: 8, rows: 8, shapes: [{ shape: 'blob' }] })).rejects.toThrow();
++  });
++
++  it('exposes one tool', () => {
++    expect(tools().getToolDefinitions().map(d => d.name)).toEqual(['draw-layout']);
++  });
++});
+diff --git a/packages/mcp-server/src/tools/layout.ts b/packages/mcp-server/src/tools/layout.ts
+new file mode 100644
+index 0000000..919945d
+--- /dev/null
++++ b/packages/mcp-server/src/tools/layout.ts
+@@ -0,0 +1,167 @@
++import { promises as fs } from 'fs';
++import os from 'os';
++import path from 'path';
++import { z } from 'zod';
++import { Logger } from '../logger.js';
++import {
++  FILLS,
++  encodePng,
++  legendFor,
++  normalizeLayout,
++  renderLayout,
++  wallsFromLayout,
++  type LayoutSpec,
++} from './layout-utils.js';
++
++export interface LayoutToolsOptions {
++  logger: Logger;
++}
++
++const KEEP_LAYOUTS = 30;
++const fillNames = Object.keys(FILLS);
++
++const shapeSchema = z
++  .object({
++    shape: z.enum(['rect', 'ellipse', 'polygon', 'path', 'door']),
++    fill: z.string().optional(),
++    color: z.string().optional(),
++    rect: z.array(z.number()).optional(),
++    ellipse: z.array(z.number()).optional(),
++    polygon: z.array(z.array(z.number())).optional(),
++    path: z.array(z.array(z.number())).optional(),
++    width: z.number().optional(),
++    at: z.array(z.number()).optional(),
++    dir: z.enum(['h', 'v']).optional(),
++    size: z.number().optional(),
++    secret: z.boolean().optional(),
++    name: z.string().optional(),
++  })
++  .strict();
++
++const layoutSchema = z
++  .object({
++    columns: z.number(),
++    rows: z.number(),
++    grid_size: z.number().optional(),
++    background: z.string().optional(),
++    shapes: z.array(shapeSchema).min(1).max(300),
++    wall_fills: z.array(z.string()).optional(),
++    name: z.string().min(1).max(60).optional(),
++    walls: z.boolean().optional(),
++  })
++  .strict();
++
++export class LayoutTools {
++  private logger: Logger;
++
++  constructor({ logger }: LayoutToolsOptions) {
++    this.logger = logger.child({ component: 'LayoutTools' });
++  }
++
++  getToolDefinitions() {
++    return [
++      {
++        name: 'draw-layout',
++        description:
++          'Draw a flat colour sketch of a map layout (rooms, corridors, roads, rivers, buildings, doors) as a PNG, to use as the guide for map generation: pass the returned file in generate-image reference_images and mention <Picture 1> in the prompt, with the returned legend sentence. ' +
++          'Shapes are in GRID SQUARES from the top-left of the map and are painted in order, so later shapes cover earlier ones (paint rooms first, then corridors, then doors; paint rock over floor to carve pillars or walls). The map is columns x rows squares at grid_size pixels per square (default 64, so 32 x 32 squares is the usual 2048 pixel map); use the same grid_size and size for the scene so squares line up. ' +
++          'shape types: rect {rect:[x,y,width,height]}, ellipse {ellipse:[centreX,centreY,radiusX,radiusY]}, polygon {polygon:[[x,y],...]} for any freeform outline, path {path:[[x,y],...], width} for a corridor, road or river along a line (default width 2 squares, round joins), door {at:[x,y], dir:"h"|"v", size?, secret?} a bar on a wall line. ' +
++          'fill is one of ' + fillNames.join(', ') + ' (default floor; door is always orange); color #RRGGBB overrides the colour. background is the fill under everything (default rock; use grass for outdoors). ' +
++          'Keep the sketch simple: layout and flat colours only, no text, no furniture. The image model follows it closely for rooms and loosely for freeform outlines. ' +
++          'With walls:true it also returns wall objects for manage-scene-objects: chains around everything drawn with the wall_fills (default floor) at half-square steps, and doors as door walls; place them with manage-scene-objects action place after the map is the scene background. Writes the PNG on this computer; Foundry is not needed.',
++        inputSchema: {
++          type: 'object',
++          properties: {
++            columns: { type: 'number', description: 'Map width in squares (4 to 200)' },
++            rows: { type: 'number', description: 'Map height in squares (4 to 200)' },
++            grid_size: { type: 'number', description: 'Pixels per square (default 64)' },
++            background: { type: 'string', enum: fillNames, description: 'Fill under everything (default rock)' },
++            shapes: {
++              type: 'array',
++              maxItems: 300,
++              items: {
++                type: 'object',
++                properties: {
++                  shape: { type: 'string', enum: ['rect', 'ellipse', 'polygon', 'path', 'door'] },
++                  fill: { type: 'string', enum: fillNames },
++                  color: { type: 'string', description: '#RRGGBB instead of the fill colour' },
++                  rect: { type: 'array', items: { type: 'number' }, description: '[x, y, width, height]' },
++                  ellipse: { type: 'array', items: { type: 'number' }, description: '[centreX, centreY, radiusX, radiusY]' },
++                  polygon: { type: 'array', items: { type: 'array', items: { type: 'number' } }, description: '[[x, y], ...]' },
++                  path: { type: 'array', items: { type: 'array', items: { type: 'number' } }, description: '[[x, y], ...]' },
++                  width: { type: 'number', description: 'path: width in squares (default 2)' },
++                  at: { type: 'array', items: { type: 'number' }, description: 'door: [x, y] start on a wall line' },
++                  dir: { type: 'string', enum: ['h', 'v'], description: 'door: h runs along x, v along y' },
++                  size: { type: 'number', description: 'door: length in squares (default 1)' },
++                  secret: { type: 'boolean', description: 'door: secret door' },
++                  name: { type: 'string', description: 'note for yourself (not drawn)' },
++                },
++                required: ['shape'],
++                additionalProperties: false,
++              },
++            },
++            wall_fills: {
++              type: 'array',
++              items: { type: 'string', enum: fillNames },
++              description: 'walls:true builds walls around these fills (default floor)',
++            },
++            name: { type: 'string', description: 'File name (default layout)' },
++            walls: { type: 'boolean', description: 'Also return wall objects derived from the layout' },
++          },
++          required: ['columns', 'rows', 'shapes'],
++          additionalProperties: false,
++        },
++      },
++    ];
++  }
++
++  async handleDrawLayout(args: any): Promise<any> {
++    const parsed = layoutSchema.parse(args ?? {});
++    const layout = normalizeLayout(parsed as LayoutSpec);
++    const { width, height, rgb } = renderLayout(layout);
++    const png = encodePng(width, height, rgb);
++
++    const dir = path.join(os.tmpdir(), 'foundry-mcp-layouts');
++    await fs.mkdir(dir, { recursive: true });
++    const base = (parsed.name ?? 'layout').replace(/[^A-Za-z0-9_-]+/g, '_').slice(0, 60) || 'layout';
++    const file = path.join(dir, `${base}-${Date.now()}.png`);
++    await fs.writeFile(file, png);
++    await this.prune(dir);
++
++    this.logger.info('Layout drawn', { file, width, height, shapes: layout.shapes.length });
++
++    const result: Record<string, any> = {
++      success: true,
++      file,
++      width,
++      height,
++      grid: { columns: layout.columns, rows: layout.rows, squarePixels: layout.size },
++      legend: legendFor(layout),
++      hint:
++        'Pass file in generate-image reference_images and say that <Picture 1> is the exact floor plan to follow, then add the legend sentence. Remove numbers or text from the picture in the prompt if you added none. Use the same grid size for the scene.',
++    };
++    if (parsed.walls) {
++      const { walls, segments } = wallsFromLayout(layout);
++      result.walls = walls;
++      result.wallCount = walls.length;
++      result.wallSegments = segments;
++    }
++    return result;
++  }
++
++  private async prune(dir: string): Promise<void> {
++    try {
++      const files = (await fs.readdir(dir)).filter(f => f.endsWith('.png'));
++      if (files.length <= KEEP_LAYOUTS) return;
++      const stats = await Promise.all(
++        files.map(async f => ({ f, t: (await fs.stat(path.join(dir, f))).mtimeMs }))
++      );
++      stats.sort((a, b) => a.t - b.t);
++      for (const { f } of stats.slice(0, files.length - KEEP_LAYOUTS)) {
++        await fs.rm(path.join(dir, f), { force: true });
++      }
++    } catch {
++      // cleanup is best effort
 +    }
 +  }
 +}

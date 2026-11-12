@@ -13,6 +13,7 @@ An unofficial variant of [Foundry MCP Bridge](https://github.com/adambdooley/fou
 - **Map extras (0.8.6.16)**: `manage-scene-objects` also places tiles and ambient sounds and sets token width/height; `manage-scenes` sets opening view, weather, fog mode, grid shift and grid style; the difficult-terrain preset uses the dnd5e behavior when present. Unit-tested with a faked Foundry only.
 - **World housekeeping (0.8.6.17)**: new `manage-world` tool (list/create folders, move, rename, delete with `confirm`); `manage-actors` and `create-actor-from-compendium` take `token` (size, disposition...), dnd5e `hp` and `folder`. Unit-tested with a faked Foundry only.
 - **Roll tables and macros (0.8.6.18)**: `manage-roll-tables` (create from rows, update, list, describe, roll to chat) and `manage-macros` (create, update, list, describe, execute; usable from region `executeMacro` behaviors). Unit-tested with a faked Foundry only.
+- **Layout sketches (0.8.6.19)**: `draw-layout` draws rooms, corridors, roads, rivers and doors as a flat-colour PNG (in grid squares) to use as a `generate-image` reference so H3 follows the layout, and can return wall and door objects derived from it. Runs in the MCP server only; no Foundry needed.
 
 It installs under its own id, `foundry-mcp-bridge-scenes`, so it can sit next to the original module. **Enable only one of the two per world:** both connect to the same MCP server port and the modules are marked as conflicting.
 

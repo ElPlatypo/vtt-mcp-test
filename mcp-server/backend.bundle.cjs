@@ -445,8 +445,8 @@ var init_parseUtil = __esm({
     init_errors();
     init_en();
     makeIssue = (params) => {
-      const { data, path: path9, errorMaps, issueData } = params;
-      const fullPath = [...path9, ...issueData.path || []];
+      const { data, path: path10, errorMaps, issueData } = params;
+      const fullPath = [...path10, ...issueData.path || []];
       const fullIssue = {
         ...issueData,
         path: fullPath
@@ -754,11 +754,11 @@ var init_types = __esm({
     init_parseUtil();
     init_util();
     ParseInputLazyPath = class {
-      constructor(parent, value, path9, key) {
+      constructor(parent, value, path10, key) {
         this._cachedPath = [];
         this.parent = parent;
         this.data = value;
-        this._path = path9;
+        this._path = path10;
         this._key = key;
       }
       get path() {
@@ -4210,9 +4210,9 @@ var require_package = __commonJS({
 // ../../node_modules/dotenv/lib/main.js
 var require_main = __commonJS({
   "../../node_modules/dotenv/lib/main.js"(exports2, module2) {
-    var fs8 = require("fs");
-    var path9 = require("path");
-    var os4 = require("os");
+    var fs9 = require("fs");
+    var path10 = require("path");
+    var os5 = require("os");
     var crypto7 = require("crypto");
     var packageJson = require_package();
     var version2 = packageJson.version;
@@ -4319,7 +4319,7 @@ var require_main = __commonJS({
       if (options && options.path && options.path.length > 0) {
         if (Array.isArray(options.path)) {
           for (const filepath of options.path) {
-            if (fs8.existsSync(filepath)) {
+            if (fs9.existsSync(filepath)) {
               possibleVaultPath = filepath.endsWith(".vault") ? filepath : `${filepath}.vault`;
             }
           }
@@ -4327,15 +4327,15 @@ var require_main = __commonJS({
           possibleVaultPath = options.path.endsWith(".vault") ? options.path : `${options.path}.vault`;
         }
       } else {
-        possibleVaultPath = path9.resolve(process.cwd(), ".env.vault");
+        possibleVaultPath = path10.resolve(process.cwd(), ".env.vault");
       }
-      if (fs8.existsSync(possibleVaultPath)) {
+      if (fs9.existsSync(possibleVaultPath)) {
         return possibleVaultPath;
       }
       return null;
     }
     function _resolveHome(envPath) {
-      return envPath[0] === "~" ? path9.join(os4.homedir(), envPath.slice(1)) : envPath;
+      return envPath[0] === "~" ? path10.join(os5.homedir(), envPath.slice(1)) : envPath;
     }
     function _configVault(options) {
       const debug = Boolean(options && options.debug);
@@ -4352,7 +4352,7 @@ var require_main = __commonJS({
       return { parsed };
     }
     function configDotenv(options) {
-      const dotenvPath = path9.resolve(process.cwd(), ".env");
+      const dotenvPath = path10.resolve(process.cwd(), ".env");
       let encoding = "utf8";
       const debug = Boolean(options && options.debug);
       const quiet = options && "quiet" in options ? options.quiet : true;
@@ -4376,13 +4376,13 @@ var require_main = __commonJS({
       }
       let lastError;
       const parsedAll = {};
-      for (const path10 of optionPaths) {
+      for (const path11 of optionPaths) {
         try {
-          const parsed = DotenvModule.parse(fs8.readFileSync(path10, { encoding }));
+          const parsed = DotenvModule.parse(fs9.readFileSync(path11, { encoding }));
           DotenvModule.populate(parsedAll, parsed, options);
         } catch (e) {
           if (debug) {
-            _debug(`Failed to load ${path10} ${e.message}`);
+            _debug(`Failed to load ${path11} ${e.message}`);
           }
           lastError = e;
         }
@@ -4397,7 +4397,7 @@ var require_main = __commonJS({
         const shortPaths = [];
         for (const filePath of optionPaths) {
           try {
-            const relative = path9.relative(process.cwd(), filePath);
+            const relative = path10.relative(process.cwd(), filePath);
             shortPaths.push(relative);
           } catch (e) {
             if (debug) {
@@ -4659,7 +4659,7 @@ var require_has_flag = __commonJS({
 var require_supports_colors = __commonJS({
   "../../node_modules/@colors/colors/lib/system/supports-colors.js"(exports2, module2) {
     "use strict";
-    var os4 = require("os");
+    var os5 = require("os");
     var hasFlag = require_has_flag();
     var env = process.env;
     var forceColor = void 0;
@@ -4697,7 +4697,7 @@ var require_supports_colors = __commonJS({
       }
       var min = forceColor ? 1 : 0;
       if (process.platform === "win32") {
-        var osRelease = os4.release().split(".");
+        var osRelease = os5.release().split(".");
         if (Number(process.versions.node.split(".")[0]) >= 8 && Number(osRelease[0]) >= 10 && Number(osRelease[2]) >= 10586) {
           return Number(osRelease[2]) >= 14931 ? 3 : 2;
         }
@@ -8539,8 +8539,8 @@ var require_stream_readable = __commonJS({
     var Buffer2 = require("buffer").Buffer;
     var OurUint8Array = (typeof global !== "undefined" ? global : typeof window !== "undefined" ? window : typeof self !== "undefined" ? self : {}).Uint8Array || function() {
     };
-    function _uint8ArrayToBuffer(chunk) {
-      return Buffer2.from(chunk);
+    function _uint8ArrayToBuffer(chunk2) {
+      return Buffer2.from(chunk2);
     }
     function _isUint8Array(obj) {
       return Buffer2.isBuffer(obj) || obj instanceof OurUint8Array;
@@ -8654,14 +8654,14 @@ var require_stream_readable = __commonJS({
     Readable2.prototype._destroy = function(err, cb) {
       cb(err);
     };
-    Readable2.prototype.push = function(chunk, encoding) {
+    Readable2.prototype.push = function(chunk2, encoding) {
       var state = this._readableState;
       var skipChunkCheck;
       if (!state.objectMode) {
-        if (typeof chunk === "string") {
+        if (typeof chunk2 === "string") {
           encoding = encoding || state.defaultEncoding;
           if (encoding !== state.encoding) {
-            chunk = Buffer2.from(chunk, encoding);
+            chunk2 = Buffer2.from(chunk2, encoding);
             encoding = "";
           }
           skipChunkCheck = true;
@@ -8669,32 +8669,32 @@ var require_stream_readable = __commonJS({
       } else {
         skipChunkCheck = true;
       }
-      return readableAddChunk(this, chunk, encoding, false, skipChunkCheck);
+      return readableAddChunk(this, chunk2, encoding, false, skipChunkCheck);
     };
-    Readable2.prototype.unshift = function(chunk) {
-      return readableAddChunk(this, chunk, null, true, false);
+    Readable2.prototype.unshift = function(chunk2) {
+      return readableAddChunk(this, chunk2, null, true, false);
     };
-    function readableAddChunk(stream4, chunk, encoding, addToFront, skipChunkCheck) {
-      debug("readableAddChunk", chunk);
+    function readableAddChunk(stream4, chunk2, encoding, addToFront, skipChunkCheck) {
+      debug("readableAddChunk", chunk2);
       var state = stream4._readableState;
-      if (chunk === null) {
+      if (chunk2 === null) {
         state.reading = false;
         onEofChunk(stream4, state);
       } else {
         var er;
         if (!skipChunkCheck)
-          er = chunkInvalid(state, chunk);
+          er = chunkInvalid(state, chunk2);
         if (er) {
           errorOrDestroy(stream4, er);
-        } else if (state.objectMode || chunk && chunk.length > 0) {
-          if (typeof chunk !== "string" && !state.objectMode && Object.getPrototypeOf(chunk) !== Buffer2.prototype) {
-            chunk = _uint8ArrayToBuffer(chunk);
+        } else if (state.objectMode || chunk2 && chunk2.length > 0) {
+          if (typeof chunk2 !== "string" && !state.objectMode && Object.getPrototypeOf(chunk2) !== Buffer2.prototype) {
+            chunk2 = _uint8ArrayToBuffer(chunk2);
           }
           if (addToFront) {
             if (state.endEmitted)
               errorOrDestroy(stream4, new ERR_STREAM_UNSHIFT_AFTER_END_EVENT());
             else
-              addChunk(stream4, state, chunk, true);
+              addChunk(stream4, state, chunk2, true);
           } else if (state.ended) {
             errorOrDestroy(stream4, new ERR_STREAM_PUSH_AFTER_EOF());
           } else if (state.destroyed) {
@@ -8702,13 +8702,13 @@ var require_stream_readable = __commonJS({
           } else {
             state.reading = false;
             if (state.decoder && !encoding) {
-              chunk = state.decoder.write(chunk);
-              if (state.objectMode || chunk.length !== 0)
-                addChunk(stream4, state, chunk, false);
+              chunk2 = state.decoder.write(chunk2);
+              if (state.objectMode || chunk2.length !== 0)
+                addChunk(stream4, state, chunk2, false);
               else
                 maybeReadMore(stream4, state);
             } else {
-              addChunk(stream4, state, chunk, false);
+              addChunk(stream4, state, chunk2, false);
             }
           }
         } else if (!addToFront) {
@@ -8718,25 +8718,25 @@ var require_stream_readable = __commonJS({
       }
       return !state.ended && (state.length < state.highWaterMark || state.length === 0);
     }
-    function addChunk(stream4, state, chunk, addToFront) {
+    function addChunk(stream4, state, chunk2, addToFront) {
       if (state.flowing && state.length === 0 && !state.sync) {
         state.awaitDrain = 0;
-        stream4.emit("data", chunk);
+        stream4.emit("data", chunk2);
       } else {
-        state.length += state.objectMode ? 1 : chunk.length;
+        state.length += state.objectMode ? 1 : chunk2.length;
         if (addToFront)
-          state.buffer.unshift(chunk);
+          state.buffer.unshift(chunk2);
         else
-          state.buffer.push(chunk);
+          state.buffer.push(chunk2);
         if (state.needReadable)
           emitReadable(stream4);
       }
       maybeReadMore(stream4, state);
     }
-    function chunkInvalid(state, chunk) {
+    function chunkInvalid(state, chunk2) {
       var er;
-      if (!_isUint8Array(chunk) && typeof chunk !== "string" && chunk !== void 0 && !state.objectMode) {
-        er = new ERR_INVALID_ARG_TYPE("chunk", ["string", "Buffer", "Uint8Array"], chunk);
+      if (!_isUint8Array(chunk2) && typeof chunk2 !== "string" && chunk2 !== void 0 && !state.objectMode) {
+        er = new ERR_INVALID_ARG_TYPE("chunk", ["string", "Buffer", "Uint8Array"], chunk2);
       }
       return er;
     }
@@ -8865,10 +8865,10 @@ var require_stream_readable = __commonJS({
       if (state.ended)
         return;
       if (state.decoder) {
-        var chunk = state.decoder.end();
-        if (chunk && chunk.length) {
-          state.buffer.push(chunk);
-          state.length += state.objectMode ? 1 : chunk.length;
+        var chunk2 = state.decoder.end();
+        if (chunk2 && chunk2.length) {
+          state.buffer.push(chunk2);
+          state.length += state.objectMode ? 1 : chunk2.length;
         }
       }
       state.ended = true;
@@ -8975,9 +8975,9 @@ var require_stream_readable = __commonJS({
           ondrain();
       }
       src.on("data", ondata);
-      function ondata(chunk) {
+      function ondata(chunk2) {
         debug("ondata");
-        var ret = dest.write(chunk);
+        var ret = dest.write(chunk2);
         debug("dest.write", ret);
         if (ret === false) {
           if ((state.pipesCount === 1 && state.pipes === dest || state.pipesCount > 1 && indexOf(state.pipes, dest) !== -1) && !cleanedUp) {
@@ -9170,21 +9170,21 @@ var require_stream_readable = __commonJS({
       stream4.on("end", function() {
         debug("wrapped end");
         if (state.decoder && !state.ended) {
-          var chunk = state.decoder.end();
-          if (chunk && chunk.length)
-            _this.push(chunk);
+          var chunk2 = state.decoder.end();
+          if (chunk2 && chunk2.length)
+            _this.push(chunk2);
         }
         _this.push(null);
       });
-      stream4.on("data", function(chunk) {
+      stream4.on("data", function(chunk2) {
         debug("wrapped data");
         if (state.decoder)
-          chunk = state.decoder.write(chunk);
-        if (state.objectMode && (chunk === null || chunk === void 0))
+          chunk2 = state.decoder.write(chunk2);
+        if (state.objectMode && (chunk2 === null || chunk2 === void 0))
           return;
-        else if (!state.objectMode && (!chunk || !chunk.length))
+        else if (!state.objectMode && (!chunk2 || !chunk2.length))
           return;
-        var ret = _this.push(chunk);
+        var ret = _this.push(chunk2);
         if (!ret) {
           paused = true;
           stream4.pause();
@@ -9441,8 +9441,8 @@ var require_stream_writable = __commonJS({
     var Buffer2 = require("buffer").Buffer;
     var OurUint8Array = (typeof global !== "undefined" ? global : typeof window !== "undefined" ? window : typeof self !== "undefined" ? self : {}).Uint8Array || function() {
     };
-    function _uint8ArrayToBuffer(chunk) {
-      return Buffer2.from(chunk);
+    function _uint8ArrayToBuffer(chunk2) {
+      return Buffer2.from(chunk2);
     }
     function _isUint8Array(obj) {
       return Buffer2.isBuffer(obj) || obj instanceof OurUint8Array;
@@ -9564,12 +9564,12 @@ var require_stream_writable = __commonJS({
       errorOrDestroy(stream4, er);
       process.nextTick(cb, er);
     }
-    function validChunk(stream4, state, chunk, cb) {
+    function validChunk(stream4, state, chunk2, cb) {
       var er;
-      if (chunk === null) {
+      if (chunk2 === null) {
         er = new ERR_STREAM_NULL_VALUES();
-      } else if (typeof chunk !== "string" && !state.objectMode) {
-        er = new ERR_INVALID_ARG_TYPE("chunk", ["string", "Buffer"], chunk);
+      } else if (typeof chunk2 !== "string" && !state.objectMode) {
+        er = new ERR_INVALID_ARG_TYPE("chunk", ["string", "Buffer"], chunk2);
       }
       if (er) {
         errorOrDestroy(stream4, er);
@@ -9578,12 +9578,12 @@ var require_stream_writable = __commonJS({
       }
       return true;
     }
-    Writable.prototype.write = function(chunk, encoding, cb) {
+    Writable.prototype.write = function(chunk2, encoding, cb) {
       var state = this._writableState;
       var ret = false;
-      var isBuf = !state.objectMode && _isUint8Array(chunk);
-      if (isBuf && !Buffer2.isBuffer(chunk)) {
-        chunk = _uint8ArrayToBuffer(chunk);
+      var isBuf = !state.objectMode && _isUint8Array(chunk2);
+      if (isBuf && !Buffer2.isBuffer(chunk2)) {
+        chunk2 = _uint8ArrayToBuffer(chunk2);
       }
       if (typeof encoding === "function") {
         cb = encoding;
@@ -9597,9 +9597,9 @@ var require_stream_writable = __commonJS({
         cb = nop;
       if (state.ending)
         writeAfterEnd(this, cb);
-      else if (isBuf || validChunk(this, state, chunk, cb)) {
+      else if (isBuf || validChunk(this, state, chunk2, cb)) {
         state.pendingcb++;
-        ret = writeOrBuffer(this, state, isBuf, chunk, encoding, cb);
+        ret = writeOrBuffer(this, state, isBuf, chunk2, encoding, cb);
       }
       return ret;
     };
@@ -9631,11 +9631,11 @@ var require_stream_writable = __commonJS({
         return this._writableState && this._writableState.getBuffer();
       }
     });
-    function decodeChunk(state, chunk, encoding) {
-      if (!state.objectMode && state.decodeStrings !== false && typeof chunk === "string") {
-        chunk = Buffer2.from(chunk, encoding);
+    function decodeChunk(state, chunk2, encoding) {
+      if (!state.objectMode && state.decodeStrings !== false && typeof chunk2 === "string") {
+        chunk2 = Buffer2.from(chunk2, encoding);
       }
-      return chunk;
+      return chunk2;
     }
     Object.defineProperty(Writable.prototype, "writableHighWaterMark", {
       // making it explicit this property is not enumerable
@@ -9646,16 +9646,16 @@ var require_stream_writable = __commonJS({
         return this._writableState.highWaterMark;
       }
     });
-    function writeOrBuffer(stream4, state, isBuf, chunk, encoding, cb) {
+    function writeOrBuffer(stream4, state, isBuf, chunk2, encoding, cb) {
       if (!isBuf) {
-        var newChunk = decodeChunk(state, chunk, encoding);
-        if (chunk !== newChunk) {
+        var newChunk = decodeChunk(state, chunk2, encoding);
+        if (chunk2 !== newChunk) {
           isBuf = true;
           encoding = "buffer";
-          chunk = newChunk;
+          chunk2 = newChunk;
         }
       }
-      var len = state.objectMode ? 1 : chunk.length;
+      var len = state.objectMode ? 1 : chunk2.length;
       state.length += len;
       var ret = state.length < state.highWaterMark;
       if (!ret)
@@ -9663,7 +9663,7 @@ var require_stream_writable = __commonJS({
       if (state.writing || state.corked) {
         var last = state.lastBufferedRequest;
         state.lastBufferedRequest = {
-          chunk,
+          chunk: chunk2,
           encoding,
           isBuf,
           callback: cb,
@@ -9676,11 +9676,11 @@ var require_stream_writable = __commonJS({
         }
         state.bufferedRequestCount += 1;
       } else {
-        doWrite(stream4, state, false, len, chunk, encoding, cb);
+        doWrite(stream4, state, false, len, chunk2, encoding, cb);
       }
       return ret;
     }
-    function doWrite(stream4, state, writev, len, chunk, encoding, cb) {
+    function doWrite(stream4, state, writev, len, chunk2, encoding, cb) {
       state.writelen = len;
       state.writecb = cb;
       state.writing = true;
@@ -9688,9 +9688,9 @@ var require_stream_writable = __commonJS({
       if (state.destroyed)
         state.onwrite(new ERR_STREAM_DESTROYED("write"));
       else if (writev)
-        stream4._writev(chunk, state.onwrite);
+        stream4._writev(chunk2, state.onwrite);
       else
-        stream4._write(chunk, encoding, state.onwrite);
+        stream4._write(chunk2, encoding, state.onwrite);
       state.sync = false;
     }
     function onwriteError(stream4, state, sync, er, cb) {
@@ -9777,11 +9777,11 @@ var require_stream_writable = __commonJS({
         state.bufferedRequestCount = 0;
       } else {
         while (entry) {
-          var chunk = entry.chunk;
+          var chunk2 = entry.chunk;
           var encoding = entry.encoding;
           var cb = entry.callback;
-          var len = state.objectMode ? 1 : chunk.length;
-          doWrite(stream4, state, false, len, chunk, encoding, cb);
+          var len = state.objectMode ? 1 : chunk2.length;
+          doWrite(stream4, state, false, len, chunk2, encoding, cb);
           entry = entry.next;
           state.bufferedRequestCount--;
           if (state.writing) {
@@ -9794,22 +9794,22 @@ var require_stream_writable = __commonJS({
       state.bufferedRequest = entry;
       state.bufferProcessing = false;
     }
-    Writable.prototype._write = function(chunk, encoding, cb) {
+    Writable.prototype._write = function(chunk2, encoding, cb) {
       cb(new ERR_METHOD_NOT_IMPLEMENTED("_write()"));
     };
     Writable.prototype._writev = null;
-    Writable.prototype.end = function(chunk, encoding, cb) {
+    Writable.prototype.end = function(chunk2, encoding, cb) {
       var state = this._writableState;
-      if (typeof chunk === "function") {
-        cb = chunk;
-        chunk = null;
+      if (typeof chunk2 === "function") {
+        cb = chunk2;
+        chunk2 = null;
         encoding = null;
       } else if (typeof encoding === "function") {
         cb = encoding;
         encoding = null;
       }
-      if (chunk !== null && chunk !== void 0)
-        this.write(chunk, encoding);
+      if (chunk2 !== null && chunk2 !== void 0)
+        this.write(chunk2, encoding);
       if (state.corked) {
         state.corked = 1;
         this.uncork();
@@ -10115,7 +10115,7 @@ var require_winston_transport = __commonJS({
 var require_console = __commonJS({
   "../../node_modules/winston/lib/winston/transports/console.js"(exports2, module2) {
     "use strict";
-    var os4 = require("os");
+    var os5 = require("os");
     var { LEVEL, MESSAGE } = require_triple_beam();
     var TransportStream = require_winston_transport();
     module2.exports = class Console extends TransportStream {
@@ -10129,7 +10129,7 @@ var require_console = __commonJS({
         this.name = options.name || "console";
         this.stderrLevels = this._stringArrayToSet(options.stderrLevels);
         this.consoleWarnLevels = this._stringArrayToSet(options.consoleWarnLevels);
-        this.eol = typeof options.eol === "string" ? options.eol : os4.EOL;
+        this.eol = typeof options.eol === "string" ? options.eol : os5.EOL;
         this.forceConsole = options.forceConsole || false;
         this._consoleLog = console.log.bind(console);
         this._consoleWarn = console.warn.bind(console);
@@ -10828,17 +10828,17 @@ var require_stream_transform = __commonJS({
         done(this, null, null);
       }
     }
-    Transform.prototype.push = function(chunk, encoding) {
+    Transform.prototype.push = function(chunk2, encoding) {
       this._transformState.needTransform = false;
-      return Duplex.prototype.push.call(this, chunk, encoding);
+      return Duplex.prototype.push.call(this, chunk2, encoding);
     };
-    Transform.prototype._transform = function(chunk, encoding, cb) {
+    Transform.prototype._transform = function(chunk2, encoding, cb) {
       cb(new ERR_METHOD_NOT_IMPLEMENTED("_transform()"));
     };
-    Transform.prototype._write = function(chunk, encoding, cb) {
+    Transform.prototype._write = function(chunk2, encoding, cb) {
       var ts = this._transformState;
       ts.writecb = cb;
-      ts.writechunk = chunk;
+      ts.writechunk = chunk2;
       ts.writeencoding = encoding;
       if (!ts.transforming) {
         var rs = this._readableState;
@@ -10886,8 +10886,8 @@ var require_stream_passthrough = __commonJS({
         return new PassThrough(options);
       Transform.call(this, options);
     }
-    PassThrough.prototype._transform = function(chunk, encoding, cb) {
-      cb(null, chunk);
+    PassThrough.prototype._transform = function(chunk2, encoding, cb) {
+      cb(null, chunk2);
     };
   }
 });
@@ -11499,11 +11499,11 @@ var require_color_string = __commonJS({
     cs.to.keyword = function(rgb) {
       return reverseNames[rgb.slice(0, 3)];
     };
-    function clamp2(num2, min, max) {
-      return Math.min(Math.max(min, num2), max);
+    function clamp2(num3, min, max) {
+      return Math.min(Math.max(min, num3), max);
     }
-    function hexDouble(num2) {
-      var str = Math.round(num2).toString(16).toUpperCase();
+    function hexDouble(num3) {
+      var str = Math.round(num3).toString(16).toUpperCase();
       return str.length < 2 ? "0" + str : str;
     }
   }
@@ -12421,15 +12421,15 @@ var require_route = __commonJS({
       };
     }
     function wrapConversion(toModel, graph) {
-      var path9 = [graph[toModel].parent, toModel];
+      var path10 = [graph[toModel].parent, toModel];
       var fn = conversions[graph[toModel].parent][toModel];
       var cur = graph[toModel].parent;
       while (graph[cur].parent) {
-        path9.unshift(graph[cur].parent);
+        path10.unshift(graph[cur].parent);
         fn = link(conversions[graph[cur].parent][cur], fn);
         cur = graph[cur].parent;
       }
-      fn.conversion = path9;
+      fn.conversion = path10;
       return fn;
     }
     module2.exports = function(fromModel) {
@@ -12839,12 +12839,12 @@ var require_color = __commonJS({
         return new Color(color2, model);
       };
     });
-    function roundTo(num2, places) {
-      return Number(num2.toFixed(places));
+    function roundTo(num3, places) {
+      return Number(num3.toFixed(places));
     }
     function roundToPlace(places) {
-      return function(num2) {
-        return roundTo(num2, places);
+      return function(num3) {
+        return roundTo(num3, places);
       };
     }
     function getset(model, channel, modifier) {
@@ -13086,7 +13086,7 @@ var require_node2 = __commonJS({
 var require_tail_file = __commonJS({
   "../../node_modules/winston/lib/winston/tail-file.js"(exports2, module2) {
     "use strict";
-    var fs8 = require("fs");
+    var fs9 = require("fs");
     var { StringDecoder } = require("string_decoder");
     var { Stream } = require_readable();
     function noop2() {
@@ -13107,7 +13107,7 @@ var require_tail_file = __commonJS({
         stream4.emit("end");
         stream4.emit("close");
       };
-      fs8.open(options.file, "a+", "0644", (err, fd) => {
+      fs9.open(options.file, "a+", "0644", (err, fd) => {
         if (err) {
           if (!iter) {
             stream4.emit("error", err);
@@ -13119,10 +13119,10 @@ var require_tail_file = __commonJS({
         }
         (function read() {
           if (stream4.destroyed) {
-            fs8.close(fd, noop2);
+            fs9.close(fd, noop2);
             return;
           }
-          return fs8.read(fd, buffer, 0, buffer.length, pos, (error, bytes) => {
+          return fs9.read(fd, buffer, 0, buffer.length, pos, (error, bytes) => {
             if (error) {
               if (!iter) {
                 stream4.emit("error", error);
@@ -13181,15 +13181,15 @@ var require_tail_file = __commonJS({
 var require_file = __commonJS({
   "../../node_modules/winston/lib/winston/transports/file.js"(exports2, module2) {
     "use strict";
-    var fs8 = require("fs");
-    var path9 = require("path");
+    var fs9 = require("fs");
+    var path10 = require("path");
     var asyncSeries = require_series();
-    var zlib2 = require("zlib");
+    var zlib3 = require("zlib");
     var { MESSAGE } = require_triple_beam();
     var { Stream, PassThrough } = require_readable();
     var TransportStream = require_winston_transport();
     var debug = require_node2()("winston:file");
-    var os4 = require("os");
+    var os5 = require("os");
     var tailFile = require_tail_file();
     module2.exports = class File extends TransportStream {
       /**
@@ -13212,14 +13212,14 @@ var require_file = __commonJS({
         this._onError = this._onError.bind(this);
         if (options.filename || options.dirname) {
           throwIf("filename or dirname", "stream");
-          this._basename = this.filename = options.filename ? path9.basename(options.filename) : "winston.log";
-          this.dirname = options.dirname || path9.dirname(options.filename);
+          this._basename = this.filename = options.filename ? path10.basename(options.filename) : "winston.log";
+          this.dirname = options.dirname || path10.dirname(options.filename);
           this.options = options.options || { flags: "a" };
         } else if (options.stream) {
           console.warn("options.stream will be removed in winston@4. Use winston.transports.Stream");
           throwIf("stream", "filename", "maxsize");
           this._dest = this._stream.pipe(this._setupStream(options.stream));
-          this.dirname = path9.dirname(this._dest.path);
+          this.dirname = path10.dirname(this._dest.path);
         } else {
           throw new Error("Cannot log to file without filename or stream.");
         }
@@ -13227,7 +13227,7 @@ var require_file = __commonJS({
         this.rotationFormat = options.rotationFormat || false;
         this.zippedArchive = options.zippedArchive || false;
         this.maxFiles = options.maxFiles || null;
-        this.eol = typeof options.eol === "string" ? options.eol : os4.EOL;
+        this.eol = typeof options.eol === "string" ? options.eol : os5.EOL;
         this.tailable = options.tailable || false;
         this.lazy = options.lazy || false;
         this._size = 0;
@@ -13362,11 +13362,11 @@ var require_file = __commonJS({
           options = {};
         }
         options = normalizeQuery(options);
-        const file = path9.join(this.dirname, this.filename);
+        const file = path10.join(this.dirname, this.filename);
         let buff = "";
         let results = [];
         let row2 = 0;
-        const stream4 = fs8.createReadStream(file, {
+        const stream4 = fs9.createReadStream(file, {
           encoding: "utf8"
         });
         stream4.on("error", (err) => {
@@ -13468,7 +13468,7 @@ var require_file = __commonJS({
        * TODO: Refactor me.
        */
       stream(options = {}) {
-        const file = path9.join(this.dirname, this.filename);
+        const file = path10.join(this.dirname, this.filename);
         const stream4 = new Stream();
         const tail = {
           file,
@@ -13520,8 +13520,8 @@ var require_file = __commonJS({
        */
       stat(callback) {
         const target = this._getFile();
-        const fullpath = path9.join(this.dirname, target);
-        fs8.stat(fullpath, (err, stat) => {
+        const fullpath = path10.join(this.dirname, target);
+        fs9.stat(fullpath, (err, stat) => {
           if (err && err.code === "ENOENT") {
             debug("ENOENT\xA0ok", fullpath);
             this.filename = target;
@@ -13624,9 +13624,9 @@ var require_file = __commonJS({
        * @returns {WritableStream} Stream that writes to disk for the active file.
        */
       _createStream(source) {
-        const fullpath = path9.join(this.dirname, this.filename);
+        const fullpath = path10.join(this.dirname, this.filename);
         debug("create stream start", fullpath, this.options);
-        const dest = fs8.createWriteStream(fullpath, this.options).on("error", (err) => debug(err)).on("close", () => debug("close", dest.path, dest.bytesWritten)).on("open", () => {
+        const dest = fs9.createWriteStream(fullpath, this.options).on("error", (err) => debug(err)).on("close", () => debug("close", dest.path, dest.bytesWritten)).on("open", () => {
           debug("file open ok", fullpath);
           this.emit("open", fullpath);
           source.pipe(dest);
@@ -13649,16 +13649,16 @@ var require_file = __commonJS({
        */
       _incFile(callback) {
         debug("_incFile", this.filename);
-        const ext = path9.extname(this._basename);
-        const basename2 = path9.basename(this._basename, ext);
+        const ext = path10.extname(this._basename);
+        const basename2 = path10.basename(this._basename, ext);
         const tasks = [];
         if (this.zippedArchive) {
           tasks.push(
             function(cb) {
-              const num2 = this._created > 0 && !this.tailable ? this._created : "";
+              const num3 = this._created > 0 && !this.tailable ? this._created : "";
               this._compressFile(
-                path9.join(this.dirname, `${basename2}${num2}${ext}`),
-                path9.join(this.dirname, `${basename2}${num2}${ext}.gz`),
+                path10.join(this.dirname, `${basename2}${num3}${ext}`),
+                path10.join(this.dirname, `${basename2}${num3}${ext}.gz`),
                 cb
               );
             }.bind(this)
@@ -13683,8 +13683,8 @@ var require_file = __commonJS({
        * @private
        */
       _getFile() {
-        const ext = path9.extname(this._basename);
-        const basename2 = path9.basename(this._basename, ext);
+        const ext = path10.extname(this._basename);
+        const basename2 = path10.basename(this._basename, ext);
         const isRotation = this.rotationFormat ? this.rotationFormat() : this._created;
         return !this.tailable && this._created ? `${basename2}${isRotation}${ext}` : `${basename2}${ext}`;
       }
@@ -13704,8 +13704,8 @@ var require_file = __commonJS({
         const isOldest = oldest !== 0 ? oldest : "";
         const isZipped = this.zippedArchive ? ".gz" : "";
         const filePath = `${basename2}${isOldest}${ext}${isZipped}`;
-        const target = path9.join(this.dirname, filePath);
-        fs8.unlink(target, callback);
+        const target = path10.join(this.dirname, filePath);
+        fs9.unlink(target, callback);
       }
       /**
        * Roll files forward based on integer, up to maxFiles. e.g. if base if
@@ -13727,20 +13727,20 @@ var require_file = __commonJS({
         for (let x = this.maxFiles - 1; x > 1; x--) {
           tasks.push(function(i, cb) {
             let fileName = `${basename2}${i - 1}${ext}${isZipped}`;
-            const tmppath = path9.join(this.dirname, fileName);
-            fs8.exists(tmppath, (exists) => {
+            const tmppath = path10.join(this.dirname, fileName);
+            fs9.exists(tmppath, (exists) => {
               if (!exists) {
                 return cb(null);
               }
               fileName = `${basename2}${i}${ext}${isZipped}`;
-              fs8.rename(tmppath, path9.join(this.dirname, fileName), cb);
+              fs9.rename(tmppath, path10.join(this.dirname, fileName), cb);
             });
           }.bind(this, x));
         }
         asyncSeries(tasks, () => {
-          fs8.rename(
-            path9.join(this.dirname, `${basename2}${ext}${isZipped}`),
-            path9.join(this.dirname, `${basename2}1${ext}${isZipped}`),
+          fs9.rename(
+            path10.join(this.dirname, `${basename2}${ext}${isZipped}`),
+            path10.join(this.dirname, `${basename2}1${ext}${isZipped}`),
             callback
           );
         });
@@ -13754,22 +13754,22 @@ var require_file = __commonJS({
        * @private
        */
       _compressFile(src, dest, callback) {
-        fs8.access(src, fs8.F_OK, (err) => {
+        fs9.access(src, fs9.F_OK, (err) => {
           if (err) {
             return callback();
           }
-          var gzip = zlib2.createGzip();
-          var inp = fs8.createReadStream(src);
-          var out = fs8.createWriteStream(dest);
+          var gzip = zlib3.createGzip();
+          var inp = fs9.createReadStream(src);
+          var out = fs9.createWriteStream(dest);
           out.on("finish", () => {
-            fs8.unlink(src, callback);
+            fs9.unlink(src, callback);
           });
           inp.pipe(gzip).pipe(out);
         });
       }
       _createLogDirIfNotExist(dirPath) {
-        if (!fs8.existsSync(dirPath)) {
-          fs8.mkdirSync(dirPath, { recursive: true });
+        if (!fs9.existsSync(dirPath)) {
+          fs9.mkdirSync(dirPath, { recursive: true });
         }
       }
     };
@@ -13853,9 +13853,9 @@ var require_http = __commonJS({
         };
         const auth = options.params.auth || null;
         delete options.params.auth;
-        const path9 = options.params.path || null;
+        const path10 = options.params.path || null;
         delete options.params.path;
-        this._request(options, auth, path9, (err, res, body) => {
+        this._request(options, auth, path10, (err, res, body) => {
           if (res && res.statusCode !== 200) {
             err = new Error(`Invalid HTTP Status Code: ${res.statusCode}`);
           }
@@ -13883,12 +13883,12 @@ var require_http = __commonJS({
           method: "stream",
           params: options
         };
-        const path9 = options.params.path || null;
+        const path10 = options.params.path || null;
         delete options.params.path;
         const auth = options.params.auth || null;
         delete options.params.auth;
         let buff = "";
-        const req = this._request(options, auth, path9);
+        const req = this._request(options, auth, path10);
         stream4.destroy = () => req.destroy();
         req.on("data", (data) => {
           data = (buff + data).split(/\n+/);
@@ -13914,14 +13914,14 @@ var require_http = __commonJS({
        * @param {string} path - request path
        * @param {function} callback - Continuation to respond to when complete.
        */
-      _request(options, auth, path9, callback) {
+      _request(options, auth, path10, callback) {
         options = options || {};
         auth = auth || this.auth;
-        path9 = path9 || this.path || "";
+        path10 = path10 || this.path || "";
         if (this.batch) {
-          this._doBatch(options, callback, auth, path9);
+          this._doBatch(options, callback, auth, path10);
         } else {
-          this._doRequest(options, callback, auth, path9);
+          this._doRequest(options, callback, auth, path10);
         }
       }
       /**
@@ -13931,18 +13931,18 @@ var require_http = __commonJS({
        * @param {Object?} auth - authentication options
        * @param {string} path - request path
        */
-      _doBatch(options, callback, auth, path9) {
+      _doBatch(options, callback, auth, path10) {
         this.batchOptions.push(options);
         if (this.batchOptions.length === 1) {
           const me = this;
           this.batchCallback = callback;
           this.batchTimeoutID = setTimeout(function() {
             me.batchTimeoutID = -1;
-            me._doBatchRequest(me.batchCallback, auth, path9);
+            me._doBatchRequest(me.batchCallback, auth, path10);
           }, this.batchInterval);
         }
         if (this.batchOptions.length === this.batchCount) {
-          this._doBatchRequest(this.batchCallback, auth, path9);
+          this._doBatchRequest(this.batchCallback, auth, path10);
         }
       }
       /**
@@ -13951,14 +13951,14 @@ var require_http = __commonJS({
        * @param {Object?} auth - authentication options
        * @param {string} path - request path
        */
-      _doBatchRequest(callback, auth, path9) {
+      _doBatchRequest(callback, auth, path10) {
         if (this.batchTimeoutID > 0) {
           clearTimeout(this.batchTimeoutID);
           this.batchTimeoutID = -1;
         }
         const batchOptionsCopy = this.batchOptions.slice();
         this.batchOptions = [];
-        this._doRequest(batchOptionsCopy, callback, auth, path9);
+        this._doRequest(batchOptionsCopy, callback, auth, path10);
       }
       /**
        * Make a request to a winstond server or any http server which can
@@ -13968,7 +13968,7 @@ var require_http = __commonJS({
        * @param {Object?} auth - authentication options
        * @param {string} path - request path
        */
-      _doRequest(options, callback, auth, path9) {
+      _doRequest(options, callback, auth, path10) {
         const headers = Object.assign({}, this.headers);
         if (auth && auth.bearer) {
           headers.Authorization = `Bearer ${auth.bearer}`;
@@ -13978,7 +13978,7 @@ var require_http = __commonJS({
           method: "POST",
           host: this.host,
           port: this.port,
-          path: `/${path9.replace(/^\//, "")}`,
+          path: `/${path10.replace(/^\//, "")}`,
           headers,
           auth: auth && auth.username && auth.password ? `${auth.username}:${auth.password}` : "",
           agent: this.agent
@@ -14013,7 +14013,7 @@ var require_stream2 = __commonJS({
     "use strict";
     var isStream2 = require_is_stream();
     var { MESSAGE } = require_triple_beam();
-    var os4 = require("os");
+    var os5 = require("os");
     var TransportStream = require_winston_transport();
     module2.exports = class Stream extends TransportStream {
       /**
@@ -14029,7 +14029,7 @@ var require_stream2 = __commonJS({
         this._stream = options.stream;
         this._stream.setMaxListeners(Infinity);
         this.isObjectMode = options.stream._writableState.objectMode;
-        this.eol = typeof options.eol === "string" ? options.eol : os4.EOL;
+        this.eol = typeof options.eol === "string" ? options.eol : os5.EOL;
       }
       /**
        * Core logging method exposed to Winston.
@@ -14415,7 +14415,7 @@ var require_exception_stream = __commonJS({
 var require_exception_handler = __commonJS({
   "../../node_modules/winston/lib/winston/exception-handler.js"(exports2, module2) {
     "use strict";
-    var os4 = require("os");
+    var os5 = require("os");
     var asyncForEach = require_forEach();
     var debug = require_node2()("winston:exception");
     var once = require_one_time();
@@ -14510,8 +14510,8 @@ var require_exception_handler = __commonJS({
        */
       getOsInfo() {
         return {
-          loadavg: os4.loadavg(),
-          uptime: os4.uptime()
+          loadavg: os5.loadavg(),
+          uptime: os5.uptime()
         };
       }
       /**
@@ -14653,7 +14653,7 @@ var require_rejection_stream = __commonJS({
 var require_rejection_handler = __commonJS({
   "../../node_modules/winston/lib/winston/rejection-handler.js"(exports2, module2) {
     "use strict";
-    var os4 = require("os");
+    var os5 = require("os");
     var asyncForEach = require_forEach();
     var debug = require_node2()("winston:rejection");
     var once = require_one_time();
@@ -14750,8 +14750,8 @@ var require_rejection_handler = __commonJS({
        */
       getOsInfo() {
         return {
-          loadavg: os4.loadavg(),
-          uptime: os4.uptime()
+          loadavg: os5.loadavg(),
+          uptime: os5.uptime()
         };
       }
       /**
@@ -15819,7 +15819,7 @@ var require_limiter = __commonJS({
 var require_permessage_deflate = __commonJS({
   "../../node_modules/ws/lib/permessage-deflate.js"(exports2, module2) {
     "use strict";
-    var zlib2 = require("zlib");
+    var zlib3 = require("zlib");
     var bufferUtil = require_buffer_util();
     var Limiter = require_limiter();
     var { kStatusCode } = require_constants();
@@ -16008,26 +16008,26 @@ var require_permessage_deflate = __commonJS({
             value = value[0];
             if (key === "client_max_window_bits") {
               if (value !== true) {
-                const num2 = +value;
-                if (!Number.isInteger(num2) || num2 < 8 || num2 > 15) {
+                const num3 = +value;
+                if (!Number.isInteger(num3) || num3 < 8 || num3 > 15) {
                   throw new TypeError(
                     `Invalid value for parameter "${key}": ${value}`
                   );
                 }
-                value = num2;
+                value = num3;
               } else if (!this._isServer) {
                 throw new TypeError(
                   `Invalid value for parameter "${key}": ${value}`
                 );
               }
             } else if (key === "server_max_window_bits") {
-              const num2 = +value;
-              if (!Number.isInteger(num2) || num2 < 8 || num2 > 15) {
+              const num3 = +value;
+              if (!Number.isInteger(num3) || num3 < 8 || num3 > 15) {
                 throw new TypeError(
                   `Invalid value for parameter "${key}": ${value}`
                 );
               }
-              value = num2;
+              value = num3;
             } else if (key === "client_no_context_takeover" || key === "server_no_context_takeover") {
               if (value !== true) {
                 throw new TypeError(
@@ -16086,8 +16086,8 @@ var require_permessage_deflate = __commonJS({
         const endpoint = this._isServer ? "client" : "server";
         if (!this._inflate) {
           const key = `${endpoint}_max_window_bits`;
-          const windowBits = typeof this.params[key] !== "number" ? zlib2.Z_DEFAULT_WINDOWBITS : this.params[key];
-          this._inflate = zlib2.createInflateRaw({
+          const windowBits = typeof this.params[key] !== "number" ? zlib3.Z_DEFAULT_WINDOWBITS : this.params[key];
+          this._inflate = zlib3.createInflateRaw({
             ...this._options.zlibInflateOptions,
             windowBits
           });
@@ -16138,8 +16138,8 @@ var require_permessage_deflate = __commonJS({
         const endpoint = this._isServer ? "server" : "client";
         if (!this._deflate) {
           const key = `${endpoint}_max_window_bits`;
-          const windowBits = typeof this.params[key] !== "number" ? zlib2.Z_DEFAULT_WINDOWBITS : this.params[key];
-          this._deflate = zlib2.createDeflateRaw({
+          const windowBits = typeof this.params[key] !== "number" ? zlib3.Z_DEFAULT_WINDOWBITS : this.params[key];
+          this._deflate = zlib3.createDeflateRaw({
             ...this._options.zlibDeflateOptions,
             windowBits
           });
@@ -16149,7 +16149,7 @@ var require_permessage_deflate = __commonJS({
         }
         this._deflate[kCallback] = callback;
         this._deflate.write(data);
-        this._deflate.flush(zlib2.Z_SYNC_FLUSH, () => {
+        this._deflate.flush(zlib3.Z_SYNC_FLUSH, () => {
           if (!this._deflate) {
             return;
           }
@@ -16171,14 +16171,14 @@ var require_permessage_deflate = __commonJS({
       }
     };
     module2.exports = PerMessageDeflate;
-    function deflateOnData(chunk) {
-      this[kBuffers].push(chunk);
-      this[kTotalLength] += chunk.length;
+    function deflateOnData(chunk2) {
+      this[kBuffers].push(chunk2);
+      this[kTotalLength] += chunk2.length;
     }
-    function inflateOnData(chunk) {
-      this[kTotalLength] += chunk.length;
+    function inflateOnData(chunk2) {
+      this[kTotalLength] += chunk2.length;
       if (this[kPerMessageDeflate]._maxPayload < 1 || this[kTotalLength] <= this[kPerMessageDeflate]._maxPayload) {
-        this[kBuffers].push(chunk);
+        this[kBuffers].push(chunk2);
         return;
       }
       this[kError] = new RangeError("Max payload size exceeded");
@@ -16472,11 +16472,11 @@ var require_receiver = __commonJS({
        * @param {Function} cb Callback
        * @private
        */
-      _write(chunk, encoding, cb) {
+      _write(chunk2, encoding, cb) {
         if (this._opcode === 8 && this._state == GET_INFO)
           return cb();
-        this._bufferedBytes += chunk.length;
-        this._buffers.push(chunk);
+        this._bufferedBytes += chunk2.length;
+        this._buffers.push(chunk2);
         this.startLoop(cb);
       }
       /**
@@ -16730,8 +16730,8 @@ var require_receiver = __commonJS({
           return;
         }
         const buf = this.consume(8);
-        const num2 = buf.readUInt32BE(0);
-        if (num2 > Math.pow(2, 53 - 32) - 1) {
+        const num3 = buf.readUInt32BE(0);
+        if (num3 > Math.pow(2, 53 - 32) - 1) {
           const error = this.createError(
             RangeError,
             "Unsupported WebSocket frame: payload length > 2^53 - 1",
@@ -16742,7 +16742,7 @@ var require_receiver = __commonJS({
           cb(error);
           return;
         }
-        this._payloadLength = num2 * Math.pow(2, 32) + buf.readUInt32BE(4);
+        this._payloadLength = num3 * Math.pow(2, 32) + buf.readUInt32BE(4);
         this.haveLength(cb);
       }
       /**
@@ -18771,9 +18771,9 @@ var require_websocket = __commonJS({
       this.removeListener("data", socketOnData);
       this.removeListener("end", socketOnEnd);
       websocket._readyState = WebSocket2.CLOSING;
-      let chunk;
-      if (!this._readableState.endEmitted && !websocket._closeFrameReceived && !websocket._receiver._writableState.errorEmitted && (chunk = websocket._socket.read()) !== null) {
-        websocket._receiver.write(chunk);
+      let chunk2;
+      if (!this._readableState.endEmitted && !websocket._closeFrameReceived && !websocket._receiver._writableState.errorEmitted && (chunk2 = websocket._socket.read()) !== null) {
+        websocket._receiver.write(chunk2);
       }
       websocket._receiver.end();
       this[kWebSocket] = void 0;
@@ -18785,8 +18785,8 @@ var require_websocket = __commonJS({
         websocket._receiver.on("finish", receiverOnFinish);
       }
     }
-    function socketOnData(chunk) {
-      if (!this[kWebSocket]._receiver.write(chunk)) {
+    function socketOnData(chunk2) {
+      if (!this[kWebSocket]._receiver.write(chunk2)) {
         this.pause();
       }
     }
@@ -18897,14 +18897,14 @@ var require_stream3 = __commonJS({
         if (ws.isPaused)
           ws.resume();
       };
-      duplex._write = function(chunk, encoding, callback) {
+      duplex._write = function(chunk2, encoding, callback) {
         if (ws.readyState === ws.CONNECTING) {
           ws.once("open", function open() {
-            duplex._write(chunk, encoding, callback);
+            duplex._write(chunk2, encoding, callback);
           });
           return;
         }
-        ws.send(chunk, callback);
+        ws.send(chunk2, callback);
       };
       duplex.on("end", duplexOnEnd);
       duplex.on("error", duplexOnError);
@@ -20036,8 +20036,8 @@ var require_network = __commonJS({
       return port;
     }
     exports2.randomPort = randomPort;
-    async function randomPorts(num2, protocol = "udp4", interfaceAddresses) {
-      return Promise.all([...Array(num2)].map(() => randomPort(protocol, interfaceAddresses)));
+    async function randomPorts(num3, protocol = "udp4", interfaceAddresses) {
+      return Promise.all([...Array(num3)].map(() => randomPort(protocol, interfaceAddresses)));
     }
     exports2.randomPorts = randomPorts;
     async function findPort(min, max, protocol = "udp4", interfaceAddresses) {
@@ -22439,7 +22439,7 @@ var require_has_flag2 = __commonJS({
 var require_supports_color = __commonJS({
   "../../node_modules/supports-color/index.js"(exports2, module2) {
     "use strict";
-    var os4 = require("os");
+    var os5 = require("os");
     var tty = require("tty");
     var hasFlag = require_has_flag2();
     var { env } = process;
@@ -22487,7 +22487,7 @@ var require_supports_color = __commonJS({
         return min;
       }
       if (process.platform === "win32") {
-        const osRelease = os4.release().split(".");
+        const osRelease = os5.release().split(".");
         if (Number(osRelease[0]) >= 10 && Number(osRelease[2]) >= 10586) {
           return Number(osRelease[2]) >= 14931 ? 3 : 2;
         }
@@ -22975,7 +22975,7 @@ var require_ip = __commonJS({
   "../../node_modules/ip/lib/ip.js"(exports2) {
     var ip = exports2;
     var { Buffer: Buffer2 } = require("buffer");
-    var os4 = require("os");
+    var os5 = require("os");
     ip.toBuffer = function(ip2, buff, offset) {
       offset = ~~offset;
       var result;
@@ -23248,7 +23248,7 @@ var require_ip = __commonJS({
       return family === "ipv4" ? "127.0.0.1" : "fe80::1";
     };
     ip.address = function(name, family) {
-      var interfaces = os4.networkInterfaces();
+      var interfaces = os5.networkInterfaces();
       family = _normalizeFamily(family);
       if (name && name !== "private" && name !== "public") {
         var res = interfaces[name].filter((details) => {
@@ -24593,7 +24593,7 @@ var require_const2 = __commonJS({
 var require_buffer_crc32 = __commonJS({
   "../../node_modules/buffer-crc32/index.js"(exports2, module2) {
     var Buffer2 = require("buffer").Buffer;
-    var CRC_TABLE = [
+    var CRC_TABLE2 = [
       0,
       1996959894,
       3993919788,
@@ -24852,7 +24852,7 @@ var require_buffer_crc32 = __commonJS({
       755167117
     ];
     if (typeof Int32Array !== "undefined") {
-      CRC_TABLE = new Int32Array(CRC_TABLE);
+      CRC_TABLE2 = new Int32Array(CRC_TABLE2);
     }
     function ensureBuffer(input) {
       if (Buffer2.isBuffer(input)) {
@@ -24867,9 +24867,9 @@ var require_buffer_crc32 = __commonJS({
         throw new Error("input must be buffer, number, or string, received " + typeof input);
       }
     }
-    function bufferizeInt(num2) {
+    function bufferizeInt(num3) {
       var tmp = ensureBuffer(4);
-      tmp.writeInt32BE(num2, 0);
+      tmp.writeInt32BE(num3, 0);
       return tmp;
     }
     function _crc32(buf, previous) {
@@ -24879,20 +24879,20 @@ var require_buffer_crc32 = __commonJS({
       }
       var crc = ~~previous ^ -1;
       for (var n = 0; n < buf.length; n++) {
-        crc = CRC_TABLE[(crc ^ buf[n]) & 255] ^ crc >>> 8;
+        crc = CRC_TABLE2[(crc ^ buf[n]) & 255] ^ crc >>> 8;
       }
       return crc ^ -1;
     }
-    function crc32() {
+    function crc322() {
       return bufferizeInt(_crc32.apply(null, arguments));
     }
-    crc32.signed = function() {
+    crc322.signed = function() {
       return _crc32.apply(null, arguments);
     };
-    crc32.unsigned = function() {
+    crc322.unsigned = function() {
       return _crc32.apply(null, arguments) >>> 0;
     };
-    module2.exports = crc32;
+    module2.exports = crc322;
   }
 });
 
@@ -24983,9 +24983,9 @@ var require_attributes = __commonJS({
       ];
       let xData = data.slice(0, 2);
       for (const i of (0, range_1.default)(2, data.length)) {
-        const num2 = data[i] ^ xPad[i - 2];
+        const num3 = data[i] ^ xPad[i - 2];
         const buf = Buffer.alloc(1);
-        buf.writeUIntBE(num2, 0, 1);
+        buf.writeUIntBE(num3, 0, 1);
         xData = Buffer.concat([xData, buf]);
       }
       return xData;
@@ -28182,8 +28182,8 @@ var require_depacketizer = __commonJS({
     var __1 = require_src4();
     var codec_1 = require_codec();
     var helper_1 = require_helper2();
-    var path9 = `werift-rtp : packages/rtp/src/processor/depacketizer.ts`;
-    var log = (0, debug_1.default)(path9);
+    var path10 = `werift-rtp : packages/rtp/src/processor/depacketizer.ts`;
+    var log = (0, debug_1.default)(path10);
     var DepacketizeBase = class {
       constructor(codec, options = {}) {
         Object.defineProperty(this, "codec", {
@@ -29669,7 +29669,7 @@ var require_rtpStream = __commonJS({
         this.readable = new web_1.ReadableStream({
           start: (controller) => {
             this.controller = controller;
-            this.write = (chunk) => controller.enqueue(chunk);
+            this.write = (chunk2) => controller.enqueue(chunk2);
           }
         });
       }
@@ -29748,44 +29748,44 @@ var require_typedArrayUtils = __commonJS({
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.dumpBytes = exports2.float32bit = exports2.int16Bit = exports2.getNumberByteLength = exports2.stringToByteArray = exports2.numberToByteArray = void 0;
     var memoize_1 = __importDefault3(require_memoize());
-    var numberToByteArray = (num2, byteLength = getNumberByteLength(num2)) => {
+    var numberToByteArray = (num3, byteLength = getNumberByteLength(num3)) => {
       let byteArray;
       if (byteLength === 1) {
         byteArray = new DataView(new ArrayBuffer(1));
-        byteArray.setUint8(0, num2);
+        byteArray.setUint8(0, num3);
       } else if (byteLength === 2) {
         byteArray = new DataView(new ArrayBuffer(2));
-        byteArray.setUint16(0, num2);
+        byteArray.setUint16(0, num3);
       } else if (byteLength === 3) {
         byteArray = new DataView(new ArrayBuffer(3));
-        byteArray.setUint8(0, num2 >> 16);
-        byteArray.setUint16(1, num2 & 65535);
+        byteArray.setUint8(0, num3 >> 16);
+        byteArray.setUint16(1, num3 & 65535);
       } else if (byteLength === 4) {
         byteArray = new DataView(new ArrayBuffer(4));
-        byteArray.setUint32(0, num2);
+        byteArray.setUint32(0, num3);
       } else if (
         /* byteLength === 5 && */
-        num2 < 4294967295
+        num3 < 4294967295
       ) {
         byteArray = new DataView(new ArrayBuffer(5));
-        byteArray.setUint32(1, num2);
+        byteArray.setUint32(1, num3);
       } else if (byteLength === 5) {
         byteArray = new DataView(new ArrayBuffer(5));
-        byteArray.setUint8(0, num2 / 4294967296 | 0);
-        byteArray.setUint32(1, num2 % 4294967296);
+        byteArray.setUint8(0, num3 / 4294967296 | 0);
+        byteArray.setUint32(1, num3 % 4294967296);
       } else if (byteLength === 6) {
         byteArray = new DataView(new ArrayBuffer(6));
-        byteArray.setUint16(0, num2 / 4294967296 | 0);
-        byteArray.setUint32(2, num2 % 4294967296);
+        byteArray.setUint16(0, num3 / 4294967296 | 0);
+        byteArray.setUint32(2, num3 % 4294967296);
       } else if (byteLength === 7) {
         byteArray = new DataView(new ArrayBuffer(7));
-        byteArray.setUint8(0, num2 / 281474976710656 | 0);
-        byteArray.setUint16(1, num2 / 4294967296 & 65535);
-        byteArray.setUint32(3, num2 % 4294967296);
+        byteArray.setUint8(0, num3 / 281474976710656 | 0);
+        byteArray.setUint16(1, num3 / 4294967296 & 65535);
+        byteArray.setUint32(3, num3 % 4294967296);
       } else if (byteLength === 8) {
         byteArray = new DataView(new ArrayBuffer(8));
-        byteArray.setUint32(0, num2 / 4294967296 | 0);
-        byteArray.setUint32(4, num2 % 4294967296);
+        byteArray.setUint32(0, num3 / 4294967296 | 0);
+        byteArray.setUint32(4, num3 % 4294967296);
       } else {
         throw new Error("EBML.typedArrayUtils.numberToByteArray: byte length must be less than or equal to 8");
       }
@@ -29795,36 +29795,36 @@ var require_typedArrayUtils = __commonJS({
     exports2.stringToByteArray = (0, memoize_1.default)((str) => {
       return Uint8Array.from(Array.from(str).map((_) => _.codePointAt(0)));
     });
-    function getNumberByteLength(num2) {
-      if (num2 < 0) {
+    function getNumberByteLength(num3) {
+      if (num3 < 0) {
         throw new Error("EBML.typedArrayUtils.getNumberByteLength: negative number not implemented");
-      } else if (num2 < 256) {
+      } else if (num3 < 256) {
         return 1;
-      } else if (num2 < 65536) {
+      } else if (num3 < 65536) {
         return 2;
-      } else if (num2 < 16777216) {
+      } else if (num3 < 16777216) {
         return 3;
-      } else if (num2 < 4294967296) {
+      } else if (num3 < 4294967296) {
         return 4;
-      } else if (num2 < 1099511627776) {
+      } else if (num3 < 1099511627776) {
         return 5;
-      } else if (num2 < 281474976710656) {
+      } else if (num3 < 281474976710656) {
         return 6;
-      } else if (num2 < 0x20000000000000n) {
+      } else if (num3 < 0x20000000000000n) {
         return 7;
       } else {
         throw new Error("EBML.typedArrayUtils.getNumberByteLength: number exceeds Number.MAX_SAFE_INTEGER");
       }
     }
     exports2.getNumberByteLength = getNumberByteLength;
-    exports2.int16Bit = (0, memoize_1.default)((num2) => {
+    exports2.int16Bit = (0, memoize_1.default)((num3) => {
       const ab = new ArrayBuffer(2);
-      new DataView(ab).setInt16(0, num2);
+      new DataView(ab).setInt16(0, num3);
       return new Uint8Array(ab);
     });
-    exports2.float32bit = (0, memoize_1.default)((num2) => {
+    exports2.float32bit = (0, memoize_1.default)((num3) => {
       const ab = new ArrayBuffer(4);
-      new DataView(ab).setFloat32(0, num2);
+      new DataView(ab).setFloat32(0, num3);
       return new Uint8Array(ab);
     });
     var dumpBytes = (b) => {
@@ -29906,12 +29906,12 @@ var require_ebml = __commonJS({
     exports2.bytes = (0, memoize_1.default)((data) => {
       return new Value(data);
     });
-    exports2.number = (0, memoize_1.default)((num2) => {
-      return (0, exports2.bytes)((0, typedArrayUtils_1.numberToByteArray)(num2));
+    exports2.number = (0, memoize_1.default)((num3) => {
+      return (0, exports2.bytes)((0, typedArrayUtils_1.numberToByteArray)(num3));
     });
-    exports2.float = (0, memoize_1.default)((num2) => (0, exports2.bytes)((0, typedArrayUtils_1.float32bit)(num2)));
-    exports2.vintEncodedNumber = (0, memoize_1.default)((num2) => {
-      return (0, exports2.bytes)((0, exports2.vintEncode)((0, typedArrayUtils_1.numberToByteArray)(num2, (0, exports2.getEBMLByteLength)(num2))));
+    exports2.float = (0, memoize_1.default)((num3) => (0, exports2.bytes)((0, typedArrayUtils_1.float32bit)(num3)));
+    exports2.vintEncodedNumber = (0, memoize_1.default)((num3) => {
+      return (0, exports2.bytes)((0, exports2.vintEncode)((0, typedArrayUtils_1.numberToByteArray)(num3, (0, exports2.getEBMLByteLength)(num3))));
     });
     exports2.string = (0, memoize_1.default)((str) => {
       return (0, exports2.bytes)((0, typedArrayUtils_1.stringToByteArray)(str));
@@ -29930,24 +29930,24 @@ var require_ebml = __commonJS({
       return b;
     };
     exports2.build = build;
-    var getEBMLByteLength = (num2) => {
-      if (num2 < 127) {
+    var getEBMLByteLength = (num3) => {
+      if (num3 < 127) {
         return 1;
-      } else if (num2 < 16383) {
+      } else if (num3 < 16383) {
         return 2;
-      } else if (num2 < 2097151) {
+      } else if (num3 < 2097151) {
         return 3;
-      } else if (num2 < 268435455) {
+      } else if (num3 < 268435455) {
         return 4;
-      } else if (num2 < 34359738367) {
+      } else if (num3 < 34359738367) {
         return 5;
-      } else if (num2 < 4398046511103) {
+      } else if (num3 < 4398046511103) {
         return 6;
-      } else if (num2 < 562949953421311) {
+      } else if (num3 < 562949953421311) {
         return 7;
-      } else if (num2 < 0x20000000000000n) {
+      } else if (num3 < 0x20000000000000n) {
         return 8;
-      } else if (num2 < 0xffffffffffffffn) {
+      } else if (num3 < 0xffffffffffffffn) {
         throw new Error("EBMLgetEBMLByteLength: number exceeds Number.MAX_SAFE_INTEGER");
       } else {
         throw new Error("EBMLgetEBMLByteLength: data size must be less than or equal to " + (Math.pow(2, 56) - 2));
@@ -30812,14 +30812,14 @@ var require_webmCallback = __commonJS({
       }
     };
     exports2.WebmCallback = WebmCallback;
-    var saveToFileSystem = (path9) => async (value) => {
+    var saveToFileSystem = (path10) => async (value) => {
       if (value.saveToFile) {
-        await (0, promises_1.appendFile)(path9, value.saveToFile);
+        await (0, promises_1.appendFile)(path10, value.saveToFile);
       } else if (value.eol) {
         const { durationElement } = value.eol;
-        const handler = await (0, promises_1.open)(path9, "r+");
+        const handler = await (0, promises_1.open)(path10, "r+");
         await handler.write(durationElement, 0, durationElement.length, webm_1.DurationPosition);
-        const meta = await (0, promises_1.stat)(path9);
+        const meta = await (0, promises_1.stat)(path10);
         const resize = (0, webm_1.replaceSegmentSize)(meta.size);
         await handler.write(resize, 0, resize.length, webm_1.SegmentSizePosition);
         await handler.close();
@@ -31422,7 +31422,7 @@ var require_twcc = __commonJS({
           this.referenceTime,
           this.fbPktCount
         ]);
-        const chunks = Buffer.concat(this.packetChunks.map((chunk) => chunk.serialize()));
+        const chunks = Buffer.concat(this.packetChunks.map((chunk2) => chunk2.serialize()));
         const deltas = Buffer.concat(this.recvDeltas.map((delta) => {
           try {
             return delta.serialize();
@@ -31444,7 +31444,7 @@ var require_twcc = __commonJS({
       }
       get packetResults() {
         const currentSequenceNumber = this.baseSequenceNumber - 1;
-        const results = this.packetChunks.filter((v) => v instanceof RunLengthChunk).map((chunk) => chunk.results(currentSequenceNumber)).flatMap((v) => v);
+        const results = this.packetChunks.filter((v) => v instanceof RunLengthChunk).map((chunk2) => chunk2.results(currentSequenceNumber)).flatMap((v) => v);
         let deltaIdx = 0;
         const referenceTime = BigInt(this.referenceTime) * 64n;
         let currentReceivedAtMs = referenceTime;
@@ -31770,11 +31770,11 @@ var require_sdes = __commonJS({
       }
       get length() {
         let length = 0;
-        this.chunks.forEach((chunk) => length += chunk.length);
+        this.chunks.forEach((chunk2) => length += chunk2.length);
         return length;
       }
       serialize() {
-        let payload = Buffer.concat(this.chunks.map((chunk) => chunk.serialize()));
+        let payload = Buffer.concat(this.chunks.map((chunk2) => chunk2.serialize()));
         while (payload.length % 4)
           payload = Buffer.concat([payload, Buffer.from([0])]);
         return rtcp_1.RtcpPacketConverter.serialize(this.type, this.chunks.length, payload, payload.length / 4);
@@ -31782,9 +31782,9 @@ var require_sdes = __commonJS({
       static deSerialize(payload, header) {
         const chunks = [];
         for (let i = 0; i < payload.length; ) {
-          const chunk = SourceDescriptionChunk.deSerialize(payload.slice(i));
-          chunks.push(chunk);
-          i += chunk.length;
+          const chunk2 = SourceDescriptionChunk.deSerialize(payload.slice(i));
+          chunks.push(chunk2);
+          i += chunk2.length;
         }
         return new _RtcpSourceDescriptionPacket({ chunks });
       }
@@ -35384,12 +35384,12 @@ var require_writer = __commonJS({
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.MediaWriter = void 0;
     var MediaWriter = class {
-      constructor(path9, options) {
+      constructor(path10, options) {
         Object.defineProperty(this, "path", {
           enumerable: true,
           configurable: true,
           writable: true,
-          value: path9
+          value: path10
         });
         Object.defineProperty(this, "options", {
           enumerable: true,
@@ -35529,7 +35529,7 @@ var require_recorder = __commonJS({
     exports2.MediaRecorder = void 0;
     var webm_1 = require_webm3();
     var MediaRecorder = class {
-      constructor(tracks, path9, options = {}) {
+      constructor(tracks, path10, options = {}) {
         Object.defineProperty(this, "tracks", {
           enumerable: true,
           configurable: true,
@@ -35540,7 +35540,7 @@ var require_recorder = __commonJS({
           enumerable: true,
           configurable: true,
           writable: true,
-          value: path9
+          value: path10
         });
         Object.defineProperty(this, "options", {
           enumerable: true,
@@ -35560,11 +35560,11 @@ var require_recorder = __commonJS({
           writable: true,
           value: void 0
         });
-        this.ext = path9.split(".").slice(-1)[0];
+        this.ext = path10.split(".").slice(-1)[0];
         this.writer = (() => {
           switch (this.ext) {
             case "webm":
-              return new webm_1.WebmFactory(path9, options);
+              return new webm_1.WebmFactory(path10, options);
             default:
               throw new Error();
           }
@@ -35597,18 +35597,18 @@ var require_userMedia = __commonJS({
     var src_1 = require_src();
     var src_2 = require_src4();
     var track_1 = require_track();
-    var getUserMedia = async (path9, loop) => {
+    var getUserMedia = async (path10, loop) => {
       const audioPort = await (0, src_1.randomPort)();
       const videoPort = await (0, src_1.randomPort)();
-      if (path9.endsWith(".mp4")) {
-        return new MediaPlayerMp4(audioPort, videoPort, path9, loop);
+      if (path10.endsWith(".mp4")) {
+        return new MediaPlayerMp4(audioPort, videoPort, path10, loop);
       } else {
-        return new MediaPlayerWebm(audioPort, videoPort, path9, loop);
+        return new MediaPlayerWebm(audioPort, videoPort, path10, loop);
       }
     };
     exports2.getUserMedia = getUserMedia;
     var MediaPlayerMp4 = class {
-      constructor(videoPort, audioPort, path9, loop) {
+      constructor(videoPort, audioPort, path10, loop) {
         Object.defineProperty(this, "videoPort", {
           enumerable: true,
           configurable: true,
@@ -35625,7 +35625,7 @@ var require_userMedia = __commonJS({
           enumerable: true,
           configurable: true,
           writable: true,
-          value: path9
+          value: path10
         });
         Object.defineProperty(this, "loop", {
           enumerable: true,
@@ -35711,7 +35711,7 @@ var require_userMedia = __commonJS({
     };
     exports2.MediaPlayerMp4 = MediaPlayerMp4;
     var MediaPlayerWebm = class {
-      constructor(videoPort, audioPort, path9, loop) {
+      constructor(videoPort, audioPort, path10, loop) {
         Object.defineProperty(this, "videoPort", {
           enumerable: true,
           configurable: true,
@@ -35728,7 +35728,7 @@ var require_userMedia = __commonJS({
           enumerable: true,
           configurable: true,
           writable: true,
-          value: path9
+          value: path10
         });
         Object.defineProperty(this, "loop", {
           enumerable: true,
@@ -38386,30 +38386,30 @@ var require_nacl_fast = __commonJS({
         return smlen;
       }
       function unpackneg(r, p) {
-        var t = gf(), chk = gf(), num2 = gf(), den = gf(), den2 = gf(), den4 = gf(), den6 = gf();
+        var t = gf(), chk = gf(), num3 = gf(), den = gf(), den2 = gf(), den4 = gf(), den6 = gf();
         set25519(r[2], gf1);
         unpack25519(r[1], p);
-        S(num2, r[1]);
-        M(den, num2, D);
-        Z(num2, num2, r[2]);
+        S(num3, r[1]);
+        M(den, num3, D);
+        Z(num3, num3, r[2]);
         A(den, r[2], den);
         S(den2, den);
         S(den4, den2);
         M(den6, den4, den2);
-        M(t, den6, num2);
+        M(t, den6, num3);
         M(t, t, den);
         pow2523(t, t);
-        M(t, t, num2);
+        M(t, t, num3);
         M(t, t, den);
         M(t, t, den);
         M(r[0], t, den);
         S(chk, r[0]);
         M(chk, chk, den);
-        if (neq25519(chk, num2))
+        if (neq25519(chk, num3))
           M(r[0], r[0], I);
         S(chk, r[0]);
         M(chk, chk, den);
-        if (neq25519(chk, num2))
+        if (neq25519(chk, num3))
           return -1;
         if (par25519(r[0]) === p[31] >> 7)
           Z(r[0], gf0, r[0]);
@@ -42097,13 +42097,13 @@ function __disposeResources(env) {
   }
   return next();
 }
-function __rewriteRelativeImportExtension(path9, preserveJsx) {
-  if (typeof path9 === "string" && /^\.\.?\//.test(path9)) {
-    return path9.replace(/\.(tsx)$|((?:\.d)?)((?:\.[^./]+?)?)\.([cm]?)ts$/i, function(m, tsx, d, ext, cm) {
+function __rewriteRelativeImportExtension(path10, preserveJsx) {
+  if (typeof path10 === "string" && /^\.\.?\//.test(path10)) {
+    return path10.replace(/\.(tsx)$|((?:\.d)?)((?:\.[^./]+?)?)\.([cm]?)ts$/i, function(m, tsx, d, ext, cm) {
       return tsx ? preserveJsx ? ".jsx" : ".js" : d && (!ext || !cm) ? m : d + ext + "." + cm.toLowerCase() + "js";
     });
   }
-  return path9;
+  return path10;
 }
 var extendStatics, __assign, __createBinding, __setModuleDefault, ownKeys, _SuppressedError, tslib_es6_default;
 var init_tslib_es6 = __esm({
@@ -50057,11 +50057,11 @@ ${internalKey.data.toString("base64")}
           counter[2] = i >>> 8 & 255;
           counter[3] = i & 255;
           const submask = mask.subarray(i * hashSize);
-          let chunk = crypto7.createHash(algorithm.name.replace("-", "")).update(seed).update(counter).digest();
-          if (chunk.length > submask.length) {
-            chunk = chunk.subarray(0, submask.length);
+          let chunk2 = crypto7.createHash(algorithm.name.replace("-", "")).update(seed).update(counter).digest();
+          if (chunk2.length > submask.length) {
+            chunk2 = chunk2.subarray(0, submask.length);
           }
-          submask.set(chunk);
+          submask.set(chunk2);
         }
         return mask;
       }
@@ -52408,11 +52408,11 @@ var require_ip_converter = __commonJS({
           throw new Error("Invalid IPv4 address");
         }
         return parts.map((part) => {
-          const num2 = parseInt(part, 10);
-          if (isNaN(num2) || num2 < 0 || num2 > 255) {
+          const num3 = parseInt(part, 10);
+          if (isNaN(num3) || num3 < 0 || num3 > 255) {
             throw new Error("Invalid IPv4 address part");
           }
-          return num2;
+          return num3;
         });
       }
       static parseIPv6(ip) {
@@ -52422,12 +52422,12 @@ var require_ip_converter = __commonJS({
           throw new Error("Invalid IPv6 address");
         }
         return parts.reduce((bytes, part) => {
-          const num2 = parseInt(part, 16);
-          if (isNaN(num2) || num2 < 0 || num2 > 65535) {
+          const num3 = parseInt(part, 16);
+          if (isNaN(num3) || num3 < 0 || num3 > 65535) {
             throw new Error("Invalid IPv6 address part");
           }
-          bytes.push(num2 >> 8 & 255);
-          bytes.push(num2 & 255);
+          bytes.push(num3 >> 8 & 255);
+          bytes.push(num3 & 255);
           return bytes;
         }, []);
       }
@@ -57288,14 +57288,14 @@ var require_dependency_container = __commonJS({
           provider = providerOrConstructor;
         }
         if (providers_1.isTokenProvider(provider)) {
-          const path9 = [token];
+          const path10 = [token];
           let tokenProvider = provider;
           while (tokenProvider != null) {
             const currentToken = tokenProvider.useToken;
-            if (path9.includes(currentToken)) {
-              throw new Error(`Token registration cycle detected! ${[...path9, currentToken].join(" -> ")}`);
+            if (path10.includes(currentToken)) {
+              throw new Error(`Token registration cycle detected! ${[...path10, currentToken].join(" -> ")}`);
             }
-            path9.push(currentToken);
+            path10.push(currentToken);
             const registration = this._registry.get(currentToken);
             if (registration && providers_1.isTokenProvider(registration.provider)) {
               tokenProvider = registration.provider;
@@ -62643,8 +62643,8 @@ var require_binary_stream = __commonJS({
        * Write provided chunk to the stream.
        * @param {Buffer} chunk
        */
-      writeBuffer(chunk) {
-        this.append(chunk);
+      writeBuffer(chunk2) {
+        this.append(chunk2);
       }
     };
     var fixedReadMethods = {
@@ -63916,9 +63916,9 @@ var require_src5 = __commonJS({
       }
       return stream4;
     }
-    function transformEncode(chunk, encoding, cb) {
+    function transformEncode(chunk2, encoding, cb) {
       try {
-        encode3(chunk, this[kschema], this);
+        encode3(chunk2, this[kschema], this);
         const buf = this.slice();
         this.consume(buf.length);
         cb(null, buf);
@@ -63926,8 +63926,8 @@ var require_src5 = __commonJS({
         cb(error);
       }
     }
-    function transformDecode(chunk, encoding, cb) {
-      this.append(chunk);
+    function transformDecode(chunk2, encoding, cb) {
+      this.append(chunk2);
       try {
         while (this.length > 0) {
           const transaction = new Transaction(this);
@@ -64228,11 +64228,11 @@ var require_bn = __commonJS({
         }
       } catch (e) {
       }
-      BN.isBN = function isBN(num2) {
-        if (num2 instanceof BN) {
+      BN.isBN = function isBN(num3) {
+        if (num3 instanceof BN) {
           return true;
         }
-        return num2 !== null && typeof num2 === "object" && num2.constructor.wordSize === BN.wordSize && Array.isArray(num2.words);
+        return num3 !== null && typeof num3 === "object" && num3.constructor.wordSize === BN.wordSize && Array.isArray(num3.words);
       };
       BN.max = function max(left, right) {
         if (left.cmp(right) > 0)
@@ -64757,12 +64757,12 @@ var require_bn = __commonJS({
         var hi = this._countBits(w);
         return (this.length - 1) * 26 + hi;
       };
-      function toBitArray(num2) {
-        var w = new Array(num2.bitLength());
+      function toBitArray(num3) {
+        var w = new Array(num3.bitLength());
         for (var bit = 0; bit < w.length; bit++) {
           var off = bit / 26 | 0;
           var wbit = bit % 26;
-          w[bit] = (num2.words[off] & 1 << wbit) >>> wbit;
+          w[bit] = (num3.words[off] & 1 << wbit) >>> wbit;
         }
         return w;
       }
@@ -64805,64 +64805,64 @@ var require_bn = __commonJS({
         }
         return this;
       };
-      BN.prototype.iuor = function iuor(num2) {
-        while (this.length < num2.length) {
+      BN.prototype.iuor = function iuor(num3) {
+        while (this.length < num3.length) {
           this.words[this.length++] = 0;
         }
-        for (var i = 0; i < num2.length; i++) {
-          this.words[i] = this.words[i] | num2.words[i];
+        for (var i = 0; i < num3.length; i++) {
+          this.words[i] = this.words[i] | num3.words[i];
         }
         return this.strip();
       };
-      BN.prototype.ior = function ior(num2) {
-        assert((this.negative | num2.negative) === 0);
-        return this.iuor(num2);
+      BN.prototype.ior = function ior(num3) {
+        assert((this.negative | num3.negative) === 0);
+        return this.iuor(num3);
       };
-      BN.prototype.or = function or(num2) {
-        if (this.length > num2.length)
-          return this.clone().ior(num2);
-        return num2.clone().ior(this);
+      BN.prototype.or = function or(num3) {
+        if (this.length > num3.length)
+          return this.clone().ior(num3);
+        return num3.clone().ior(this);
       };
-      BN.prototype.uor = function uor(num2) {
-        if (this.length > num2.length)
-          return this.clone().iuor(num2);
-        return num2.clone().iuor(this);
+      BN.prototype.uor = function uor(num3) {
+        if (this.length > num3.length)
+          return this.clone().iuor(num3);
+        return num3.clone().iuor(this);
       };
-      BN.prototype.iuand = function iuand(num2) {
+      BN.prototype.iuand = function iuand(num3) {
         var b;
-        if (this.length > num2.length) {
-          b = num2;
+        if (this.length > num3.length) {
+          b = num3;
         } else {
           b = this;
         }
         for (var i = 0; i < b.length; i++) {
-          this.words[i] = this.words[i] & num2.words[i];
+          this.words[i] = this.words[i] & num3.words[i];
         }
         this.length = b.length;
         return this.strip();
       };
-      BN.prototype.iand = function iand(num2) {
-        assert((this.negative | num2.negative) === 0);
-        return this.iuand(num2);
+      BN.prototype.iand = function iand(num3) {
+        assert((this.negative | num3.negative) === 0);
+        return this.iuand(num3);
       };
-      BN.prototype.and = function and(num2) {
-        if (this.length > num2.length)
-          return this.clone().iand(num2);
-        return num2.clone().iand(this);
+      BN.prototype.and = function and(num3) {
+        if (this.length > num3.length)
+          return this.clone().iand(num3);
+        return num3.clone().iand(this);
       };
-      BN.prototype.uand = function uand(num2) {
-        if (this.length > num2.length)
-          return this.clone().iuand(num2);
-        return num2.clone().iuand(this);
+      BN.prototype.uand = function uand(num3) {
+        if (this.length > num3.length)
+          return this.clone().iuand(num3);
+        return num3.clone().iuand(this);
       };
-      BN.prototype.iuxor = function iuxor(num2) {
+      BN.prototype.iuxor = function iuxor(num3) {
         var a;
         var b;
-        if (this.length > num2.length) {
+        if (this.length > num3.length) {
           a = this;
-          b = num2;
+          b = num3;
         } else {
-          a = num2;
+          a = num3;
           b = this;
         }
         for (var i = 0; i < b.length; i++) {
@@ -64876,19 +64876,19 @@ var require_bn = __commonJS({
         this.length = a.length;
         return this.strip();
       };
-      BN.prototype.ixor = function ixor(num2) {
-        assert((this.negative | num2.negative) === 0);
-        return this.iuxor(num2);
+      BN.prototype.ixor = function ixor(num3) {
+        assert((this.negative | num3.negative) === 0);
+        return this.iuxor(num3);
       };
-      BN.prototype.xor = function xor(num2) {
-        if (this.length > num2.length)
-          return this.clone().ixor(num2);
-        return num2.clone().ixor(this);
+      BN.prototype.xor = function xor(num3) {
+        if (this.length > num3.length)
+          return this.clone().ixor(num3);
+        return num3.clone().ixor(this);
       };
-      BN.prototype.uxor = function uxor(num2) {
-        if (this.length > num2.length)
-          return this.clone().iuxor(num2);
-        return num2.clone().iuxor(this);
+      BN.prototype.uxor = function uxor(num3) {
+        if (this.length > num3.length)
+          return this.clone().iuxor(num3);
+        return num3.clone().iuxor(this);
       };
       BN.prototype.inotn = function inotn(width) {
         assert(typeof width === "number" && width >= 0);
@@ -64921,25 +64921,25 @@ var require_bn = __commonJS({
         }
         return this.strip();
       };
-      BN.prototype.iadd = function iadd(num2) {
+      BN.prototype.iadd = function iadd(num3) {
         var r;
-        if (this.negative !== 0 && num2.negative === 0) {
+        if (this.negative !== 0 && num3.negative === 0) {
           this.negative = 0;
-          r = this.isub(num2);
+          r = this.isub(num3);
           this.negative ^= 1;
           return this._normSign();
-        } else if (this.negative === 0 && num2.negative !== 0) {
-          num2.negative = 0;
-          r = this.isub(num2);
-          num2.negative = 1;
+        } else if (this.negative === 0 && num3.negative !== 0) {
+          num3.negative = 0;
+          r = this.isub(num3);
+          num3.negative = 1;
           return r._normSign();
         }
         var a, b;
-        if (this.length > num2.length) {
+        if (this.length > num3.length) {
           a = this;
-          b = num2;
+          b = num3;
         } else {
-          a = num2;
+          a = num3;
           b = this;
         }
         var carry = 0;
@@ -64964,36 +64964,36 @@ var require_bn = __commonJS({
         }
         return this;
       };
-      BN.prototype.add = function add(num2) {
+      BN.prototype.add = function add(num3) {
         var res;
-        if (num2.negative !== 0 && this.negative === 0) {
-          num2.negative = 0;
-          res = this.sub(num2);
-          num2.negative ^= 1;
+        if (num3.negative !== 0 && this.negative === 0) {
+          num3.negative = 0;
+          res = this.sub(num3);
+          num3.negative ^= 1;
           return res;
-        } else if (num2.negative === 0 && this.negative !== 0) {
+        } else if (num3.negative === 0 && this.negative !== 0) {
           this.negative = 0;
-          res = num2.sub(this);
+          res = num3.sub(this);
           this.negative = 1;
           return res;
         }
-        if (this.length > num2.length)
-          return this.clone().iadd(num2);
-        return num2.clone().iadd(this);
+        if (this.length > num3.length)
+          return this.clone().iadd(num3);
+        return num3.clone().iadd(this);
       };
-      BN.prototype.isub = function isub(num2) {
-        if (num2.negative !== 0) {
-          num2.negative = 0;
-          var r = this.iadd(num2);
-          num2.negative = 1;
+      BN.prototype.isub = function isub(num3) {
+        if (num3.negative !== 0) {
+          num3.negative = 0;
+          var r = this.iadd(num3);
+          num3.negative = 1;
           return r._normSign();
         } else if (this.negative !== 0) {
           this.negative = 0;
-          this.iadd(num2);
+          this.iadd(num3);
           this.negative = 1;
           return this._normSign();
         }
-        var cmp = this.cmp(num2);
+        var cmp = this.cmp(num3);
         if (cmp === 0) {
           this.negative = 0;
           this.length = 1;
@@ -65003,9 +65003,9 @@ var require_bn = __commonJS({
         var a, b;
         if (cmp > 0) {
           a = this;
-          b = num2;
+          b = num3;
         } else {
-          a = num2;
+          a = num3;
           b = this;
         }
         var carry = 0;
@@ -65030,16 +65030,16 @@ var require_bn = __commonJS({
         }
         return this.strip();
       };
-      BN.prototype.sub = function sub(num2) {
-        return this.clone().isub(num2);
+      BN.prototype.sub = function sub(num3) {
+        return this.clone().isub(num3);
       };
-      function smallMulTo(self2, num2, out) {
-        out.negative = num2.negative ^ self2.negative;
-        var len = self2.length + num2.length | 0;
+      function smallMulTo(self2, num3, out) {
+        out.negative = num3.negative ^ self2.negative;
+        var len = self2.length + num3.length | 0;
         out.length = len;
         len = len - 1 | 0;
         var a = self2.words[0] | 0;
-        var b = num2.words[0] | 0;
+        var b = num3.words[0] | 0;
         var r = a * b;
         var lo = r & 67108863;
         var carry = r / 67108864 | 0;
@@ -65047,11 +65047,11 @@ var require_bn = __commonJS({
         for (var k = 1; k < len; k++) {
           var ncarry = carry >>> 26;
           var rword = carry & 67108863;
-          var maxJ = Math.min(k, num2.length - 1);
+          var maxJ = Math.min(k, num3.length - 1);
           for (var j = Math.max(0, k - self2.length + 1); j <= maxJ; j++) {
             var i = k - j | 0;
             a = self2.words[i] | 0;
-            b = num2.words[j] | 0;
+            b = num3.words[j] | 0;
             r = a * b + rword;
             ncarry += r / 67108864 | 0;
             rword = r & 67108863;
@@ -65066,9 +65066,9 @@ var require_bn = __commonJS({
         }
         return out.strip();
       }
-      var comb10MulTo = function comb10MulTo2(self2, num2, out) {
+      var comb10MulTo = function comb10MulTo2(self2, num3, out) {
         var a = self2.words;
-        var b = num2.words;
+        var b = num3.words;
         var o = out.words;
         var c = 0;
         var lo;
@@ -65134,7 +65134,7 @@ var require_bn = __commonJS({
         var b9 = b[9] | 0;
         var bl9 = b9 & 8191;
         var bh9 = b9 >>> 13;
-        out.negative = self2.negative ^ num2.negative;
+        out.negative = self2.negative ^ num3.negative;
         out.length = 19;
         lo = Math.imul(al0, bl0);
         mid = Math.imul(al0, bh0);
@@ -65621,20 +65621,20 @@ var require_bn = __commonJS({
       if (!Math.imul) {
         comb10MulTo = smallMulTo;
       }
-      function bigMulTo(self2, num2, out) {
-        out.negative = num2.negative ^ self2.negative;
-        out.length = self2.length + num2.length;
+      function bigMulTo(self2, num3, out) {
+        out.negative = num3.negative ^ self2.negative;
+        out.length = self2.length + num3.length;
         var carry = 0;
         var hncarry = 0;
         for (var k = 0; k < out.length - 1; k++) {
           var ncarry = hncarry;
           hncarry = 0;
           var rword = carry & 67108863;
-          var maxJ = Math.min(k, num2.length - 1);
+          var maxJ = Math.min(k, num3.length - 1);
           for (var j = Math.max(0, k - self2.length + 1); j <= maxJ; j++) {
             var i = k - j;
             var a = self2.words[i] | 0;
-            var b = num2.words[j] | 0;
+            var b = num3.words[j] | 0;
             var r = a * b;
             var lo = r & 67108863;
             ncarry = ncarry + (r / 67108864 | 0) | 0;
@@ -65655,21 +65655,21 @@ var require_bn = __commonJS({
         }
         return out.strip();
       }
-      function jumboMulTo(self2, num2, out) {
+      function jumboMulTo(self2, num3, out) {
         var fftm = new FFTM();
-        return fftm.mulp(self2, num2, out);
+        return fftm.mulp(self2, num3, out);
       }
-      BN.prototype.mulTo = function mulTo(num2, out) {
+      BN.prototype.mulTo = function mulTo(num3, out) {
         var res;
-        var len = this.length + num2.length;
-        if (this.length === 10 && num2.length === 10) {
-          res = comb10MulTo(this, num2, out);
+        var len = this.length + num3.length;
+        if (this.length === 10 && num3.length === 10) {
+          res = comb10MulTo(this, num3, out);
         } else if (len < 63) {
-          res = smallMulTo(this, num2, out);
+          res = smallMulTo(this, num3, out);
         } else if (len < 1024) {
-          res = bigMulTo(this, num2, out);
+          res = bigMulTo(this, num3, out);
         } else {
-          res = jumboMulTo(this, num2, out);
+          res = jumboMulTo(this, num3, out);
         }
         return res;
       };
@@ -65816,25 +65816,25 @@ var require_bn = __commonJS({
         out.length = x.length + y.length;
         return out.strip();
       };
-      BN.prototype.mul = function mul(num2) {
+      BN.prototype.mul = function mul(num3) {
         var out = new BN(null);
-        out.words = new Array(this.length + num2.length);
-        return this.mulTo(num2, out);
+        out.words = new Array(this.length + num3.length);
+        return this.mulTo(num3, out);
       };
-      BN.prototype.mulf = function mulf(num2) {
+      BN.prototype.mulf = function mulf(num3) {
         var out = new BN(null);
-        out.words = new Array(this.length + num2.length);
-        return jumboMulTo(this, num2, out);
+        out.words = new Array(this.length + num3.length);
+        return jumboMulTo(this, num3, out);
       };
-      BN.prototype.imul = function imul(num2) {
-        return this.clone().mulTo(num2, this);
+      BN.prototype.imul = function imul(num3) {
+        return this.clone().mulTo(num3, this);
       };
-      BN.prototype.imuln = function imuln(num2) {
-        assert(typeof num2 === "number");
-        assert(num2 < 67108864);
+      BN.prototype.imuln = function imuln(num3) {
+        assert(typeof num3 === "number");
+        assert(num3 < 67108864);
         var carry = 0;
         for (var i = 0; i < this.length; i++) {
-          var w = (this.words[i] | 0) * num2;
+          var w = (this.words[i] | 0) * num3;
           var lo = (w & 67108863) + (carry & 67108863);
           carry >>= 26;
           carry += w / 67108864 | 0;
@@ -65845,11 +65845,11 @@ var require_bn = __commonJS({
           this.words[i] = carry;
           this.length++;
         }
-        this.length = num2 === 0 ? 1 : this.length;
+        this.length = num3 === 0 ? 1 : this.length;
         return this;
       };
-      BN.prototype.muln = function muln(num2) {
-        return this.clone().imuln(num2);
+      BN.prototype.muln = function muln(num3) {
+        return this.clone().imuln(num3);
       };
       BN.prototype.sqr = function sqr() {
         return this.mul(this);
@@ -65857,8 +65857,8 @@ var require_bn = __commonJS({
       BN.prototype.isqr = function isqr() {
         return this.imul(this.clone());
       };
-      BN.prototype.pow = function pow(num2) {
-        var w = toBitArray(num2);
+      BN.prototype.pow = function pow(num3) {
+        var w = toBitArray(num3);
         if (w.length === 0)
           return new BN(1);
         var res = this;
@@ -66001,26 +66001,26 @@ var require_bn = __commonJS({
       BN.prototype.maskn = function maskn(bits) {
         return this.clone().imaskn(bits);
       };
-      BN.prototype.iaddn = function iaddn(num2) {
-        assert(typeof num2 === "number");
-        assert(num2 < 67108864);
-        if (num2 < 0)
-          return this.isubn(-num2);
+      BN.prototype.iaddn = function iaddn(num3) {
+        assert(typeof num3 === "number");
+        assert(num3 < 67108864);
+        if (num3 < 0)
+          return this.isubn(-num3);
         if (this.negative !== 0) {
-          if (this.length === 1 && (this.words[0] | 0) < num2) {
-            this.words[0] = num2 - (this.words[0] | 0);
+          if (this.length === 1 && (this.words[0] | 0) < num3) {
+            this.words[0] = num3 - (this.words[0] | 0);
             this.negative = 0;
             return this;
           }
           this.negative = 0;
-          this.isubn(num2);
+          this.isubn(num3);
           this.negative = 1;
           return this;
         }
-        return this._iaddn(num2);
+        return this._iaddn(num3);
       };
-      BN.prototype._iaddn = function _iaddn(num2) {
-        this.words[0] += num2;
+      BN.prototype._iaddn = function _iaddn(num3) {
+        this.words[0] += num3;
         for (var i = 0; i < this.length && this.words[i] >= 67108864; i++) {
           this.words[i] -= 67108864;
           if (i === this.length - 1) {
@@ -66032,18 +66032,18 @@ var require_bn = __commonJS({
         this.length = Math.max(this.length, i + 1);
         return this;
       };
-      BN.prototype.isubn = function isubn(num2) {
-        assert(typeof num2 === "number");
-        assert(num2 < 67108864);
-        if (num2 < 0)
-          return this.iaddn(-num2);
+      BN.prototype.isubn = function isubn(num3) {
+        assert(typeof num3 === "number");
+        assert(num3 < 67108864);
+        if (num3 < 0)
+          return this.iaddn(-num3);
         if (this.negative !== 0) {
           this.negative = 0;
-          this.iaddn(num2);
+          this.iaddn(num3);
           this.negative = 1;
           return this;
         }
-        this.words[0] -= num2;
+        this.words[0] -= num3;
         if (this.length === 1 && this.words[0] < 0) {
           this.words[0] = -this.words[0];
           this.negative = 1;
@@ -66055,11 +66055,11 @@ var require_bn = __commonJS({
         }
         return this.strip();
       };
-      BN.prototype.addn = function addn(num2) {
-        return this.clone().iaddn(num2);
+      BN.prototype.addn = function addn(num3) {
+        return this.clone().iaddn(num3);
       };
-      BN.prototype.subn = function subn(num2) {
-        return this.clone().isubn(num2);
+      BN.prototype.subn = function subn(num3) {
+        return this.clone().isubn(num3);
       };
       BN.prototype.iabs = function iabs() {
         this.negative = 0;
@@ -66068,15 +66068,15 @@ var require_bn = __commonJS({
       BN.prototype.abs = function abs() {
         return this.clone().iabs();
       };
-      BN.prototype._ishlnsubmul = function _ishlnsubmul(num2, mul, shift) {
-        var len = num2.length + shift;
+      BN.prototype._ishlnsubmul = function _ishlnsubmul(num3, mul, shift) {
+        var len = num3.length + shift;
         var i;
         this._expand(len);
         var w;
         var carry = 0;
-        for (i = 0; i < num2.length; i++) {
+        for (i = 0; i < num3.length; i++) {
           w = (this.words[i + shift] | 0) + carry;
-          var right = (num2.words[i] | 0) * mul;
+          var right = (num3.words[i] | 0) * mul;
           w -= right & 67108863;
           carry = (w >> 26) - (right / 67108864 | 0);
           this.words[i + shift] = w & 67108863;
@@ -66098,10 +66098,10 @@ var require_bn = __commonJS({
         this.negative = 1;
         return this.strip();
       };
-      BN.prototype._wordDiv = function _wordDiv(num2, mode) {
-        var shift = this.length - num2.length;
+      BN.prototype._wordDiv = function _wordDiv(num3, mode) {
+        var shift = this.length - num3.length;
         var a = this.clone();
-        var b = num2;
+        var b = num3;
         var bhi = b.words[b.length - 1] | 0;
         var bhiBits = this._countBits(bhi);
         shift = 26 - bhiBits;
@@ -66155,8 +66155,8 @@ var require_bn = __commonJS({
           mod: a
         };
       };
-      BN.prototype.divmod = function divmod(num2, mode, positive) {
-        assert(!num2.isZero());
+      BN.prototype.divmod = function divmod(num3, mode, positive) {
+        assert(!num3.isZero());
         if (this.isZero()) {
           return {
             div: new BN(0),
@@ -66164,15 +66164,15 @@ var require_bn = __commonJS({
           };
         }
         var div, mod, res;
-        if (this.negative !== 0 && num2.negative === 0) {
-          res = this.neg().divmod(num2, mode);
+        if (this.negative !== 0 && num3.negative === 0) {
+          res = this.neg().divmod(num3, mode);
           if (mode !== "mod") {
             div = res.div.neg();
           }
           if (mode !== "div") {
             mod = res.mod.neg();
             if (positive && mod.negative !== 0) {
-              mod.iadd(num2);
+              mod.iadd(num3);
             }
           }
           return {
@@ -66180,8 +66180,8 @@ var require_bn = __commonJS({
             mod
           };
         }
-        if (this.negative === 0 && num2.negative !== 0) {
-          res = this.divmod(num2.neg(), mode);
+        if (this.negative === 0 && num3.negative !== 0) {
+          res = this.divmod(num3.neg(), mode);
           if (mode !== "mod") {
             div = res.div.neg();
           }
@@ -66190,12 +66190,12 @@ var require_bn = __commonJS({
             mod: res.mod
           };
         }
-        if ((this.negative & num2.negative) !== 0) {
-          res = this.neg().divmod(num2.neg(), mode);
+        if ((this.negative & num3.negative) !== 0) {
+          res = this.neg().divmod(num3.neg(), mode);
           if (mode !== "div") {
             mod = res.mod.neg();
             if (positive && mod.negative !== 0) {
-              mod.isub(num2);
+              mod.isub(num3);
             }
           }
           return {
@@ -66203,74 +66203,74 @@ var require_bn = __commonJS({
             mod
           };
         }
-        if (num2.length > this.length || this.cmp(num2) < 0) {
+        if (num3.length > this.length || this.cmp(num3) < 0) {
           return {
             div: new BN(0),
             mod: this
           };
         }
-        if (num2.length === 1) {
+        if (num3.length === 1) {
           if (mode === "div") {
             return {
-              div: this.divn(num2.words[0]),
+              div: this.divn(num3.words[0]),
               mod: null
             };
           }
           if (mode === "mod") {
             return {
               div: null,
-              mod: new BN(this.modn(num2.words[0]))
+              mod: new BN(this.modn(num3.words[0]))
             };
           }
           return {
-            div: this.divn(num2.words[0]),
-            mod: new BN(this.modn(num2.words[0]))
+            div: this.divn(num3.words[0]),
+            mod: new BN(this.modn(num3.words[0]))
           };
         }
-        return this._wordDiv(num2, mode);
+        return this._wordDiv(num3, mode);
       };
-      BN.prototype.div = function div(num2) {
-        return this.divmod(num2, "div", false).div;
+      BN.prototype.div = function div(num3) {
+        return this.divmod(num3, "div", false).div;
       };
-      BN.prototype.mod = function mod(num2) {
-        return this.divmod(num2, "mod", false).mod;
+      BN.prototype.mod = function mod(num3) {
+        return this.divmod(num3, "mod", false).mod;
       };
-      BN.prototype.umod = function umod(num2) {
-        return this.divmod(num2, "mod", true).mod;
+      BN.prototype.umod = function umod(num3) {
+        return this.divmod(num3, "mod", true).mod;
       };
-      BN.prototype.divRound = function divRound(num2) {
-        var dm = this.divmod(num2);
+      BN.prototype.divRound = function divRound(num3) {
+        var dm = this.divmod(num3);
         if (dm.mod.isZero())
           return dm.div;
-        var mod = dm.div.negative !== 0 ? dm.mod.isub(num2) : dm.mod;
-        var half = num2.ushrn(1);
-        var r2 = num2.andln(1);
+        var mod = dm.div.negative !== 0 ? dm.mod.isub(num3) : dm.mod;
+        var half = num3.ushrn(1);
+        var r2 = num3.andln(1);
         var cmp = mod.cmp(half);
         if (cmp < 0 || r2 === 1 && cmp === 0)
           return dm.div;
         return dm.div.negative !== 0 ? dm.div.isubn(1) : dm.div.iaddn(1);
       };
-      BN.prototype.modn = function modn(num2) {
-        assert(num2 <= 67108863);
-        var p = (1 << 26) % num2;
+      BN.prototype.modn = function modn(num3) {
+        assert(num3 <= 67108863);
+        var p = (1 << 26) % num3;
         var acc = 0;
         for (var i = this.length - 1; i >= 0; i--) {
-          acc = (p * acc + (this.words[i] | 0)) % num2;
+          acc = (p * acc + (this.words[i] | 0)) % num3;
         }
         return acc;
       };
-      BN.prototype.idivn = function idivn(num2) {
-        assert(num2 <= 67108863);
+      BN.prototype.idivn = function idivn(num3) {
+        assert(num3 <= 67108863);
         var carry = 0;
         for (var i = this.length - 1; i >= 0; i--) {
           var w = (this.words[i] | 0) + carry * 67108864;
-          this.words[i] = w / num2 | 0;
-          carry = w % num2;
+          this.words[i] = w / num3 | 0;
+          carry = w % num3;
         }
         return this.strip();
       };
-      BN.prototype.divn = function divn(num2) {
-        return this.clone().idivn(num2);
+      BN.prototype.divn = function divn(num3) {
+        return this.clone().idivn(num3);
       };
       BN.prototype.egcd = function egcd(p) {
         assert(p.negative === 0);
@@ -66392,13 +66392,13 @@ var require_bn = __commonJS({
         }
         return res;
       };
-      BN.prototype.gcd = function gcd(num2) {
+      BN.prototype.gcd = function gcd(num3) {
         if (this.isZero())
-          return num2.abs();
-        if (num2.isZero())
+          return num3.abs();
+        if (num3.isZero())
           return this.abs();
         var a = this.clone();
-        var b = num2.clone();
+        var b = num3.clone();
         a.negative = 0;
         b.negative = 0;
         for (var shift = 0; a.isEven() && b.isEven(); shift++) {
@@ -66424,8 +66424,8 @@ var require_bn = __commonJS({
         } while (true);
         return b.iushln(shift);
       };
-      BN.prototype.invm = function invm(num2) {
-        return this.egcd(num2).a.umod(num2);
+      BN.prototype.invm = function invm(num3) {
+        return this.egcd(num3).a.umod(num3);
       };
       BN.prototype.isEven = function isEven() {
         return (this.words[0] & 1) === 0;
@@ -66433,8 +66433,8 @@ var require_bn = __commonJS({
       BN.prototype.isOdd = function isOdd() {
         return (this.words[0] & 1) === 1;
       };
-      BN.prototype.andln = function andln(num2) {
-        return this.words[0] & num2;
+      BN.prototype.andln = function andln(num3) {
+        return this.words[0] & num3;
       };
       BN.prototype.bincn = function bincn(bit) {
         assert(typeof bit === "number");
@@ -66463,8 +66463,8 @@ var require_bn = __commonJS({
       BN.prototype.isZero = function isZero() {
         return this.length === 1 && this.words[0] === 0;
       };
-      BN.prototype.cmpn = function cmpn(num2) {
-        var negative = num2 < 0;
+      BN.prototype.cmpn = function cmpn(num3) {
+        var negative = num3 < 0;
         if (this.negative !== 0 && !negative)
           return -1;
         if (this.negative === 0 && negative)
@@ -66475,35 +66475,35 @@ var require_bn = __commonJS({
           res = 1;
         } else {
           if (negative) {
-            num2 = -num2;
+            num3 = -num3;
           }
-          assert(num2 <= 67108863, "Number is too big");
+          assert(num3 <= 67108863, "Number is too big");
           var w = this.words[0] | 0;
-          res = w === num2 ? 0 : w < num2 ? -1 : 1;
+          res = w === num3 ? 0 : w < num3 ? -1 : 1;
         }
         if (this.negative !== 0)
           return -res | 0;
         return res;
       };
-      BN.prototype.cmp = function cmp(num2) {
-        if (this.negative !== 0 && num2.negative === 0)
+      BN.prototype.cmp = function cmp(num3) {
+        if (this.negative !== 0 && num3.negative === 0)
           return -1;
-        if (this.negative === 0 && num2.negative !== 0)
+        if (this.negative === 0 && num3.negative !== 0)
           return 1;
-        var res = this.ucmp(num2);
+        var res = this.ucmp(num3);
         if (this.negative !== 0)
           return -res | 0;
         return res;
       };
-      BN.prototype.ucmp = function ucmp(num2) {
-        if (this.length > num2.length)
+      BN.prototype.ucmp = function ucmp(num3) {
+        if (this.length > num3.length)
           return 1;
-        if (this.length < num2.length)
+        if (this.length < num3.length)
           return -1;
         var res = 0;
         for (var i = this.length - 1; i >= 0; i--) {
           var a = this.words[i] | 0;
-          var b = num2.words[i] | 0;
+          var b = num3.words[i] | 0;
           if (a === b)
             continue;
           if (a < b) {
@@ -66515,38 +66515,38 @@ var require_bn = __commonJS({
         }
         return res;
       };
-      BN.prototype.gtn = function gtn(num2) {
-        return this.cmpn(num2) === 1;
+      BN.prototype.gtn = function gtn(num3) {
+        return this.cmpn(num3) === 1;
       };
-      BN.prototype.gt = function gt(num2) {
-        return this.cmp(num2) === 1;
+      BN.prototype.gt = function gt(num3) {
+        return this.cmp(num3) === 1;
       };
-      BN.prototype.gten = function gten(num2) {
-        return this.cmpn(num2) >= 0;
+      BN.prototype.gten = function gten(num3) {
+        return this.cmpn(num3) >= 0;
       };
-      BN.prototype.gte = function gte(num2) {
-        return this.cmp(num2) >= 0;
+      BN.prototype.gte = function gte(num3) {
+        return this.cmp(num3) >= 0;
       };
-      BN.prototype.ltn = function ltn(num2) {
-        return this.cmpn(num2) === -1;
+      BN.prototype.ltn = function ltn(num3) {
+        return this.cmpn(num3) === -1;
       };
-      BN.prototype.lt = function lt(num2) {
-        return this.cmp(num2) === -1;
+      BN.prototype.lt = function lt(num3) {
+        return this.cmp(num3) === -1;
       };
-      BN.prototype.lten = function lten(num2) {
-        return this.cmpn(num2) <= 0;
+      BN.prototype.lten = function lten(num3) {
+        return this.cmpn(num3) <= 0;
       };
-      BN.prototype.lte = function lte(num2) {
-        return this.cmp(num2) <= 0;
+      BN.prototype.lte = function lte(num3) {
+        return this.cmp(num3) <= 0;
       };
-      BN.prototype.eqn = function eqn(num2) {
-        return this.cmpn(num2) === 0;
+      BN.prototype.eqn = function eqn(num3) {
+        return this.cmpn(num3) === 0;
       };
-      BN.prototype.eq = function eq(num2) {
-        return this.cmp(num2) === 0;
+      BN.prototype.eq = function eq(num3) {
+        return this.cmp(num3) === 0;
       };
-      BN.red = function red(num2) {
-        return new Red(num2);
+      BN.red = function red(num3) {
+        return new Red(num3);
       };
       BN.prototype.toRed = function toRed(ctx) {
         assert(!this.red, "Already a number in reduction context");
@@ -66565,35 +66565,35 @@ var require_bn = __commonJS({
         assert(!this.red, "Already a number in reduction context");
         return this._forceRed(ctx);
       };
-      BN.prototype.redAdd = function redAdd(num2) {
+      BN.prototype.redAdd = function redAdd(num3) {
         assert(this.red, "redAdd works only with red numbers");
-        return this.red.add(this, num2);
+        return this.red.add(this, num3);
       };
-      BN.prototype.redIAdd = function redIAdd(num2) {
+      BN.prototype.redIAdd = function redIAdd(num3) {
         assert(this.red, "redIAdd works only with red numbers");
-        return this.red.iadd(this, num2);
+        return this.red.iadd(this, num3);
       };
-      BN.prototype.redSub = function redSub(num2) {
+      BN.prototype.redSub = function redSub(num3) {
         assert(this.red, "redSub works only with red numbers");
-        return this.red.sub(this, num2);
+        return this.red.sub(this, num3);
       };
-      BN.prototype.redISub = function redISub(num2) {
+      BN.prototype.redISub = function redISub(num3) {
         assert(this.red, "redISub works only with red numbers");
-        return this.red.isub(this, num2);
+        return this.red.isub(this, num3);
       };
-      BN.prototype.redShl = function redShl(num2) {
+      BN.prototype.redShl = function redShl(num3) {
         assert(this.red, "redShl works only with red numbers");
-        return this.red.shl(this, num2);
+        return this.red.shl(this, num3);
       };
-      BN.prototype.redMul = function redMul(num2) {
+      BN.prototype.redMul = function redMul(num3) {
         assert(this.red, "redMul works only with red numbers");
-        this.red._verify2(this, num2);
-        return this.red.mul(this, num2);
+        this.red._verify2(this, num3);
+        return this.red.mul(this, num3);
       };
-      BN.prototype.redIMul = function redIMul(num2) {
+      BN.prototype.redIMul = function redIMul(num3) {
         assert(this.red, "redMul works only with red numbers");
-        this.red._verify2(this, num2);
-        return this.red.imul(this, num2);
+        this.red._verify2(this, num3);
+        return this.red.imul(this, num3);
       };
       BN.prototype.redSqr = function redSqr() {
         assert(this.red, "redSqr works only with red numbers");
@@ -66620,10 +66620,10 @@ var require_bn = __commonJS({
         this.red._verify1(this);
         return this.red.neg(this);
       };
-      BN.prototype.redPow = function redPow(num2) {
-        assert(this.red && !num2.red, "redPow(normalNum)");
+      BN.prototype.redPow = function redPow(num3) {
+        assert(this.red && !num3.red, "redPow(normalNum)");
         this.red._verify1(this);
-        return this.red.pow(this, num2);
+        return this.red.pow(this, num3);
       };
       var primes = {
         k256: null,
@@ -66643,8 +66643,8 @@ var require_bn = __commonJS({
         tmp.words = new Array(Math.ceil(this.n / 13));
         return tmp;
       };
-      MPrime.prototype.ireduce = function ireduce(num2) {
-        var r = num2;
+      MPrime.prototype.ireduce = function ireduce(num3) {
+        var r = num3;
         var rlen;
         do {
           this.split(r, this.tmp);
@@ -66670,8 +66670,8 @@ var require_bn = __commonJS({
       MPrime.prototype.split = function split(input, out) {
         input.iushrn(this.n, 0, out);
       };
-      MPrime.prototype.imulK = function imulK(num2) {
-        return num2.imul(this.k);
+      MPrime.prototype.imulK = function imulK(num3) {
+        return num3.imul(this.k);
       };
       function K256() {
         MPrime.call(
@@ -66708,24 +66708,24 @@ var require_bn = __commonJS({
           input.length -= 9;
         }
       };
-      K256.prototype.imulK = function imulK(num2) {
-        num2.words[num2.length] = 0;
-        num2.words[num2.length + 1] = 0;
-        num2.length += 2;
+      K256.prototype.imulK = function imulK(num3) {
+        num3.words[num3.length] = 0;
+        num3.words[num3.length + 1] = 0;
+        num3.length += 2;
         var lo = 0;
-        for (var i = 0; i < num2.length; i++) {
-          var w = num2.words[i] | 0;
+        for (var i = 0; i < num3.length; i++) {
+          var w = num3.words[i] | 0;
           lo += w * 977;
-          num2.words[i] = lo & 67108863;
+          num3.words[i] = lo & 67108863;
           lo = w * 64 + (lo / 67108864 | 0);
         }
-        if (num2.words[num2.length - 1] === 0) {
-          num2.length--;
-          if (num2.words[num2.length - 1] === 0) {
-            num2.length--;
+        if (num3.words[num3.length - 1] === 0) {
+          num3.length--;
+          if (num3.words[num3.length - 1] === 0) {
+            num3.length--;
           }
         }
-        return num2;
+        return num3;
       };
       function P224() {
         MPrime.call(
@@ -66751,19 +66751,19 @@ var require_bn = __commonJS({
         );
       }
       inherits2(P25519, MPrime);
-      P25519.prototype.imulK = function imulK(num2) {
+      P25519.prototype.imulK = function imulK(num3) {
         var carry = 0;
-        for (var i = 0; i < num2.length; i++) {
-          var hi = (num2.words[i] | 0) * 19 + carry;
+        for (var i = 0; i < num3.length; i++) {
+          var hi = (num3.words[i] | 0) * 19 + carry;
           var lo = hi & 67108863;
           hi >>>= 26;
-          num2.words[i] = lo;
+          num3.words[i] = lo;
           carry = hi;
         }
         if (carry !== 0) {
-          num2.words[num2.length++] = carry;
+          num3.words[num3.length++] = carry;
         }
-        return num2;
+        return num3;
       };
       BN._prime = function prime(name) {
         if (primes[name])
@@ -66848,9 +66848,9 @@ var require_bn = __commonJS({
         }
         return res;
       };
-      Red.prototype.shl = function shl(a, num2) {
+      Red.prototype.shl = function shl(a, num3) {
         this._verify1(a);
-        return this.imod(a.ushln(num2));
+        return this.imod(a.ushln(num3));
       };
       Red.prototype.imul = function imul(a, b) {
         this._verify2(a, b);
@@ -66917,10 +66917,10 @@ var require_bn = __commonJS({
           return this.imod(inv);
         }
       };
-      Red.prototype.pow = function pow(a, num2) {
-        if (num2.isZero())
+      Red.prototype.pow = function pow(a, num3) {
+        if (num3.isZero())
           return new BN(1).toRed(this);
-        if (num2.cmpn(1) === 0)
+        if (num3.cmpn(1) === 0)
           return a.clone();
         var windowSize = 4;
         var wnd = new Array(1 << windowSize);
@@ -66932,12 +66932,12 @@ var require_bn = __commonJS({
         var res = wnd[0];
         var current = 0;
         var currentLen = 0;
-        var start = num2.bitLength() % 26;
+        var start = num3.bitLength() % 26;
         if (start === 0) {
           start = 26;
         }
-        for (i = num2.length - 1; i >= 0; i--) {
-          var word = num2.words[i];
+        for (i = num3.length - 1; i >= 0; i--) {
+          var word = num3.words[i];
           for (var j = start - 1; j >= 0; j--) {
             var bit = word >> j & 1;
             if (res !== wnd[0]) {
@@ -66960,17 +66960,17 @@ var require_bn = __commonJS({
         }
         return res;
       };
-      Red.prototype.convertTo = function convertTo(num2) {
-        var r = num2.umod(this.m);
-        return r === num2 ? r.clone() : r;
+      Red.prototype.convertTo = function convertTo(num3) {
+        var r = num3.umod(this.m);
+        return r === num3 ? r.clone() : r;
       };
-      Red.prototype.convertFrom = function convertFrom(num2) {
-        var res = num2.clone();
+      Red.prototype.convertFrom = function convertFrom(num3) {
+        var res = num3.clone();
         res.red = null;
         return res;
       };
-      BN.mont = function mont(num2) {
-        return new Mont(num2);
+      BN.mont = function mont(num3) {
+        return new Mont(num3);
       };
       function Mont(m) {
         Red.call(this, m);
@@ -66986,11 +66986,11 @@ var require_bn = __commonJS({
         this.minv = this.r.sub(this.minv);
       }
       inherits2(Mont, Red);
-      Mont.prototype.convertTo = function convertTo(num2) {
-        return this.imod(num2.ushln(this.shift));
+      Mont.prototype.convertTo = function convertTo(num3) {
+        return this.imod(num3.ushln(this.shift));
       };
-      Mont.prototype.convertFrom = function convertFrom(num2) {
-        var r = this.imod(num2.mul(this.rinv));
+      Mont.prototype.convertFrom = function convertFrom(num3) {
+        var r = this.imod(num3.mul(this.rinv));
         r.red = null;
         return r;
       };
@@ -67120,14 +67120,14 @@ var require_utils4 = __commonJS({
     utils.zero2 = minUtils.zero2;
     utils.toHex = minUtils.toHex;
     utils.encode = minUtils.encode;
-    function getNAF(num2, w, bits) {
-      var naf = new Array(Math.max(num2.bitLength(), bits) + 1);
+    function getNAF(num3, w, bits) {
+      var naf = new Array(Math.max(num3.bitLength(), bits) + 1);
       var i;
       for (i = 0; i < naf.length; i += 1) {
         naf[i] = 0;
       }
       var ws = 1 << w + 1;
-      var k = num2.clone();
+      var k = num3.clone();
       for (i = 0; i < naf.length; i++) {
         var z;
         var mod = k.andln(ws - 1);
@@ -67368,7 +67368,7 @@ var require_base3 = __commonJS({
       }
       return p.type === "affine" ? acc.toP() : acc;
     };
-    BaseCurve.prototype._wnafMulAdd = function _wnafMulAdd(defW, points, coeffs, len, jacobianResult) {
+    BaseCurve.prototype._wnafMulAdd = function _wnafMulAdd(defW, points2, coeffs, len, jacobianResult) {
       var wndWidth = this._wnafT1;
       var wnd = this._wnafT2;
       var naf = this._wnafT3;
@@ -67377,7 +67377,7 @@ var require_base3 = __commonJS({
       var j;
       var p;
       for (i = 0; i < len; i++) {
-        p = points[i];
+        p = points2[i];
         var nafPoints = p._getNAFPoints(defW);
         wndWidth[i] = nafPoints.wnd;
         wnd[i] = nafPoints.points;
@@ -67393,24 +67393,24 @@ var require_base3 = __commonJS({
           continue;
         }
         var comb = [
-          points[a],
+          points2[a],
           /* 1 */
           null,
           /* 3 */
           null,
           /* 5 */
-          points[b]
+          points2[b]
           /* 7 */
         ];
-        if (points[a].y.cmp(points[b].y) === 0) {
-          comb[1] = points[a].add(points[b]);
-          comb[2] = points[a].toJ().mixedAdd(points[b].neg());
-        } else if (points[a].y.cmp(points[b].y.redNeg()) === 0) {
-          comb[1] = points[a].toJ().mixedAdd(points[b]);
-          comb[2] = points[a].add(points[b].neg());
+        if (points2[a].y.cmp(points2[b].y) === 0) {
+          comb[1] = points2[a].add(points2[b]);
+          comb[2] = points2[a].toJ().mixedAdd(points2[b].neg());
+        } else if (points2[a].y.cmp(points2[b].y.redNeg()) === 0) {
+          comb[1] = points2[a].toJ().mixedAdd(points2[b]);
+          comb[2] = points2[a].add(points2[b].neg());
         } else {
-          comb[1] = points[a].toJ().mixedAdd(points[b]);
-          comb[2] = points[a].toJ().mixedAdd(points[b].neg());
+          comb[1] = points2[a].toJ().mixedAdd(points2[b]);
+          comb[2] = points2[a].toJ().mixedAdd(points2[b].neg());
         }
         var index = [
           -3,
@@ -67654,8 +67654,8 @@ var require_short = __commonJS({
         basis
       };
     };
-    ShortCurve.prototype._getEndoRoots = function _getEndoRoots(num2) {
-      var red = num2 === this.p ? this.red : BN.mont(num2);
+    ShortCurve.prototype._getEndoRoots = function _getEndoRoots(num3) {
+      var red = num3 === this.p ? this.red : BN.mont(num3);
       var tinv = new BN(2).toRed(red).redInvm();
       var ntinv = tinv.redNeg();
       var s = new BN(3).toRed(red).redNeg().redSqrt().redMul(tinv);
@@ -67759,12 +67759,12 @@ var require_short = __commonJS({
       var rhs = x.redSqr().redMul(x).redIAdd(ax).redIAdd(this.b);
       return y.redSqr().redISub(rhs).cmpn(0) === 0;
     };
-    ShortCurve.prototype._endoWnafMulAdd = function _endoWnafMulAdd(points, coeffs, jacobianResult) {
+    ShortCurve.prototype._endoWnafMulAdd = function _endoWnafMulAdd(points2, coeffs, jacobianResult) {
       var npoints = this._endoWnafT1;
       var ncoeffs = this._endoWnafT2;
-      for (var i = 0; i < points.length; i++) {
+      for (var i = 0; i < points2.length; i++) {
         var split = this._endoSplit(coeffs[i]);
-        var p = points[i];
+        var p = points2[i];
         var beta = p._getBeta();
         if (split.k1.negative) {
           split.k1.ineg();
@@ -67935,20 +67935,20 @@ var require_short = __commonJS({
         return this.curve._wnafMul(this, k);
     };
     Point.prototype.mulAdd = function mulAdd(k1, p2, k2) {
-      var points = [this, p2];
+      var points2 = [this, p2];
       var coeffs = [k1, k2];
       if (this.curve.endo)
-        return this.curve._endoWnafMulAdd(points, coeffs);
+        return this.curve._endoWnafMulAdd(points2, coeffs);
       else
-        return this.curve._wnafMulAdd(1, points, coeffs, 2);
+        return this.curve._wnafMulAdd(1, points2, coeffs, 2);
     };
     Point.prototype.jmulAdd = function jmulAdd(k1, p2, k2) {
-      var points = [this, p2];
+      var points2 = [this, p2];
       var coeffs = [k1, k2];
       if (this.curve.endo)
-        return this.curve._endoWnafMulAdd(points, coeffs, true);
+        return this.curve._endoWnafMulAdd(points2, coeffs, true);
       else
-        return this.curve._wnafMulAdd(1, points, coeffs, 2, true);
+        return this.curve._wnafMulAdd(1, points2, coeffs, 2, true);
     };
     Point.prototype.eq = function eq(p) {
       return this === p || this.inf === p.inf && (this.inf || this.x.cmp(p.x) === 0 && this.y.cmp(p.y) === 0);
@@ -68443,17 +68443,17 @@ var require_edwards = __commonJS({
     }
     inherits2(EdwardsCurve, Base);
     module2.exports = EdwardsCurve;
-    EdwardsCurve.prototype._mulA = function _mulA(num2) {
+    EdwardsCurve.prototype._mulA = function _mulA(num3) {
       if (this.mOneA)
-        return num2.redNeg();
+        return num3.redNeg();
       else
-        return this.a.redMul(num2);
+        return this.a.redMul(num3);
     };
-    EdwardsCurve.prototype._mulC = function _mulC(num2) {
+    EdwardsCurve.prototype._mulC = function _mulC(num3) {
       if (this.oneC)
-        return num2;
+        return num3;
       else
-        return this.c.redMul(num2);
+        return this.c.redMul(num3);
     };
     EdwardsCurve.prototype.jpoint = function jpoint(x, y, z, t) {
       return this.point(x, y, z, t);
@@ -68954,22 +68954,22 @@ var require_utils5 = __commonJS({
       return lo >>> 0;
     }
     exports2.sum64_5_lo = sum64_5_lo;
-    function rotr64_hi(ah, al, num2) {
-      var r = al << 32 - num2 | ah >>> num2;
+    function rotr64_hi(ah, al, num3) {
+      var r = al << 32 - num3 | ah >>> num3;
       return r >>> 0;
     }
     exports2.rotr64_hi = rotr64_hi;
-    function rotr64_lo(ah, al, num2) {
-      var r = ah << 32 - num2 | al >>> num2;
+    function rotr64_lo(ah, al, num3) {
+      var r = ah << 32 - num3 | al >>> num3;
       return r >>> 0;
     }
     exports2.rotr64_lo = rotr64_lo;
-    function shr64_hi(ah, al, num2) {
-      return ah >>> num2;
+    function shr64_hi(ah, al, num3) {
+      return ah >>> num3;
     }
     exports2.shr64_hi = shr64_hi;
-    function shr64_lo(ah, al, num2) {
-      var r = ah << 32 - num2 | al >>> num2;
+    function shr64_lo(ah, al, num3) {
+      var r = ah << 32 - num3 | al >>> num3;
       return r >>> 0;
     }
     exports2.shr64_lo = shr64_lo;
@@ -72069,8 +72069,8 @@ var require_eddsa = __commonJS({
       var y = utils.intFromLE(normed);
       return this.curve.pointFromY(y, xIsOdd);
     };
-    EDDSA.prototype.encodeInt = function encodeInt(num2) {
-      return num2.toArray("le", this.encodingLength);
+    EDDSA.prototype.encodeInt = function encodeInt(num3) {
+      return num3.toArray("le", this.encodingLength);
     };
     EDDSA.prototype.decodeInt = function decodeInt(bytes) {
       return utils.intFromLE(bytes);
@@ -79343,8 +79343,8 @@ var require_flight2 = __commonJS({
         type: const_2.ContentType.handshake,
         fragment: fragment.serialize()
       })), ++dtls.recordSequenceNumber);
-      const chunk = packets.map((v) => v.serialize());
-      for (const buf of chunk) {
+      const chunk2 = packets.map((v) => v.serialize());
+      for (const buf of chunk2) {
         udp.send(buf);
       }
     };
@@ -80602,8 +80602,8 @@ var require_create_table = __commonJS({
 var require_crc32_by_1 = __commonJS({
   "../../node_modules/turbo-crc32/src/crc32-by-1.js"(exports2, module2) {
     "use strict";
-    module2.exports = crc32;
-    function crc32(table, buf, input, offset) {
+    module2.exports = crc322;
+    function crc322(table, buf, input, offset) {
       let crc = input;
       for (let index = offset; index < buf.length; index += 1) {
         const byte = buf[index];
@@ -80619,8 +80619,8 @@ var require_crc32_by_4 = __commonJS({
   "../../node_modules/turbo-crc32/src/crc32-by-4.js"(exports2, module2) {
     "use strict";
     var crc32By1 = require_crc32_by_1();
-    module2.exports = crc32;
-    function crc32(table, buf, input, offset) {
+    module2.exports = crc322;
+    function crc322(table, buf, input, offset) {
       let pointer = offset;
       let crc = input;
       for (let i = pointer; i + 4 < buf.length; i += 4) {
@@ -80638,8 +80638,8 @@ var require_crc32_by_8 = __commonJS({
   "../../node_modules/turbo-crc32/src/crc32-by-8.js"(exports2, module2) {
     "use strict";
     var crc32By4 = require_crc32_by_4();
-    module2.exports = crc32;
-    function crc32(table, buf, input, offset) {
+    module2.exports = crc322;
+    function crc322(table, buf, input, offset) {
       let pointer = offset;
       let crc = input;
       for (let i = pointer; i + 8 < buf.length; i += 8) {
@@ -81079,7 +81079,7 @@ var require_chunk = __commonJS({
       }
       get descriptions() {
         return this.params.map(([code, body]) => {
-          const name = (Object.entries(_ErrorChunk.CODE).find(([, num2]) => num2 === code) || [])[0];
+          const name = (Object.entries(_ErrorChunk.CODE).find(([, num3]) => num3 === code) || [])[0];
           return { name, body };
         });
       }
@@ -81363,9 +81363,9 @@ var require_chunk = __commonJS({
       return [sourcePort, destinationPort, verificationTag, chunks];
     }
     exports2.parsePacket = parsePacket;
-    function serializePacket(sourcePort, destinationPort, verificationTag, chunk) {
+    function serializePacket(sourcePort, destinationPort, verificationTag, chunk2) {
       const header = Buffer.from(jspack_1.jspack.Pack("!HHL", [sourcePort, destinationPort, verificationTag]));
-      const body = chunk.bytes;
+      const body = chunk2.bytes;
       const checksum = crc32c(Buffer.concat([header, Buffer.from("\0\0\0\0"), body]));
       const checkSumBuf = Buffer.alloc(4);
       checkSumBuf.writeUInt32LE(checksum, 0);
@@ -81938,31 +81938,31 @@ var require_sctp = __commonJS({
             let pos = 0;
             const chunks = [];
             for (const fragment of (0, range_1.default)(0, fragments)) {
-              const chunk = new chunk_1.DataChunk(0, void 0);
-              chunk.flags = 0;
+              const chunk2 = new chunk_1.DataChunk(0, void 0);
+              chunk2.flags = 0;
               if (!ordered) {
-                chunk.flags = SCTP_DATA_UNORDERED;
+                chunk2.flags = SCTP_DATA_UNORDERED;
               }
               if (fragment === 0) {
-                chunk.flags |= SCTP_DATA_FIRST_FRAG;
+                chunk2.flags |= SCTP_DATA_FIRST_FRAG;
               }
               if (fragment === fragments - 1) {
-                chunk.flags |= SCTP_DATA_LAST_FRAG;
+                chunk2.flags |= SCTP_DATA_LAST_FRAG;
               }
-              chunk.tsn = this.localTsn;
-              chunk.streamId = streamId;
-              chunk.streamSeqNum = streamSeqNum;
-              chunk.protocol = ppId;
-              chunk.userData = userData.slice(pos, pos + USERDATA_MAX_LENGTH);
-              chunk.bookSize = chunk.userData.length;
-              chunk.expiry = expiry;
-              chunk.maxRetransmits = maxRetransmits;
+              chunk2.tsn = this.localTsn;
+              chunk2.streamId = streamId;
+              chunk2.streamSeqNum = streamSeqNum;
+              chunk2.protocol = ppId;
+              chunk2.userData = userData.slice(pos, pos + USERDATA_MAX_LENGTH);
+              chunk2.bookSize = chunk2.userData.length;
+              chunk2.expiry = expiry;
+              chunk2.maxRetransmits = maxRetransmits;
               pos += USERDATA_MAX_LENGTH;
               this.localTsn = tsnPlusOne(this.localTsn);
-              chunks.push(chunk);
+              chunks.push(chunk2);
             }
-            chunks.forEach((chunk) => {
-              this.outboundQueue.push(chunk);
+            chunks.forEach((chunk2) => {
+              this.outboundQueue.push(chunk2);
             });
             if (ordered) {
               this.outboundStreamSeq[streamId] = (0, src_1.uint16Add)(streamSeqNum, 1);
@@ -82018,9 +82018,9 @@ var require_sctp = __commonJS({
           writable: true,
           value: () => {
             this.timer3Handle = void 0;
-            this.sentQueue.forEach((chunk) => {
-              if (!this.maybeAbandon(chunk)) {
-                chunk.retransmit = true;
+            this.sentQueue.forEach((chunk2) => {
+              if (!this.maybeAbandon(chunk2)) {
+                chunk2.retransmit = true;
               }
             });
             this.updateAdvancedPeerAckPoint();
@@ -82085,8 +82085,8 @@ var require_sctp = __commonJS({
         if (verificationTag !== expectedTag) {
           return;
         }
-        for (const chunk of chunks) {
-          await this.receiveChunk(chunk);
+        for (const chunk2 of chunks) {
+          await this.receiveChunk(chunk2);
         }
         if (this.sackNeeded) {
           await this.sendSack();
@@ -82115,18 +82115,18 @@ var require_sctp = __commonJS({
         this.sackDuplicates = [];
         this.sackNeeded = false;
       }
-      async receiveChunk(chunk) {
-        switch (chunk.type) {
+      async receiveChunk(chunk2) {
+        switch (chunk2.type) {
           case chunk_1.DataChunk.type:
             {
-              this.receiveDataChunk(chunk);
+              this.receiveDataChunk(chunk2);
             }
             break;
           case chunk_1.InitChunk.type:
             {
               if (!this.isServer)
                 return;
-              const init = chunk;
+              const init = chunk2;
               log("receive init", init);
               this.lastReceivedTsn = tsnMinusOne(init.initialTsn);
               this.reconfigResponseSeq = tsnMinusOne(init.initialTsn);
@@ -82159,7 +82159,7 @@ var require_sctp = __commonJS({
             {
               if (this.associationState != const_1.SCTP_STATE.COOKIE_WAIT)
                 return;
-              const initAck = chunk;
+              const initAck = chunk2;
               this.timer1Cancel();
               this.lastReceivedTsn = tsnMinusOne(initAck.initialTsn);
               this.reconfigResponseSeq = tsnMinusOne(initAck.initialTsn);
@@ -82184,13 +82184,13 @@ var require_sctp = __commonJS({
             break;
           case chunk_1.SackChunk.type:
             {
-              await this.receiveSackChunk(chunk);
+              await this.receiveSackChunk(chunk2);
             }
             break;
           case chunk_1.HeartbeatChunk.type:
             {
               const ack = new chunk_1.HeartbeatAckChunk();
-              ack.params = chunk.params;
+              ack.params = chunk2.params;
               await this.sendChunk(ack).catch((err) => {
                 log("send heartbeat ack failed", err.message);
               });
@@ -82215,14 +82215,14 @@ var require_sctp = __commonJS({
             break;
           case chunk_1.ErrorChunk.type:
             {
-              log("ErrorChunk", chunk.descriptions);
+              log("ErrorChunk", chunk2.descriptions);
             }
             break;
           case chunk_1.CookieEchoChunk.type:
             {
               if (!this.isServer)
                 return;
-              const data = chunk;
+              const data = chunk2;
               const cookie = data.body;
               const digest = (0, crypto_1.createHmac)("sha1", this.hmacKey).update(cookie.slice(0, 4)).digest();
               if (cookie?.length != COOKIE_LENGTH || !cookie.slice(4).equals(digest)) {
@@ -82269,7 +82269,7 @@ var require_sctp = __commonJS({
             {
               if (this.associationState != const_1.SCTP_STATE.ESTABLISHED)
                 return;
-              const reconfig = chunk;
+              const reconfig = chunk2;
               for (const [type, body] of reconfig.params) {
                 const target = param_1.RECONFIG_PARAM_BY_TYPES[type];
                 if (target) {
@@ -82280,7 +82280,7 @@ var require_sctp = __commonJS({
             break;
           case chunk_1.ForwardTsnChunk.type:
             {
-              this.receiveForwardTsnChunk(chunk);
+              this.receiveForwardTsnChunk(chunk2);
             }
             break;
         }
@@ -82343,23 +82343,23 @@ var require_sctp = __commonJS({
             break;
         }
       }
-      receiveDataChunk(chunk) {
+      receiveDataChunk(chunk2) {
         this.sackNeeded = true;
-        if (this.markReceived(chunk.tsn))
+        if (this.markReceived(chunk2.tsn))
           return;
-        const inboundStream = this.getInboundStream(chunk.streamId);
-        inboundStream.addChunk(chunk);
-        this.advertisedRwnd -= chunk.userData.length;
+        const inboundStream = this.getInboundStream(chunk2.streamId);
+        inboundStream.addChunk(chunk2);
+        this.advertisedRwnd -= chunk2.userData.length;
         for (const message of inboundStream.popMessages()) {
           this.advertisedRwnd += message[2].length;
           this.receive(...message);
         }
       }
-      async receiveSackChunk(chunk) {
-        if ((0, src_1.uint32Gt)(this.lastSackedTsn, chunk.cumulativeTsn))
+      async receiveSackChunk(chunk2) {
+        if ((0, src_1.uint32Gt)(this.lastSackedTsn, chunk2.cumulativeTsn))
           return;
         const receivedTime = Date.now() / 1e3;
-        this.lastSackedTsn = chunk.cumulativeTsn;
+        this.lastSackedTsn = chunk2.cumulativeTsn;
         const cwndFullyUtilized = this.flightSize >= this.cwnd;
         let done = 0, doneBytes = 0;
         while (this.sentQueue.length > 0 && (0, src_1.uint32Gte)(this.lastSackedTsn, this.sentQueue[0].tsn)) {
@@ -82374,14 +82374,14 @@ var require_sctp = __commonJS({
           }
         }
         let loss = false;
-        if (chunk.gaps.length > 0) {
+        if (chunk2.gaps.length > 0) {
           const seen = /* @__PURE__ */ new Set();
           let highestSeenTsn;
-          chunk.gaps.forEach((gap) => (0, range_1.default)(gap[0], gap[1] + 1).forEach((pos) => {
-            highestSeenTsn = (chunk.cumulativeTsn + pos) % SCTP_TSN_MODULO;
+          chunk2.gaps.forEach((gap) => (0, range_1.default)(gap[0], gap[1] + 1).forEach((pos) => {
+            highestSeenTsn = (chunk2.cumulativeTsn + pos) % SCTP_TSN_MODULO;
             seen.add(highestSeenTsn);
           }));
-          let highestNewlyAcked = chunk.cumulativeTsn;
+          let highestNewlyAcked = chunk2.cumulativeTsn;
           for (const sChunk of this.sentQueue) {
             if ((0, src_1.uint32Gt)(sChunk.tsn, highestSeenTsn)) {
               break;
@@ -82430,7 +82430,7 @@ var require_sctp = __commonJS({
             this.fastRecoveryExit = this.sentQueue[this.sentQueue.length - 1].tsn;
             this.fastRecoveryTransmit = true;
           }
-        } else if ((0, src_1.uint32Gte)(chunk.cumulativeTsn, this.fastRecoveryExit)) {
+        } else if ((0, src_1.uint32Gte)(chunk2.cumulativeTsn, this.fastRecoveryExit)) {
           this.fastRecoveryExit = void 0;
         }
         if (this.sentQueue.length === 0) {
@@ -82442,13 +82442,13 @@ var require_sctp = __commonJS({
         await this.onSackReceived();
         await this.transmit();
       }
-      receiveForwardTsnChunk(chunk) {
+      receiveForwardTsnChunk(chunk2) {
         this.sackNeeded = true;
-        if ((0, src_1.uint32Gte)(this.lastReceivedTsn, chunk.cumulativeTsn)) {
+        if ((0, src_1.uint32Gte)(this.lastReceivedTsn, chunk2.cumulativeTsn)) {
           return;
         }
         const isObsolete = (x) => (0, src_1.uint32Gt)(x, this.lastReceivedTsn);
-        this.lastReceivedTsn = chunk.cumulativeTsn;
+        this.lastReceivedTsn = chunk2.cumulativeTsn;
         this.sackMisOrdered = new Set([...this.sackMisOrdered].filter(isObsolete));
         for (const tsn of [...this.sackMisOrdered].sort()) {
           if (tsn === tsnPlusOne(this.lastReceivedTsn)) {
@@ -82459,7 +82459,7 @@ var require_sctp = __commonJS({
         }
         this.sackDuplicates = this.sackDuplicates.filter(isObsolete);
         this.sackMisOrdered = new Set([...this.sackMisOrdered].filter(isObsolete));
-        for (const [streamId, streamSeqNum] of chunk.streams) {
+        for (const [streamId, streamSeqNum] of chunk2.streams) {
           const inboundStream = this.getInboundStream(streamId);
           inboundStream.streamSequenceNumber = (0, src_1.uint16Add)(streamSeqNum, 1);
           for (const message of inboundStream.popMessages()) {
@@ -82542,14 +82542,14 @@ var require_sctp = __commonJS({
           retransmitEarliest = false;
         }
         while (this.outboundQueue.length > 0) {
-          const chunk = this.outboundQueue.shift();
-          if (!chunk)
+          const chunk2 = this.outboundQueue.shift();
+          if (!chunk2)
             return;
-          this.sentQueue.push(chunk);
-          this.flightSizeIncrease(chunk);
-          chunk.sentCount++;
-          chunk.sentTime = Date.now() / 1e3;
-          await this.sendChunk(chunk).catch((err) => {
+          this.sentQueue.push(chunk2);
+          this.flightSizeIncrease(chunk2);
+          chunk2.sentCount++;
+          chunk2.sentTime = Date.now() / 1e3;
+          await this.sendChunk(chunk2).catch((err) => {
             log("send data outboundQueue failed", err.message);
           });
           if (!this.timer3Handle) {
@@ -82570,34 +82570,34 @@ var require_sctp = __commonJS({
       }
       async sendReconfigParam(param) {
         log("sendReconfigParam", param);
-        const chunk = new chunk_1.ReconfigChunk();
-        chunk.params.push([param.type, param.bytes]);
-        await this.sendChunk(chunk).catch((err) => {
+        const chunk2 = new chunk_1.ReconfigChunk();
+        chunk2.params.push([param.type, param.bytes]);
+        await this.sendChunk(chunk2).catch((err) => {
           log("send reconfig failed", err.message);
         });
       }
       // https://github.com/pion/sctp/pull/44/files
       async sendResetRequest(streamId) {
         log("sendResetRequest", streamId);
-        const chunk = new chunk_1.DataChunk(0, void 0);
-        chunk.streamId = streamId;
-        this.outboundQueue.push(chunk);
+        const chunk2 = new chunk_1.DataChunk(0, void 0);
+        chunk2.streamId = streamId;
+        this.outboundQueue.push(chunk2);
         if (!this.timer3Handle) {
           await this.transmit();
         }
       }
-      flightSizeIncrease(chunk) {
-        this.flightSize += chunk.bookSize;
+      flightSizeIncrease(chunk2) {
+        this.flightSize += chunk2.bookSize;
       }
-      flightSizeDecrease(chunk) {
-        this.flightSize = Math.max(0, this.flightSize - chunk.bookSize);
+      flightSizeDecrease(chunk2) {
+        this.flightSize = Math.max(0, this.flightSize - chunk2.bookSize);
       }
       // # timers
       /**t1 is wait for initAck or cookieAck */
-      timer1Start(chunk) {
+      timer1Start(chunk2) {
         if (this.timer1Handle)
           throw new Error();
-        this.timer1Chunk = chunk;
+        this.timer1Chunk = chunk2;
         this.timer1Failures = 0;
         this.timer1Handle = setTimeout(this.timer1Expired, this.rto * 1e3);
       }
@@ -82609,10 +82609,10 @@ var require_sctp = __commonJS({
         }
       }
       /**t2 is wait for shutdown */
-      t2Start(chunk) {
+      t2Start(chunk2) {
         if (this.timer2Handle)
           throw new Error();
-        this.timer2Chunk = chunk;
+        this.timer2Chunk = chunk2;
         this.timer2Failures = 0;
         this.timer2Handle = setTimeout(this.timer2Expired, this.rto * 1e3);
       }
@@ -82661,11 +82661,11 @@ var require_sctp = __commonJS({
         let done = 0;
         const streams = {};
         while (this.sentQueue.length > 0 && this.sentQueue[0].abandoned) {
-          const chunk = this.sentQueue.shift();
-          this.advancedPeerAckTsn = chunk.tsn;
+          const chunk2 = this.sentQueue.shift();
+          this.advancedPeerAckTsn = chunk2.tsn;
           done++;
-          if (!(chunk.flags & SCTP_DATA_UNORDERED)) {
-            streams[chunk.streamId] = chunk.streamSeqNum;
+          if (!(chunk2.flags & SCTP_DATA_UNORDERED)) {
+            streams[chunk2.streamId] = chunk2.streamSeqNum;
           }
         }
         if (done) {
@@ -82677,13 +82677,13 @@ var require_sctp = __commonJS({
           ]);
         }
       }
-      maybeAbandon(chunk) {
-        if (chunk.abandoned)
+      maybeAbandon(chunk2) {
+        if (chunk2.abandoned)
           return true;
-        const abandon = !!chunk.maxRetransmits && chunk.maxRetransmits < chunk.sentCount || !!chunk.expiry && chunk.expiry < Date.now() / 1e3;
+        const abandon = !!chunk2.maxRetransmits && chunk2.maxRetransmits < chunk2.sentCount || !!chunk2.expiry && chunk2.expiry < Date.now() / 1e3;
         if (!abandon)
           return false;
-        const chunkPos = this.sentQueue.findIndex((v) => v.type === chunk.type);
+        const chunkPos = this.sentQueue.findIndex((v) => v.type === chunk2.type);
         for (const pos of (0, range_1.default)(chunkPos, -1, -1)) {
           const oChunk = this.sentQueue[pos];
           oChunk.abandoned = true;
@@ -82746,13 +82746,13 @@ var require_sctp = __commonJS({
         extensions.push(chunk_1.ReConfigChunk.type);
         params.push([SCTP_SUPPORTED_CHUNK_EXT, Buffer.from(extensions)]);
       }
-      async sendChunk(chunk) {
+      async sendChunk(chunk2) {
         if (this.state === "closed")
           return;
         if (this.remotePort === void 0) {
           throw new Error("invalid remote port");
         }
-        const packet = (0, chunk_1.serializePacket)(this.localPort, this.remotePort, this.remoteVerificationTag, chunk);
+        const packet = (0, chunk_1.serializePacket)(this.localPort, this.remotePort, this.remoteVerificationTag, chunk2);
         await this.transport.send(packet);
       }
       setState(state) {
@@ -82809,16 +82809,16 @@ var require_sctp = __commonJS({
           value: 0
         });
       }
-      addChunk(chunk) {
-        if (this.reassembly.length === 0 || (0, src_1.uint32Gt)(chunk.tsn, this.reassembly[this.reassembly.length - 1].tsn)) {
-          this.reassembly.push(chunk);
+      addChunk(chunk2) {
+        if (this.reassembly.length === 0 || (0, src_1.uint32Gt)(chunk2.tsn, this.reassembly[this.reassembly.length - 1].tsn)) {
+          this.reassembly.push(chunk2);
           return;
         }
         for (const [i, v] of (0, helper_1.enumerate)(this.reassembly)) {
-          if (v.tsn === chunk.tsn)
+          if (v.tsn === chunk2.tsn)
             throw new Error("duplicate chunk in reassembly");
-          if ((0, src_1.uint32Gt)(v.tsn, chunk.tsn)) {
-            this.reassembly.splice(i, 0, chunk);
+          if ((0, src_1.uint32Gt)(v.tsn, chunk2.tsn)) {
+            this.reassembly.splice(i, 0, chunk2);
             break;
           }
         }
@@ -82829,10 +82829,10 @@ var require_sctp = __commonJS({
         let expectedTsn;
         let ordered;
         while (pos < this.reassembly.length) {
-          const chunk = this.reassembly[pos];
+          const chunk2 = this.reassembly[pos];
           if (startPos === void 0) {
-            ordered = !(chunk.flags & SCTP_DATA_UNORDERED);
-            if (!(chunk.flags & SCTP_DATA_FIRST_FRAG)) {
+            ordered = !(chunk2.flags & SCTP_DATA_UNORDERED);
+            if (!(chunk2.flags & SCTP_DATA_FIRST_FRAG)) {
               if (ordered) {
                 break;
               } else {
@@ -82840,12 +82840,12 @@ var require_sctp = __commonJS({
                 continue;
               }
             }
-            if (ordered && (0, src_1.uint16Gt)(chunk.streamSeqNum, this.streamSequenceNumber)) {
+            if (ordered && (0, src_1.uint16Gt)(chunk2.streamSeqNum, this.streamSequenceNumber)) {
               break;
             }
-            expectedTsn = chunk.tsn;
+            expectedTsn = chunk2.tsn;
             startPos = pos;
-          } else if (chunk.tsn !== expectedTsn) {
+          } else if (chunk2.tsn !== expectedTsn) {
             if (ordered) {
               break;
             } else {
@@ -82854,7 +82854,7 @@ var require_sctp = __commonJS({
               continue;
             }
           }
-          if (chunk.flags & SCTP_DATA_LAST_FRAG) {
+          if (chunk2.flags & SCTP_DATA_LAST_FRAG) {
             const arr = this.reassembly.slice(startPos, pos + 1).map((c) => c.userData).reduce((acc, cur) => {
               acc.push(cur);
               acc.push(Buffer.from(""));
@@ -82866,11 +82866,11 @@ var require_sctp = __commonJS({
               ...this.reassembly.slice(0, startPos),
               ...this.reassembly.slice(pos + 1)
             ];
-            if (ordered && chunk.streamSeqNum === this.streamSequenceNumber) {
+            if (ordered && chunk2.streamSeqNum === this.streamSequenceNumber) {
               this.streamSequenceNumber = (0, src_1.uint16Add)(this.streamSequenceNumber, 1);
             }
             pos = startPos;
-            yield [chunk.streamId, chunk.protocol, userData];
+            yield [chunk2.streamId, chunk2.protocol, userData];
           } else {
             pos++;
           }
@@ -82879,10 +82879,10 @@ var require_sctp = __commonJS({
       }
       pruneChunks(tsn) {
         let pos = -1, size = 0;
-        for (const [i, chunk] of this.reassembly.entries()) {
-          if ((0, src_1.uint32Gte)(tsn, chunk.tsn)) {
+        for (const [i, chunk2] of this.reassembly.entries()) {
+          if ((0, src_1.uint32Gte)(tsn, chunk2.tsn)) {
             pos = i;
-            size += chunk.userData.length;
+            size += chunk2.userData.length;
           } else {
             break;
           }
@@ -98410,11 +98410,11 @@ var require_mime_types = __commonJS({
       }
       return exts[0];
     }
-    function lookup(path9) {
-      if (!path9 || typeof path9 !== "string") {
+    function lookup(path10) {
+      if (!path10 || typeof path10 !== "string") {
         return false;
       }
-      var extension2 = extname("x." + path9).toLowerCase().substr(1);
+      var extension2 = extname("x." + path10).toLowerCase().substr(1);
       if (!extension2) {
         return false;
       }
@@ -99519,11 +99519,11 @@ var require_form_data = __commonJS({
     "use strict";
     var CombinedStream = require_combined_stream();
     var util4 = require("util");
-    var path9 = require("path");
+    var path10 = require("path");
     var http2 = require("http");
     var https2 = require("https");
     var parseUrl = require("url").parse;
-    var fs8 = require("fs");
+    var fs9 = require("fs");
     var Stream = require("stream").Stream;
     var crypto7 = require("crypto");
     var mime = require_mime_types();
@@ -99590,7 +99590,7 @@ var require_form_data = __commonJS({
         if (value.end != void 0 && value.end != Infinity && value.start != void 0) {
           callback(null, value.end + 1 - (value.start ? value.start : 0));
         } else {
-          fs8.stat(value.path, function(err, stat) {
+          fs9.stat(value.path, function(err, stat) {
             if (err) {
               callback(err);
               return;
@@ -99647,11 +99647,11 @@ var require_form_data = __commonJS({
     FormData3.prototype._getContentDisposition = function(value, options) {
       var filename;
       if (typeof options.filepath === "string") {
-        filename = path9.normalize(options.filepath).replace(/\\/g, "/");
+        filename = path10.normalize(options.filepath).replace(/\\/g, "/");
       } else if (options.filename || value && (value.name || value.path)) {
-        filename = path9.basename(options.filename || value && (value.name || value.path));
+        filename = path10.basename(options.filename || value && (value.name || value.path));
       } else if (value && value.readable && hasOwn(value, "httpVersion")) {
-        filename = path9.basename(value.client._httpMessage.path || "");
+        filename = path10.basename(value.client._httpMessage.path || "");
       }
       if (filename) {
         return 'filename="' + filename + '"';
@@ -99848,10 +99848,10 @@ function isVisitable(thing) {
 function removeBrackets(key) {
   return utils_default.endsWith(key, "[]") ? key.slice(0, -2) : key;
 }
-function renderKey(path9, key, dots) {
-  if (!path9)
+function renderKey(path10, key, dots) {
+  if (!path10)
     return key;
-  return path9.concat(key).map(function each(token, i) {
+  return path10.concat(key).map(function each(token, i) {
     token = removeBrackets(token);
     return !dots && i ? "[" + token + "]" : token;
   }).join(dots ? "." : "");
@@ -99897,9 +99897,9 @@ function toFormData(obj, formData, options) {
     }
     return value;
   }
-  function defaultVisitor(value, key, path9) {
+  function defaultVisitor(value, key, path10) {
     let arr = value;
-    if (value && !path9 && typeof value === "object") {
+    if (value && !path10 && typeof value === "object") {
       if (utils_default.endsWith(key, "{}")) {
         key = metaTokens ? key : key.slice(0, -2);
         value = JSON.stringify(value);
@@ -99918,7 +99918,7 @@ function toFormData(obj, formData, options) {
     if (isVisitable(value)) {
       return true;
     }
-    formData.append(renderKey(path9, key, dots), convertValue(value));
+    formData.append(renderKey(path10, key, dots), convertValue(value));
     return false;
   }
   const stack = [];
@@ -99927,11 +99927,11 @@ function toFormData(obj, formData, options) {
     convertValue,
     isVisitable
   });
-  function build(value, path9) {
+  function build(value, path10) {
     if (utils_default.isUndefined(value))
       return;
     if (stack.indexOf(value) !== -1) {
-      throw Error("Circular reference detected in " + path9.join("."));
+      throw Error("Circular reference detected in " + path10.join("."));
     }
     stack.push(value);
     utils_default.forEach(value, function each(el, key) {
@@ -99939,11 +99939,11 @@ function toFormData(obj, formData, options) {
         formData,
         el,
         utils_default.isString(key) ? key.trim() : key,
-        path9,
+        path10,
         exposedHelpers
       );
       if (result === true) {
-        build(el, path9 ? path9.concat(key) : [key]);
+        build(el, path10 ? path10.concat(key) : [key]);
       }
     });
     stack.pop();
@@ -100217,7 +100217,7 @@ var init_platform2 = __esm({
 // ../../node_modules/axios/lib/helpers/toURLEncodedForm.js
 function toURLEncodedForm(data, options) {
   return toFormData_default(data, new platform_default.classes.URLSearchParams(), {
-    visitor: function(value, key, path9, helpers) {
+    visitor: function(value, key, path10, helpers) {
       if (platform_default.isNode && utils_default.isBuffer(value)) {
         this.append(key, value.toString("base64"));
         return false;
@@ -100255,12 +100255,12 @@ function arrayToObject(arr) {
   return obj;
 }
 function formDataToJSON(formData) {
-  function buildPath(path9, value, target, index) {
-    let name = path9[index++];
+  function buildPath(path10, value, target, index) {
+    let name = path10[index++];
     if (name === "__proto__")
       return true;
     const isNumericKey = Number.isFinite(+name);
-    const isLast = index >= path9.length;
+    const isLast = index >= path10.length;
     name = !name && utils_default.isArray(target) ? target.length : name;
     if (isLast) {
       if (utils_default.hasOwnProp(target, name)) {
@@ -100273,7 +100273,7 @@ function formDataToJSON(formData) {
     if (!target[name] || !utils_default.isObject(target[name])) {
       target[name] = [];
     }
-    const result = buildPath(path9, value, target[name], index);
+    const result = buildPath(path10, value, target[name], index);
     if (result && utils_default.isArray(target[name])) {
       target[name] = arrayToObject(target[name]);
     }
@@ -101509,7 +101509,7 @@ var init_AxiosTransformStream = __esm({
         }
         return super._read(size);
       }
-      _transform(chunk, encoding, callback) {
+      _transform(chunk2, encoding, callback) {
         const internals = this[kInternals];
         const maxRate = internals.maxRate;
         const readableHighWaterMark = this.readableHighWaterMark;
@@ -101565,7 +101565,7 @@ var init_AxiosTransformStream = __esm({
             process.nextTick(_callback, null, chunkRemainder);
           } : _callback);
         };
-        transformChunk(chunk, function transformNextChunk(err, _chunk) {
+        transformChunk(chunk2, function transformNextChunk(err, _chunk) {
           if (err) {
             return callback(err);
           }
@@ -101697,21 +101697,21 @@ var init_ZlibHeaderTransformStream = __esm({
     "use strict";
     import_stream4 = __toESM(require("stream"), 1);
     ZlibHeaderTransformStream = class extends import_stream4.default.Transform {
-      __transform(chunk, encoding, callback) {
-        this.push(chunk);
+      __transform(chunk2, encoding, callback) {
+        this.push(chunk2);
         callback();
       }
-      _transform(chunk, encoding, callback) {
-        if (chunk.length !== 0) {
+      _transform(chunk2, encoding, callback) {
+        if (chunk2.length !== 0) {
           this._transform = this.__transform;
-          if (chunk[0] !== 120) {
+          if (chunk2[0] !== 120) {
             const header = Buffer.alloc(2);
             header[0] = 120;
             header[1] = 156;
             this.push(header, encoding);
           }
         }
-        this.__transform(chunk, encoding, callback);
+        this.__transform(chunk2, encoding, callback);
       }
     };
     ZlibHeaderTransformStream_default = ZlibHeaderTransformStream;
@@ -101964,7 +101964,7 @@ function setProxy(options, configProxy, location) {
     setProxy(redirectOptions, configProxy, redirectOptions.href);
   };
 }
-var import_proxy_from_env, import_http2, import_https, import_util5, import_follow_redirects, import_zlib, import_stream5, import_events, zlibOptions, brotliOptions, isBrotliSupported, httpFollow, httpsFollow, isHttps, supportedProtocols, flushOnFinish, isHttpAdapterSupported, wrapAsync, resolveFamily, buildAddressEntry, http_default;
+var import_proxy_from_env, import_http2, import_https, import_util5, import_follow_redirects, import_zlib2, import_stream5, import_events, zlibOptions, brotliOptions, isBrotliSupported, httpFollow, httpsFollow, isHttps, supportedProtocols, flushOnFinish, isHttpAdapterSupported, wrapAsync, resolveFamily, buildAddressEntry, http_default;
 var init_http = __esm({
   "../../node_modules/axios/lib/adapters/http.js"() {
     "use strict";
@@ -101977,7 +101977,7 @@ var init_http = __esm({
     import_https = __toESM(require("https"), 1);
     import_util5 = __toESM(require("util"), 1);
     import_follow_redirects = __toESM(require_follow_redirects(), 1);
-    import_zlib = __toESM(require("zlib"), 1);
+    import_zlib2 = __toESM(require("zlib"), 1);
     init_data();
     init_transitional();
     init_AxiosError();
@@ -101995,14 +101995,14 @@ var init_http = __esm({
     init_progressEventReducer();
     init_estimateDataURLDecodedBytes();
     zlibOptions = {
-      flush: import_zlib.default.constants.Z_SYNC_FLUSH,
-      finishFlush: import_zlib.default.constants.Z_SYNC_FLUSH
+      flush: import_zlib2.default.constants.Z_SYNC_FLUSH,
+      finishFlush: import_zlib2.default.constants.Z_SYNC_FLUSH
     };
     brotliOptions = {
-      flush: import_zlib.default.constants.BROTLI_OPERATION_FLUSH,
-      finishFlush: import_zlib.default.constants.BROTLI_OPERATION_FLUSH
+      flush: import_zlib2.default.constants.BROTLI_OPERATION_FLUSH,
+      finishFlush: import_zlib2.default.constants.BROTLI_OPERATION_FLUSH
     };
-    isBrotliSupported = utils_default.isFunction(import_zlib.default.createBrotliDecompress);
+    isBrotliSupported = utils_default.isFunction(import_zlib2.default.createBrotliDecompress);
     ({ http: httpFollow, https: httpsFollow } = import_follow_redirects.default);
     isHttps = /https:?/;
     supportedProtocols = platform_default.protocols.map((protocol) => {
@@ -102228,9 +102228,9 @@ var init_http = __esm({
           auth = urlUsername + ":" + urlPassword;
         }
         auth && headers.delete("authorization");
-        let path9;
+        let path10;
         try {
-          path9 = buildURL(
+          path10 = buildURL(
             parsed.pathname + parsed.search,
             config2.params,
             config2.paramsSerializer
@@ -102248,7 +102248,7 @@ var init_http = __esm({
           false
         );
         const options = {
-          path: path9,
+          path: path10,
           method,
           headers: headers.toJSON(),
           agents: { http: config2.httpAgent, https: config2.httpsAgent },
@@ -102319,17 +102319,17 @@ var init_http = __esm({
               case "x-gzip":
               case "compress":
               case "x-compress":
-                streams.push(import_zlib.default.createUnzip(zlibOptions));
+                streams.push(import_zlib2.default.createUnzip(zlibOptions));
                 delete res.headers["content-encoding"];
                 break;
               case "deflate":
                 streams.push(new ZlibHeaderTransformStream_default());
-                streams.push(import_zlib.default.createUnzip(zlibOptions));
+                streams.push(import_zlib2.default.createUnzip(zlibOptions));
                 delete res.headers["content-encoding"];
                 break;
               case "br":
                 if (isBrotliSupported) {
-                  streams.push(import_zlib.default.createBrotliDecompress(brotliOptions));
+                  streams.push(import_zlib2.default.createBrotliDecompress(brotliOptions));
                   delete res.headers["content-encoding"];
                 }
             }
@@ -102352,9 +102352,9 @@ var init_http = __esm({
           } else {
             const responseBuffer = [];
             let totalResponseBytes = 0;
-            responseStream.on("data", function handleStreamData(chunk) {
-              responseBuffer.push(chunk);
-              totalResponseBytes += chunk.length;
+            responseStream.on("data", function handleStreamData(chunk2) {
+              responseBuffer.push(chunk2);
+              totalResponseBytes += chunk2.length;
               if (config2.maxContentLength > -1 && totalResponseBytes > config2.maxContentLength) {
                 rejected = true;
                 responseStream.destroy();
@@ -102493,10 +102493,10 @@ var init_cookies = __esm({
     cookies_default = platform_default.hasStandardBrowserEnv ? (
       // Standard browser envs support document.cookie
       {
-        write(name, value, expires, path9, domain, secure) {
+        write(name, value, expires, path10, domain, secure) {
           const cookie = [name + "=" + encodeURIComponent(value)];
           utils_default.isNumber(expires) && cookie.push("expires=" + new Date(expires).toGMTString());
-          utils_default.isString(path9) && cookie.push("path=" + path9);
+          utils_default.isString(path10) && cookie.push("path=" + path10);
           utils_default.isString(domain) && cookie.push("domain=" + domain);
           secure === true && cookie.push("secure");
           document.cookie = cookie.join("; ");
@@ -102855,23 +102855,23 @@ var init_composeSignals = __esm({
 var streamChunk, readBytes, readStream, trackStream;
 var init_trackStream = __esm({
   "../../node_modules/axios/lib/helpers/trackStream.js"() {
-    streamChunk = function* (chunk, chunkSize) {
-      let len = chunk.byteLength;
+    streamChunk = function* (chunk2, chunkSize) {
+      let len = chunk2.byteLength;
       if (!chunkSize || len < chunkSize) {
-        yield chunk;
+        yield chunk2;
         return;
       }
       let pos = 0;
       let end;
       while (pos < len) {
         end = pos + chunkSize;
-        yield chunk.slice(pos, end);
+        yield chunk2.slice(pos, end);
         pos = end;
       }
     };
     readBytes = async function* (iterable, chunkSize) {
-      for await (const chunk of readStream(iterable)) {
-        yield* streamChunk(chunk, chunkSize);
+      for await (const chunk2 of readStream(iterable)) {
+        yield* streamChunk(chunk2, chunkSize);
       }
     };
     readStream = async function* (stream4) {
@@ -103910,8 +103910,8 @@ var init_comfyui_models = __esm({
 // dist/utils/comfyui-paths.js
 function isValidComfyUIPath(dirPath) {
   try {
-    const mainPyPath = path6.join(dirPath, "main.py");
-    return fs6.existsSync(mainPyPath) && fs6.statSync(mainPyPath).isFile();
+    const mainPyPath = path7.join(dirPath, "main.py");
+    return fs7.existsSync(mainPyPath) && fs7.statSync(mainPyPath).isFile();
   } catch (error) {
     return false;
   }
@@ -103954,13 +103954,13 @@ function getDefaultPythonCommand(installPath) {
     return "python/python.exe";
   } else if (isMac()) {
     if (installPath) {
-      const venvPython = path6.join(installPath, "venv", "bin", "python");
-      if (fs6.existsSync(venvPython)) {
+      const venvPython = path7.join(installPath, "venv", "bin", "python");
+      if (fs7.existsSync(venvPython)) {
         return venvPython;
       }
     }
     const systemPython311 = "/Library/Frameworks/Python.framework/Versions/3.11/bin/python3";
-    if (fs6.existsSync(systemPython311)) {
+    if (fs7.existsSync(systemPython311)) {
       return systemPython311;
     }
     return "python3";
@@ -103968,12 +103968,12 @@ function getDefaultPythonCommand(installPath) {
     return "python3";
   }
 }
-var fs6, path6;
+var fs7, path7;
 var init_comfyui_paths = __esm({
   "dist/utils/comfyui-paths.js"() {
     "use strict";
-    fs6 = __toESM(require("fs"), 1);
-    path6 = __toESM(require("path"), 1);
+    fs7 = __toESM(require("fs"), 1);
+    path7 = __toESM(require("path"), 1);
     init_platform();
   }
 });
@@ -103983,13 +103983,13 @@ var comfyui_client_exports = {};
 __export(comfyui_client_exports, {
   ComfyUIClient: () => ComfyUIClient
 });
-var import_child_process2, fss, path7, SIZE_MAPPING, ComfyUIClient;
+var import_child_process2, fss, path8, SIZE_MAPPING, ComfyUIClient;
 var init_comfyui_client = __esm({
   "dist/comfyui-client.js"() {
     "use strict";
     import_child_process2 = require("child_process");
     fss = __toESM(require("fs"), 1);
-    path7 = __toESM(require("path"), 1);
+    path8 = __toESM(require("path"), 1);
     init_axios2();
     init_wrapper();
     init_comfyui_errors();
@@ -104116,7 +104116,7 @@ var init_comfyui_client = __esm({
         this.progressCallbacks.delete(promptId);
       }
       getDefaultInstallPath() {
-        return path7.join(getAppDataDir(), "foundry-mcp-server", "ComfyUI-headless");
+        return path8.join(getAppDataDir(), "foundry-mcp-server", "ComfyUI-headless");
       }
       async checkInstallation() {
         if (!this.config.installPath) {
@@ -104189,8 +104189,8 @@ var init_comfyui_client = __esm({
           pythonCommand: this.config.pythonCommand,
           port: this.config.port
         });
-        const mainPyPath = path7.join(this.config.installPath, "main.py");
-        const logPath = path7.join(getAppDataDir(), "comfyui.log");
+        const mainPyPath = path8.join(this.config.installPath, "main.py");
+        const logPath = path8.join(getAppDataDir(), "comfyui.log");
         this.logStream = fss.createWriteStream(logPath, { flags: "a" });
         const spawnOptions = getHiddenProcessSpawnOptions();
         this.process = (0, import_child_process2.spawn)(this.config.pythonCommand, [
@@ -104616,9 +104616,9 @@ var init_comfyui_client = __esm({
 });
 
 // dist/backend.js
-var fs7 = __toESM(require("fs"), 1);
-var os3 = __toESM(require("os"), 1);
-var path8 = __toESM(require("path"), 1);
+var fs8 = __toESM(require("fs"), 1);
+var os4 = __toESM(require("os"), 1);
+var path9 = __toESM(require("path"), 1);
 var net = __toESM(require("net"), 1);
 var import_child_process3 = require("child_process");
 
@@ -105042,7 +105042,7 @@ var WebRTCPeer = class {
    * Validates chunks, stores them, and reassembles when all pieces arrive
    */
   async handleChunkedMessage(chunkMessage) {
-    const { chunkId, chunkIndex, totalChunks, chunk, originalType, originalId } = chunkMessage;
+    const { chunkId, chunkIndex, totalChunks, chunk: chunk2, originalType, originalId } = chunkMessage;
     if (!chunkId || typeof chunkIndex !== "number" || typeof totalChunks !== "number") {
       this.logger.error("Invalid chunk message structure - missing required fields", {
         chunkMessage
@@ -105057,7 +105057,7 @@ var WebRTCPeer = class {
       });
       return;
     }
-    if (!chunk || typeof chunk !== "string") {
+    if (!chunk2 || typeof chunk2 !== "string") {
       this.logger.error("Invalid chunk data - not a string", { chunkId, chunkIndex });
       return;
     }
@@ -105073,7 +105073,7 @@ var WebRTCPeer = class {
     this.logger.debug(`Received chunk ${chunkIndex + 1}/${totalChunks}`, {
       chunkId,
       originalType,
-      chunkSize: chunk.length
+      chunkSize: chunk2.length
     });
     if (!this.pendingChunks.has(chunkId)) {
       this.pendingChunks.set(chunkId, {
@@ -105095,7 +105095,7 @@ var WebRTCPeer = class {
       this.pendingChunks.delete(chunkId);
       return;
     }
-    pending.chunks.set(chunkIndex, chunk);
+    pending.chunks.set(chunkIndex, chunk2);
     this.logger.debug(`Collected ${pending.chunks.size}/${totalChunks} chunks`, { chunkId });
     if (pending.chunks.size === totalChunks) {
       this.logger.info("All chunks received - reassembling message", {
@@ -105419,8 +105419,8 @@ var FoundryConnector = class {
     try {
       const body = await new Promise((resolve, reject) => {
         const chunks = [];
-        req.on("data", (chunk) => {
-          chunks.push(chunk);
+        req.on("data", (chunk2) => {
+          chunks.push(chunk2);
         });
         req.on("end", () => {
           resolve(Buffer.concat(chunks).toString());
@@ -105695,11 +105695,11 @@ var SystemPaths = {
     legendaryActions: null
   }
 };
-function extractSystemValue(data, path9) {
-  if (!path9 || !data) {
+function extractSystemValue(data, path10) {
+  if (!path10 || !data) {
     return void 0;
   }
-  const parts = path9.split(".");
+  const parts = path10.split(".");
   let value = data;
   for (const part of parts) {
     if (value === void 0 || value === null) {
@@ -107352,8 +107352,8 @@ var CompendiumTools = class {
       limit: external_exports.union([
         external_exports.number().min(1).max(1e3),
         external_exports.string().refine((val) => {
-          const num2 = parseInt(val, 10);
-          return !isNaN(num2) && num2 >= 1 && num2 <= 1e3;
+          const num3 = parseInt(val, 10);
+          return !isNaN(num3) && num3 >= 1 && num3 <= 1e3;
         }).transform((val) => parseInt(val, 10))
       ]).optional().default(100)
     });
@@ -113046,8 +113046,8 @@ var getByKeys = (source, keys) => {
   }
   return void 0;
 };
-var getNested = (source, path9) => {
-  const parts = path9.split(".");
+var getNested = (source, path10) => {
+  const parts = path10.split(".");
   let current = source;
   for (const part of parts) {
     if (!isRecord(current) || !(part in current))
@@ -115087,8 +115087,8 @@ function normalizeCR(input) {
   if (typeof input === "number")
     return input;
   if (input.includes("/")) {
-    const [num2, den] = input.split("/").map(Number);
-    return num2 / den;
+    const [num3, den] = input.split("/").map(Number);
+    return num3 / den;
   }
   return parseInt(input, 10);
 }
@@ -117248,6 +117248,525 @@ var PlayTools = class {
   }
 };
 
+// dist/tools/layout.js
+var import_fs4 = require("fs");
+var import_os3 = __toESM(require("os"), 1);
+var import_path4 = __toESM(require("path"), 1);
+init_zod();
+
+// dist/tools/layout-utils.js
+var import_zlib = __toESM(require("zlib"), 1);
+var FILLS = {
+  floor: { color: [225, 225, 225], colorName: "light grey", meaning: "floor" },
+  rock: { color: [20, 20, 20], colorName: "near-black", meaning: "solid rock, impassable" },
+  grass: { color: [150, 190, 120], colorName: "light green", meaning: "grass" },
+  road: { color: [190, 160, 110], colorName: "tan", meaning: "dirt road" },
+  water: { color: [90, 140, 210], colorName: "blue", meaning: "water" },
+  building: { color: [120, 70, 50], colorName: "dark brown", meaning: "building roof" },
+  stone: { color: [130, 130, 130], colorName: "mid grey", meaning: "stonework" },
+  sand: { color: [235, 215, 150], colorName: "pale yellow", meaning: "sand" },
+  wood: { color: [170, 120, 30], colorName: "amber", meaning: "wooden planks" },
+  door: { color: [230, 120, 20], colorName: "orange", meaning: "door" }
+};
+var SHAPE_KINDS = ["rect", "ellipse", "polygon", "path", "door"];
+var MAX_SHAPES = 300;
+var MAX_PIXELS = 4096 * 4096;
+var HEX = /^#[0-9a-fA-F]{6}$/;
+function num2(v) {
+  return typeof v === "number" && Number.isFinite(v);
+}
+function nums(v, count, label, what) {
+  if (!Array.isArray(v) || v.length !== count || !v.every(num2)) {
+    throw new Error(`${label}: ${what} must be ${count} numbers`);
+  }
+  return v;
+}
+function points(v, min, label) {
+  if (!Array.isArray(v) || v.length < min || v.length > 500) {
+    throw new Error(`${label}: needs ${min} to 500 points [[x, y], ...]`);
+  }
+  return v.map((p, i) => nums(p, 2, `${label}[${i}]`, "a point [x, y]"));
+}
+function colorFor(shape) {
+  if (shape.color) {
+    const n = parseInt(shape.color.slice(1), 16);
+    return [n >> 16 & 255, n >> 8 & 255, n & 255];
+  }
+  return FILLS[shape.fill ?? "floor"].color;
+}
+function normalizeLayout(spec) {
+  const intIn = (v, min, max, name) => {
+    if (!Number.isInteger(v) || v < min || v > max) {
+      throw new Error(`${name} must be a whole number from ${min} to ${max}`);
+    }
+    return v;
+  };
+  const columns = intIn(spec.columns, 4, 200, "columns");
+  const rows = intIn(spec.rows, 4, 200, "rows");
+  const size = spec.grid_size === void 0 ? 64 : intIn(spec.grid_size, 8, 256, "grid_size");
+  if (columns * size * rows * size > MAX_PIXELS) {
+    throw new Error("The picture would be larger than 4096 x 4096 pixels; lower grid_size or the map size");
+  }
+  const background = spec.background ?? "rock";
+  if (!FILLS[background])
+    throw new Error(`background must be one of ${Object.keys(FILLS).join(", ")}`);
+  const wallFills = spec.wall_fills ?? ["floor"];
+  for (const f of wallFills) {
+    if (!FILLS[f])
+      throw new Error(`wall_fills: unknown fill "${f}"`);
+  }
+  if (!Array.isArray(spec.shapes) || spec.shapes.length === 0 || spec.shapes.length > MAX_SHAPES) {
+    throw new Error(`shapes must be a list of 1 to ${MAX_SHAPES}`);
+  }
+  const shapes = spec.shapes.map((raw, i) => {
+    const label = `shapes[${i}]`;
+    if (!raw || typeof raw !== "object")
+      throw new Error(`${label}: must be an object`);
+    const s = { ...raw };
+    if (!SHAPE_KINDS.includes(s.shape)) {
+      throw new Error(`${label}: shape must be one of ${SHAPE_KINDS.join(", ")}`);
+    }
+    if (s.color !== void 0 && !HEX.test(s.color))
+      throw new Error(`${label}: color must look like #RRGGBB`);
+    if (s.fill !== void 0 && !FILLS[s.fill]) {
+      throw new Error(`${label}: fill must be one of ${Object.keys(FILLS).join(", ")}`);
+    }
+    if (s.shape === "door") {
+      s.fill = "door";
+      s.at = nums(s.at, 2, label, "at [x, y]");
+      if (s.dir !== "h" && s.dir !== "v")
+        throw new Error(`${label}: dir must be "h" or "v"`);
+      if (s.size !== void 0 && (!num2(s.size) || s.size <= 0 || s.size > 20)) {
+        throw new Error(`${label}: size must be a number of squares from 0 to 20`);
+      }
+      return s;
+    }
+    s.fill = s.fill ?? "floor";
+    const given = [s.rect, s.ellipse, s.polygon, s.path].filter((v) => v !== void 0).length;
+    if (given !== 1 || s[s.shape] === void 0) {
+      throw new Error(`${label}: a ${s.shape} needs exactly its own ${s.shape} field`);
+    }
+    if (s.shape === "rect") {
+      const [, , w, h] = nums(s.rect, 4, label, "rect [x, y, width, height]");
+      if (w <= 0 || h <= 0)
+        throw new Error(`${label}: rect width and height must be above 0`);
+    } else if (s.shape === "ellipse") {
+      const [, , rx, ry] = nums(s.ellipse, 4, label, "ellipse [centreX, centreY, radiusX, radiusY]");
+      if (rx <= 0 || ry <= 0)
+        throw new Error(`${label}: ellipse radii must be above 0`);
+    } else if (s.shape === "polygon") {
+      s.polygon = points(s.polygon, 3, `${label} polygon`);
+    } else {
+      s.path = points(s.path, 2, `${label} path`);
+      if (s.width !== void 0 && (!num2(s.width) || s.width <= 0 || s.width > 50)) {
+        throw new Error(`${label}: width must be a number of squares from 0 to 50`);
+      }
+    }
+    return s;
+  });
+  return { columns, rows, size, background, shapes, wallFills };
+}
+function shapePolygons(shape, scale) {
+  const px = (v) => v * scale;
+  if (shape.shape === "rect") {
+    const [x2, y2, w, h] = shape.rect;
+    return [[[px(x2), px(y2)], [px(x2 + w), px(y2)], [px(x2 + w), px(y2 + h)], [px(x2), px(y2 + h)]]];
+  }
+  if (shape.shape === "ellipse") {
+    const [cx, cy, rx, ry] = shape.ellipse;
+    const n = Math.max(48, Math.min(256, Math.ceil(Math.max(rx, ry) * scale)));
+    const poly = [];
+    for (let i = 0; i < n; i++) {
+      const a = i / n * Math.PI * 2;
+      poly.push([px(cx + Math.cos(a) * rx), px(cy + Math.sin(a) * ry)]);
+    }
+    return [poly];
+  }
+  if (shape.shape === "polygon") {
+    return [shape.polygon.map((p) => [px(p[0]), px(p[1])])];
+  }
+  if (shape.shape === "path") {
+    const half = (shape.width ?? 2) * scale / 2;
+    const pts = shape.path.map((p) => [px(p[0]), px(p[1])]);
+    const polys = [];
+    for (let i = 0; i + 1 < pts.length; i++) {
+      const [x1, y1] = pts[i];
+      const [x2, y2] = pts[i + 1];
+      const len2 = Math.hypot(x2 - x1, y2 - y1);
+      if (len2 === 0)
+        continue;
+      const nx = (y2 - y1) / len2 * half;
+      const ny = -(x2 - x1) / len2 * half;
+      polys.push([[x1 + nx, y1 + ny], [x2 + nx, y2 + ny], [x2 - nx, y2 - ny], [x1 - nx, y1 - ny]]);
+    }
+    for (const [x2, y2] of pts.slice(1, -1)) {
+      const n = Math.max(16, Math.min(64, Math.ceil(half)));
+      const c = [];
+      for (let i = 0; i < n; i++) {
+        const a = i / n * Math.PI * 2;
+        c.push([x2 + Math.cos(a) * half, y2 + Math.sin(a) * half]);
+      }
+      polys.push(c);
+    }
+    return polys;
+  }
+  const [x, y] = shape.at;
+  const len = shape.size ?? 1;
+  const t = 0.2;
+  return shape.dir === "h" ? [[[px(x), px(y - t)], [px(x + len), px(y - t)], [px(x + len), px(y + t)], [px(x), px(y + t)]]] : [[[px(x - t), px(y)], [px(x + t), px(y)], [px(x + t), px(y + len)], [px(x - t), px(y + len)]]];
+}
+function scanPolygon(poly, width, height, fill) {
+  let minY = Infinity;
+  let maxY = -Infinity;
+  for (const [, y] of poly) {
+    minY = Math.min(minY, y);
+    maxY = Math.max(maxY, y);
+  }
+  const yStart = Math.max(0, Math.ceil(minY - 0.5));
+  const yEnd = Math.min(height - 1, Math.floor(maxY - 0.5));
+  for (let y = yStart; y <= yEnd; y++) {
+    const cy = y + 0.5;
+    const xs = [];
+    for (let i = 0; i < poly.length; i++) {
+      const [x1, y1] = poly[i];
+      const [x2, y2] = poly[(i + 1) % poly.length];
+      if (y1 <= cy && y2 > cy || y2 <= cy && y1 > cy) {
+        xs.push(x1 + (cy - y1) / (y2 - y1) * (x2 - x1));
+      }
+    }
+    xs.sort((a, b) => a - b);
+    for (let i = 0; i + 1 < xs.length; i += 2) {
+      const x0 = Math.max(0, Math.ceil(xs[i] - 0.5));
+      const x1 = Math.min(width - 1, Math.floor(xs[i + 1] - 0.5));
+      if (x1 >= x0)
+        fill(y, x0, x1);
+    }
+  }
+}
+function renderLayout(layout) {
+  const width = layout.columns * layout.size;
+  const height = layout.rows * layout.size;
+  const rgb = new Uint8Array(width * height * 3);
+  const bg = colorFor({ fill: layout.background });
+  for (let i = 0; i < width * height; i++) {
+    rgb[i * 3] = bg[0];
+    rgb[i * 3 + 1] = bg[1];
+    rgb[i * 3 + 2] = bg[2];
+  }
+  for (const shape of layout.shapes) {
+    const [r, g, b] = colorFor(shape);
+    for (const poly of shapePolygons(shape, layout.size)) {
+      scanPolygon(poly, width, height, (y, x0, x1) => {
+        let o = (y * width + x0) * 3;
+        for (let x = x0; x <= x1; x++) {
+          rgb[o++] = r;
+          rgb[o++] = g;
+          rgb[o++] = b;
+        }
+      });
+    }
+  }
+  return { width, height, rgb };
+}
+var CRC_TABLE = (() => {
+  const table = new Uint32Array(256);
+  for (let n = 0; n < 256; n++) {
+    let c = n;
+    for (let k = 0; k < 8; k++)
+      c = c & 1 ? 3988292384 ^ c >>> 1 : c >>> 1;
+    table[n] = c >>> 0;
+  }
+  return table;
+})();
+function crc32(buf) {
+  let c = 4294967295;
+  for (let i = 0; i < buf.length; i++)
+    c = CRC_TABLE[(c ^ buf[i]) & 255] ^ c >>> 8;
+  return (c ^ 4294967295) >>> 0;
+}
+function chunk(type, data) {
+  const out = Buffer.alloc(12 + data.length);
+  out.writeUInt32BE(data.length, 0);
+  out.write(type, 4, "ascii");
+  data.copy(out, 8);
+  out.writeUInt32BE(crc32(out.subarray(4, 8 + data.length)), 8 + data.length);
+  return out;
+}
+function encodePng(width, height, rgb) {
+  const stride = width * 3;
+  const raw = Buffer.alloc((stride + 1) * height);
+  for (let y = 0; y < height; y++) {
+    raw[y * (stride + 1)] = 0;
+    Buffer.from(rgb.buffer, rgb.byteOffset + y * stride, stride).copy(raw, y * (stride + 1) + 1);
+  }
+  const header = Buffer.alloc(13);
+  header.writeUInt32BE(width, 0);
+  header.writeUInt32BE(height, 4);
+  header[8] = 8;
+  header[9] = 2;
+  return Buffer.concat([
+    Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
+    chunk("IHDR", header),
+    chunk("IDAT", import_zlib.default.deflateSync(raw, { level: 6 })),
+    chunk("IEND", Buffer.alloc(0))
+  ]);
+}
+var CELL = 2;
+function wallsFromLayout(layout) {
+  const w = layout.columns * CELL;
+  const h = layout.rows * CELL;
+  const inside = new Uint8Array(w * h);
+  const isWall = new Set(layout.wallFills);
+  if (isWall.has(layout.background))
+    inside.fill(1);
+  for (const shape of layout.shapes) {
+    if (shape.shape === "door")
+      continue;
+    const value = isWall.has(shape.fill ?? "floor") ? 1 : 0;
+    for (const poly of shapePolygons(shape, CELL)) {
+      scanPolygon(poly, w, h, (y, x0, x1) => inside.fill(value, y * w + x0, y * w + x1 + 1));
+    }
+  }
+  const edges = /* @__PURE__ */ new Set();
+  const at = (x, y) => x < 0 || y < 0 || x >= w || y >= h ? 0 : inside[y * w + x];
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      if (!inside[y * w + x])
+        continue;
+      if (!at(x, y - 1))
+        edges.add(`h,${x},${y}`);
+      if (!at(x, y + 1))
+        edges.add(`h,${x},${y + 1}`);
+      if (!at(x - 1, y))
+        edges.add(`v,${x},${y}`);
+      if (!at(x + 1, y))
+        edges.add(`v,${x + 1},${y}`);
+    }
+  }
+  const doors = [];
+  for (const s of layout.shapes) {
+    if (s.shape !== "door")
+      continue;
+    const [x, y] = s.at;
+    const len = s.size ?? 1;
+    const steps = Math.max(1, Math.round(len * CELL));
+    for (let i = 0; i < steps; i++) {
+      if (s.dir === "h")
+        edges.delete(`h,${Math.round(x * CELL) + i},${Math.round(y * CELL)}`);
+      else
+        edges.delete(`v,${Math.round(x * CELL)},${Math.round(y * CELL) + i}`);
+    }
+    doors.push({
+      kind: "wall",
+      points: s.dir === "h" ? [[x, y], [x + len, y]] : [[x, y], [x, y + len]],
+      preset: s.secret ? "secret_door" : "door",
+      door_state: "closed"
+    });
+  }
+  const runs = [];
+  const used = /* @__PURE__ */ new Set();
+  for (const key of edges) {
+    if (used.has(key))
+      continue;
+    const [kind, xs, ys] = key.split(",");
+    let x = Number(xs);
+    let y = Number(ys);
+    const horizontal = kind === "h";
+    const step = (cx, cy, d) => horizontal ? `h,${cx + d},${cy}` : `v,${cx},${cy + d}`;
+    while (edges.has(step(x, y, -1))) {
+      if (horizontal)
+        x--;
+      else
+        y--;
+    }
+    const sx = x;
+    const sy = y;
+    while (edges.has(horizontal ? `h,${x},${y}` : `v,${x},${y}`)) {
+      used.add(horizontal ? `h,${x},${y}` : `v,${x},${y}`);
+      if (horizontal)
+        x++;
+      else
+        y++;
+    }
+    runs.push([sx / CELL, sy / CELL, x / CELL, y / CELL]);
+  }
+  const unused = new Set(runs.map((_, i) => i));
+  const byPoint = /* @__PURE__ */ new Map();
+  const pk = (x, y) => `${x},${y}`;
+  runs.forEach((r, i) => {
+    for (const k of [pk(r[0], r[1]), pk(r[2], r[3])]) {
+      if (!byPoint.has(k))
+        byPoint.set(k, []);
+      byPoint.get(k).push(i);
+    }
+  });
+  const walls = [];
+  for (let i = 0; i < runs.length; i++) {
+    if (!unused.has(i))
+      continue;
+    unused.delete(i);
+    const r = runs[i];
+    const chain = [[r[0], r[1]], [r[2], r[3]]];
+    let extended = true;
+    while (extended) {
+      extended = false;
+      const end = chain[chain.length - 1];
+      const next = (byPoint.get(pk(end[0], end[1])) ?? []).find((j) => unused.has(j));
+      if (next !== void 0) {
+        unused.delete(next);
+        const n = runs[next];
+        chain.push(n[0] === end[0] && n[1] === end[1] ? [n[2], n[3]] : [n[0], n[1]]);
+        extended = true;
+      }
+    }
+    const first = chain[0];
+    const last = chain[chain.length - 1];
+    if (chain.length > 3 && first[0] === last[0] && first[1] === last[1]) {
+      chain.pop();
+      walls.push({ kind: "wall", points: chain, closed: true });
+    } else {
+      walls.push({ kind: "wall", points: chain });
+    }
+  }
+  return { walls: [...walls, ...doors], segments: edges.size };
+}
+function legendFor(layout) {
+  const used = /* @__PURE__ */ new Set([layout.background]);
+  for (const s of layout.shapes) {
+    if (!s.color && s.fill)
+      used.add(s.fill);
+  }
+  const parts = [...used].map((f) => `${FILLS[f].colorName} = ${FILLS[f].meaning}`);
+  return `In <Picture 1>: ${parts.join("; ")}.`;
+}
+
+// dist/tools/layout.js
+var KEEP_LAYOUTS = 30;
+var fillNames = Object.keys(FILLS);
+var shapeSchema = external_exports.object({
+  shape: external_exports.enum(["rect", "ellipse", "polygon", "path", "door"]),
+  fill: external_exports.string().optional(),
+  color: external_exports.string().optional(),
+  rect: external_exports.array(external_exports.number()).optional(),
+  ellipse: external_exports.array(external_exports.number()).optional(),
+  polygon: external_exports.array(external_exports.array(external_exports.number())).optional(),
+  path: external_exports.array(external_exports.array(external_exports.number())).optional(),
+  width: external_exports.number().optional(),
+  at: external_exports.array(external_exports.number()).optional(),
+  dir: external_exports.enum(["h", "v"]).optional(),
+  size: external_exports.number().optional(),
+  secret: external_exports.boolean().optional(),
+  name: external_exports.string().optional()
+}).strict();
+var layoutSchema = external_exports.object({
+  columns: external_exports.number(),
+  rows: external_exports.number(),
+  grid_size: external_exports.number().optional(),
+  background: external_exports.string().optional(),
+  shapes: external_exports.array(shapeSchema).min(1).max(300),
+  wall_fills: external_exports.array(external_exports.string()).optional(),
+  name: external_exports.string().min(1).max(60).optional(),
+  walls: external_exports.boolean().optional()
+}).strict();
+var LayoutTools = class {
+  logger;
+  constructor({ logger }) {
+    this.logger = logger.child({ component: "LayoutTools" });
+  }
+  getToolDefinitions() {
+    return [
+      {
+        name: "draw-layout",
+        description: 'Draw a flat colour sketch of a map layout (rooms, corridors, roads, rivers, buildings, doors) as a PNG, to use as the guide for map generation: pass the returned file in generate-image reference_images and mention <Picture 1> in the prompt, with the returned legend sentence. Shapes are in GRID SQUARES from the top-left of the map and are painted in order, so later shapes cover earlier ones (paint rooms first, then corridors, then doors; paint rock over floor to carve pillars or walls). The map is columns x rows squares at grid_size pixels per square (default 64, so 32 x 32 squares is the usual 2048 pixel map); use the same grid_size and size for the scene so squares line up. shape types: rect {rect:[x,y,width,height]}, ellipse {ellipse:[centreX,centreY,radiusX,radiusY]}, polygon {polygon:[[x,y],...]} for any freeform outline, path {path:[[x,y],...], width} for a corridor, road or river along a line (default width 2 squares, round joins), door {at:[x,y], dir:"h"|"v", size?, secret?} a bar on a wall line. fill is one of ' + fillNames.join(", ") + " (default floor; door is always orange); color #RRGGBB overrides the colour. background is the fill under everything (default rock; use grass for outdoors). Keep the sketch simple: layout and flat colours only, no text, no furniture. The image model follows it closely for rooms and loosely for freeform outlines. With walls:true it also returns wall objects for manage-scene-objects: chains around everything drawn with the wall_fills (default floor) at half-square steps, and doors as door walls; place them with manage-scene-objects action place after the map is the scene background. Writes the PNG on this computer; Foundry is not needed.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            columns: { type: "number", description: "Map width in squares (4 to 200)" },
+            rows: { type: "number", description: "Map height in squares (4 to 200)" },
+            grid_size: { type: "number", description: "Pixels per square (default 64)" },
+            background: { type: "string", enum: fillNames, description: "Fill under everything (default rock)" },
+            shapes: {
+              type: "array",
+              maxItems: 300,
+              items: {
+                type: "object",
+                properties: {
+                  shape: { type: "string", enum: ["rect", "ellipse", "polygon", "path", "door"] },
+                  fill: { type: "string", enum: fillNames },
+                  color: { type: "string", description: "#RRGGBB instead of the fill colour" },
+                  rect: { type: "array", items: { type: "number" }, description: "[x, y, width, height]" },
+                  ellipse: { type: "array", items: { type: "number" }, description: "[centreX, centreY, radiusX, radiusY]" },
+                  polygon: { type: "array", items: { type: "array", items: { type: "number" } }, description: "[[x, y], ...]" },
+                  path: { type: "array", items: { type: "array", items: { type: "number" } }, description: "[[x, y], ...]" },
+                  width: { type: "number", description: "path: width in squares (default 2)" },
+                  at: { type: "array", items: { type: "number" }, description: "door: [x, y] start on a wall line" },
+                  dir: { type: "string", enum: ["h", "v"], description: "door: h runs along x, v along y" },
+                  size: { type: "number", description: "door: length in squares (default 1)" },
+                  secret: { type: "boolean", description: "door: secret door" },
+                  name: { type: "string", description: "note for yourself (not drawn)" }
+                },
+                required: ["shape"],
+                additionalProperties: false
+              }
+            },
+            wall_fills: {
+              type: "array",
+              items: { type: "string", enum: fillNames },
+              description: "walls:true builds walls around these fills (default floor)"
+            },
+            name: { type: "string", description: "File name (default layout)" },
+            walls: { type: "boolean", description: "Also return wall objects derived from the layout" }
+          },
+          required: ["columns", "rows", "shapes"],
+          additionalProperties: false
+        }
+      }
+    ];
+  }
+  async handleDrawLayout(args) {
+    const parsed = layoutSchema.parse(args ?? {});
+    const layout = normalizeLayout(parsed);
+    const { width, height, rgb } = renderLayout(layout);
+    const png = encodePng(width, height, rgb);
+    const dir = import_path4.default.join(import_os3.default.tmpdir(), "foundry-mcp-layouts");
+    await import_fs4.promises.mkdir(dir, { recursive: true });
+    const base = (parsed.name ?? "layout").replace(/[^A-Za-z0-9_-]+/g, "_").slice(0, 60) || "layout";
+    const file = import_path4.default.join(dir, `${base}-${Date.now()}.png`);
+    await import_fs4.promises.writeFile(file, png);
+    await this.prune(dir);
+    this.logger.info("Layout drawn", { file, width, height, shapes: layout.shapes.length });
+    const result = {
+      success: true,
+      file,
+      width,
+      height,
+      grid: { columns: layout.columns, rows: layout.rows, squarePixels: layout.size },
+      legend: legendFor(layout),
+      hint: "Pass file in generate-image reference_images and say that <Picture 1> is the exact floor plan to follow, then add the legend sentence. Remove numbers or text from the picture in the prompt if you added none. Use the same grid size for the scene."
+    };
+    if (parsed.walls) {
+      const { walls, segments } = wallsFromLayout(layout);
+      result.walls = walls;
+      result.wallCount = walls.length;
+      result.wallSegments = segments;
+    }
+    return result;
+  }
+  async prune(dir) {
+    try {
+      const files = (await import_fs4.promises.readdir(dir)).filter((f) => f.endsWith(".png"));
+      if (files.length <= KEEP_LAYOUTS)
+        return;
+      const stats = await Promise.all(files.map(async (f) => ({ f, t: (await import_fs4.promises.stat(import_path4.default.join(dir, f))).mtimeMs })));
+      stats.sort((a, b) => a.t - b.t);
+      for (const { f } of stats.slice(0, files.length - KEEP_LAYOUTS)) {
+        await import_fs4.promises.rm(import_path4.default.join(dir, f), { force: true });
+      }
+    } catch {
+    }
+  }
+};
+
 // dist/tools/inspect.js
 init_zod();
 var TYPES = [
@@ -117364,11 +117883,11 @@ var InspectTools = class {
 var DISABLED_LEGACY_MAP_TOOLS = ["generate-map", "check-map-status", "cancel-map-job"];
 var CONTROL_HOST = "127.0.0.1";
 var CONTROL_PORT = 31414;
-var LOCK_FILE = path8.join(os3.tmpdir(), "foundry-mcp-backend.lock");
+var LOCK_FILE = path9.join(os4.tmpdir(), "foundry-mcp-backend.lock");
 function getBundledPythonPath() {
-  let installDir = path8.join(os3.homedir(), "AppData", "Local", "FoundryMCPServer");
+  let installDir = path9.join(os4.homedir(), "AppData", "Local", "FoundryMCPServer");
   const currentDir = process.cwd();
-  const execDir = path8.dirname(process.execPath);
+  const execDir = path9.dirname(process.execPath);
   if (currentDir.includes("FoundryMCPServer") || execDir.includes("FoundryMCPServer")) {
     const foundryMcpIndex = currentDir.indexOf("FoundryMCPServer");
     if (foundryMcpIndex !== -1) {
@@ -117380,30 +117899,30 @@ function getBundledPythonPath() {
       }
     }
   }
-  const nestedComfyUIPythonPath = path8.join(installDir, "ComfyUI", "ComfyUI", "python_embeded", "python.exe");
-  if (fs7.existsSync(nestedComfyUIPythonPath)) {
+  const nestedComfyUIPythonPath = path9.join(installDir, "ComfyUI", "ComfyUI", "python_embeded", "python.exe");
+  if (fs8.existsSync(nestedComfyUIPythonPath)) {
     return nestedComfyUIPythonPath;
   }
-  const portablePythonPath = path8.join(installDir, "ComfyUI", "python_embeded", "python.exe");
-  if (fs7.existsSync(portablePythonPath)) {
+  const portablePythonPath = path9.join(installDir, "ComfyUI", "python_embeded", "python.exe");
+  if (fs8.existsSync(portablePythonPath)) {
     return portablePythonPath;
   }
-  const bundledPythonPath = path8.join(installDir, "ComfyUI-env", "Scripts", "python.exe");
-  if (fs7.existsSync(bundledPythonPath)) {
+  const bundledPythonPath = path9.join(installDir, "ComfyUI-env", "Scripts", "python.exe");
+  if (fs8.existsSync(bundledPythonPath)) {
     return bundledPythonPath;
   }
   const fallbackPaths = [
-    path8.join(os3.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI", "ComfyUI", "python_embeded", "python.exe"),
-    path8.join(os3.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI-headless", "ComfyUI", "python_embeded", "python.exe"),
-    path8.join(os3.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI", "python_embeded", "python.exe"),
-    path8.join(os3.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI-headless", "python_embeded", "python.exe"),
-    path8.join(os3.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI-env", "Scripts", "python.exe"),
-    path8.join(process.cwd(), "..", "..", "ComfyUI-env", "Scripts", "python.exe"),
-    path8.join(__dirname, "..", "..", "..", "ComfyUI-env", "Scripts", "python.exe"),
-    path8.join(os3.homedir(), "AppData", "Local", "FoundryMCPServer", "Python", "python.exe")
+    path9.join(os4.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI", "ComfyUI", "python_embeded", "python.exe"),
+    path9.join(os4.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI-headless", "ComfyUI", "python_embeded", "python.exe"),
+    path9.join(os4.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI", "python_embeded", "python.exe"),
+    path9.join(os4.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI-headless", "python_embeded", "python.exe"),
+    path9.join(os4.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI-env", "Scripts", "python.exe"),
+    path9.join(process.cwd(), "..", "..", "ComfyUI-env", "Scripts", "python.exe"),
+    path9.join(__dirname, "..", "..", "..", "ComfyUI-env", "Scripts", "python.exe"),
+    path9.join(os4.homedir(), "AppData", "Local", "FoundryMCPServer", "Python", "python.exe")
   ];
   for (const fallbackPath of fallbackPaths) {
-    if (fs7.existsSync(fallbackPath)) {
+    if (fs8.existsSync(fallbackPath)) {
       return fallbackPath;
     }
   }
@@ -117428,39 +117947,39 @@ var lockFd = null;
 function acquireLock() {
   try {
     try {
-      lockFd = fs7.openSync(LOCK_FILE, "wx");
+      lockFd = fs8.openSync(LOCK_FILE, "wx");
     } catch (err) {
       if (err && err.code === "EEXIST") {
         try {
-          const lockData = fs7.readFileSync(LOCK_FILE, "utf8");
+          const lockData = fs8.readFileSync(LOCK_FILE, "utf8");
           const lockPid = parseInt(lockData.trim(), 10);
           try {
             process.kill(lockPid, 0);
             if (evaluateLockFile(lockPid, LOCK_FILE) === "orphaned") {
               console.error(`Removing orphaned backend lock for PID ${lockPid} (process is not node.exe or lock file is stale)`);
               try {
-                fs7.unlinkSync(LOCK_FILE);
+                fs8.unlinkSync(LOCK_FILE);
               } catch {
               }
-              lockFd = fs7.openSync(LOCK_FILE, "wx");
+              lockFd = fs8.openSync(LOCK_FILE, "wx");
             } else {
               return false;
             }
           } catch {
             console.error(`Removing stale backend lock for PID ${lockPid}`);
             try {
-              fs7.unlinkSync(LOCK_FILE);
+              fs8.unlinkSync(LOCK_FILE);
             } catch {
             }
-            lockFd = fs7.openSync(LOCK_FILE, "wx");
+            lockFd = fs8.openSync(LOCK_FILE, "wx");
           }
         } catch (readErr) {
           console.error("Corrupt backend lock file, removing:", readErr);
           try {
-            fs7.unlinkSync(LOCK_FILE);
+            fs8.unlinkSync(LOCK_FILE);
           } catch {
           }
-          lockFd = fs7.openSync(LOCK_FILE, "wx");
+          lockFd = fs8.openSync(LOCK_FILE, "wx");
         }
       } else {
         console.error("Failed to open backend lock file:", err);
@@ -117469,9 +117988,9 @@ function acquireLock() {
     }
     if (lockFd === null)
       return false;
-    fs7.writeFileSync(lockFd, String(process.pid));
+    fs8.writeFileSync(lockFd, String(process.pid));
     try {
-      fs7.fsyncSync(lockFd);
+      fs8.fsyncSync(lockFd);
     } catch {
     }
     console.error(`Acquired backend lock with PID ${process.pid}`);
@@ -117485,14 +118004,14 @@ function releaseLock() {
   try {
     if (lockFd !== null) {
       try {
-        fs7.closeSync(lockFd);
+        fs8.closeSync(lockFd);
       } catch {
       }
       lockFd = null;
     }
-    if (fs7.existsSync(LOCK_FILE)) {
+    if (fs8.existsSync(LOCK_FILE)) {
       try {
-        fs7.unlinkSync(LOCK_FILE);
+        fs8.unlinkSync(LOCK_FILE);
       } catch {
       }
     }
@@ -117501,20 +118020,20 @@ function releaseLock() {
   }
 }
 async function findComfyUIPath() {
-  const nestedComfyUIPath = path8.join(os3.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI", "ComfyUI");
-  if (fs7.existsSync(path8.join(nestedComfyUIPath, "main.py"))) {
+  const nestedComfyUIPath = path9.join(os4.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI", "ComfyUI");
+  if (fs8.existsSync(path9.join(nestedComfyUIPath, "main.py"))) {
     return nestedComfyUIPath;
   }
-  const nestedHeadlessPath = path8.join(os3.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI-headless", "ComfyUI");
-  if (fs7.existsSync(path8.join(nestedHeadlessPath, "main.py"))) {
+  const nestedHeadlessPath = path9.join(os4.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI-headless", "ComfyUI");
+  if (fs8.existsSync(path9.join(nestedHeadlessPath, "main.py"))) {
     return nestedHeadlessPath;
   }
-  const flatPath = path8.join(os3.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI");
-  if (fs7.existsSync(path8.join(flatPath, "main.py"))) {
+  const flatPath = path9.join(os4.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI");
+  if (fs8.existsSync(path9.join(flatPath, "main.py"))) {
     return flatPath;
   }
-  const legacyFlatPath = path8.join(os3.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI-headless");
-  if (fs7.existsSync(path8.join(legacyFlatPath, "main.py"))) {
+  const legacyFlatPath = path9.join(os4.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI-headless");
+  if (fs8.existsSync(path9.join(legacyFlatPath, "main.py"))) {
     return legacyFlatPath;
   }
   throw new Error("ComfyUI installation not found");
@@ -117554,7 +118073,7 @@ async function startComfyUIService(logger) {
     logger.info("Starting ComfyUI service...");
     const comfyUIPath = await findComfyUIPath();
     logger.info("ComfyUI found", { path: comfyUIPath });
-    logger.info("Starting ComfyUI process", { path: path8.join(comfyUIPath, "main.py") });
+    logger.info("Starting ComfyUI process", { path: path9.join(comfyUIPath, "main.py") });
     const pythonExe = getBundledPythonPath();
     logger.info("Using bundled Python", { pythonPath: pythonExe });
     comfyuiProcess = (0, import_child_process3.spawn)(pythonExe, [
@@ -117955,9 +118474,9 @@ async function processMapGenerationInBackend(jobId, jobQueue, comfyuiClient, log
 `);
     await fs22.appendFile(processDebugLog, `[${(/* @__PURE__ */ new Date()).toISOString()}] About to import fs/path/os for upload...
 `);
-    const fs8 = await import("fs").then((m) => m.promises);
-    const path9 = await import("path");
-    const os4 = await import("os");
+    const fs9 = await import("fs").then((m) => m.promises);
+    const path10 = await import("path");
+    const os5 = await import("os");
     await fs22.appendFile(processDebugLog, `[${(/* @__PURE__ */ new Date()).toISOString()}] Imports complete
 `);
     await fs22.appendFile(processDebugLog, `[${(/* @__PURE__ */ new Date()).toISOString()}] Creating filename and checking connection type...
@@ -117982,8 +118501,8 @@ async function processMapGenerationInBackend(jobId, jobQueue, comfyuiClient, log
     await fs22.appendFile(processDebugLog, `[${(/* @__PURE__ */ new Date()).toISOString()}] Using upload method for all connections
 `);
     const debugLog = async (msg) => {
-      const logPath = path9.join(os4.tmpdir(), "foundry-mcp-upload-debug.log");
-      await fs8.appendFile(logPath, `[${(/* @__PURE__ */ new Date()).toISOString()}] ${msg}
+      const logPath = path10.join(os5.tmpdir(), "foundry-mcp-upload-debug.log");
+      await fs9.appendFile(logPath, `[${(/* @__PURE__ */ new Date()).toISOString()}] ${msg}
 `);
     };
     await debugLog(`=== MAP GENERATION DEBUG START ===`);
@@ -118102,7 +118621,7 @@ async function startBackend() {
     format: config.logFormat,
     enableConsole: false,
     enableFile: true,
-    filePath: path8.join(os3.tmpdir(), "foundry-mcp-server", "mcp-server.log")
+    filePath: path9.join(os4.tmpdir(), "foundry-mcp-server", "mcp-server.log")
   });
   logger.info("Starting Foundry MCP Backend", {
     version: config.server.version,
@@ -118151,6 +118670,7 @@ async function startBackend() {
   const journalTools = new JournalTools({ foundryClient, logger });
   const sceneObjectTools = new SceneObjectTools({ foundryClient, logger });
   const playTools = new PlayTools({ foundryClient, logger });
+  const layoutTools = new LayoutTools({ logger });
   const inspectTools = new InspectTools({ foundryClient, logger });
   const playlistTools = new PlaylistTools({ foundryClient, logger });
   const actorCreationTools = new ActorCreationTools({ foundryClient, logger });
@@ -118204,11 +118724,11 @@ async function startBackend() {
   }
   globalThis.backendComfyUIHandlers = {
     handleMessage: async (message) => {
-      const fs8 = await import("fs").then((m) => m.promises);
-      const path9 = await import("path");
-      const os4 = await import("os");
-      const debugLog = path9.join(os4.tmpdir(), "backend-handler-debug.log");
-      await fs8.appendFile(debugLog, `[${(/* @__PURE__ */ new Date()).toISOString()}] handleMessage called - type: ${message?.type}, requestId: ${message?.requestId}
+      const fs9 = await import("fs").then((m) => m.promises);
+      const path10 = await import("path");
+      const os5 = await import("os");
+      const debugLog = path10.join(os5.tmpdir(), "backend-handler-debug.log");
+      await fs9.appendFile(debugLog, `[${(/* @__PURE__ */ new Date()).toISOString()}] handleMessage called - type: ${message?.type}, requestId: ${message?.requestId}
 `);
       logger.info("Handling ComfyUI message", {
         requestId: message.requestId,
@@ -118216,11 +118736,11 @@ async function startBackend() {
         hasData: !!message.data
       });
       try {
-        const fs9 = await import("fs").then((m) => m.promises);
-        const path10 = await import("path");
-        const os5 = await import("os");
-        const debugLog2 = path10.join(os5.tmpdir(), "backend-handler-debug.log");
-        await fs9.appendFile(debugLog2, `[${(/* @__PURE__ */ new Date()).toISOString()}] About to switch on message.type: "${message.type}"
+        const fs10 = await import("fs").then((m) => m.promises);
+        const path11 = await import("path");
+        const os6 = await import("os");
+        const debugLog2 = path11.join(os6.tmpdir(), "backend-handler-debug.log");
+        await fs10.appendFile(debugLog2, `[${(/* @__PURE__ */ new Date()).toISOString()}] About to switch on message.type: "${message.type}"
 `);
         let result;
         try {
@@ -118249,10 +118769,10 @@ async function startBackend() {
             }
             break;
           case "generate-map-request":
-            await fs9.appendFile(debugLog2, `[${(/* @__PURE__ */ new Date()).toISOString()}] Matched generate-map-request case, calling handler...
+            await fs10.appendFile(debugLog2, `[${(/* @__PURE__ */ new Date()).toISOString()}] Matched generate-map-request case, calling handler...
 `);
             result = await handleGenerateMapRequest(message, mapGenerationJobQueue, mapGenerationComfyUIClient, logger, foundryClient);
-            await fs9.appendFile(debugLog2, `[${(/* @__PURE__ */ new Date()).toISOString()}] Handler returned: ${JSON.stringify(result)}
+            await fs10.appendFile(debugLog2, `[${(/* @__PURE__ */ new Date()).toISOString()}] Handler returned: ${JSON.stringify(result)}
 `);
             break;
           case "check-map-status-request":
@@ -118317,6 +118837,7 @@ async function startBackend() {
     ...journalTools.getToolDefinitions(),
     ...sceneObjectTools.getToolDefinitions(),
     ...playTools.getToolDefinitions(),
+    ...layoutTools.getToolDefinitions(),
     ...inspectTools.getToolDefinitions(),
     ...actorCreationTools.getToolDefinitions(),
     ...actorManagementTools.getToolDefinitions(),
@@ -118356,8 +118877,8 @@ async function startBackend() {
   const server = net.createServer((socket) => {
     socket.setEncoding("utf8");
     let buffer = "";
-    socket.on("data", async (chunk) => {
-      buffer += chunk;
+    socket.on("data", async (chunk2) => {
+      buffer += chunk2;
       let idx;
       while ((idx = buffer.indexOf("\n")) >= 0) {
         const line = buffer.slice(0, idx).trim();
@@ -118544,6 +119065,9 @@ async function startBackend() {
                   break;
                 case "manage-roll-tables":
                   result = await playTools.handleManageRollTables(args);
+                  break;
+                case "draw-layout":
+                  result = await layoutTools.handleDrawLayout(args);
                   break;
                 case "manage-macros":
                   result = await playTools.handleManageMacros(args);
