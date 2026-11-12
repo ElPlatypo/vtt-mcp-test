@@ -1655,6 +1655,333 @@ index 0000000..6c9da45
 +  }
 +  return out;
 +}
+diff --git a/packages/foundry-module/src/combat-actions.test.ts b/packages/foundry-module/src/combat-actions.test.ts
+new file mode 100644
+index 0000000..678475a
+--- /dev/null
++++ b/packages/foundry-module/src/combat-actions.test.ts
+@@ -0,0 +1,118 @@
++/** Attacks, saves and checks through the dnd5e activity and actor roll APIs (stubbed). */
++import { describe, expect, it, vi } from 'vitest';
++import { performAttack, performCheck, pickActivity, resolveKey } from './combat-actions.js';
++
++const roll = (total: number, extra: Record<string, any> = {}) => ({ total, dice: [{ results: [{ result: extra.natural ?? total, active: true }] }], options: {}, ...extra });
++
++function target(name: string, hp: number, ac: number) {
++  const system: any = { attributes: { hp: { value: hp, max: hp }, ac: { value: ac } } };
++  const actor: any = {
++    name,
++    system,
++    applyDamage: vi.fn(async (damages: any[]) => {
++      system.attributes.hp.value = Math.max(0, system.attributes.hp.value - damages.reduce((n, d) => n + d.value, 0));
++    }),
++    rollSavingThrow: vi.fn(async () => [roll(10)]),
++  };
++  return { name, actor, token: { object: { id: name } } };
++}
++
++function attacker(activityType: 'attack' | 'save', parts: Partial<Record<string, any>> = {}) {
++  const activity: any = {
++    type: activityType,
++    use: vi.fn(async () => undefined),
++    rollAttack: vi.fn(async () => [roll(parts.attack ?? 15, { natural: parts.natural ?? 12, isSuccess: parts.success ?? true, options: { target: 13 } })]),
++    rollDamage: vi.fn(async () => [{ total: parts.damage ?? 6, options: { type: 'slashing' } }]),
++    save: { ability: new Set(['dex']), dc: { value: 13 } },
++    damage: { onSave: parts.onSave ?? 'half' },
++  };
++  const item = { id: 'i1', name: 'Scimitar', system: { activities: { values: () => [activity] } } };
++  return { name: 'Goblin 1', actor: { items: { contents: [item] } }, activity };
++}
++
++describe('pickActivity', () => {
++  it('finds an item by name or the first attack', () => {
++    const a = attacker('attack');
++    expect(pickActivity(a.actor, 'scim')?.item.name).toBe('Scimitar');
++    expect(pickActivity(a.actor, undefined)?.activity).toBe(a.activity);
++    expect(pickActivity(a.actor, 'Bow')).toBeNull();
++  });
++});
++
++describe('performAttack', () => {
++  it('uses the item, targets the token, rolls the attack, damage on a hit, and applies it', async () => {
++    const a = attacker('attack', { attack: 17, damage: 5 });
++    const t = target('Mira', 12, 13);
++    const setTarget = vi.fn();
++    const r = await performAttack(a, [t], { setTarget });
++    expect(a.activity.use).toHaveBeenCalled();
++    expect(setTarget).toHaveBeenNthCalledWith(1, t);
++    expect(setTarget).toHaveBeenLastCalledWith(null);
++    expect(r.results[0]).toMatchObject({ target: 'Mira', roll: 17, natural: 12, ac: 13, hit: true, damage: 5, hp: '12 -> 7' });
++    expect(t.actor.applyDamage.mock.calls[0][0][0]).toMatchObject({ value: 5, type: 'slashing' });
++  });
++  it('does not roll damage on a miss, and passes the crit on', async () => {
++    const miss = attacker('attack', { success: false, attack: 8 });
++    const t = target('Mira', 12, 13);
++    const r = await performAttack(miss, [t], {});
++    expect(r.results[0]).toMatchObject({ hit: false });
++    expect(miss.activity.rollDamage).not.toHaveBeenCalled();
++    const crit = attacker('attack');
++    crit.activity.rollAttack = vi.fn(async () => [roll(25, { natural: 20, isCritical: true, isSuccess: true, options: { target: 13 } })]);
++    await performAttack(crit, [target('Mira', 12, 13)], {});
++    expect(crit.activity.rollDamage).toHaveBeenCalledWith({ isCritical: true }, { configure: false }, { create: true });
++  });
++  it('can skip consuming and applying', async () => {
++    const a = attacker('attack');
++    const t = target('Mira', 12, 13);
++    const r = await performAttack(a, [t], { consume: false, apply: false });
++    expect(a.activity.use).not.toHaveBeenCalled();
++    expect(t.actor.applyDamage).not.toHaveBeenCalled();
++    expect(r.results[0].hp).toBeUndefined();
++  });
++  it('rolls an attack with advantage and no target', async () => {
++    const a = attacker('attack');
++    const r = await performAttack(a, [], { advantage: true });
++    expect(a.activity.rollAttack).toHaveBeenCalledWith({ advantage: true }, { configure: false }, { create: true });
++    expect(r.results[0].roll).toBe(15);
++  });
++  it('rolls a save once for damage and each target saves, taking half on a success', async () => {
++    const a = attacker('save', { damage: 10 });
++    const saver = target('Mira', 20, 12);
++    saver.actor.rollSavingThrow = vi.fn(async () => [roll(15)]);
++    const failer = target('Bo', 20, 12);
++    const r = await performAttack(a, [saver, failer], {});
++    expect(a.activity.rollDamage).toHaveBeenCalledTimes(1);
++    expect(r).toMatchObject({ kind: 'save', dc: 13, ability: 'dex' });
++    expect(r.results[0]).toMatchObject({ target: 'Mira', saved: true, hp: '20 -> 15' });
++    expect(r.results[1]).toMatchObject({ target: 'Bo', saved: false, hp: '20 -> 10' });
++    expect(saver.actor.rollSavingThrow).toHaveBeenCalledWith({ ability: 'dex', target: 13 }, { configure: false }, { create: true });
++  });
++  it('says when there is nothing to use', async () => {
++    await expect(performAttack({ name: 'Bob', actor: { items: { contents: [] } } }, [], {})).rejects.toThrow('no attack or save');
++  });
++});
++
++describe('performCheck', () => {
++  const tables = { skills: { prc: { label: 'Perception' }, ath: { label: 'Athletics' } }, abilities: { dex: { label: 'Dexterity' }, wis: { label: 'Wisdom' } } };
++  const who = (fn: any) => [{ name: 'Mira', actor: fn }];
++  it('resolves names to keys', () => {
++    expect(resolveKey(tables.skills, 'Perception')).toBe('prc');
++    expect(resolveKey(tables.skills, 'prc')).toBe('prc');
++    expect(resolveKey(tables.abilities, 'dexterity')).toBe('dex');
++    expect(resolveKey(tables.abilities, 'luck')).toBeUndefined();
++  });
++  it('rolls a skill against a dc', async () => {
++    const actor = { rollSkill: vi.fn(async () => [roll(14, { natural: 11 })]) };
++    const r = await performCheck(who(actor), { skill: 'perception', dc: 12, advantage: true }, tables);
++    expect(actor.rollSkill).toHaveBeenCalledWith({ advantage: true, target: 12, skill: 'prc' }, { configure: false }, { create: true });
++    expect(r).toMatchObject({ roll: 'prc check', dc: 12, results: [{ name: 'Mira', total: 14, natural: 11, success: true }] });
++  });
++  it('rolls saves and ability checks, and wants exactly one kind', async () => {
++    const actor = { rollSavingThrow: vi.fn(async () => [roll(7)]), rollAbilityCheck: vi.fn(async () => [roll(9)]) };
++    expect((await performCheck(who(actor), { save: 'wis', dc: 10 }, tables)).results[0]).toMatchObject({ total: 7, success: false });
++    expect((await performCheck(who(actor), { ability: 'dex' }, tables)).results[0].total).toBe(9);
++    await expect(performCheck(who(actor), { skill: 'prc', ability: 'dex' }, tables)).rejects.toThrow('exactly one');
++    await expect(performCheck(who(actor), { skill: 'juggling' }, tables)).rejects.toThrow('Unknown skill');
++  });
++});
+diff --git a/packages/foundry-module/src/combat-actions.ts b/packages/foundry-module/src/combat-actions.ts
+new file mode 100644
+index 0000000..07d7e08
+--- /dev/null
++++ b/packages/foundry-module/src/combat-actions.ts
+@@ -0,0 +1,197 @@
++/**
++ * Monster and character actions in combat: roll an attack (and damage, and apply it), roll a
++ * saving-throw ability against targets, or roll a check. Works through the dnd5e activity and actor
++ * roll APIs, so the chat cards, advantage rules and modifiers are the system's own.
++ */
++
++export interface ActionOptions {
++  item?: string;
++  advantage?: boolean;
++  disadvantage?: boolean;
++  /** apply the damage to the targets (default true) */
++  apply?: boolean;
++  /** use up the item's charges, ammunition or spell slot, as using it normally does (default true) */
++  consume?: boolean;
++  /**
++   * Target one token (or none) for the user, the way the system reads targets when it rolls an
++   * attack: it then rolls against that token's AC and shows hit or miss on the card.
++   */
++  setTarget?: (target: NamedActor | null) => void;
++}
++
++export interface NamedActor {
++  name: string;
++  actor: any;
++  token?: any;
++}
++
++const NO_DIALOG = { configure: false };
++const WITH_MESSAGE = { create: true };
++
++const total = (rolls: any): number => (Array.isArray(rolls) ? rolls : rolls ? [rolls] : []).reduce((n: number, r: any) => n + (Number(r?.total) || 0), 0);
++const hpOf = (actor: any): number => Number(actor?.system?.attributes?.hp?.value ?? 0);
++
++/** The activity a request means: an item by name (or the first with an attack/save), then its attack or save activity. */
++export function pickActivity(actor: any, itemName: string | undefined, wanted: Array<'attack' | 'save'> = ['attack', 'save']): { item: any; activity: any } | null {
++  const items = (actor?.items?.contents ?? [...(actor?.items ?? [])]) as any[];
++  const activitiesOf = (item: any): any[] => [...(item?.system?.activities?.values?.() ?? [])];
++  const wantedIn = (item: any) => activitiesOf(item).find(a => wanted.includes(a.type));
++  if (itemName) {
++    const key = itemName.trim().toLowerCase();
++    const item = items.find(i => i.id === itemName) ?? items.find(i => String(i.name).toLowerCase() === key) ?? items.find(i => String(i.name).toLowerCase().includes(key));
++    const activity = item ? wantedIn(item) : undefined;
++    return item && activity ? { item, activity } : null;
++  }
++  for (const item of items) {
++    const activity = wantedIn(item);
++    if (activity) return { item, activity };
++  }
++  return null;
++}
++
++function applyTo(actor: any, rolls: any[], factor: number): Promise<any> {
++  const damages = rolls
++    .map(r => ({ value: Math.floor((Number(r.total) || 0) * factor), type: r.options?.type, properties: new Set<string>(r.options?.properties ?? []) }))
++    .filter(d => d.value > 0);
++  if (damages.length === 0) return Promise.resolve();
++  if (typeof actor.applyDamage === 'function') return actor.applyDamage(damages);
++  const next = Math.max(0, hpOf(actor) - damages.reduce((n, d) => n + d.value, 0));
++  return actor.update({ 'system.attributes.hp.value': next });
++}
++
++const damageTypes = (rolls: any[]): string[] => [...new Set(rolls.map(r => r.options?.type).filter(Boolean))] as string[];
++
++/** Roll the attack (or save) of an item against each target, roll damage, apply it, and report. */
++export async function performAttack(attacker: NamedActor, targets: NamedActor[], options: ActionOptions): Promise<Record<string, any>> {
++  const found = pickActivity(attacker.actor, options.item);
++  if (!found) throw new Error(`${attacker.name} has no ${options.item ? `attack or save called "${options.item}"` : 'attack or save'} to use`);
++  const { item, activity } = found;
++  const apply = options.apply !== false;
++  const out: Record<string, any> = { attacker: attacker.name, item: item.name, kind: activity.type, results: [] as any[] };
++  const config: Record<string, any> = {};
++  if (options.advantage) config.advantage = true;
++  if (options.disadvantage) config.disadvantage = true;
++
++  if (activity.type === 'save') {
++    const abilities = activity.save?.ability;
++    const ability = abilities instanceof Set ? [...abilities][0] : Array.isArray(abilities) ? abilities[0] : abilities;
++    const dc = Number(activity.save?.dc?.value ?? 0);
++    const onSave = activity.damage?.onSave ?? 'half';
++    const damage = typeof activity.rollDamage === 'function' ? await activity.rollDamage({}, NO_DIALOG, WITH_MESSAGE) : [];
++    out.dc = dc;
++    out.ability = ability;
++    out.damage = { total: total(damage), types: damageTypes(damage) };
++    if (targets.length === 0) return out;
++    for (const t of targets) {
++      const rolls = await t.actor.rollSavingThrow({ ability, target: dc }, NO_DIALOG, WITH_MESSAGE);
++      const saved = total(rolls?.[0] ? [rolls[0]] : []) >= dc;
++      const factor = saved ? (onSave === 'half' ? 0.5 : onSave === 'none' ? 0 : 1) : 1;
++      const before = hpOf(t.actor);
++      if (apply && damage.length) await applyTo(t.actor, damage, factor);
++      const after = hpOf(t.actor);
++      out.results.push({ target: t.name, save: total(rolls?.[0] ? [rolls[0]] : []), saved, ...(apply ? { hp: `${before} -> ${after}`, ...(after <= 0 ? { down: true } : {}) } : {}) });
++    }
++    return out;
++  }
++
++  // an attack: one roll per target
++  const list: NamedActor[] = targets.length ? targets : [{ name: '', actor: null }];
++  // using the item first spends what it costs (charges, ammunition, a spell slot) and posts its card
++  if (options.consume !== false && typeof activity.use === 'function') {
++    await activity.use({}, NO_DIALOG, WITH_MESSAGE);
++  }
++  try {
++    for (const t of list) {
++      options.setTarget?.(t.actor ? t : null);
++      const rolls = await activity.rollAttack(config, NO_DIALOG, WITH_MESSAGE);
++      const roll = rolls?.[0];
++      if (!roll) throw new Error('The attack was cancelled or could not be rolled');
++      const natural = roll.dice?.[0]?.results?.find((r: any) => r.active !== false)?.result ?? roll.terms?.[0]?.total;
++      const crit = !!roll.isCritical;
++      const fumble = !!roll.isFumble;
++      const row: Record<string, any> = { ...(t.name ? { target: t.name } : {}), roll: Number(roll.total), ...(natural !== undefined ? { natural } : {}), ...(crit ? { crit: true } : {}), ...(fumble ? { fumble: true } : {}) };
++      if (t.actor) {
++        const ac = Number(t.actor.system?.attributes?.ac?.value ?? 10);
++        // the roll knows its target's AC (the system set it from the targeted token); fall back to comparing
++        const hit = typeof roll.isSuccess === 'boolean' && roll.options?.target !== undefined ? roll.isSuccess : crit || (!fumble && Number(roll.total) >= ac);
++        row.ac = ac;
++        row.hit = hit;
++        await finishAttackRow(row, hit, crit, t, activity, apply);
++      }
++      out.results.push(row);
++    }
++  } finally {
++    options.setTarget?.(null);
++  }
++  return out;
++}
++
++/** On a hit: roll damage (the system doubles the dice on a crit), apply it through the system's own rules, note hp. */
++async function finishAttackRow(row: Record<string, any>, hit: boolean, crit: boolean, t: NamedActor, activity: any, apply: boolean): Promise<void> {
++  if (!hit || typeof activity.rollDamage !== 'function') return;
++  const damage = await activity.rollDamage({ isCritical: crit }, NO_DIALOG, WITH_MESSAGE);
++  row.damage = total(damage);
++  const types = damageTypes(damage);
++  if (types.length) row.damageTypes = types;
++  if (apply) {
++    const before = hpOf(t.actor);
++    await applyTo(t.actor, damage, 1);
++    const after = hpOf(t.actor);
++    row.hp = `${before} -> ${after}`;
++    if (after <= 0) row.down = true;
++  }
++}
++
++export interface CheckRequest {
++  skill?: string;
++  ability?: string;
++  save?: string;
++  dc?: number;
++  advantage?: boolean;
++  disadvantage?: boolean;
++}
++
++/** The key a name means: "perception" or "prc" for skills, "dex" or "dexterity" for abilities. */
++export function resolveKey(table: Record<string, any>, name: string): string | undefined {
++  const key = name.trim().toLowerCase();
++  if (table[key]) return key;
++  return Object.entries(table).find(([, v]) => String(typeof v === 'string' ? v : v?.label ?? '').toLowerCase() === key)?.[0];
++}
++
++/** Roll a skill, ability check or saving throw for several actors, with an optional DC. */
++export async function performCheck(who: NamedActor[], request: CheckRequest, tables: { skills: Record<string, any>; abilities: Record<string, any> }): Promise<Record<string, any>> {
++  const kinds = [request.skill, request.ability, request.save].filter(Boolean).length;
++  if (kinds !== 1) throw new Error('Give exactly one of skill, ability or save');
++  const config: Record<string, any> = {};
++  if (request.advantage) config.advantage = true;
++  if (request.disadvantage) config.disadvantage = true;
++  if (request.dc !== undefined) config.target = request.dc;
++  let label: string;
++  let run: (actor: any) => Promise<any>;
++  if (request.skill) {
++    const skill = resolveKey(tables.skills, request.skill);
++    if (!skill) throw new Error(`Unknown skill "${request.skill}"`);
++    label = `${skill} check`;
++    run = actor => actor.rollSkill({ ...config, skill }, NO_DIALOG, WITH_MESSAGE);
++  } else {
++    const raw = (request.ability ?? request.save) as string;
++    const ability = resolveKey(tables.abilities, raw);
++    if (!ability) throw new Error(`Unknown ability "${raw}"`);
++    if (request.save) {
++      label = `${ability} save`;
++      run = actor => actor.rollSavingThrow({ ...config, ability }, NO_DIALOG, WITH_MESSAGE);
++    } else {
++      label = `${ability} check`;
++      run = actor => actor.rollAbilityCheck({ ...config, ability }, NO_DIALOG, WITH_MESSAGE);
++    }
++  }
++  const results: Array<Record<string, any>> = [];
++  for (const w of who) {
++    const rolls = await run(w.actor);
++    const roll = Array.isArray(rolls) ? rolls[0] : rolls;
++    const natural = roll?.dice?.[0]?.results?.find((r: any) => r.active !== false)?.result;
++    const value = Number(roll?.total);
++    results.push({ name: w.name, total: value, ...(natural !== undefined ? { natural } : {}), ...(request.dc !== undefined ? { success: value >= request.dc } : {}) });
++  }
++  return { roll: label, ...(request.dc !== undefined ? { dc: request.dc } : {}), results };
++}
 diff --git a/packages/foundry-module/src/combat-utils.ts b/packages/foundry-module/src/combat-utils.ts
 new file mode 100644
 index 0000000..c643700
@@ -4835,6 +5162,129 @@ index 0000000..346798e
 +    expect(updated).toHaveLength(0);
 +  });
 +});
+diff --git a/packages/foundry-module/src/data-access.party.test.ts b/packages/foundry-module/src/data-access.party.test.ts
+new file mode 100644
+index 0000000..adcc990
+--- /dev/null
++++ b/packages/foundry-module/src/data-access.party.test.ts
+@@ -0,0 +1,117 @@
++/** party: status, rests, xp, level-up. Foundry and dnd5e are stubbed. */
++import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
++import { FoundryDataAccess } from './data-access.js';
++import { partyRow, pickActors, pickClass, splitXp } from './party-utils.js';
++
++describe('party utils', () => {
++  const actors: any[] = [
++    { id: 'a1', name: 'Mira', type: 'character', hasPlayerOwner: true },
++    { id: 'a2', name: 'Bo', type: 'character', hasPlayerOwner: false },
++    { id: 'a3', name: 'Goblin', type: 'npc' },
++  ];
++  const owned = (a: any) => !!a.hasPlayerOwner;
++  it('picks the party, all characters, or names', () => {
++    expect(pickActors(actors, undefined, owned).picked.map(p => p.name)).toEqual(['Mira']);
++    expect(pickActors(actors, ['all_characters'], owned).picked.map(p => p.name)).toEqual(['Mira', 'Bo']);
++    expect(pickActors(actors, ['bo', 'gob', 'Dragon'], owned)).toMatchObject({ notFound: ['Dragon'] });
++  });
++  it('writes a row with xp, hit dice and the level-up flag', () => {
++    const row = partyRow({ name: 'Mira', system: { details: { level: 3, xp: { value: 950, max: 900 } }, attributes: { hp: { value: 10, max: 20 }, hd: { value: 2, max: 3 } } } });
++    expect(row).toEqual({ name: 'Mira', level: 3, xp: '950/900', readyToLevelUp: true, hp: '10/20', hitDice: '2/3' });
++  });
++  it('splits xp without losing any and picks a class', () => {
++    expect(splitXp(100, 3)).toEqual([34, 33, 33]);
++    expect(splitXp(5, 0)).toEqual([]);
++    const fighter = { name: 'Fighter' };
++    const wizard = { name: 'Wizard' };
++    expect(pickClass({ itemTypes: { class: [fighter] } })).toBe(fighter);
++    expect(pickClass({ itemTypes: { class: [fighter, wizard] } })).toBeNull();
++    expect(pickClass({ itemTypes: { class: [fighter, wizard] } }, 'wiz')).toBe(wizard);
++  });
++});
++
++function setup() {
++  const mk = (id: string, name: string, xp: number, max: number) => {
++    const system: any = { details: { level: 3, xp: { value: xp, max } }, attributes: { hp: { value: 5, max: 20 }, hd: { value: 1, max: 3 } } };
++    const actor: any = {
++      id,
++      name,
++      type: 'character',
++      hasPlayerOwner: true,
++      system,
++      itemTypes: { class: [{ id: 'cl1', name: 'Fighter' }] },
++      update: vi.fn(async (patch: any) => {
++        system.details.xp.value = patch['system.details.xp.value'];
++      }),
++      longRest: vi.fn(async () => {
++        system.attributes.hp.value = 20;
++        system.attributes.hd.value = 2;
++      }),
++      shortRest: vi.fn(async () => {
++        system.attributes.hp.value = 12;
++      }),
++    };
++    return actor;
++  };
++  const mira = mk('a1', 'Mira', 800, 900);
++  const bo = mk('a2', 'Bo', 100, 900);
++  const render = vi.fn(async () => undefined);
++  const forLevelChange = vi.fn(async () => ({ render }));
++  vi.stubGlobal('Hooks', { on: vi.fn(), callAll: vi.fn() });
++  vi.stubGlobal('dnd5e', { applications: { advancement: { AdvancementManager: { forLevelChange } } } });
++  vi.stubGlobal('game', {
++    ready: true,
++    world: { id: 'w', getFlag: vi.fn(() => []), setFlag: vi.fn() },
++    user: { id: 'gm', name: 'GM', isGM: true },
++    actors: { contents: [mira, bo] },
++    settings: { get: (_m: string, key: string) => (key === 'allowWriteOperations' ? true : undefined) },
++  });
++  return { da: new FoundryDataAccess(), mira, bo, forLevelChange, render };
++}
++
++describe('controlParty', () => {
++  beforeEach(() => vi.unstubAllGlobals());
++  afterEach(() => vi.unstubAllGlobals());
++
++  it('reports the party', async () => {
++    const { da } = setup();
++    const r = await da.controlParty({ action: 'status' });
++    expect(r.party.map((p: any) => p.name)).toEqual(['Mira', 'Bo']);
++    expect(r.party[0]).toMatchObject({ level: 3, xp: '800/900', hp: '5/20', hitDice: '1/3' });
++  });
++  it('long and short rests go through the system with no dialog', async () => {
++    const { da, mira, bo } = setup();
++    const long = await da.controlParty({ action: 'rest', type: 'long' });
++    expect(mira.longRest).toHaveBeenCalledWith({ dialog: false, advanceTime: false, newDay: true });
++    expect(long.party[0]).toMatchObject({ name: 'Mira', hp: '20/20', hpBefore: 5 });
++    await da.controlParty({ action: 'rest', type: 'short', who: ['Bo'], spend_hit_dice: false });
++    expect(bo.shortRest).toHaveBeenCalledWith({ dialog: false, advanceTime: false, autoHD: false });
++    expect(mira.shortRest).not.toHaveBeenCalled();
++    await expect(da.controlParty({ action: 'rest' })).rejects.toThrow('short or long');
++  });
++  it('gives xp to each or split, and flags a level-up', async () => {
++    const { da, mira, bo } = setup();
++    const each = await da.controlParty({ action: 'xp', amount: 150 });
++    expect(mira.update).toHaveBeenCalledWith({ 'system.details.xp.value': 950 });
++    expect(each.party[0]).toMatchObject({ gained: 150, readyToLevelUp: true });
++    const split = await da.controlParty({ action: 'xp', amount: 101, split: true });
++    expect(mira.update).toHaveBeenLastCalledWith({ 'system.details.xp.value': 1001 });
++    expect(bo.update).toHaveBeenLastCalledWith({ 'system.details.xp.value': 300 });
++    expect(split.party.map((p: any) => p.gained)).toEqual([51, 50]);
++    await expect(da.controlParty({ action: 'xp', amount: 0 })).rejects.toThrow('above 0');
++  });
++  it('opens the level-up window for a character', async () => {
++    const { da, forLevelChange, render } = setup();
++    const r = await da.controlParty({ action: 'level_up', actor: 'Mira' });
++    expect(forLevelChange).toHaveBeenCalledWith(expect.objectContaining({ name: 'Mira' }), 'cl1', 1);
++    expect(render).toHaveBeenCalledWith({ force: true });
++    expect(r).toMatchObject({ opened: true, class: 'Fighter' });
++  });
++  it('says so when nobody matches and rejects unknown actions', async () => {
++    const { da } = setup();
++    const r = await da.controlParty({ action: 'status', who: ['Nobody'] });
++    expect(r.party).toEqual([]);
++    expect(r.notFound).toEqual(['Nobody']);
++    await expect(da.controlParty({ action: 'dance' })).rejects.toThrow('action must be one of');
++  });
++});
 diff --git a/packages/foundry-module/src/data-access.play.test.ts b/packages/foundry-module/src/data-access.play.test.ts
 new file mode 100644
 index 0000000..fd1d7d0
@@ -6658,10 +7108,10 @@ index 0000000..26e6aab
 +  });
 +});
 diff --git a/packages/foundry-module/src/data-access.ts b/packages/foundry-module/src/data-access.ts
-index eecda7e..26ded74 100644
+index eecda7e..8162671 100644
 --- a/packages/foundry-module/src/data-access.ts
 +++ b/packages/foundry-module/src/data-access.ts
-@@ -1,6 +1,135 @@
+@@ -1,6 +1,137 @@
  import { MODULE_ID, ERROR_MESSAGES, TOKEN_DISPOSITIONS } from './constants.js';
  import { permissionManager } from './permissions.js';
 +import {
@@ -6794,10 +7244,12 @@ index eecda7e..26ded74 100644
 +} from './upload-utils.js';
  import { transactionManager } from './transaction-manager.js';
 +import { compactCombat, matchCombatants, pickTokens, type TokenLike } from './combat-utils.js';
++import { performAttack, performCheck, type NamedActor } from './combat-actions.js';
++import { partyRow, pickActors, pickClass, splitXp } from './party-utils.js';
  
  // The same five characters foundry.utils.escapeHTML replaces in v14, kept local because
  // that helper isn't confirmed in v13, this module's minimum.
-@@ -1714,6 +1843,18 @@ const DND5E_SIZE: Record<string, string> = {
+@@ -1714,6 +1845,40 @@ const DND5E_SIZE: Record<string, string> = {
    gargantuan: 'gargantuan',
  };
  
@@ -6811,12 +7263,34 @@ index eecda7e..26ded74 100644
 +  initiative?: Array<{ name: string; value: number }>;
 +  amounts?: Array<{ target: string; amount: number }>;
 +  defeated?: boolean;
++  attacker?: string;
++  item?: string;
++  targets?: string[];
++  advantage?: boolean;
++  disadvantage?: boolean;
++  apply?: boolean;
++  skill?: string;
++  ability?: string;
++  save?: string;
++  dc?: number;
++}
++
++export interface PartyRequest {
++  action: string;
++  who?: string[];
++  type?: 'short' | 'long';
++  spend_hit_dice?: boolean;
++  new_day?: boolean;
++  amount?: number;
++  split?: boolean;
++  actor?: string;
++  class?: string;
 +}
 +
  export class FoundryDataAccess {
    private moduleId: string = MODULE_ID;
    private persistentIndex: PersistentCreatureIndex = new PersistentCreatureIndex();
-@@ -4681,12 +4822,28 @@ export class FoundryDataAccess {
+@@ -4681,12 +4846,28 @@ export class FoundryDataAccess {
        type: 'random' | 'grid' | 'center' | 'coordinates';
        coordinates?: { x: number; y: number }[];
      };
@@ -6845,7 +7319,7 @@ index eecda7e..26ded74 100644
        // Validate inputs
        if (!packId || !itemId) {
          throw new Error('Both packId and itemId are required');
-@@ -4753,10 +4910,33 @@ export class FoundryDataAccess {
+@@ -4753,10 +4934,33 @@ export class FoundryDataAccess {
            }
  
            // Organize created actors in a folder - use "Foundry MCP Creatures" for generic monsters
@@ -6880,7 +7354,7 @@ index eecda7e..26ded74 100644
  
            // Create the actor
            const newActor = await Actor.create(actorData);
-@@ -6714,7 +6894,7 @@ export class FoundryDataAccess {
+@@ -6714,7 +6918,7 @@ export class FoundryDataAccess {
  
          // Send socket request to GM
          if (game.socket) {
@@ -6889,7 +7363,7 @@ index eecda7e..26ded74 100644
              type: 'requestMessageUpdate',
              buttonId,
              userId,
-@@ -8101,244 +8281,4268 @@ export class FoundryDataAccess {
+@@ -8101,198 +8305,4344 @@ export class FoundryDataAccess {
      }
    }
  
@@ -6904,24 +7378,6 @@ index eecda7e..26ded74 100644
 -  async managePlaylists(options: {
 -    action: 'create' | 'update' | 'delete' | 'describe';
 -    playlist?: string | null;
--    name?: string;
--    mode?: number;
--    fade?: number;
--    description?: string;
--    sorting?: 'a' | 'm';
--    folder?: string | null;
--    color?: string | null;
--    sounds?: Array<{
--      name?: string;
--      path?: string;
--      id?: string;
--      volume?: number;
--      repeat?: boolean;
--      fade?: number;
--    }>;
--    updates?: Record<string, any>;
--  }): Promise<any> {
--    this.validateFoundryState();
 +  private summarizeScene(scene: any): Record<string, any> {
 +    const level = scene.levels?.contents?.[0];
 +    return {
@@ -6957,9 +7413,7 @@ index eecda7e..26ded74 100644
 +        : null,
 +    };
 +  }
- 
--    try {
--      const playlists = () => (game as any).playlists?.contents || [];
++
 +  /**
 +   * Turn manage-scenes options into a Scene update payload, validating ranges.
 +   * The background image is handled separately (it lives on a Level in v14).
@@ -6987,89 +7441,21 @@ index eecda7e..26ded74 100644
 +      }
 +      return value;
 +    };
- 
--      if (options.action === 'describe') {
--        const doc = options.playlist
--          ? this.findMusicDoc((game as any).playlists, options.playlist, 'playlist')
--          : null;
--        if (!doc) {
--          return {
--            success: true,
--            playlists: playlists().map((pl: any) => ({
--              id: pl.id,
--              name: pl.name,
--              mode: pl.mode,
--              playing: pl.playing,
--              soundCount: pl.sounds?.size || 0,
--            })),
--          };
--        }
--        return {
--          success: true,
--          playlist: {
--            id: doc.id,
--            name: doc.name,
--            mode: doc.mode,
--            playing: doc.playing,
--            description: doc.description || '',
--            folder: doc.folder || null,
--            sort: doc.sort,
--            sounds: (doc.sounds?.contents || []).map((s: any) => ({
--              id: s.id,
--              name: s.name,
--              path: s.path,
--              volume: s.volume,
--              repeat: s.repeat,
--              fade: s.fade,
--              playing: s.playing,
--            })),
--          },
--        };
++
 +    if (options.name !== undefined) {
 +      if (typeof options.name !== 'string' || !options.name.trim()) {
 +        throw new Error('name must be a non-empty string');
-       }
++      }
 +      data.name = options.name.trim();
 +    }
- 
--      if (options.action === 'create') {
--        if (!options.name || typeof options.name !== 'string') {
--          throw new Error('name is required for create');
--        }
--        const data: Record<string, any> = { name: options.name };
--        if (options.mode !== undefined) data.mode = options.mode;
--        if (options.fade !== undefined) data.fade = options.fade;
--        if (options.description !== undefined) data.description = options.description;
--        if (options.sorting !== undefined) data.sorting = options.sorting;
--        if (options.folder !== undefined) data.folder = options.folder;
--        if (options.color !== undefined) data.color = options.color;
--        const pl = await ((game as any).playlists as any).createDocuments([data]);
--        const doc = Array.isArray(pl) ? pl[0] : pl;
++
 +    const width = number('width', 'width', 100, 20000, true);
 +    if (width !== undefined) data.width = width;
 +    const height = number('height', 'height', 100, 20000, true);
 +    if (height !== undefined) data.height = height;
 +    const padding = number('padding', 'padding', 0, 0.5, false);
 +    if (padding !== undefined) data.padding = padding;
- 
--        let soundsCreated = 0;
--        for (const s of options.sounds || []) {
--          if (!s.path) {
--            throw new Error(`sound entry needs a "path": ${JSON.stringify(s)}`);
--          }
--          const sdata: Record<string, any> = { path: s.path };
--          if (s.name !== undefined) sdata.name = s.name;
--          if (s.volume !== undefined) sdata.volume = s.volume;
--          if (s.repeat !== undefined) sdata.repeat = s.repeat;
--          if (s.fade !== undefined) sdata.fade = s.fade;
--          await (doc as any).createEmbeddedDocuments('PlaylistSound', [sdata]);
--          soundsCreated++;
--        }
--        return {
--          success: true,
--          playlist: { id: doc.id, name: doc.name, mode: doc.mode },
--          soundsCreated,
--        };
++
 +    const grid: Record<string, any> = {};
 +    // 50 is Foundry's CONST.GRID_MIN_SIZE
 +    const gridSize = number('grid_size', 'grid_size', 50, 1000, true);
@@ -7085,62 +7471,13 @@ index eecda7e..26ded74 100644
 +    if (options.grid_color !== undefined) {
 +      if (typeof options.grid_color !== 'string' || !/^#[0-9a-fA-F]{6}$/.test(options.grid_color)) {
 +        throw new Error('grid_color must be a #RRGGBB hex string');
-       }
++      }
 +      grid.color = options.grid_color;
 +    }
 +    const gridAlpha = number('grid_alpha', 'grid_alpha', 0, 1, false);
 +    if (gridAlpha !== undefined) grid.alpha = gridAlpha;
 +    if (Object.keys(grid).length > 0) data.grid = grid;
- 
--      if (options.action === 'update') {
--        const doc = this.findMusicDoc((game as any).playlists, options.playlist, 'playlist');
--        if (!doc) throw new Error('update requires a playlist identifier');
--        const patch = { ...(options.updates || {}) } as Record<string, any>;
--        for (const key of [
--          'name',
--          'mode',
--          'fade',
--          'description',
--          'sorting',
--          'folder',
--          'color',
--        ] as const) {
--          if ((options as any)[key] !== undefined) patch[key] = (options as any)[key];
--        }
--        if (Object.keys(patch).length) await doc.update(patch);
--        // Sound-level ops in the same call
--        let soundsTouched = 0;
--        for (const s of options.sounds || []) {
--          if (!s.path && !s.name && !s.id) continue;
--          const list = doc.sounds?.contents || [];
--          let snd: any = null;
--          if (s.id) snd = list.find((x: any) => x.id === s.id);
--          else {
--            const byPath = s.path ? list.filter((x: any) => x.path === s.path) : [];
--            const byName = s.name ? list.filter((x: any) => x.name === s.name) : [];
--            snd = byPath.length === 1 ? byPath[0] : byName.length === 1 ? byName[0] : null;
--          }
--          if (!snd) {
--            throw new Error(
--              `sound not found in playlist "${doc.name}" (need exact id or unique path/name)`
--            );
--          }
--          const spatch: Record<string, any> = {};
--          if (s.name !== undefined) spatch.name = s.name;
--          if (s.path !== undefined) spatch.path = s.path;
--          if (s.volume !== undefined) spatch.volume = s.volume;
--          if (s.repeat !== undefined) spatch.repeat = s.repeat;
--          if (s.fade !== undefined) spatch.fade = s.fade;
--          if (Object.keys(spatch).length) {
--            await snd.update(spatch);
--            soundsTouched++;
--          }
--        }
--        return {
--          success: true,
--          playlist: { id: doc.id, name: doc.name },
--          soundsUpdated: soundsTouched,
--        };
++
 +    const shiftX = number('grid_shift_x', 'grid_shift_x', -5000, 5000, true);
 +    if (shiftX !== undefined) data.shiftX = shiftX;
 +    const shiftY = number('grid_shift_y', 'grid_shift_y', -5000, 5000, true);
@@ -7152,32 +7489,18 @@ index eecda7e..26ded74 100644
 +    if (options.weather !== undefined) {
 +      if (options.weather !== null && (typeof options.weather !== 'string' || options.weather.length > 64)) {
 +        throw new Error('weather must be a weather effect id (such as rain, snow, fog) or null for none');
-       }
++      }
 +      data.weather = options.weather ?? '';
 +    }
- 
--      if (options.action === 'delete') {
--        // Delete never guesses: exact id or name only.
--        const doc = this.findMusicDoc((game as any).playlists, options.playlist, 'playlist', {
--          exact: true,
--        });
--        if (!doc) throw new Error('delete requires a playlist identifier');
--        const name = doc.name;
--        await doc.delete();
--        return { success: true, deleted: name };
++
 +    if (options.background_color !== undefined) {
 +      const color = options.background_color;
 +      if (color !== null && (typeof color !== 'string' || !/^#[0-9a-fA-F]{6}$/.test(color))) {
 +        throw new Error('background_color must be a #RRGGBB hex string or null');
-       }
++      }
 +      data.backgroundColor = color;
 +    }
- 
--      throw new Error(`Unknown action: ${options.action}`);
--    } catch (error) {
--      throw new Error(
--        `Failed to manage playlists: ${error instanceof Error ? error.message : 'Unknown error'}`
--      );
++
 +    if (options.token_vision !== undefined) {
 +      if (typeof options.token_vision !== 'boolean')
 +        throw new Error('token_vision must be boolean');
@@ -7197,61 +7520,20 @@ index eecda7e..26ded74 100644
 +    if (options.navigation !== undefined) {
 +      if (typeof options.navigation !== 'boolean') throw new Error('navigation must be boolean');
 +      data.navigation = options.navigation;
-     }
++    }
 +    if (options.nav_name !== undefined) {
 +      if (typeof options.nav_name !== 'string') throw new Error('nav_name must be a string');
 +      data.navName = options.nav_name;
 +    }
 +
 +    return data;
-   }
- 
-   /**
--   * Playback control. Supports playlist-level play/stop/cycle-mode and
--   * per-sound play/stop, all through the client Playlist API so the server
--   * and every connected client stay in sync.
++  }
++
++  /**
 +   * Set or clear a scene's background image. Foundry v14 removed Scene#background:
 +   * the image lives on the scene's first Level (mirrors socket-bridge's scene creation).
 +   * v13 and earlier use the flat background.src field on the Scene.
-    */
--  async controlPlaylist(options: {
--    playlist: string;
--    command: 'play' | 'stop' | 'cycle-mode' | 'play-sound' | 'stop-sound';
--    sound?: string;
--  }): Promise<any> {
--    this.validateFoundryState();
--
--    try {
--      const pl = this.findMusicDoc((game as any).playlists, options.playlist, 'playlist');
--      if (!pl) throw new Error('playlist identifier is required');
--      const info = { id: pl.id, name: pl.name, mode: pl.mode };
--
--      switch (options.command) {
--        case 'play':
--          await pl.playAll();
--          return { success: true, action: 'play', playlist: info };
--        case 'stop':
--          await pl.stopAll();
--          return { success: true, action: 'stop', playlist: info };
--        case 'cycle-mode':
--          await pl.cycleMode();
--          return { success: true, action: 'cycle-mode', playlist: info, mode: pl.mode as number };
--        case 'play-sound':
--        case 'stop-sound': {
--          if (!options.sound) throw new Error(`command ${options.command} requires "sound"`);
--          const snd = this.findMusicDoc(pl.sounds, options.sound, 'playlistSound');
--          if (!snd) throw new Error(`sound not found: "${options.sound}"`);
--          if (options.command === 'play-sound') await pl.playSound(snd);
--          else await pl.stopSound(snd);
--          return {
--            success: true,
--            action: options.command,
--            playlist: info,
--            sound: { id: snd.id, name: snd.name, path: snd.path },
--          };
--        }
--        default:
--          throw new Error(`Unknown command: ${options.command}`);
++   */
 +  private async applySceneBackground(scene: any, src: string | null): Promise<void> {
 +    const generation = (game as any).release?.generation ?? 0;
 +    if (generation >= 14) {
@@ -7260,17 +7542,12 @@ index eecda7e..26ded74 100644
 +        await level.update({ background: { src } });
 +      } else if (src) {
 +        await scene.createEmbeddedDocuments('Level', [{ name: 'Base', background: { src } }]);
-       }
--    } catch (error) {
--      throw new Error(
--        `Failed to control playlist: ${error instanceof Error ? error.message : 'Unknown error'}`
--      );
++      }
 +    } else {
 +      await scene.update({ background: { src } });
-     }
-   }
- 
--  // ===== PHASE 7: CHARACTER ENTITY AND TOKEN MANIPULATION METHODS =====
++    }
++  }
++
 +  /**
 +   * Set the canvas colour behind the background. Foundry v14 has no Scene#backgroundColor
 +   * field in the document source: the colour lives on the first Level's background
@@ -7285,15 +7562,11 @@ index eecda7e..26ded74 100644
 +      await scene.createEmbeddedDocuments('Level', [{ name: 'Base', background: { color } }]);
 +    }
 +  }
- 
-   /**
--   * Get detailed information about a specific entity within a character (item, action, or effect)
++
++  /**
 +   * Compare what was requested with what the scene reports afterwards, so a write that
 +   * Foundry silently dropped is reported instead of claimed as a success.
-    */
--  async getCharacterEntity(data: {
--    characterIdentifier: string;
--    entityIdentifier: string;
++   */
 +  private findUnappliedSceneChanges(
 +    options: Record<string, any>,
 +    summary: Record<string, any>
@@ -7358,7 +7631,22 @@ index eecda7e..26ded74 100644
 +  async manageScenes(options: {
 +    action: 'create' | 'update' | 'describe';
 +    scene_identifier?: string;
-+    name?: string;
+     name?: string;
+-    mode?: number;
+-    fade?: number;
+-    description?: string;
+-    sorting?: 'a' | 'm';
+-    folder?: string | null;
+-    color?: string | null;
+-    sounds?: Array<{
+-      name?: string;
+-      path?: string;
+-      id?: string;
+-      volume?: number;
+-      repeat?: boolean;
+-      fade?: number;
+-    }>;
+-    updates?: Record<string, any>;
 +    background?: string | null;
 +    width?: number;
 +    height?: number;
@@ -7385,16 +7673,55 @@ index eecda7e..26ded74 100644
      this.validateFoundryState();
  
      try {
--      const serializeDocument = (document: any): Record<string, any> => {
-+      if (options.action === 'describe') {
+-      const playlists = () => (game as any).playlists?.contents || [];
+-
+       if (options.action === 'describe') {
+-        const doc = options.playlist
+-          ? this.findMusicDoc((game as any).playlists, options.playlist, 'playlist')
+-          : null;
+-        if (!doc) {
+-          return {
+-            success: true,
+-            playlists: playlists().map((pl: any) => ({
+-              id: pl.id,
+-              name: pl.name,
+-              mode: pl.mode,
+-              playing: pl.playing,
+-              soundCount: pl.sounds?.size || 0,
+-            })),
+-          };
 +        if (options.scene_identifier) {
 +          const scene = this.findSceneByIdentifier(options.scene_identifier);
 +          return { success: true, scene: this.summarizeScene(scene) };
-+        }
+         }
+-        return {
+-          success: true,
+-          playlist: {
+-            id: doc.id,
+-            name: doc.name,
+-            mode: doc.mode,
+-            playing: doc.playing,
+-            description: doc.description || '',
+-            folder: doc.folder || null,
+-            sort: doc.sort,
+-            sounds: (doc.sounds?.contents || []).map((s: any) => ({
+-              id: s.id,
+-              name: s.name,
+-              path: s.path,
+-              volume: s.volume,
+-              repeat: s.repeat,
+-              fade: s.fade,
+-              playing: s.playing,
+-            })),
+-          },
+-        };
 +        const scenes = (game.scenes?.contents || []) as any[];
 +        return { success: true, scenes: scenes.map(scene => this.summarizeScene(scene)) };
-+      }
-+
+       }
+ 
+-      if (options.action === 'create') {
+-        if (!options.name || typeof options.name !== 'string') {
+-          throw new Error('name is required for create');
 +      if (options.action !== 'create' && options.action !== 'update') {
 +        throw new Error(`Unknown action: ${String(options.action)} (create | update | describe)`);
 +      }
@@ -7407,18 +7734,58 @@ index eecda7e..26ded74 100644
 +      if (options.background !== undefined && options.background !== null) {
 +        if (typeof options.background !== 'string' || !options.background.trim()) {
 +          throw new Error('background must be a file path string or null to clear it');
-+        }
+         }
+-        const data: Record<string, any> = { name: options.name };
+-        if (options.mode !== undefined) data.mode = options.mode;
+-        if (options.fade !== undefined) data.fade = options.fade;
+-        if (options.description !== undefined) data.description = options.description;
+-        if (options.sorting !== undefined) data.sorting = options.sorting;
+-        if (options.folder !== undefined) data.folder = options.folder;
+-        if (options.color !== undefined) data.color = options.color;
+-        const pl = await ((game as any).playlists as any).createDocuments([data]);
+-        const doc = Array.isArray(pl) ? pl[0] : pl;
 +      }
-+
+ 
+-        let soundsCreated = 0;
+-        for (const s of options.sounds || []) {
+-          if (!s.path) {
+-            throw new Error(`sound entry needs a "path": ${JSON.stringify(s)}`);
+-          }
+-          const sdata: Record<string, any> = { path: s.path };
+-          if (s.name !== undefined) sdata.name = s.name;
+-          if (s.volume !== undefined) sdata.volume = s.volume;
+-          if (s.repeat !== undefined) sdata.repeat = s.repeat;
+-          if (s.fade !== undefined) sdata.fade = s.fade;
+-          await (doc as any).createEmbeddedDocuments('PlaylistSound', [sdata]);
+-          soundsCreated++;
 +      const data = this.buildSceneData(options);
 +      const view = options.initial_view;
 +      if (view !== undefined) {
 +        const bad = (v: unknown) => typeof v !== 'number' || !Number.isFinite(v);
 +        if (!view || bad(view.x) || bad(view.y) || (view.scale !== undefined && (bad(view.scale) || view.scale < 0.25 || view.scale > 3))) {
 +          throw new Error('initial_view must be {x, y, scale?} with x and y in grid squares and scale 0.25 to 3');
-+        }
-+      }
-+
+         }
+-        return {
+-          success: true,
+-          playlist: { id: doc.id, name: doc.name, mode: doc.mode },
+-          soundsCreated,
+-        };
+       }
+ 
+-      if (options.action === 'update') {
+-        const doc = this.findMusicDoc((game as any).playlists, options.playlist, 'playlist');
+-        if (!doc) throw new Error('update requires a playlist identifier');
+-        const patch = { ...(options.updates || {}) } as Record<string, any>;
+-        for (const key of [
+-          'name',
+-          'mode',
+-          'fade',
+-          'description',
+-          'sorting',
+-          'folder',
+-          'color',
+-        ] as const) {
+-          if ((options as any)[key] !== undefined) patch[key] = (options as any)[key];
 +      // On v14 the canvas colour is a Level property, not a Scene field: split it out
 +      // so it is not sent to Scene.create / scene.update (where it is silently dropped).
 +      let levelColor: string | undefined;
@@ -7431,7 +7798,35 @@ index eecda7e..26ded74 100644
 +      if (options.action === 'create') {
 +        if (!data.name) {
 +          throw new Error('name is required for create');
-+        }
+         }
+-        if (Object.keys(patch).length) await doc.update(patch);
+-        // Sound-level ops in the same call
+-        let soundsTouched = 0;
+-        for (const s of options.sounds || []) {
+-          if (!s.path && !s.name && !s.id) continue;
+-          const list = doc.sounds?.contents || [];
+-          let snd: any = null;
+-          if (s.id) snd = list.find((x: any) => x.id === s.id);
+-          else {
+-            const byPath = s.path ? list.filter((x: any) => x.path === s.path) : [];
+-            const byName = s.name ? list.filter((x: any) => x.name === s.name) : [];
+-            snd = byPath.length === 1 ? byPath[0] : byName.length === 1 ? byName[0] : null;
+-          }
+-          if (!snd) {
+-            throw new Error(
+-              `sound not found in playlist "${doc.name}" (need exact id or unique path/name)`
+-            );
+-          }
+-          const spatch: Record<string, any> = {};
+-          if (s.name !== undefined) spatch.name = s.name;
+-          if (s.path !== undefined) spatch.path = s.path;
+-          if (s.volume !== undefined) spatch.volume = s.volume;
+-          if (s.repeat !== undefined) spatch.repeat = s.repeat;
+-          if (s.fade !== undefined) spatch.fade = s.fade;
+-          if (Object.keys(spatch).length) {
+-            await snd.update(spatch);
+-            soundsTouched++;
+-          }
 +        scene = await (globalThis as any).Scene.create(data);
 +        if (!scene) {
 +          throw new Error('Foundry did not return the created scene');
@@ -7452,9 +7847,18 @@ index eecda7e..26ded74 100644
 +        }
 +        if (Object.keys(data).length > 0) {
 +          await scene.update(data);
-+        }
-+      }
-+
+         }
+-        return {
+-          success: true,
+-          playlist: { id: doc.id, name: doc.name },
+-          soundsUpdated: soundsTouched,
+-        };
+       }
+ 
+-      if (options.action === 'delete') {
+-        // Delete never guesses: exact id or name only.
+-        const doc = this.findMusicDoc((game as any).playlists, options.playlist, 'playlist', {
+-          exact: true,
 +      if (options.background !== undefined) {
 +        await this.applySceneBackground(scene, options.background);
 +      }
@@ -7467,12 +7871,17 @@ index eecda7e..26ded74 100644
 +        const centre = squaresToPixels(geom, view.x, view.y);
 +        await scene.update({
 +          initial: { x: centre.x, y: centre.y, ...(view.scale !== undefined ? { scale: view.scale } : {}) },
-+        });
+         });
+-        if (!doc) throw new Error('delete requires a playlist identifier');
+-        const name = doc.name;
+-        await doc.delete();
+-        return { success: true, deleted: name };
 +      }
 +      if (options.activate === true) {
 +        await scene.activate();
-+      }
-+
+       }
+ 
+-      throw new Error(`Unknown action: ${options.action}`);
 +      this.auditLog(`manageScenes:${options.action}`, options, 'success');
 +
 +      const summary = this.summarizeScene(scene);
@@ -7483,19 +7892,29 @@ index eecda7e..26ded74 100644
 +        scene: summary,
 +        ...(warnings.length > 0 ? { warnings } : {}),
 +      };
-+    } catch (error) {
+     } catch (error) {
 +      this.auditLog(
 +        `manageScenes:${options?.action}`,
 +        options,
 +        'failure',
 +        error instanceof Error ? error.message : 'Unknown error'
 +      );
-+      throw new Error(
+       throw new Error(
+-        `Failed to manage playlists: ${error instanceof Error ? error.message : 'Unknown error'}`
 +        `Failed to ${options?.action ?? 'manage'} scene: ${error instanceof Error ? error.message : 'Unknown error'}`
-+      );
-+    }
-+  }
-+
+       );
+     }
+   }
+ 
+-  /**
+-   * Playback control. Supports playlist-level play/stop/cycle-mode and
+-   * per-sound play/stop, all through the client Playlist API so the server
+-   * and every connected client stay in sync.
+-   */
+-  async controlPlaylist(options: {
+-    playlist: string;
+-    command: 'play' | 'stop' | 'cycle-mode' | 'play-sound' | 'stop-sound';
+-    sound?: string;
 +  // ===== WORLD HOUSEKEEPING (FOLDERS, MOVE, RENAME, DELETE) =====
 +
 +  private worldCollection(type: string): any {
@@ -8303,7 +8722,7 @@ index eecda7e..26ded74 100644
 +  async controlCombat(data: CombatRequest): Promise<any> {
 +    this.validateFoundryState();
 +    const action = data?.action;
-+    const ACTIONS = ['status', 'start', 'add', 'remove', 'roll', 'set_initiative', 'next', 'previous', 'next_round', 'damage', 'heal', 'defeat', 'end'];
++    const ACTIONS = ['status', 'start', 'add', 'remove', 'roll', 'set_initiative', 'next', 'previous', 'next_round', 'damage', 'heal', 'defeat', 'end', 'attack', 'check'];
 +    if (!ACTIONS.includes(action as string)) throw new Error(`action must be one of: ${ACTIONS.join(', ')}`);
 +    if (action !== 'status') {
 +      const gate = permissionManager.checkWritePermission('modifyScene', {});
@@ -8339,6 +8758,32 @@ index eecda7e..26ded74 100644
 +        // one roll per combatant: rolling several ids in one call lets identical monsters share a result
 +        for (const id of ids) await combat.rollInitiative([id]);
 +        return ids.length;
++      };
++
++      /** Actors for names: combatants first, then tokens on the scene, then world actors. */
++      const resolveNamed = (names: string[]): NamedActor[] => {
++        const result: NamedActor[] = [];
++        let sceneTokens: any[] | undefined;
++        for (const name of names) {
++          const inCombat = combat ? matchCombatants(members(), name) : [];
++          if (inCombat.length > 0) {
++            for (const c of inCombat) if (c.doc.actor) result.push({ name: c.name ?? '?', actor: c.doc.actor, token: c.doc.token });
++            continue;
++          }
++          sceneTokens ??= ((this.resolveSceneForObjects(data.scene).tokens?.contents || []) as any[]);
++          const infos: TokenLike[] = sceneTokens.map(t => ({ id: t.id, name: t.name, actorName: t.actor?.name }));
++          const { picked } = pickTokens(infos, [name]);
++          for (const p of picked) {
++            const tokenDoc = sceneTokens.find(t => t.id === p.id);
++            if (tokenDoc?.actor) result.push({ name: p.name ?? '?', actor: tokenDoc.actor, token: tokenDoc });
++          }
++          if (picked.length === 0) {
++            const key = name.trim().toLowerCase();
++            const actor = ((g.actors?.contents || []) as any[]).find(a => String(a.name).toLowerCase() === key);
++            if (actor) result.push({ name: actor.name, actor });
++          }
++        }
++        return result;
 +      };
 +
 +      switch (action) {
@@ -8468,6 +8913,53 @@ index eecda7e..26ded74 100644
 +          break;
 +        }
 +
++        case 'attack': {
++          if (!data.attacker) throw new Error('attack needs attacker (a token or actor name)');
++          const [attacker] = resolveNamed([data.attacker]);
++          if (!attacker) throw new Error(`Attacker not found: ${data.attacker}`);
++          const targets = resolveNamed(data.targets ?? []);
++          const missingTargets = (data.targets ?? []).filter(n => !resolveNamed([n]).length);
++          const setTarget = (t: NamedActor | null) => {
++            try {
++              const user = g.user;
++              for (const tok of [...(user.targets ?? [])]) tok.setTarget?.(false, { user, releaseOthers: false, groupSelection: true });
++              t?.token?.object?.setTarget?.(true, { user, releaseOthers: true, groupSelection: true });
++            } catch {
++              // targeting is only a help for the system to know the AC
++            }
++          };
++          const result = await performAttack(attacker, targets, {
++            setTarget,
++            ...(data.item ? { item: data.item } : {}),
++            ...(data.advantage ? { advantage: true } : {}),
++            ...(data.disadvantage ? { disadvantage: true } : {}),
++            ...(data.apply === false ? { apply: false } : {}),
++          });
++          Object.assign(out, result);
++          if (missingTargets.length) out.notFound = missingTargets;
++          break;
++        }
++
++        case 'check': {
++          const named = resolveNamed(data.who ?? []);
++          if (named.length === 0) throw new Error('check needs who: token or actor names');
++          const cfg = (globalThis as any).CONFIG?.DND5E ?? {};
++          const result = await performCheck(
++            named,
++            {
++              ...(data.skill ? { skill: data.skill } : {}),
++              ...(data.ability ? { ability: data.ability } : {}),
++              ...(data.save ? { save: data.save } : {}),
++              ...(data.dc !== undefined ? { dc: data.dc } : {}),
++              ...(data.advantage ? { advantage: true } : {}),
++              ...(data.disadvantage ? { disadvantage: true } : {}),
++            },
++            { skills: cfg.skills ?? {}, abilities: cfg.abilities ?? {} }
++          );
++          Object.assign(out, result);
++          break;
++        }
++
 +        case 'defeat': {
 +          needCombat();
 +          const missing: string[] = [];
@@ -8492,6 +8984,83 @@ index eecda7e..26ded74 100644
 +      return { ...out, combat: compactCombat(combat) };
 +    } catch (error) {
 +      throw new Error(`Failed to run the combat: ${error instanceof Error ? error.message : 'Unknown error'}`);
++    }
++  }
++
++  // ===== PARTY: RESTS, XP, LEVEL-UPS =====
++
++  /** Look after the party: status, short and long rests, XP awards, and opening the level-up for a character. */
++  async controlParty(data: PartyRequest): Promise<any> {
++    this.validateFoundryState();
++    const action = data?.action;
++    const ACTIONS = ['status', 'rest', 'xp', 'level_up'];
++    if (!ACTIONS.includes(action as string)) throw new Error(`action must be one of: ${ACTIONS.join(', ')}`);
++    if (action !== 'status') {
++      const gate = permissionManager.checkWritePermission('modifyScene', {});
++      if (!gate.allowed) throw new Error(`${ERROR_MESSAGES.ACCESS_DENIED}: ${gate.reason}`);
++    }
++    try {
++      const g = game as any;
++      const actors = ((g.actors?.contents || [...(g.actors || [])]) as any[]);
++      const playerOwned = (a: any) => !!a.hasPlayerOwner;
++      const who = action === 'level_up' ? (data.actor ? [data.actor] : []) : data.who;
++      const { picked, notFound } = pickActors(actors, who, playerOwned);
++      const out: Record<string, any> = { success: true, action };
++      if (notFound.length) out.notFound = notFound;
++      if (picked.length === 0 && action !== 'level_up') {
++        return { ...out, note: 'No characters matched. "party" means characters owned by a player; pass names or "all_characters".', party: [] };
++      }
++
++      switch (action) {
++        case 'status':
++          return { ...out, party: picked.map(p => partyRow(p.actor)) };
++
++        case 'rest': {
++          if (data.type !== 'short' && data.type !== 'long') throw new Error('rest needs type: short or long');
++          const rows: Array<Record<string, any>> = [];
++          for (const p of picked) {
++            const before = Number(p.actor.system?.attributes?.hp?.value ?? 0);
++            if (data.type === 'long') await p.actor.longRest({ dialog: false, advanceTime: false, newDay: data.new_day !== false });
++            else await p.actor.shortRest({ dialog: false, advanceTime: false, autoHD: data.spend_hit_dice !== false });
++            const row = partyRow(p.actor);
++            row.hpBefore = before;
++            rows.push(row);
++          }
++          this.auditLog('controlParty', { action, type: data.type, count: rows.length }, 'success');
++          return { ...out, type: data.type, party: rows };
++        }
++
++        case 'xp': {
++          const amount = Number(data.amount);
++          if (!(amount > 0)) throw new Error('xp needs amount above 0');
++          const shares = data.split ? splitXp(amount, picked.length) : picked.map(() => amount);
++          const rows: Array<Record<string, any>> = [];
++          for (let i = 0; i < picked.length; i++) {
++            const actor = picked[i]!.actor;
++            const now = Number(actor.system?.details?.xp?.value ?? 0);
++            await actor.update({ 'system.details.xp.value': now + shares[i]! });
++            rows.push({ ...partyRow(actor), gained: shares[i] });
++          }
++          this.auditLog('controlParty', { action, amount, count: rows.length }, 'success');
++          return { ...out, party: rows };
++        }
++
++        case 'level_up': {
++          const target = picked[0];
++          if (!target) throw new Error('level_up needs actor: the character name');
++          const classItem = pickClass(target.actor, data.class);
++          if (!classItem) throw new Error(`${target.name} has several classes (or none): say which with class`);
++          const manager = (globalThis as any).dnd5e?.applications?.advancement?.AdvancementManager;
++          if (!manager?.forLevelChange) throw new Error('This version of dnd5e has no level-up manager I can open');
++          const flow = await manager.forLevelChange(target.actor, classItem.id, 1);
++          await flow.render({ force: true });
++          this.auditLog('controlParty', { action, actor: target.name }, 'success');
++          return { ...out, actor: target.name, class: classItem.name, opened: true, note: 'The level-up window is open on the GM screen: the choices (hit points, features, ability score improvements) are made there.' };
++        }
++      }
++      return out;
++    } catch (error) {
++      throw new Error(`Failed to manage the party: ${error instanceof Error ? error.message : 'Unknown error'}`);
 +    }
 +  }
 +
@@ -11213,10 +11782,10 @@ index eecda7e..26ded74 100644
 +    command: (typeof PLAYLIST_COMMANDS)[number];
 +    sound?: string;
 +    volume?: number;
-+  }): Promise<any> {
-+    this.validateFoundryState();
-+
-+    try {
+   }): Promise<any> {
+     this.validateFoundryState();
+ 
+     try {
 +      const command = options.command;
 +      if (!(PLAYLIST_COMMANDS as readonly string[]).includes(command)) {
 +        throw new Error(`Unknown command: ${String(command)} (${PLAYLIST_COMMANDS.join(', ')})`);
@@ -11260,9 +11829,9 @@ index eecda7e..26ded74 100644
 +        return { success: true, action: command, stopped };
 +      }
 +
-+      const pl = this.findMusicDoc((game as any).playlists, options.playlist, 'playlist');
-+      if (!pl) throw new Error('playlist identifier is required');
-+      const info = { id: pl.id, name: pl.name, mode: pl.mode };
+       const pl = this.findMusicDoc((game as any).playlists, options.playlist, 'playlist');
+       if (!pl) throw new Error('playlist identifier is required');
+       const info = { id: pl.id, name: pl.name, mode: pl.mode };
 +      const sounds = ((pl.sounds?.contents || []) as any[]);
 +      const target = (): any => {
 +        if (!options.sound) throw new Error(`command ${command} requires "sound"`);
@@ -11287,29 +11856,31 @@ index eecda7e..26ded74 100644
 +        }
 +        return paused;
 +      };
-+
+ 
+-      switch (options.command) {
 +      switch (command) {
-+        case 'play':
-+          await pl.playAll();
-+          return { success: true, action: 'play', playlist: info };
-+        case 'stop':
-+          await pl.stopAll();
-+          return { success: true, action: 'stop', playlist: info };
-+        case 'cycle-mode':
-+          await pl.cycleMode();
-+          return { success: true, action: 'cycle-mode', playlist: info, mode: pl.mode as number };
-+        case 'play-sound':
-+        case 'stop-sound': {
+         case 'play':
+           await pl.playAll();
+           return { success: true, action: 'play', playlist: info };
+@@ -8304,20 +12654,48 @@ export class FoundryDataAccess {
+           return { success: true, action: 'cycle-mode', playlist: info, mode: pl.mode as number };
+         case 'play-sound':
+         case 'stop-sound': {
+-          if (!options.sound) throw new Error(`command ${options.command} requires "sound"`);
+-          const snd = this.findMusicDoc(pl.sounds, options.sound, 'playlistSound');
+-          if (!snd) throw new Error(`sound not found: "${options.sound}"`);
+-          if (options.command === 'play-sound') await pl.playSound(snd);
 +          const snd = target();
 +          if (command === 'play-sound') await pl.playSound(snd);
-+          else await pl.stopSound(snd);
-+          return {
-+            success: true,
+           else await pl.stopSound(snd);
+           return {
+             success: true,
+-            action: options.command,
 +            action: command,
-+            playlist: info,
-+            sound: { id: snd.id, name: snd.name, path: snd.path },
-+          };
-+        }
+             playlist: info,
+             sound: { id: snd.id, name: snd.name, path: snd.path },
+           };
+         }
 +        case 'pause':
 +        case 'pause-sound': {
 +          const done = await pause(command === 'pause' ? sounds : [target()]);
@@ -11340,33 +11911,13 @@ index eecda7e..26ded74 100644
 +          await pl.updateEmbeddedDocuments('PlaylistSound', list.map(s => ({ _id: s.id, volume: options.volume })));
 +          return { success: true, action: command, playlist: info, volume: options.volume, sounds: list.length };
 +        }
-+        default:
+         default:
+-          throw new Error(`Unknown command: ${options.command}`);
 +          throw new Error(`Unknown command: ${command}`);
-+      }
-+    } catch (error) {
-+      throw new Error(
-+        `Failed to control playlist: ${error instanceof Error ? error.message : 'Unknown error'}`
-+      );
-+    }
-+  }
-+
-+  // ===== PHASE 7: CHARACTER ENTITY AND TOKEN MANIPULATION METHODS =====
-+
-+  /**
-+   * Get detailed information about a specific entity within a character (item, action, or effect)
-+   */
-+  async getCharacterEntity(data: {
-+    characterIdentifier: string;
-+    entityIdentifier: string;
-+  }): Promise<any> {
-+    this.validateFoundryState();
-+
-+    try {
-+      const serializeDocument = (document: any): Record<string, any> => {
-         const source = document?.toObject?.() ?? document?._source ?? document ?? {};
-         return source as Record<string, any>;
-       };
-@@ -8468,6 +12672,21 @@ export class FoundryDataAccess {
+       }
+     } catch (error) {
+       throw new Error(
+@@ -8468,6 +12846,21 @@ export class FoundryDataAccess {
      }
    }
  
@@ -11388,7 +11939,7 @@ index eecda7e..26ded74 100644
    /**
     * Move a token to a new position on the scene
     */
-@@ -8476,6 +12695,8 @@ export class FoundryDataAccess {
+@@ -8476,6 +12869,8 @@ export class FoundryDataAccess {
      x: number;
      y: number;
      animate?: boolean;
@@ -11397,7 +11948,7 @@ index eecda7e..26ded74 100644
    }): Promise<any> {
      this.validateFoundryState();
  
-@@ -8489,21 +12710,33 @@ export class FoundryDataAccess {
+@@ -8489,21 +12884,33 @@ export class FoundryDataAccess {
      }
  
      try {
@@ -11438,7 +11989,7 @@ index eecda7e..26ded74 100644
          },
          { animate: data.animate !== false }
        );
-@@ -8514,7 +12747,9 @@ export class FoundryDataAccess {
+@@ -8514,7 +12921,9 @@ export class FoundryDataAccess {
          success: true,
          tokenId: token.id,
          tokenName: token.name,
@@ -11449,7 +12000,7 @@ index eecda7e..26ded74 100644
          animated: data.animate !== false,
        };
      } catch (error) {
-@@ -8533,7 +12768,13 @@ export class FoundryDataAccess {
+@@ -8533,7 +12942,13 @@ export class FoundryDataAccess {
    /**
     * Update token properties
     */
@@ -11464,7 +12015,7 @@ index eecda7e..26ded74 100644
      this.validateFoundryState();
  
      // Use permission system
-@@ -8546,20 +12787,19 @@ export class FoundryDataAccess {
+@@ -8546,20 +12961,19 @@ export class FoundryDataAccess {
      }
  
      try {
@@ -11491,7 +12042,7 @@ index eecda7e..26ded74 100644
  
        // Apply updates
        await token.update(cleanUpdates);
-@@ -8651,18 +12891,15 @@ export class FoundryDataAccess {
+@@ -8651,18 +13065,15 @@ export class FoundryDataAccess {
    /**
     * Get detailed information about a token
     */
@@ -11514,7 +12065,7 @@ index eecda7e..26ded74 100644
        }
  
        // Return flat structure that matches MCP server expectations
-@@ -11274,7 +15511,10 @@ export class FoundryDataAccess {
+@@ -11274,7 +15685,10 @@ export class FoundryDataAccess {
        name: string;
        type: string;
        img?: string;
@@ -11525,7 +12076,7 @@ index eecda7e..26ded74 100644
      }>;
      folder?: string;
    }): Promise<{ created: Array<{ id: string; name: string; type: string }>; total: number }> {
-@@ -11286,6 +15526,19 @@ export class FoundryDataAccess {
+@@ -11286,6 +15700,19 @@ export class FoundryDataAccess {
      const docs = params.actors.map(a => {
        const doc: Record<string, any> = { name: a.name, type: a.type };
        if (a.img) doc.img = a.img;
@@ -11545,7 +12096,7 @@ index eecda7e..26ded74 100644
  
        // Merge system data, adding safe defaults for systems that require certain
        // fields to exist during data preparation (avoids non-fatal init errors).
-@@ -11471,7 +15724,16 @@ export class FoundryDataAccess {
+@@ -11471,7 +15898,16 @@ export class FoundryDataAccess {
     * Merges supplied fields into the actor (top-level keys overwrite).
     */
    async updateActors(
@@ -11563,7 +12114,7 @@ index eecda7e..26ded74 100644
    ): Promise<{ updated: Array<{ id: string; name: string }>; total: number }> {
      const updatedActors: Array<{ id: string; name: string }> = [];
  
-@@ -11482,6 +15744,7 @@ export class FoundryDataAccess {
+@@ -11482,6 +15918,7 @@ export class FoundryDataAccess {
        const patch: Record<string, any> = {};
        if (u.name !== undefined) patch.name = u.name;
        if (u.img !== undefined) patch.img = u.img;
@@ -11571,7 +12122,7 @@ index eecda7e..26ded74 100644
        if (u.system !== undefined) {
          // Build a single patch.system nested object so Foundry deep-merges everything
          // in one pass without flat-key vs nested-key conflicts.
-@@ -11504,6 +15767,19 @@ export class FoundryDataAccess {
+@@ -11504,6 +15941,19 @@ export class FoundryDataAccess {
          }
          patch.system = systemPatch;
        }
@@ -14705,6 +15256,78 @@ index 0000000..d4efc4c
 +  }
 +  return data;
 +}
+diff --git a/packages/foundry-module/src/party-utils.ts b/packages/foundry-module/src/party-utils.ts
+new file mode 100644
+index 0000000..b983493
+--- /dev/null
++++ b/packages/foundry-module/src/party-utils.ts
+@@ -0,0 +1,66 @@
++/** Party management for dnd5e: who the party is, rests, XP and level-ups. Pure over actor objects. */
++
++export interface PartyActor {
++  id: string;
++  name: string;
++  actor: any;
++}
++
++const num = (v: unknown): number | undefined => (typeof v === 'number' && Number.isFinite(v) ? v : undefined);
++const lower = (s: unknown) => String(s ?? '').trim().toLowerCase();
++
++/** The actors a request means: "party" (player characters), "all_characters", or names (exact, else part of a name). */
++export function pickActors(actors: any[], who: string[] | undefined, ownedByPlayer: (actor: any) => boolean): { picked: PartyActor[]; notFound: string[] } {
++  const spec = who?.length ? who : ['party'];
++  const picked = new Map<string, PartyActor>();
++  const notFound: string[] = [];
++  for (const entry of spec) {
++    const key = lower(entry);
++    let hits: any[];
++    if (key === 'party') hits = actors.filter(a => a.type === 'character' && ownedByPlayer(a));
++    else if (key === 'all_characters') hits = actors.filter(a => a.type === 'character');
++    else {
++      const exact = actors.filter(a => lower(a.name) === key || a.id === entry);
++      hits = exact.length ? exact : actors.filter(a => lower(a.name).includes(key));
++    }
++    if (hits.length === 0) notFound.push(entry);
++    for (const a of hits) picked.set(a.id, { id: a.id, name: a.name, actor: a });
++  }
++  return { picked: [...picked.values()], notFound };
++}
++
++/** Level, XP, hit points and hit dice of one character. */
++export function partyRow(actor: any): Record<string, any> {
++  const system = actor.system ?? {};
++  const xp = system.details?.xp ?? {};
++  const hp = system.attributes?.hp ?? {};
++  const level = num(system.details?.level);
++  const value = num(xp.value);
++  const max = num(xp.max);
++  const row: Record<string, any> = { name: actor.name };
++  if (level !== undefined) row.level = level;
++  if (value !== undefined) row.xp = max !== undefined ? `${value}/${max}` : value;
++  if (value !== undefined && max !== undefined && value >= max && (level ?? 0) < 20) row.readyToLevelUp = true;
++  if (num(hp.value) !== undefined) row.hp = num(hp.max) !== undefined ? `${hp.value}/${hp.max}` : hp.value;
++  const hd = system.attributes?.hd;
++  if (hd && num(hd.value) !== undefined) row.hitDice = num(hd.max) !== undefined ? `${hd.value}/${hd.max}` : hd.value;
++  return row;
++}
++
++/** Split an XP award among actors: whole numbers, the remainder going to the first ones. */
++export function splitXp(amount: number, count: number): number[] {
++  if (count <= 0) return [];
++  const each = Math.floor(amount / count);
++  const extra = amount - each * count;
++  return Array.from({ length: count }, (_, i) => each + (i < extra ? 1 : 0));
++}
++
++/** The class a level-up means: the named one, or the only class the actor has. */
++export function pickClass(actor: any, name?: string): any | null {
++  const classes = ((actor.itemTypes?.class ?? (actor.items?.contents ?? []).filter((i: any) => i.type === 'class')) as any[]);
++  if (name) {
++    const key = lower(name);
++    return classes.find(c => lower(c.name) === key) ?? classes.find(c => lower(c.name).includes(key)) ?? null;
++  }
++  return classes.length === 1 ? classes[0] : null;
++}
 diff --git a/packages/foundry-module/src/play-utils.test.ts b/packages/foundry-module/src/play-utils.test.ts
 new file mode 100644
 index 0000000..a9c8bf1
@@ -15799,7 +16422,7 @@ index 0000000..557e34d
 +  return view ? outSize : { width, height };
 +}
 diff --git a/packages/foundry-module/src/queries.ts b/packages/foundry-module/src/queries.ts
-index 9fe02ba..0bf4e47 100644
+index 9fe02ba..7767ec3 100644
 --- a/packages/foundry-module/src/queries.ts
 +++ b/packages/foundry-module/src/queries.ts
 @@ -1,7 +1,8 @@
@@ -15821,7 +16444,7 @@ index 9fe02ba..0bf4e47 100644
  
      // Character/Actor queries
      CONFIG.queries[`${modulePrefix}.getCharacterInfo`] = this.handleGetCharacterInfo.bind(this);
-@@ -46,6 +47,31 @@ export class QueryHandlers {
+@@ -46,6 +47,32 @@ export class QueryHandlers {
      CONFIG.queries[`${modulePrefix}.list-scenes`] = this.handleListScenes.bind(this);
      CONFIG.queries[`${modulePrefix}.switch-scene`] = this.handleSwitchScene.bind(this);
      CONFIG.queries[`${modulePrefix}.update-scene-music`] = this.handleUpdateSceneMusic.bind(this);
@@ -15847,13 +16470,14 @@ index 9fe02ba..0bf4e47 100644
 +    CONFIG.queries[`${modulePrefix}.read-table`] = this.handleReadTable.bind(this);
 +    CONFIG.queries[`${modulePrefix}.reveal`] = this.handleReveal.bind(this);
 +    CONFIG.queries[`${modulePrefix}.combat`] = this.handleCombat.bind(this);
++    CONFIG.queries[`${modulePrefix}.party`] = this.handleParty.bind(this);
 +    CONFIG.queries[`${modulePrefix}.annotations`] = this.handleAnnotations.bind(this);
 +    CONFIG.queries[`${modulePrefix}.read-image-file`] = this.handleReadImageFile.bind(this);
 +    CONFIG.queries[`${modulePrefix}.inspect-document`] = this.handleInspectDocument.bind(this);
      CONFIG.queries[`${modulePrefix}.manage-playlists`] = this.handleManagePlaylists.bind(this);
      CONFIG.queries[`${modulePrefix}.control-playlist`] = this.handleControlPlaylist.bind(this);
  
-@@ -184,7 +210,7 @@ export class QueryHandlers {
+@@ -184,7 +211,7 @@ export class QueryHandlers {
     * Unregister all query handlers
     */
    unregisterHandlers(): void {
@@ -15862,7 +16486,7 @@ index 9fe02ba..0bf4e47 100644
      const keysToRemove = Object.keys(CONFIG.queries).filter(key => key.startsWith(modulePrefix));
  
      for (const key of keysToRemove) {
-@@ -477,7 +503,7 @@ export class QueryHandlers {
+@@ -477,7 +504,7 @@ export class QueryHandlers {
     * Get list of all registered query methods
     */
    getRegisteredMethods(): string[] {
@@ -15871,7 +16495,7 @@ index 9fe02ba..0bf4e47 100644
      return Object.keys(CONFIG.queries)
        .filter(key => key.startsWith(modulePrefix))
        .map(key => key.replace(`${modulePrefix}.`, ''));
-@@ -487,7 +513,7 @@ export class QueryHandlers {
+@@ -487,7 +514,7 @@ export class QueryHandlers {
     * Test if a specific query handler is registered
     */
    isMethodRegistered(method: string): boolean {
@@ -15880,7 +16504,7 @@ index 9fe02ba..0bf4e47 100644
      return queryKey in CONFIG.queries && typeof CONFIG.queries[queryKey] === 'function';
    }
  
-@@ -530,6 +556,9 @@ export class QueryHandlers {
+@@ -530,6 +557,9 @@ export class QueryHandlers {
        if (data.placement) {
          requestData.placement = data.placement;
        }
@@ -15890,7 +16514,7 @@ index 9fe02ba..0bf4e47 100644
  
        return await this.dataAccess.createActorFromCompendiumEntry(requestData);
      } catch (error) {
-@@ -1218,6 +1247,259 @@ export class QueryHandlers {
+@@ -1218,6 +1248,267 @@ export class QueryHandlers {
      }
    }
  
@@ -15998,6 +16622,14 @@ index 9fe02ba..0bf4e47 100644
 +    if (action === 'resolve') return await this.dataAccess.resolveAnnotations(data ?? {});
 +    if (action === 'clear') return await this.dataAccess.clearAnnotations(data ?? {});
 +    return { error: 'Unknown action: ' + String(action) + ' (list | resolve | clear)', success: false };
++  }
++
++  private async handleParty(data: any): Promise<any> {
++    const gmCheck = this.validateGMAccess();
++    if (!gmCheck.allowed) {
++      return { error: 'Access denied', success: false };
++    }
++    return await this.dataAccess.controlParty(data ?? {});
 +  }
 +
 +  private async handleCombat(data: any): Promise<any> {
@@ -16150,7 +16782,7 @@ index 9fe02ba..0bf4e47 100644
    private async handleManagePlaylists(data: any): Promise<any> {
      try {
        const gmCheck = this.validateGMAccess();
-@@ -1241,8 +1523,11 @@ export class QueryHandlers {
+@@ -1241,8 +1532,11 @@ export class QueryHandlers {
        if (!gmCheck.allowed) {
          return { error: 'Access denied', success: false };
        }
@@ -16164,7 +16796,7 @@ index 9fe02ba..0bf4e47 100644
        }
        return await this.dataAccess.controlPlaylist(data);
      } catch (error) {
-@@ -1547,7 +1832,9 @@ export class QueryHandlers {
+@@ -1547,7 +1841,9 @@ export class QueryHandlers {
     */
    private async handleUpdateToken(data: {
      tokenId: string;
@@ -16175,7 +16807,7 @@ index 9fe02ba..0bf4e47 100644
    }): Promise<any> {
      try {
        // SECURITY: Silent GM validation
-@@ -1561,8 +1848,8 @@ export class QueryHandlers {
+@@ -1561,8 +1857,8 @@ export class QueryHandlers {
        if (!data.tokenId) {
          throw new Error('tokenId is required');
        }
@@ -19490,10 +20122,10 @@ index 096f27b..903a94e 100644
      "@vitest/coverage-v8": "^3.2.4",
      "esbuild": "^0.19.0",
 diff --git a/packages/mcp-server/src/backend.ts b/packages/mcp-server/src/backend.ts
-index 8967e33..e34c1b0 100644
+index 8967e33..e752bb6 100644
 --- a/packages/mcp-server/src/backend.ts
 +++ b/packages/mcp-server/src/backend.ts
-@@ -48,6 +48,37 @@ import { DnD5eAddFeatureTool } from './tools/dnd5e/add-feature.js';
+@@ -48,6 +48,38 @@ import { DnD5eAddFeatureTool } from './tools/dnd5e/add-feature.js';
  import { DnD5eNpcTools } from './tools/dnd5e/npc.js';
  import { DnD5eFeaturesFromCompendiumTools } from './tools/dnd5e/features.js';
  import { ChatTools } from './tools/chat.js';
@@ -19522,6 +20154,7 @@ index 8967e33..e34c1b0 100644
 +import { TableTools } from './tools/table-tools.js';
 +import { RevealTools } from './tools/reveal-tools.js';
 +import { CombatTools } from './tools/combat-tools.js';
++import { PartyTools } from './tools/party-tools.js';
 +import { AnnotationTools } from './tools/annotation-tools.js';
 +import { ImageEditTools } from './tools/image-edit-tools.js';
 +import { ActorArtTools } from './tools/actor-art-tools.js';
@@ -19531,7 +20164,7 @@ index 8967e33..e34c1b0 100644
  
  const CONTROL_HOST = '127.0.0.1';
  
-@@ -174,6 +205,22 @@ let comfyuiProcess: ChildProcess | null = null;
+@@ -174,6 +206,22 @@ let comfyuiProcess: ChildProcess | null = null;
  
  let comfyuiStatus: 'stopped' | 'starting' | 'running' | 'error' = 'stopped';
  
@@ -19554,7 +20187,7 @@ index 8967e33..e34c1b0 100644
  let lockFd: number | null = null;
  
  function acquireLock(): boolean {
-@@ -350,6 +397,18 @@ async function waitForComfyUIReady(timeoutMs: number = 60000): Promise<void> {
+@@ -350,6 +398,18 @@ async function waitForComfyUIReady(timeoutMs: number = 60000): Promise<void> {
  }
  
  async function startComfyUIService(logger: Logger): Promise<any> {
@@ -19573,7 +20206,7 @@ index 8967e33..e34c1b0 100644
    if (comfyuiStatus === 'running') {
      return { status: 'already_running', message: 'ComfyUI service is already running' };
    }
-@@ -472,6 +531,14 @@ async function startComfyUIService(logger: Logger): Promise<any> {
+@@ -472,6 +532,14 @@ async function startComfyUIService(logger: Logger): Promise<any> {
  }
  
  async function stopComfyUIService(logger: Logger): Promise<any> {
@@ -19588,7 +20221,7 @@ index 8967e33..e34c1b0 100644
    if (comfyuiStatus === 'stopped') {
      return { status: 'already_stopped', message: 'ComfyUI service is already stopped' };
    }
-@@ -510,7 +577,7 @@ async function checkComfyUIStatus(): Promise<any> {
+@@ -510,7 +578,7 @@ async function checkComfyUIStatus(): Promise<any> {
    // This handles both spawned processes and externally-started instances
  
    try {
@@ -19597,7 +20230,7 @@ index 8967e33..e34c1b0 100644
        signal: AbortSignal.timeout(5000),
      });
  
-@@ -520,16 +587,23 @@ async function checkComfyUIStatus(): Promise<any> {
+@@ -520,16 +588,23 @@ async function checkComfyUIStatus(): Promise<any> {
        comfyuiStatus = 'error';
      }
    } catch (error) {
@@ -19623,7 +20256,7 @@ index 8967e33..e34c1b0 100644
    };
  }
  
-@@ -1131,7 +1205,7 @@ async function processMapGenerationInBackend(
+@@ -1131,7 +1206,7 @@ async function processMapGenerationInBackend(
      );
  
      logger.error('Background map generation processing failed', { jobId, error });
@@ -19632,7 +20265,7 @@ index 8967e33..e34c1b0 100644
  
      // Emit failure to Foundry module
      foundryClient.sendMessage({
-@@ -1195,6 +1269,62 @@ async function startBackend(): Promise<void> {
+@@ -1195,6 +1270,63 @@ async function startBackend(): Promise<void> {
    const compendiumTools = new CompendiumTools({ foundryClient, logger, systemRegistry });
  
    const sceneTools = new SceneTools({ foundryClient, logger });
@@ -19677,6 +20310,7 @@ index 8967e33..e34c1b0 100644
 +  const tableTools = new TableTools({ foundryClient, logger });
 +  const revealTools = new RevealTools({ foundryClient, logger });
 +  const combatTools = new CombatTools({ foundryClient, logger });
++  const partyTools = new PartyTools({ foundryClient, logger });
 +  const annotationTools = new AnnotationTools({ foundryClient, logger });
 +  const imageEditTools = new ImageEditTools({
 +    foundryClient,
@@ -19695,7 +20329,7 @@ index 8967e33..e34c1b0 100644
    const playlistTools = new PlaylistTools({ foundryClient, logger });
  
    const actorCreationTools = new ActorCreationTools({ foundryClient, logger });
-@@ -1301,6 +1431,13 @@ async function startBackend(): Promise<void> {
+@@ -1301,6 +1433,13 @@ async function startBackend(): Promise<void> {
  
          let result: any;
  
@@ -19709,7 +20343,7 @@ index 8967e33..e34c1b0 100644
          switch (message.type) {
            case 'start-comfyui-service':
              result = await startComfyUIService(logger);
-@@ -1317,6 +1454,19 @@ async function startBackend(): Promise<void> {
+@@ -1317,6 +1456,19 @@ async function startBackend(): Promise<void> {
  
              break;
  
@@ -19729,7 +20363,7 @@ index 8967e33..e34c1b0 100644
            // Map generation handlers (following existing tool pattern)
            case 'generate-map-request':
              await fs.appendFile(
-@@ -1429,6 +1579,28 @@ async function startBackend(): Promise<void> {
+@@ -1429,6 +1581,29 @@ async function startBackend(): Promise<void> {
  
      ...sceneTools.getToolDefinitions(),
  
@@ -19748,6 +20382,7 @@ index 8967e33..e34c1b0 100644
 +    ...tableTools.getToolDefinitions(),
 +    ...revealTools.getToolDefinitions(),
 +    ...combatTools.getToolDefinitions(),
++    ...partyTools.getToolDefinitions(),
 +    ...annotationTools.getToolDefinitions(),
 +    ...imageEditTools.getToolDefinitions(),
 +    ...actorArtTools.getToolDefinitions(),
@@ -19758,7 +20393,7 @@ index 8967e33..e34c1b0 100644
      ...actorCreationTools.getToolDefinitions(),
      ...actorManagementTools.getToolDefinitions(),
      ...effectManagementTools.getToolDefinitions(),
-@@ -1456,7 +1628,11 @@ async function startBackend(): Promise<void> {
+@@ -1456,7 +1631,11 @@ async function startBackend(): Promise<void> {
  
      ...tokenManipulationTools.getToolDefinitions(),
  
@@ -19771,7 +20406,7 @@ index 8967e33..e34c1b0 100644
  
      ...playlistTools.getToolDefinitions(),
    ];
-@@ -1764,19 +1940,11 @@ async function startBackend(): Promise<void> {
+@@ -1764,19 +1943,11 @@ async function startBackend(): Promise<void> {
                  // Map generation tools
  
                  case 'generate-map':
@@ -19794,7 +20429,7 @@ index 8967e33..e34c1b0 100644
  
                  case 'list-scenes':
                    result = await mapGenerationTools.listScenes(args);
-@@ -1805,6 +1973,128 @@ async function startBackend(): Promise<void> {
+@@ -1805,6 +1976,132 @@ async function startBackend(): Promise<void> {
  
                    break;
  
@@ -19861,6 +20496,10 @@ index 8967e33..e34c1b0 100644
 +
 +                case 'annotations':
 +                  result = await annotationTools.handle(args);
++                  break;
++
++                case 'party':
++                  result = await partyTools.handleParty(args);
 +                  break;
 +
 +                case 'combat':
@@ -22744,10 +23383,10 @@ index 0000000..ef4d95e
 +});
 diff --git a/packages/mcp-server/src/tools/combat-tools.ts b/packages/mcp-server/src/tools/combat-tools.ts
 new file mode 100644
-index 0000000..daafc57
+index 0000000..45f707d
 --- /dev/null
 +++ b/packages/mcp-server/src/tools/combat-tools.ts
-@@ -0,0 +1,69 @@
+@@ -0,0 +1,89 @@
 +import { z } from 'zod';
 +import { FoundryClient } from '../foundry-client.js';
 +import { Logger } from '../logger.js';
@@ -22757,7 +23396,7 @@ index 0000000..daafc57
 +  logger: Logger;
 +}
 +
-+const ACTIONS = ['status', 'start', 'add', 'remove', 'roll', 'set_initiative', 'next', 'previous', 'next_round', 'damage', 'heal', 'defeat', 'end'] as const;
++const ACTIONS = ['status', 'start', 'add', 'remove', 'roll', 'set_initiative', 'next', 'previous', 'next_round', 'damage', 'heal', 'defeat', 'end', 'attack', 'check'] as const;
 +
 +const schema = z
 +  .object({
@@ -22770,6 +23409,16 @@ index 0000000..daafc57
 +    initiative: z.array(z.object({ name: z.string().min(1), value: z.number() }).strict()).max(60).optional(),
 +    amounts: z.array(z.object({ target: z.string().min(1), amount: z.number().positive() }).strict()).max(60).optional(),
 +    defeated: z.boolean().optional(),
++    attacker: z.string().min(1).optional(),
++    item: z.string().min(1).optional(),
++    targets: z.array(z.string().min(1)).max(20).optional(),
++    advantage: z.boolean().optional(),
++    disadvantage: z.boolean().optional(),
++    apply: z.boolean().optional(),
++    skill: z.string().min(1).optional(),
++    ability: z.string().min(1).optional(),
++    save: z.string().min(1).optional(),
++    dc: z.number().min(0).max(40).optional(),
 +  })
 +  .strict();
 +
@@ -22788,19 +23437,29 @@ index 0000000..daafc57
 +        name: 'combat',
 +        description:
 +          'Run the combat tracker (Foundry\'s own, so tracker modules keep working). Every action returns a short readout: round, whose turn, and one line per combatant in order (initiative, name, hp, conditions). ' +
-+          'ACTIONS: status; start {scene?, who?, roll?, begin?} makes the encounter from tokens on the scene (who = list of: "all" (default), "hostile", "friendly", "neutral", "players", "npcs", or token/actor names; hidden tokens are included), rolls initiative for the ones without one (roll: missing (default) | npcs | all | none) and begins it (begin:false to only set it up); add {who, roll?} adds more tokens mid-fight; remove {names}; roll {names? | roll?} rolls initiative (default for everyone still without one); set_initiative {initiative:[{name, value}]}; next, previous, next_round move the turn (the first next begins the combat); damage / heal {amounts:[{target, amount}]} apply to combatants (or scene tokens) by name, through the system rules (temp HP, resistances are the system\'s job) and report hp before and after; defeat {names, defeated?(true)} marks defeated or not; end ends and deletes the encounter. Names match exactly, else part of a name or the actor name. Needs the Foundry tab open in a browser.',
++          'ACTIONS: status; start {scene?, who?, roll?, begin?} makes the encounter from tokens on the scene (who = list of: "all" (default), "hostile", "friendly", "neutral", "players", "npcs", or token/actor names; hidden tokens are included), rolls initiative for the ones without one (roll: missing (default) | npcs | all | none) and begins it (begin:false to only set it up); add {who, roll?} adds more tokens mid-fight; remove {names}; roll {names? | roll?} rolls initiative (default for everyone still without one); set_initiative {initiative:[{name, value}]}; next, previous, next_round move the turn (the first next begins the combat); damage / heal {amounts:[{target, amount}]} apply to combatants (or scene tokens) by name, through the system rules (temp HP, resistances are the system\'s job) and report hp before and after; defeat {names, defeated?(true)} marks defeated or not; end ends and deletes the encounter. ATTACK AND CHECK (the dnd5e system does the maths: modifiers, advantage, critical hits, resistances, chat cards): attack {attacker, item?, targets?, advantage?, disadvantage?, apply?(true)} uses an item of the attacker (default its first attack or save): spends its charges or slot, rolls the attack against each target (the target is targeted first, so the roll uses its AC and the card shows hit or miss), rolls damage on a hit (double dice on a crit) and applies it, reporting roll, natural, hit, damage and hp before and after; a save item (a breath weapon) rolls damage once and each target rolls a saving throw against its DC; apply:false rolls without applying. check {who:[names], skill | ability | save, dc?, advantage?, disadvantage?} rolls a skill (perception or prc), an ability check or a saving throw (dex or dexterity) for each name and reports totals and success against dc. attacker, targets and who match combatants, then scene tokens, then actors. Names match exactly, else part of a name or the actor name. Needs the Foundry tab open in a browser.',
 +        inputSchema: {
 +          type: 'object',
 +          properties: {
 +            action: { type: 'string', enum: [...ACTIONS] },
 +            scene: { type: 'string', description: 'start, add, damage, heal: scene id or exact name (default the one being viewed)' },
-+            who: { type: 'array', items: { type: 'string' }, description: 'start, add: "all", "hostile", "friendly", "neutral", "players", "npcs" or token/actor names' },
++            who: { type: 'array', items: { type: 'string' }, description: 'check: names to roll for. start, add: "all", "hostile", "friendly", "neutral", "players", "npcs" or token/actor names' },
 +            names: { type: 'array', items: { type: 'string' }, description: 'remove, roll, defeat: combatant names' },
 +            roll: { type: 'string', enum: ['none', 'missing', 'npcs', 'all'], description: 'start, add, roll: who to roll initiative for (default missing)' },
 +            begin: { type: 'boolean', description: 'start: begin the combat after setting it up (default true)' },
 +            initiative: { type: 'array', items: { type: 'object', properties: { name: { type: 'string' }, value: { type: 'number' } }, required: ['name', 'value'], additionalProperties: false }, description: 'set_initiative: [{name, value}]' },
 +            amounts: { type: 'array', items: { type: 'object', properties: { target: { type: 'string' }, amount: { type: 'number' } }, required: ['target', 'amount'], additionalProperties: false }, description: 'damage, heal: [{target, amount}]' },
 +            defeated: { type: 'boolean', description: 'defeat: true (default) marks defeated, false revives' },
++            attacker: { type: 'string', description: 'attack: who attacks (combatant, token or actor name)' },
++            item: { type: 'string', description: 'attack: the weapon, spell or feature to use (default the first attack)' },
++            targets: { type: 'array', items: { type: 'string' }, description: 'attack: who is attacked (names)' },
++            advantage: { type: 'boolean', description: 'attack, check: roll with advantage' },
++            disadvantage: { type: 'boolean', description: 'attack, check: roll with disadvantage' },
++            apply: { type: 'boolean', description: 'attack: apply the damage (default true)' },
++            skill: { type: 'string', description: 'check: a skill, e.g. perception or prc' },
++            ability: { type: 'string', description: 'check: an ability check, e.g. dex' },
++            save: { type: 'string', description: 'check: a saving throw, e.g. wis' },
++            dc: { type: 'number', description: 'check: the difficulty; success is reported against it' },
 +          },
 +          required: ['action'],
 +          additionalProperties: false,
@@ -29670,6 +30329,117 @@ index 0000000..fe5663b
 +      this.logger.error('Failed to manage modules', error);
 +      throw new Error(`Failed to manage modules: ${error instanceof Error ? error.message : 'Unknown error'}`);
 +    }
++  }
++}
+diff --git a/packages/mcp-server/src/tools/party-tools.test.ts b/packages/mcp-server/src/tools/party-tools.test.ts
+new file mode 100644
+index 0000000..8d67ef8
+--- /dev/null
++++ b/packages/mcp-server/src/tools/party-tools.test.ts
+@@ -0,0 +1,29 @@
++import { describe, expect, it, vi } from 'vitest';
++import { PartyTools } from './party-tools.js';
++
++function make(response: any = { success: true }) {
++  const query = vi.fn(async () => response);
++  const logger: any = { info: vi.fn(), debug: vi.fn(), error: vi.fn(), warn: vi.fn(), child: () => logger };
++  return { tools: new PartyTools({ foundryClient: { query } as any, logger }), query };
++}
++
++describe('party tool', () => {
++  it('is exposed with action required', () => {
++    const def = make().tools.getToolDefinitions()[0]!;
++    expect(def.name).toBe('party');
++    expect(def.inputSchema.required).toEqual(['action']);
++  });
++  it('sends the request to Foundry', async () => {
++    const { tools, query } = make({ success: true, party: [] });
++    await tools.handleParty({ action: 'rest', type: 'long' });
++    expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.party', { action: 'rest', type: 'long' });
++  });
++  it('rejects bad input and refused requests', async () => {
++    const { tools } = make();
++    await expect(tools.handleParty({ action: 'dance' })).rejects.toThrow();
++    await expect(tools.handleParty({ action: 'xp', amount: -5 })).rejects.toThrow();
++    await expect(tools.handleParty({ action: 'rest', type: 'medium' })).rejects.toThrow();
++    const refused = make({ success: false, error: 'Access denied' });
++    await expect(refused.tools.handleParty({ action: 'status' })).rejects.toThrow('Access denied');
++  });
++});
+diff --git a/packages/mcp-server/src/tools/party-tools.ts b/packages/mcp-server/src/tools/party-tools.ts
+new file mode 100644
+index 0000000..32e73e6
+--- /dev/null
++++ b/packages/mcp-server/src/tools/party-tools.ts
+@@ -0,0 +1,70 @@
++import { z } from 'zod';
++import { FoundryClient } from '../foundry-client.js';
++import { Logger } from '../logger.js';
++
++export interface PartyToolsOptions {
++  foundryClient: FoundryClient;
++  logger: Logger;
++}
++
++const ACTIONS = ['status', 'rest', 'xp', 'level_up'] as const;
++
++const schema = z
++  .object({
++    action: z.enum(ACTIONS),
++    who: z.array(z.string().min(1)).max(30).optional(),
++    type: z.enum(['short', 'long']).optional(),
++    spend_hit_dice: z.boolean().optional(),
++    new_day: z.boolean().optional(),
++    amount: z.number().int().min(1).max(10_000_000).optional(),
++    split: z.boolean().optional(),
++    actor: z.string().min(1).optional(),
++    class: z.string().min(1).optional(),
++  })
++  .strict();
++
++export class PartyTools {
++  private foundryClient: FoundryClient;
++  private logger: Logger;
++
++  constructor({ foundryClient, logger }: PartyToolsOptions) {
++    this.foundryClient = foundryClient;
++    this.logger = logger.child({ component: 'PartyTools' });
++  }
++
++  getToolDefinitions() {
++    return [
++      {
++        name: 'party',
++        description:
++          'Look after the party (dnd5e): rests, experience points and level-ups, using the system\'s own rest and advancement code (hit dice, spell slots, features and uses recover as they normally do; the rest posts its chat card). ' +
++          'who is a list of "party" (default: characters owned by a player), "all_characters", or names. ' +
++          'ACTIONS: status {who?} one row per character: level, xp (value/next level), hp, hit dice, readyToLevelUp. rest {type: short | long, who?, spend_hit_dice?(true: spends hit dice on a short rest automatically), new_day?(true: a long rest starts a new day)} rests each character and reports hp before and after. xp {amount, who?, split?} gives each character that much XP, or with split divides it among them, and flags those who now have enough for the next level. level_up {actor, class?} opens the system\'s level-up window for that character on the GM screen (the choices there are made by the GM: hit points, features, ability score improvements); class is needed only for multiclass characters. Needs the Foundry tab open in a browser.',
++        inputSchema: {
++          type: 'object',
++          properties: {
++            action: { type: 'string', enum: [...ACTIONS] },
++            who: { type: 'array', items: { type: 'string' }, description: '"party" (default), "all_characters" or character names' },
++            type: { type: 'string', enum: ['short', 'long'], description: 'rest: short or long' },
++            spend_hit_dice: { type: 'boolean', description: 'rest (short): spend hit dice automatically (default true)' },
++            new_day: { type: 'boolean', description: 'rest (long): count it as a new day (default true)' },
++            amount: { type: 'number', description: 'xp: experience points to give' },
++            split: { type: 'boolean', description: 'xp: divide the amount among the characters instead of giving each the full amount' },
++            actor: { type: 'string', description: 'level_up: the character' },
++            class: { type: 'string', description: 'level_up: which class gains the level (multiclass only)' },
++          },
++          required: ['action'],
++          additionalProperties: false,
++        },
++      },
++    ];
++  }
++
++  async handleParty(args: unknown): Promise<any> {
++    const a = schema.parse(args ?? {});
++    this.logger.info('Party', { action: a.action });
++    const result = await this.foundryClient.query('foundry-mcp-bridge.party', a);
++    if (result?.success === false) throw new Error(result.error || 'Request was refused');
++    return result;
 +  }
 +}
 diff --git a/packages/mcp-server/src/tools/play-tools.test.ts b/packages/mcp-server/src/tools/play-tools.test.ts
