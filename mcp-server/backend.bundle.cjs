@@ -120177,8 +120177,141 @@ var ChatTools = class {
 
 // dist/tools/chat-control.js
 init_zod();
+
+// dist/chat-feed.js
+init_wrapper();
+var DEFAULT_CHAT_FEED_PORT = 31417;
+function feedLine(row2) {
+  const out = { id: row2.id, who: row2.who };
+  if (row2.as)
+    out.as = row2.as;
+  out.kind = row2.kind;
+  if (row2.text)
+    out.text = row2.text;
+  if (row2.roll)
+    out.roll = row2.roll;
+  if (row2.flavor)
+    out.flavor = row2.flavor;
+  if (row2.to)
+    out.to = row2.to;
+  if (row2.fromGM)
+    out.gm = true;
+  return JSON.stringify(out);
+}
+var ChatFeed = class {
+  options;
+  wss;
+  clients = /* @__PURE__ */ new Map();
+  timer;
+  marker;
+  lastNotice;
+  polling = false;
+  constructor(options) {
+    this.options = options;
+  }
+  /** The port actually listening (useful when started with port 0), or undefined when not listening. */
+  get port() {
+    const address = this.wss?.address();
+    return address && typeof address === "object" ? address.port : void 0;
+  }
+  start() {
+    return new Promise((resolve) => {
+      const wss = new import_websocket_server.default({ host: "127.0.0.1", port: this.options.port });
+      wss.once("listening", () => {
+        this.wss = wss;
+        wss.on("connection", (socket, request) => this.onConnection(socket, request));
+        this.options.logger.info("Chat feed listening", { port: this.port });
+        resolve();
+      });
+      wss.once("error", (error) => {
+        this.options.logger.warn("Chat feed could not start", { error: error.message });
+        resolve();
+      });
+    });
+  }
+  stop() {
+    if (this.timer)
+      clearTimeout(this.timer);
+    this.timer = void 0;
+    for (const client of this.clients.keys())
+      client.terminate();
+    this.clients.clear();
+    this.wss?.close();
+    this.wss = void 0;
+  }
+  onConnection(socket, request) {
+    const from = new URL(request.url ?? "/", "http://localhost").searchParams.get("from") === "all" ? "all" : "players";
+    this.clients.set(socket, from);
+    socket.on("close", () => {
+      this.clients.delete(socket);
+      if (this.clients.size === 0) {
+        if (this.timer)
+          clearTimeout(this.timer);
+        this.timer = void 0;
+        this.marker = void 0;
+      }
+    });
+    socket.on("error", () => socket.terminate());
+    if (!this.timer && !this.polling)
+      void this.tick();
+  }
+  notice(text3) {
+    if (this.lastNotice === text3)
+      return;
+    this.lastNotice = text3;
+    this.broadcast(JSON.stringify({ type: "notice", text: text3 }), () => true);
+  }
+  broadcast(line, wants) {
+    for (const [client, from] of this.clients) {
+      if (client.readyState === 1 && wants(from))
+        client.send(line);
+    }
+  }
+  async tick() {
+    if (this.clients.size === 0)
+      return;
+    this.polling = true;
+    try {
+      if (!this.options.isConnected()) {
+        this.notice("Foundry is not connected; the feed resumes when it is");
+      } else {
+        const first = this.marker === void 0;
+        const result = await this.options.query("foundry-mcp-bridge.chat", {
+          action: "read",
+          from: "all",
+          limit: first ? 1 : 50,
+          ...first || this.marker === "" ? {} : { since: this.marker }
+        });
+        if (result?.success === false)
+          throw new Error(result.error || "chat read refused");
+        if (this.lastNotice) {
+          this.lastNotice = void 0;
+          if (!first)
+            this.broadcast(JSON.stringify({ type: "notice", text: "Chat feed is live again" }), () => true);
+        }
+        if (!first) {
+          for (const row2 of result?.messages ?? []) {
+            const line = feedLine(row2);
+            this.broadcast(line, (from) => from === "all" || !row2.fromGM);
+          }
+        }
+        this.marker = result?.marker ?? (first ? "" : this.marker);
+      }
+    } catch (error) {
+      this.notice(`Cannot read the chat: ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      this.polling = false;
+      if (this.clients.size > 0)
+        this.timer = setTimeout(() => void this.tick(), this.options.pollMs ?? 700);
+      else
+        this.timer = void 0;
+    }
+  }
+};
+
+// dist/tools/chat-control.js
 var schema = external_exports.object({
-  action: external_exports.enum(["say", "narrate", "read", "wait"]),
+  action: external_exports.enum(["say", "narrate", "read"]),
   // say
   actorIdentifier: external_exports.string().min(1).optional(),
   tokenId: external_exports.string().min(1).optional(),
@@ -120189,12 +120322,11 @@ var schema = external_exports.object({
   whisperTo: external_exports.array(external_exports.string().min(1)).min(1).max(10).optional(),
   // narrate
   speaker: external_exports.string().min(1).max(60).optional(),
-  // read, wait
+  // read
   since: external_exports.string().min(1).max(40).optional(),
   from: external_exports.enum(["players", "all"]).optional(),
   rolls: external_exports.boolean().optional(),
-  limit: external_exports.number().int().min(1).max(50).optional(),
-  timeout_s: external_exports.number().int().min(1).max(55).optional()
+  limit: external_exports.number().int().min(1).max(50).optional()
 }).strict();
 var ChatControlTools = class {
   foundryClient;
@@ -120209,11 +120341,11 @@ var ChatControlTools = class {
     return [
       {
         name: "chat",
-        description: `Talk with the players through the chat. read {since?, from?: players|all, rolls?, limit?(15)} returns the latest messages as short rows (who, as, kind say|roll|whisper|card, text, roll total, whisper recipients) and a marker: pass it as since next time to get only what is new. wait {since?, timeout_s?(30, max 55), from?(players)} blocks until a player says or rolls something new, then returns it (timedOut:true when nothing came); use it to follow the table, then answer. narrate {content, speaker?("Narrator"), whisperTo?} posts narration to everyone, or only to the named players when whisperTo is given. say {actorIdentifier | tokenId, content, whisperTo?, language?, chatLog?} speaks as an actor or token: a speech bubble by default, or a chat-log line, optionally whispered or in a language (Polyglot). Reading is GM-only and shows whispers; never repeat a whisper to other players. A player's chat is their action: respond to what they said, do not act for them. Needs the Foundry GM tab open and not minimized; narrate and say need Allow Write Operations.`,
+        description: `Talk with the players through the chat. read {since?, from?: players|all, rolls?, limit?(15)} returns the latest messages as short rows (who, as, kind say|roll|whisper|card, text, roll total, whisper recipients) and a marker: pass it as since next time to get only what is new. narrate {content, speaker?("Narrator"), whisperTo?} posts narration to everyone, or only to the named players when whisperTo is given. say {actorIdentifier | tokenId, content, whisperTo?, language?, chatLog?} speaks as an actor or token: a speech bubble by default, or a chat-log line, optionally whispered or in a language (Polyglot). Live chat: nothing in the chat can wake you up, so follow the table by watching the chat feed, a WebSocket on this computer (ws://127.0.0.1:${DEFAULT_CHAT_FEED_PORT}) that sends one JSON line per new player message ({id, who, as?, kind, text?, roll?, flavor?, to?}); ?from=all adds the GM's lines. In Claude Code, start it once with the Monitor tool (ws: {url}); each message then arrives as its own notification, to answer one at a time. Without such a tool, poll read with the marker. Reading is GM-only and shows whispers; never repeat a whisper to other players. A player's chat is their action: respond to what they said, do not act for them. Needs the Foundry GM tab open and not minimized; narrate and say need Allow Write Operations.`,
         inputSchema: {
           type: "object",
           properties: {
-            action: { type: "string", enum: ["say", "narrate", "read", "wait"], description: "what to do" },
+            action: { type: "string", enum: ["say", "narrate", "read"], description: "what to do" },
             content: { type: "string", description: "say, narrate: plain text (html shows literally). In narrate a blank line starts a new paragraph" },
             actorIdentifier: { type: "string", description: "say: name or id of the speaking actor" },
             tokenId: { type: "string", description: "say: a specific token on the scene (prefer it when tokens share an actor)" },
@@ -120221,11 +120353,10 @@ var ChatControlTools = class {
             language: { type: "string", description: 'say: language key for Polyglot, e.g. "common"' },
             chatLog: { type: "boolean", description: "say: post a chat-log message instead of only a bubble" },
             speaker: { type: "string", description: "narrate: the name shown (default Narrator)" },
-            since: { type: "string", description: "read, wait: a marker (message id) from a previous result" },
-            from: { type: "string", enum: ["players", "all"], description: "read (default all), wait (default players)" },
-            rolls: { type: "boolean", description: "read, wait: false leaves out pure roll messages" },
-            limit: { type: "number", description: "read, wait: at most this many messages (default 15, max 50)" },
-            timeout_s: { type: "number", description: "wait: seconds to wait (default 30, max 55)" }
+            since: { type: "string", description: "read: a marker (message id) from a previous result" },
+            from: { type: "string", enum: ["players", "all"], description: "read (default all)" },
+            rolls: { type: "boolean", description: "read: false leaves out pure roll messages" },
+            limit: { type: "number", description: "read: at most this many messages (default 15, max 50)" }
           },
           required: ["action"],
           additionalProperties: false
@@ -120250,8 +120381,7 @@ var ChatControlTools = class {
     }
     if (a.action === "narrate" && !a.content)
       throw new Error("narrate needs content");
-    const timeoutMs = a.action === "wait" ? ((a.timeout_s ?? 30) + 15) * 1e3 : 3e4;
-    const result = await this.foundryClient.query("foundry-mcp-bridge.chat", a, timeoutMs);
+    const result = await this.foundryClient.query("foundry-mcp-bridge.chat", a, 3e4);
     if (result?.success === false)
       throw new Error(result.error || "Request was refused");
     return result;
@@ -128959,6 +129089,13 @@ async function startBackend() {
   foundryClient.connect().catch((e) => {
     logger.error("Foundry connector failed to start", e);
   });
+  const chatFeed = new ChatFeed({
+    query: (method, data, timeoutMs) => foundryClient.query(method, data, timeoutMs),
+    isConnected: () => foundryClient.isConnected(),
+    logger,
+    port: Number(process.env.FOUNDRY_MCP_CHAT_FEED_PORT) || DEFAULT_CHAT_FEED_PORT
+  });
+  void chatFeed.start();
   const autoStartComfyUI = async () => {
     try {
       logger.info("Auto-starting ComfyUI service...");

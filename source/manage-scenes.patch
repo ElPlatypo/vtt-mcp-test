@@ -2954,11 +2954,11 @@ index 0000000..8e1aad5
 +});
 diff --git a/packages/foundry-module/src/data-access.chat.test.ts b/packages/foundry-module/src/data-access.chat.test.ts
 new file mode 100644
-index 0000000..bce686a
+index 0000000..1cd4fdb
 --- /dev/null
 +++ b/packages/foundry-module/src/data-access.chat.test.ts
-@@ -0,0 +1,95 @@
-+/** chat: reading, waiting for players, narrating. Foundry is stubbed. */
+@@ -0,0 +1,79 @@
++/** chat: reading and narrating. Foundry is stubbed. */
 +import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 +import { FoundryDataAccess } from './data-access.js';
 +import { chatRow, selectMessages } from './chat-utils.js';
@@ -3021,25 +3021,9 @@ index 0000000..bce686a
 +    expect(next.messages.map((m: any) => m.text)).toEqual(['I attack']);
 +    expect((await da.controlChat({ limit: 1 })).omitted).toBe(2);
 +  });
-+  it('waits for a player message, ignoring the GM, and times out otherwise', async () => {
-+    vi.useFakeTimers();
-+    try {
-+      const { da, messages } = setup();
-+      const waiting = da.controlChat({ action: 'wait', timeout_s: 10 });
-+      await vi.advanceTimersByTimeAsync(800);
-+      messages.push(msg('3', { author: users.gm, content: 'gm only' }));
-+      await vi.advanceTimersByTimeAsync(800);
-+      messages.push(msg('4', { content: 'I open the door' }));
-+      await vi.advanceTimersByTimeAsync(800);
-+      const r = await waiting;
-+      expect(r).toMatchObject({ timedOut: false, marker: '4' });
-+      expect(r.messages.map((m: any) => m.text)).toEqual(['I open the door']);
-+      const quiet = da.controlChat({ action: 'wait', timeout_s: 1 });
-+      await vi.advanceTimersByTimeAsync(1500);
-+      expect(await quiet).toMatchObject({ timedOut: true, messages: [] });
-+    } finally {
-+      vi.useRealTimers();
-+    }
++  it('refuses actions that do not exist, such as the old wait', async () => {
++    const { da } = setup();
++    await expect(da.controlChat({ action: 'wait' } as any)).rejects.toThrow('read or narrate');
 +  });
 +  it('narrates publicly or as a whisper, escaping html', async () => {
 +    const { da, create } = setup();
@@ -7645,7 +7629,7 @@ index 0000000..26e6aab
 +  });
 +});
 diff --git a/packages/foundry-module/src/data-access.ts b/packages/foundry-module/src/data-access.ts
-index eecda7e..8d1e3c7 100644
+index eecda7e..cc54fdb 100644
 --- a/packages/foundry-module/src/data-access.ts
 +++ b/packages/foundry-module/src/data-access.ts
 @@ -1,6 +1,140 @@
@@ -7789,7 +7773,7 @@ index eecda7e..8d1e3c7 100644
  
  // The same five characters foundry.utils.escapeHTML replaces in v14, kept local because
  // that helper isn't confirmed in v13, this module's minimum.
-@@ -1714,6 +1848,83 @@ const DND5E_SIZE: Record<string, string> = {
+@@ -1714,6 +1848,82 @@ const DND5E_SIZE: Record<string, string> = {
    gargantuan: 'gargantuan',
  };
  
@@ -7818,12 +7802,11 @@ index eecda7e..8d1e3c7 100644
 +}
 +
 +export interface ChatControlRequest {
-+  action?: 'read' | 'wait' | 'narrate';
++  action?: 'read' | 'narrate';
 +  since?: string;
 +  from?: 'players' | 'all';
 +  rolls?: boolean;
 +  limit?: number;
-+  timeout_s?: number;
 +  content?: string;
 +  speaker?: string;
 +  whisperTo?: string[];
@@ -7873,7 +7856,7 @@ index eecda7e..8d1e3c7 100644
  export class FoundryDataAccess {
    private moduleId: string = MODULE_ID;
    private persistentIndex: PersistentCreatureIndex = new PersistentCreatureIndex();
-@@ -4681,12 +4892,28 @@ export class FoundryDataAccess {
+@@ -4681,12 +4891,28 @@ export class FoundryDataAccess {
        type: 'random' | 'grid' | 'center' | 'coordinates';
        coordinates?: { x: number; y: number }[];
      };
@@ -7902,7 +7885,7 @@ index eecda7e..8d1e3c7 100644
        // Validate inputs
        if (!packId || !itemId) {
          throw new Error('Both packId and itemId are required');
-@@ -4753,10 +4980,33 @@ export class FoundryDataAccess {
+@@ -4753,10 +4979,33 @@ export class FoundryDataAccess {
            }
  
            // Organize created actors in a folder - use "Foundry MCP Creatures" for generic monsters
@@ -7937,7 +7920,7 @@ index eecda7e..8d1e3c7 100644
  
            // Create the actor
            const newActor = await Actor.create(actorData);
-@@ -6714,7 +6964,7 @@ export class FoundryDataAccess {
+@@ -6714,7 +6963,7 @@ export class FoundryDataAccess {
  
          // Send socket request to GM
          if (game.socket) {
@@ -7946,7 +7929,7 @@ index eecda7e..8d1e3c7 100644
              type: 'requestMessageUpdate',
              buttonId,
              userId,
-@@ -8101,246 +8351,4816 @@ export class FoundryDataAccess {
+@@ -8101,246 +8350,4804 @@ export class FoundryDataAccess {
      }
    }
  
@@ -9662,7 +9645,7 @@ index eecda7e..8d1e3c7 100644
 +  async controlChat(data: ChatControlRequest): Promise<any> {
 +    this.validateFoundryState();
 +    const action = data?.action ?? 'read';
-+    if (!['read', 'wait', 'narrate'].includes(action)) throw new Error('action must be read, wait or narrate');
++    if (!['read', 'narrate'].includes(action)) throw new Error('action must be read or narrate');
 +    if (action === 'narrate') {
 +      const gate = permissionManager.checkWritePermission('modifyScene', {});
 +      if (!gate.allowed) throw new Error(`${ERROR_MESSAGES.ACCESS_DENIED}: ${gate.reason}`);
@@ -9691,20 +9674,8 @@ index eecda7e..8d1e3c7 100644
 +      }
 +
 +      const limit = Math.max(1, Math.min(50, Number(data.limit ?? 15)));
-+      const from = data.from ?? (action === 'wait' ? 'players' : 'all');
++      const from = data.from ?? 'all';
 +      const filter = { since: data.since, from, rolls: data.rolls } as const;
-+
-+      if (action === 'wait') {
-+        const timeout = Math.max(1, Math.min(55, Number(data.timeout_s ?? 30))) * 1000;
-+        const marker = data.since ?? lastId();
-+        const started = Date.now();
-+        for (;;) {
-+          const rows = selectMessages(all(), { ...filter, since: marker }, userName);
-+          if (rows.length > 0) return { success: true, timedOut: false, messages: rows.slice(0, limit), marker: lastId() };
-+          if (Date.now() - started >= timeout) return { success: true, timedOut: true, messages: [], marker: lastId() };
-+          await new Promise(r => setTimeout(r, 400));
-+        }
-+      }
 +
 +      const rows = selectMessages(all(), filter, userName);
 +      const shown = rows.slice(-limit);
@@ -12977,7 +12948,7 @@ index eecda7e..8d1e3c7 100644
        };
  
        // Find the character first
-@@ -8468,6 +13288,21 @@ export class FoundryDataAccess {
+@@ -8468,6 +13275,21 @@ export class FoundryDataAccess {
      }
    }
  
@@ -12999,7 +12970,7 @@ index eecda7e..8d1e3c7 100644
    /**
     * Move a token to a new position on the scene
     */
-@@ -8476,6 +13311,12 @@ export class FoundryDataAccess {
+@@ -8476,6 +13298,12 @@ export class FoundryDataAccess {
      x: number;
      y: number;
      animate?: boolean;
@@ -13012,7 +12983,7 @@ index eecda7e..8d1e3c7 100644
    }): Promise<any> {
      this.validateFoundryState();
  
-@@ -8489,24 +13330,57 @@ export class FoundryDataAccess {
+@@ -8489,24 +13317,57 @@ export class FoundryDataAccess {
      }
  
      try {
@@ -13083,7 +13054,7 @@ index eecda7e..8d1e3c7 100644
  
        this.auditLog('moveToken', data, 'success');
  
-@@ -8514,8 +13388,12 @@ export class FoundryDataAccess {
+@@ -8514,8 +13375,12 @@ export class FoundryDataAccess {
          success: true,
          tokenId: token.id,
          tokenName: token.name,
@@ -13097,7 +13068,7 @@ index eecda7e..8d1e3c7 100644
        };
      } catch (error) {
        this.auditLog(
-@@ -8530,10 +13408,56 @@ export class FoundryDataAccess {
+@@ -8530,10 +13395,56 @@ export class FoundryDataAccess {
      }
    }
  
@@ -13155,7 +13126,7 @@ index eecda7e..8d1e3c7 100644
      this.validateFoundryState();
  
      // Use permission system
-@@ -8546,20 +13470,19 @@ export class FoundryDataAccess {
+@@ -8546,20 +13457,19 @@ export class FoundryDataAccess {
      }
  
      try {
@@ -13182,7 +13153,7 @@ index eecda7e..8d1e3c7 100644
  
        // Apply updates
        await token.update(cleanUpdates);
-@@ -8651,18 +13574,15 @@ export class FoundryDataAccess {
+@@ -8651,18 +13561,15 @@ export class FoundryDataAccess {
    /**
     * Get detailed information about a token
     */
@@ -13205,7 +13176,7 @@ index eecda7e..8d1e3c7 100644
        }
  
        // Return flat structure that matches MCP server expectations
-@@ -11274,7 +16194,10 @@ export class FoundryDataAccess {
+@@ -11274,7 +16181,10 @@ export class FoundryDataAccess {
        name: string;
        type: string;
        img?: string;
@@ -13216,7 +13187,7 @@ index eecda7e..8d1e3c7 100644
      }>;
      folder?: string;
    }): Promise<{ created: Array<{ id: string; name: string; type: string }>; total: number }> {
-@@ -11286,6 +16209,19 @@ export class FoundryDataAccess {
+@@ -11286,6 +16196,19 @@ export class FoundryDataAccess {
      const docs = params.actors.map(a => {
        const doc: Record<string, any> = { name: a.name, type: a.type };
        if (a.img) doc.img = a.img;
@@ -13236,7 +13207,7 @@ index eecda7e..8d1e3c7 100644
  
        // Merge system data, adding safe defaults for systems that require certain
        // fields to exist during data preparation (avoids non-fatal init errors).
-@@ -11471,7 +16407,16 @@ export class FoundryDataAccess {
+@@ -11471,7 +16394,16 @@ export class FoundryDataAccess {
     * Merges supplied fields into the actor (top-level keys overwrite).
     */
    async updateActors(
@@ -13254,7 +13225,7 @@ index eecda7e..8d1e3c7 100644
    ): Promise<{ updated: Array<{ id: string; name: string }>; total: number }> {
      const updatedActors: Array<{ id: string; name: string }> = [];
  
-@@ -11482,6 +16427,7 @@ export class FoundryDataAccess {
+@@ -11482,6 +16414,7 @@ export class FoundryDataAccess {
        const patch: Record<string, any> = {};
        if (u.name !== undefined) patch.name = u.name;
        if (u.img !== undefined) patch.img = u.img;
@@ -13262,7 +13233,7 @@ index eecda7e..8d1e3c7 100644
        if (u.system !== undefined) {
          // Build a single patch.system nested object so Foundry deep-merges everything
          // in one pass without flat-key vs nested-key conflicts.
-@@ -11504,6 +16450,19 @@ export class FoundryDataAccess {
+@@ -11504,6 +16437,19 @@ export class FoundryDataAccess {
          }
          patch.system = systemPatch;
        }
@@ -22354,14 +22325,15 @@ index 096f27b..903a94e 100644
      "@vitest/coverage-v8": "^3.2.4",
      "esbuild": "^0.19.0",
 diff --git a/packages/mcp-server/src/backend.ts b/packages/mcp-server/src/backend.ts
-index 8967e33..2e7ba7a 100644
+index 8967e33..6ca37c5 100644
 --- a/packages/mcp-server/src/backend.ts
 +++ b/packages/mcp-server/src/backend.ts
-@@ -48,6 +48,43 @@ import { DnD5eAddFeatureTool } from './tools/dnd5e/add-feature.js';
+@@ -48,6 +48,44 @@ import { DnD5eAddFeatureTool } from './tools/dnd5e/add-feature.js';
  import { DnD5eNpcTools } from './tools/dnd5e/npc.js';
  import { DnD5eFeaturesFromCompendiumTools } from './tools/dnd5e/features.js';
  import { ChatTools } from './tools/chat.js';
 +import { ChatControlTools } from './tools/chat-control.js';
++import { ChatFeed, DEFAULT_CHAT_FEED_PORT } from './chat-feed.js';
 +import { UploadTools } from './tools/upload.js';
 +import { ImageGenerationTools } from './tools/image-generation.js';
 +import { SpeechTools } from './tools/speech-tools.js';
@@ -22401,7 +22373,7 @@ index 8967e33..2e7ba7a 100644
  
  const CONTROL_HOST = '127.0.0.1';
  
-@@ -174,6 +211,22 @@ let comfyuiProcess: ChildProcess | null = null;
+@@ -174,6 +212,22 @@ let comfyuiProcess: ChildProcess | null = null;
  
  let comfyuiStatus: 'stopped' | 'starting' | 'running' | 'error' = 'stopped';
  
@@ -22424,7 +22396,7 @@ index 8967e33..2e7ba7a 100644
  let lockFd: number | null = null;
  
  function acquireLock(): boolean {
-@@ -350,6 +403,18 @@ async function waitForComfyUIReady(timeoutMs: number = 60000): Promise<void> {
+@@ -350,6 +404,18 @@ async function waitForComfyUIReady(timeoutMs: number = 60000): Promise<void> {
  }
  
  async function startComfyUIService(logger: Logger): Promise<any> {
@@ -22443,7 +22415,7 @@ index 8967e33..2e7ba7a 100644
    if (comfyuiStatus === 'running') {
      return { status: 'already_running', message: 'ComfyUI service is already running' };
    }
-@@ -472,6 +537,14 @@ async function startComfyUIService(logger: Logger): Promise<any> {
+@@ -472,6 +538,14 @@ async function startComfyUIService(logger: Logger): Promise<any> {
  }
  
  async function stopComfyUIService(logger: Logger): Promise<any> {
@@ -22458,7 +22430,7 @@ index 8967e33..2e7ba7a 100644
    if (comfyuiStatus === 'stopped') {
      return { status: 'already_stopped', message: 'ComfyUI service is already stopped' };
    }
-@@ -510,7 +583,7 @@ async function checkComfyUIStatus(): Promise<any> {
+@@ -510,7 +584,7 @@ async function checkComfyUIStatus(): Promise<any> {
    // This handles both spawned processes and externally-started instances
  
    try {
@@ -22467,7 +22439,7 @@ index 8967e33..2e7ba7a 100644
        signal: AbortSignal.timeout(5000),
      });
  
-@@ -520,16 +593,23 @@ async function checkComfyUIStatus(): Promise<any> {
+@@ -520,16 +594,23 @@ async function checkComfyUIStatus(): Promise<any> {
        comfyuiStatus = 'error';
      }
    } catch (error) {
@@ -22493,7 +22465,7 @@ index 8967e33..2e7ba7a 100644
    };
  }
  
-@@ -1131,7 +1211,7 @@ async function processMapGenerationInBackend(
+@@ -1131,7 +1212,7 @@ async function processMapGenerationInBackend(
      );
  
      logger.error('Background map generation processing failed', { jobId, error });
@@ -22502,7 +22474,7 @@ index 8967e33..2e7ba7a 100644
  
      // Emit failure to Foundry module
      foundryClient.sendMessage({
-@@ -1195,6 +1275,81 @@ async function startBackend(): Promise<void> {
+@@ -1195,6 +1276,81 @@ async function startBackend(): Promise<void> {
    const compendiumTools = new CompendiumTools({ foundryClient, logger, systemRegistry });
  
    const sceneTools = new SceneTools({ foundryClient, logger });
@@ -22584,7 +22556,7 @@ index 8967e33..2e7ba7a 100644
    const playlistTools = new PlaylistTools({ foundryClient, logger });
  
    const actorCreationTools = new ActorCreationTools({ foundryClient, logger });
-@@ -1214,6 +1369,7 @@ async function startBackend(): Promise<void> {
+@@ -1214,6 +1370,7 @@ async function startBackend(): Promise<void> {
    const questCreationTools = new QuestCreationTools({ foundryClient, logger });
  
    const chatTools = new ChatTools({ foundryClient, logger });
@@ -22592,7 +22564,7 @@ index 8967e33..2e7ba7a 100644
  
    const diceRollTools = new DiceRollTools({ foundryClient, logger });
  
-@@ -1301,6 +1457,13 @@ async function startBackend(): Promise<void> {
+@@ -1301,6 +1458,13 @@ async function startBackend(): Promise<void> {
  
          let result: any;
  
@@ -22606,7 +22578,7 @@ index 8967e33..2e7ba7a 100644
          switch (message.type) {
            case 'start-comfyui-service':
              result = await startComfyUIService(logger);
-@@ -1317,6 +1480,19 @@ async function startBackend(): Promise<void> {
+@@ -1317,6 +1481,19 @@ async function startBackend(): Promise<void> {
  
              break;
  
@@ -22626,7 +22598,7 @@ index 8967e33..2e7ba7a 100644
            // Map generation handlers (following existing tool pattern)
            case 'generate-map-request':
              await fs.appendFile(
-@@ -1429,6 +1605,33 @@ async function startBackend(): Promise<void> {
+@@ -1429,6 +1606,33 @@ async function startBackend(): Promise<void> {
  
      ...sceneTools.getToolDefinitions(),
  
@@ -22660,7 +22632,7 @@ index 8967e33..2e7ba7a 100644
      ...actorCreationTools.getToolDefinitions(),
      ...actorManagementTools.getToolDefinitions(),
      ...effectManagementTools.getToolDefinitions(),
-@@ -1442,7 +1645,7 @@ async function startBackend(): Promise<void> {
+@@ -1442,7 +1646,7 @@ async function startBackend(): Promise<void> {
  
      ...questCreationTools.getToolDefinitions(),
  
@@ -22669,7 +22641,7 @@ index 8967e33..2e7ba7a 100644
  
      ...diceRollTools.getToolDefinitions(),
  
-@@ -1456,7 +1659,11 @@ async function startBackend(): Promise<void> {
+@@ -1456,7 +1660,11 @@ async function startBackend(): Promise<void> {
  
      ...tokenManipulationTools.getToolDefinitions(),
  
@@ -22682,7 +22654,23 @@ index 8967e33..2e7ba7a 100644
  
      ...playlistTools.getToolDefinitions(),
    ];
-@@ -1661,6 +1868,10 @@ async function startBackend(): Promise<void> {
+@@ -1467,6 +1675,15 @@ async function startBackend(): Promise<void> {
+     logger.error('Foundry connector failed to start', e);
+   });
+ 
++  // Live chat feed for clients that can watch a WebSocket (Claude Code's Monitor tool): one line per new chat message.
++  const chatFeed = new ChatFeed({
++    query: (method, data, timeoutMs) => foundryClient.query(method, data, timeoutMs),
++    isConnected: () => foundryClient.isConnected(),
++    logger,
++    port: Number(process.env.FOUNDRY_MCP_CHAT_FEED_PORT) || DEFAULT_CHAT_FEED_PORT,
++  });
++  void chatFeed.start();
++
+   const autoStartComfyUI = async () => {
+     try {
+       logger.info('Auto-starting ComfyUI service...');
+@@ -1661,6 +1878,10 @@ async function startBackend(): Promise<void> {
  
                  // Chat tools
  
@@ -22693,7 +22681,7 @@ index 8967e33..2e7ba7a 100644
                  case 'create-chat-message':
                    result = await chatTools.handleCreateChatMessage(args);
  
-@@ -1764,19 +1975,11 @@ async function startBackend(): Promise<void> {
+@@ -1764,19 +1985,11 @@ async function startBackend(): Promise<void> {
                  // Map generation tools
  
                  case 'generate-map':
@@ -22716,7 +22704,7 @@ index 8967e33..2e7ba7a 100644
  
                  case 'list-scenes':
                    result = await mapGenerationTools.listScenes(args);
-@@ -1805,6 +2008,152 @@ async function startBackend(): Promise<void> {
+@@ -1805,6 +2018,152 @@ async function startBackend(): Promise<void> {
  
                    break;
  
@@ -22869,6 +22857,253 @@ index 8967e33..2e7ba7a 100644
                  default:
                    throw new Error(`Unknown tool: ${name}`);
                }
+diff --git a/packages/mcp-server/src/chat-feed.test.ts b/packages/mcp-server/src/chat-feed.test.ts
+new file mode 100644
+index 0000000..c3de050
+--- /dev/null
++++ b/packages/mcp-server/src/chat-feed.test.ts
+@@ -0,0 +1,80 @@
++import { afterEach, describe, expect, it, vi } from 'vitest';
++import WebSocket from 'ws';
++import { ChatFeed, feedLine } from './chat-feed.js';
++
++const logger = { info: vi.fn(), warn: vi.fn(), debug: vi.fn() };
++
++describe('feedLine', () => {
++  it('is one compact JSON line with only what is there', () => {
++    expect(JSON.parse(feedLine({ id: 'a', who: 'Claudio', as: 'Randal', kind: 'say', text: 'I attack', fromGM: false }))).toEqual({ id: 'a', who: 'Claudio', as: 'Randal', kind: 'say', text: 'I attack' });
++    expect(JSON.parse(feedLine({ id: 'b', who: 'Gamemaster', kind: 'roll', roll: { formula: '1d20', total: 7 }, flavor: 'Perception', fromGM: true }))).toEqual({ id: 'b', who: 'Gamemaster', kind: 'roll', roll: { formula: '1d20', total: 7 }, flavor: 'Perception', gm: true });
++    expect(feedLine({ id: 'c', who: 'x', kind: 'say', text: 'a\nb', fromGM: false })).not.toContain('\n');
++  });
++});
++
++describe('ChatFeed', () => {
++  let feed: ChatFeed | undefined;
++  afterEach(() => feed?.stop());
++
++  /** A fake Foundry chat: `rows` is the log, read like the module's chat read does. */
++  function setup(connected = () => true) {
++    const rows: any[] = [];
++    const query = vi.fn(async (_method: string, data: any) => {
++      const start = data.since ? rows.findIndex(r => r.id === data.since) + 1 : 0;
++      const shown = (data.since ? rows.slice(start) : rows).slice(-(data.limit ?? 15));
++      return { success: true, messages: shown, marker: rows.at(-1)?.id };
++    });
++    feed = new ChatFeed({ query, isConnected: connected, logger, port: 0, pollMs: 20 });
++    return { rows, query };
++  }
++  const connect = async (path = '') => {
++    await feed!.start();
++    const lines: any[] = [];
++    const socket = new WebSocket(`ws://127.0.0.1:${feed!.port}${path}`);
++    socket.on('message', data => lines.push(JSON.parse(String(data))));
++    await new Promise(resolve => socket.once('open', resolve));
++    return { lines, socket };
++  };
++  const until = async (check: () => boolean) => {
++    for (let i = 0; i < 100 && !check(); i++) await new Promise(r => setTimeout(r, 20));
++    expect(check()).toBe(true);
++  };
++
++  it('sends only messages that arrive after connecting, players only by default', async () => {
++    const { rows } = setup();
++    rows.push({ id: '1', who: 'Claudio', kind: 'say', text: 'old', fromGM: false });
++    const { lines } = await connect();
++    await new Promise(r => setTimeout(r, 80));
++    expect(lines).toEqual([]);
++    rows.push({ id: '2', who: 'Gamemaster', kind: 'say', text: 'gm line', fromGM: true });
++    rows.push({ id: '3', who: 'Claudio', as: 'Randal', kind: 'say', text: 'I open the door', fromGM: false });
++    await until(() => lines.length >= 1);
++    await new Promise(r => setTimeout(r, 60));
++    expect(lines).toEqual([{ id: '3', who: 'Claudio', as: 'Randal', kind: 'say', text: 'I open the door' }]);
++  });
++
++  it('sends the GM lines too with ?from=all, and handles an empty chat', async () => {
++    const { rows } = setup();
++    const { lines } = await connect('/?from=all');
++    await new Promise(r => setTimeout(r, 80));
++    rows.push({ id: '1', who: 'Gamemaster', kind: 'say', text: 'first ever', fromGM: true });
++    await until(() => lines.length >= 1);
++    expect(lines[0]).toMatchObject({ id: '1', gm: true });
++  });
++
++  it('says so when Foundry is not connected, and stops reading when nobody listens', async () => {
++    let connected = false;
++    const { query } = setup(() => connected);
++    const { lines, socket } = await connect();
++    await until(() => lines.length >= 1);
++    expect(lines[0]).toMatchObject({ type: 'notice' });
++    expect(query).not.toHaveBeenCalled();
++    connected = true;
++    await until(() => query.mock.calls.length > 0);
++    socket.close();
++    await new Promise(r => setTimeout(r, 100));
++    const calls = query.mock.calls.length;
++    await new Promise(r => setTimeout(r, 100));
++    expect(query.mock.calls.length).toBe(calls);
++  });
++});
+diff --git a/packages/mcp-server/src/chat-feed.ts b/packages/mcp-server/src/chat-feed.ts
+new file mode 100644
+index 0000000..b5fe2a7
+--- /dev/null
++++ b/packages/mcp-server/src/chat-feed.ts
+@@ -0,0 +1,155 @@
++import { WebSocketServer, type WebSocket } from 'ws';
++import type { IncomingMessage } from 'node:http';
++
++/**
++ * A live feed of the Foundry chat for anything that can read a WebSocket (in Claude Code: the Monitor tool).
++ * Each new chat message is sent as one JSON line, so a client can react to the table one message at a time without
++ * keeping a request open. Players' messages by default; connect with ?from=all to also get the GM's.
++ * Listens on this computer only. It reads the chat through the module's `chat` query, but only while someone is connected.
++ */
++
++export interface ChatFeedOptions {
++  query: (method: string, data?: any, timeoutMs?: number) => Promise<any>;
++  isConnected: () => boolean;
++  logger: { info: (m: string, d?: any) => void; warn: (m: string, d?: any) => void; debug: (m: string, d?: any) => void };
++  port: number;
++  /** how often the chat is read while a client is connected */
++  pollMs?: number;
++}
++
++export const DEFAULT_CHAT_FEED_PORT = 31417;
++
++interface Row {
++  id: string;
++  who: string;
++  as?: string;
++  kind: string;
++  text?: string;
++  roll?: { formula: string; total: number | string };
++  flavor?: string;
++  to?: string[];
++  fromGM: boolean;
++}
++
++/** One chat row as the line a client receives. */
++export function feedLine(row: Row): string {
++  const out: Record<string, unknown> = { id: row.id, who: row.who };
++  if (row.as) out.as = row.as;
++  out.kind = row.kind;
++  if (row.text) out.text = row.text;
++  if (row.roll) out.roll = row.roll;
++  if (row.flavor) out.flavor = row.flavor;
++  if (row.to) out.to = row.to;
++  if (row.fromGM) out.gm = true;
++  return JSON.stringify(out);
++}
++
++export class ChatFeed {
++  private options: ChatFeedOptions;
++  private wss: WebSocketServer | undefined;
++  private clients = new Map<WebSocket, 'players' | 'all'>();
++  private timer: ReturnType<typeof setTimeout> | undefined;
++  private marker: string | undefined;
++  private lastNotice: string | undefined;
++  private polling = false;
++
++  constructor(options: ChatFeedOptions) {
++    this.options = options;
++  }
++
++  /** The port actually listening (useful when started with port 0), or undefined when not listening. */
++  get port(): number | undefined {
++    const address = this.wss?.address();
++    return address && typeof address === 'object' ? address.port : undefined;
++  }
++
++  start(): Promise<void> {
++    return new Promise(resolve => {
++      const wss = new WebSocketServer({ host: '127.0.0.1', port: this.options.port });
++      wss.once('listening', () => {
++        this.wss = wss;
++        wss.on('connection', (socket, request) => this.onConnection(socket, request));
++        this.options.logger.info('Chat feed listening', { port: this.port });
++        resolve();
++      });
++      // Another backend may already own the port: the feed is optional, so carry on without it.
++      wss.once('error', error => {
++        this.options.logger.warn('Chat feed could not start', { error: error.message });
++        resolve();
++      });
++    });
++  }
++
++  stop(): void {
++    if (this.timer) clearTimeout(this.timer);
++    this.timer = undefined;
++    for (const client of this.clients.keys()) client.terminate();
++    this.clients.clear();
++    this.wss?.close();
++    this.wss = undefined;
++  }
++
++  private onConnection(socket: WebSocket, request: IncomingMessage): void {
++    const from = new URL(request.url ?? '/', 'http://localhost').searchParams.get('from') === 'all' ? 'all' : 'players';
++    this.clients.set(socket, from);
++    socket.on('close', () => {
++      this.clients.delete(socket);
++      if (this.clients.size === 0) {
++        if (this.timer) clearTimeout(this.timer);
++        this.timer = undefined;
++        this.marker = undefined; // the next client starts from what is new then
++      }
++    });
++    socket.on('error', () => socket.terminate());
++    if (!this.timer && !this.polling) void this.tick();
++  }
++
++  private notice(text: string): void {
++    if (this.lastNotice === text) return;
++    this.lastNotice = text;
++    this.broadcast(JSON.stringify({ type: 'notice', text }), () => true);
++  }
++
++  private broadcast(line: string, wants: (from: 'players' | 'all') => boolean): void {
++    for (const [client, from] of this.clients) {
++      if (client.readyState === 1 && wants(from)) client.send(line);
++    }
++  }
++
++  private async tick(): Promise<void> {
++    if (this.clients.size === 0) return;
++    this.polling = true;
++    try {
++      if (!this.options.isConnected()) {
++        this.notice('Foundry is not connected; the feed resumes when it is');
++      } else {
++        const first = this.marker === undefined;
++        const result = await this.options.query('foundry-mcp-bridge.chat', {
++          action: 'read',
++          from: 'all',
++          limit: first ? 1 : 50,
++          ...(first || this.marker === '' ? {} : { since: this.marker }),
++        });
++        if (result?.success === false) throw new Error(result.error || 'chat read refused');
++        if (this.lastNotice) {
++          this.lastNotice = undefined;
++          if (!first) this.broadcast(JSON.stringify({ type: 'notice', text: 'Chat feed is live again' }), () => true);
++        }
++        if (!first) {
++          for (const row of (result?.messages ?? []) as Row[]) {
++            const line = feedLine(row);
++            this.broadcast(line, from => from === 'all' || !row.fromGM);
++          }
++        }
++        // An empty chat has no marker yet: '' means everything that appears now is new.
++        this.marker = result?.marker ?? (first ? '' : this.marker);
++      }
++    } catch (error) {
++      this.notice(`Cannot read the chat: ${error instanceof Error ? error.message : String(error)}`);
++    } finally {
++      this.polling = false;
++      if (this.clients.size > 0) this.timer = setTimeout(() => void this.tick(), this.options.pollMs ?? 700);
++      else this.timer = undefined;
++    }
++  }
++}
 diff --git a/packages/mcp-server/src/comfyui-client.ts b/packages/mcp-server/src/comfyui-client.ts
 index 99ac020..39e087f 100644
 --- a/packages/mcp-server/src/comfyui-client.ts
@@ -26129,10 +26364,10 @@ index 0000000..2185d13
 +}
 diff --git a/packages/mcp-server/src/tools/chat-control.test.ts b/packages/mcp-server/src/tools/chat-control.test.ts
 new file mode 100644
-index 0000000..09db1d4
+index 0000000..240c4a4
 --- /dev/null
 +++ b/packages/mcp-server/src/tools/chat-control.test.ts
-@@ -0,0 +1,39 @@
+@@ -0,0 +1,46 @@
 +import { describe, expect, it, vi } from 'vitest';
 +import { ChatControlTools } from './chat-control.js';
 +
@@ -26148,12 +26383,10 @@ index 0000000..09db1d4
 +    expect(def.name).toBe('chat');
 +    expect(def.inputSchema.required).toEqual(['action']);
 +  });
-+  it('sends read, wait and narrate to the chat query, with a long enough timeout for wait', async () => {
++  it('sends read and narrate to the chat query', async () => {
 +    const { tools, query } = make({ success: true, messages: [] });
 +    await tools.handleChat({ action: 'read', since: 'abc', limit: 5 });
 +    expect(query).toHaveBeenLastCalledWith('foundry-mcp-bridge.chat', { action: 'read', since: 'abc', limit: 5 }, 30000);
-+    await tools.handleChat({ action: 'wait', timeout_s: 20 });
-+    expect(query).toHaveBeenLastCalledWith('foundry-mcp-bridge.chat', { action: 'wait', timeout_s: 20 }, 35000);
 +    await tools.handleChat({ action: 'narrate', content: 'Dusk falls.', whisperTo: ['Claudio'] });
 +    expect(query).toHaveBeenLastCalledWith('foundry-mcp-bridge.chat', { action: 'narrate', content: 'Dusk falls.', whisperTo: ['Claudio'] }, 30000);
 +  });
@@ -26168,20 +26401,30 @@ index 0000000..09db1d4
 +    await expect(tools.handleChat({ action: 'say', content: 'hi' })).rejects.toThrow('actorIdentifier or tokenId');
 +    await expect(tools.handleChat({ action: 'say', actorIdentifier: 'A' })).rejects.toThrow('needs content');
 +    await expect(tools.handleChat({ action: 'narrate' })).rejects.toThrow('needs content');
-+    await expect(tools.handleChat({ action: 'wait', timeout_s: 500 })).rejects.toThrow();
++    await expect(tools.handleChat({ action: 'wait', timeout_s: 20 })).rejects.toThrow();
 +    await expect(make({ success: false, error: 'Access denied' }).tools.handleChat({ action: 'read' })).rejects.toThrow('Access denied');
++  });
++});
++
++describe('chat tool description', () => {
++  it('points to the live feed instead of a blocking wait', () => {
++    const def = make().tools.getToolDefinitions()[0]!;
++    expect(def.description).toContain('ws://127.0.0.1:31417');
++    expect(def.description).toContain('Monitor');
++    expect(def.description).not.toContain('timeout_s');
 +  });
 +});
 diff --git a/packages/mcp-server/src/tools/chat-control.ts b/packages/mcp-server/src/tools/chat-control.ts
 new file mode 100644
-index 0000000..fb172ae
+index 0000000..dc3d265
 --- /dev/null
 +++ b/packages/mcp-server/src/tools/chat-control.ts
-@@ -0,0 +1,97 @@
+@@ -0,0 +1,95 @@
 +import { z } from 'zod';
 +import { FoundryClient } from '../foundry-client.js';
 +import { Logger } from '../logger.js';
 +import { ChatTools } from './chat.js';
++import { DEFAULT_CHAT_FEED_PORT } from '../chat-feed.js';
 +
 +export interface ChatControlOptions {
 +  foundryClient: FoundryClient;
@@ -26190,7 +26433,7 @@ index 0000000..fb172ae
 +
 +const schema = z
 +  .object({
-+    action: z.enum(['say', 'narrate', 'read', 'wait']),
++    action: z.enum(['say', 'narrate', 'read']),
 +    // say
 +    actorIdentifier: z.string().min(1).optional(),
 +    tokenId: z.string().min(1).optional(),
@@ -26201,12 +26444,11 @@ index 0000000..fb172ae
 +    whisperTo: z.array(z.string().min(1)).min(1).max(10).optional(),
 +    // narrate
 +    speaker: z.string().min(1).max(60).optional(),
-+    // read, wait
++    // read
 +    since: z.string().min(1).max(40).optional(),
 +    from: z.enum(['players', 'all']).optional(),
 +    rolls: z.boolean().optional(),
 +    limit: z.number().int().min(1).max(50).optional(),
-+    timeout_s: z.number().int().min(1).max(55).optional(),
 +  })
 +  .strict();
 +
@@ -26228,14 +26470,14 @@ index 0000000..fb172ae
 +        description:
 +          'Talk with the players through the chat. ' +
 +          'read {since?, from?: players|all, rolls?, limit?(15)} returns the latest messages as short rows (who, as, kind say|roll|whisper|card, text, roll total, whisper recipients) and a marker: pass it as since next time to get only what is new. ' +
-+          'wait {since?, timeout_s?(30, max 55), from?(players)} blocks until a player says or rolls something new, then returns it (timedOut:true when nothing came); use it to follow the table, then answer. ' +
 +          'narrate {content, speaker?("Narrator"), whisperTo?} posts narration to everyone, or only to the named players when whisperTo is given. ' +
 +          'say {actorIdentifier | tokenId, content, whisperTo?, language?, chatLog?} speaks as an actor or token: a speech bubble by default, or a chat-log line, optionally whispered or in a language (Polyglot). ' +
++          `Live chat: nothing in the chat can wake you up, so follow the table by watching the chat feed, a WebSocket on this computer (ws://127.0.0.1:${DEFAULT_CHAT_FEED_PORT}) that sends one JSON line per new player message ({id, who, as?, kind, text?, roll?, flavor?, to?}); ?from=all adds the GM's lines. In Claude Code, start it once with the Monitor tool (ws: {url}); each message then arrives as its own notification, to answer one at a time. Without such a tool, poll read with the marker. ` +
 +          "Reading is GM-only and shows whispers; never repeat a whisper to other players. A player's chat is their action: respond to what they said, do not act for them. Needs the Foundry GM tab open and not minimized; narrate and say need Allow Write Operations.",
 +        inputSchema: {
 +          type: 'object',
 +          properties: {
-+            action: { type: 'string', enum: ['say', 'narrate', 'read', 'wait'], description: 'what to do' },
++            action: { type: 'string', enum: ['say', 'narrate', 'read'], description: 'what to do' },
 +            content: { type: 'string', description: 'say, narrate: plain text (html shows literally). In narrate a blank line starts a new paragraph' },
 +            actorIdentifier: { type: 'string', description: 'say: name or id of the speaking actor' },
 +            tokenId: { type: 'string', description: 'say: a specific token on the scene (prefer it when tokens share an actor)' },
@@ -26243,11 +26485,10 @@ index 0000000..fb172ae
 +            language: { type: 'string', description: 'say: language key for Polyglot, e.g. "common"' },
 +            chatLog: { type: 'boolean', description: 'say: post a chat-log message instead of only a bubble' },
 +            speaker: { type: 'string', description: 'narrate: the name shown (default Narrator)' },
-+            since: { type: 'string', description: 'read, wait: a marker (message id) from a previous result' },
-+            from: { type: 'string', enum: ['players', 'all'], description: 'read (default all), wait (default players)' },
-+            rolls: { type: 'boolean', description: 'read, wait: false leaves out pure roll messages' },
-+            limit: { type: 'number', description: 'read, wait: at most this many messages (default 15, max 50)' },
-+            timeout_s: { type: 'number', description: 'wait: seconds to wait (default 30, max 55)' },
++            since: { type: 'string', description: 'read: a marker (message id) from a previous result' },
++            from: { type: 'string', enum: ['players', 'all'], description: 'read (default all)' },
++            rolls: { type: 'boolean', description: 'read: false leaves out pure roll messages' },
++            limit: { type: 'number', description: 'read: at most this many messages (default 15, max 50)' },
 +          },
 +          required: ['action'],
 +          additionalProperties: false,
@@ -26269,8 +26510,7 @@ index 0000000..fb172ae
 +      return this.say.handleCreateChatMessage(fields);
 +    }
 +    if (a.action === 'narrate' && !a.content) throw new Error('narrate needs content');
-+    const timeoutMs = a.action === 'wait' ? ((a.timeout_s ?? 30) + 15) * 1000 : 30000;
-+    const result = await this.foundryClient.query('foundry-mcp-bridge.chat', a, timeoutMs);
++    const result = await this.foundryClient.query('foundry-mcp-bridge.chat', a, 30000);
 +    if (result?.success === false) throw new Error(result.error || 'Request was refused');
 +    return result;
 +  }
