@@ -121547,6 +121547,8 @@ var schema2 = external_exports.object({
   speed: external_exports.number().min(0.5).max(2).optional(),
   engine: external_exports.enum(SPEECH_ENGINES).optional(),
   speaker_name: external_exports.string().min(1).max(60).optional(),
+  token_id: external_exports.string().min(1).max(40).optional(),
+  actor: external_exports.string().min(1).max(80).optional(),
   chat: external_exports.boolean().optional(),
   seed: external_exports.number().int().min(0).optional()
 }).strict();
@@ -121569,7 +121571,7 @@ var SpeechTools = class {
     return [
       {
         name: "speak",
-        description: `Narrate or voice a line aloud for the whole table. It makes the speech with the GM's ComfyUI (the same one used for images), uploads the audio to the Foundry world, plays it for every connected player, and shows the words in the chat revealed in time with the audio. say {text, voice?, style?, language?, speed?, engine?, speaker_name?, chat?} speaks the text (up to 1500 characters, a paragraph or two): the engine, voice, style and speed default to what the GM set in the module settings (Narration). Engines: qwen3-fast (the best voice, streams while it generates: starts within about a second; needs the claude_tts node in ComfyUI; presets such as Ryan, "style" says how to speak), kokoro (fast, a few seconds per paragraph; voice is an id like bm_fable or af_heart), qwen3-custom (slower, preset voices such as Ryan or Serena, "style" says how to speak), qwen3-design (slowest; "voice" is a description such as "a gruff old dwarf with a Scottish accent"). speaker_name is the label in the chat (default Narrator, or the NPC's name); chat:false plays the audio without the chat text. The text is spoken sentence by sentence: the first sentence starts playing as soon as it is ready (about a second with kokoro or qwen3-fast) while the rest is generated, and each sentence appears in the chat as it is spoken. The call returns when everything is queued, not when it finishes playing. Write text to be heard: no stage directions, no markup, and spell out what should be said. Do not speak secrets or GM notes. describe shows the settings, which engines this ComfyUI can run and their voices; stop silences the narration now. Needs ComfyUI running with a text-to-speech node (Kokoro or Qwen3-TTS) and Allow Write Operations.`,
+        description: `Narrate or voice a line aloud for the whole table. It makes the speech with the GM's ComfyUI (the same one used for images), uploads the audio to the Foundry world, plays it for every connected player, and shows the words in the chat revealed in time with the audio. say {text, voice?, style?, language?, speed?, engine?, speaker_name?, chat?} speaks the text (up to 1500 characters, a paragraph or two): the engine, voice, style and speed default to what the GM set in the module settings (Narration). Engines: qwen3-fast (the best voice, streams while it generates: starts within about a second; needs the claude_tts node in ComfyUI; presets such as Ryan, "style" says how to speak), kokoro (fast, a few seconds per paragraph; voice is an id like bm_fable or af_heart), qwen3-custom (slower, preset voices such as Ryan or Serena, "style" says how to speak), qwen3-design (slowest; "voice" is a description such as "a gruff old dwarf with a Scottish accent"). speaker_name is the label in the chat (default Narrator, or the NPC's name); token_id or actor makes it a character speaking: its name and portrait in the chat and the whole line as a speech bubble over its token when the audio starts; chat:false plays the audio without the chat text. The text is spoken sentence by sentence: the first sentence starts playing as soon as it is ready (about a second with kokoro or qwen3-fast) while the rest is generated, and each sentence appears in the chat as it is spoken. The call returns when everything is queued, not when it finishes playing. Write text to be heard: no stage directions, no markup, and spell out what should be said. Do not speak secrets or GM notes. describe shows the settings, which engines this ComfyUI can run and their voices; stop silences the narration now. Needs ComfyUI running with a text-to-speech node (Kokoro or Qwen3-TTS) and Allow Write Operations.`,
         inputSchema: {
           type: "object",
           properties: {
@@ -121581,6 +121583,8 @@ var SpeechTools = class {
             speed: { type: "number", description: "say: kokoro speed, 0.5 to 2 (default 1)" },
             engine: { type: "string", enum: ["qwen3-fast", "kokoro", "qwen3-custom", "qwen3-design"], description: "say: override the engine" },
             speaker_name: { type: "string", description: "say: the name shown in the chat (default Narrator)" },
+            token_id: { type: "string", description: "say: speak as this token on the scene: the chat line carries it and a speech bubble shows over it" },
+            actor: { type: "string", description: "say: speak as this actor (name or id), using its token on the scene for the bubble. Ignored when token_id is given" },
             chat: { type: "boolean", description: "say: show the words in chat in time with the audio (default: the setting)" },
             seed: { type: "number", description: "say: a fixed seed for qwen3 engines, to repeat a take" }
           },
@@ -121676,7 +121680,8 @@ var SpeechTools = class {
         audioSeconds: seconds,
         speaker,
         sync,
-        ...index === 0 ? { startDelayMs: bufferMs } : {}
+        ...index === 0 ? { startDelayMs: bufferMs } : {},
+        ...this.speakerFields(a, text3, index)
       });
       if (queued?.success === false) {
         await this.stopQuietly();
@@ -121759,7 +121764,8 @@ var SpeechTools = class {
             audioSeconds: seconds,
             speaker,
             sync,
-            ...index === 0 ? { startDelayMs: FAST_PREROLL_MS } : {}
+            ...index === 0 ? { startDelayMs: FAST_PREROLL_MS } : {},
+            ...this.speakerFields(a, text3, index)
           });
           if (queued?.success === false)
             throw new Error(queued.error || "Foundry could not play the speech");
@@ -121840,6 +121846,11 @@ var SpeechTools = class {
     } catch (error) {
       return { available: false, needs: "the claude_tts custom node in ComfyUI", detail: error instanceof Error ? error.message : String(error) };
     }
+  }
+  /** Who the line is spoken as (a token or actor on the scene), and the full line for the speech bubble that shows when the audio starts. */
+  speakerFields(a, text3, index) {
+    const who = a.token_id ? { tokenId: a.token_id } : a.actor ? { actorIdentifier: a.actor } : null;
+    return who ? { ...who, ...index === 0 ? { bubbleText: text3 } : {} } : {};
   }
   async stopQuietly() {
     try {

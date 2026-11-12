@@ -20459,12 +20459,12 @@ index d689724..29b47d7 100644
        hint: 'Higher quality = better detail but slower generation. Generation time depends on your hardware.',
 diff --git a/packages/foundry-module/src/speech-player.ts b/packages/foundry-module/src/speech-player.ts
 new file mode 100644
-index 0000000..2daf670
+index 0000000..609ad9f
 --- /dev/null
 +++ b/packages/foundry-module/src/speech-player.ts
-@@ -0,0 +1,209 @@
+@@ -0,0 +1,250 @@
 +import { MODULE_ID } from './constants.js';
-+import { planSegment, segmentsHtml, segmentsText, speechSettingsFrom, type SpeechSegment } from './speech-utils.js';
++import { escapeHtml, planSegment, segmentsHtml, segmentsText, speechSettingsFrom, type SpeechSegment } from './speech-utils.js';
 +
 +/**
 + * Narration at the table. The MCP server sends the audio in pieces; the GM's browser decides when each piece
@@ -20479,6 +20479,10 @@ index 0000000..2daf670
 +  segments: SpeechSegment[];
 +  sync: boolean;
 +  speaker: string;
++  /** the chat speaker (alias, actor, token) when the line is spoken as a character on the scene */
++  speakerData?: Record<string, unknown>;
++  /** the token on the canvas that shows the speech bubble */
++  tokenObject?: any;
 +  messageId?: string;
 +  /** chat updates run in order */
 +  chain: Promise<unknown>;
@@ -20541,6 +20545,7 @@ index 0000000..2daf670
 +    let session = this.sessions.get(id);
 +    if (!session) {
 +      session = { nextStart: undefined, segments: [], sync: data.sync !== false, speaker: String(data.speaker || 'Narrator'), chain: Promise.resolve() };
++      this.resolveSpeaker(session, data);
 +      this.sessions.set(id, session);
 +    }
 +    const plan = planSegment(session.nextStart, this.now(), seconds, Number(data.startDelayMs) || 0);
@@ -20548,6 +20553,7 @@ index 0000000..2daf670
 +    const url = path.startsWith('/') || /^https?:/.test(path) ? path : `/${path}`;
 +    this.broadcast({ type: 'tts', op: 'play', id, url, start: plan.start, seconds });
 +    void this.play({ type: 'tts', op: 'play', id, url, start: plan.start, seconds });
++    if (data.bubbleText && session.tokenObject) this.bubble(session.tokenObject, String(data.bubbleText), plan.start);
 +
 +    let messageId = session.messageId;
 +    if (session.sync) {
@@ -20561,13 +20567,48 @@ index 0000000..2daf670
 +    return { success: true, ...(messageId ? { messageId } : {}), start: plan.start };
 +  }
 +
++  /** The token or actor the line is spoken as, if any: the chat message then carries it and a bubble shows over the token. */
++  private resolveSpeaker(session: Session, data: any): void {
++    try {
++      const scene = (globalThis as any).canvas?.scene;
++      let tokenDoc: any = data.tokenId ? scene?.tokens?.get(String(data.tokenId)) : undefined;
++      let actor: any = tokenDoc?.actor;
++      if (!tokenDoc && data.actorIdentifier) {
++        const key = String(data.actorIdentifier);
++        actor = (game as any).actors?.get(key) ?? (game as any).actors?.getName(key);
++        const tokens = (actor?.getActiveTokens?.(false, true) as any[]) ?? [];
++        tokenDoc = tokens[0];
++      }
++      if (!actor && !tokenDoc) return;
++      const ChatMessageClass = (globalThis as any).ChatMessage;
++      session.speakerData = tokenDoc ? ChatMessageClass.getSpeaker({ token: tokenDoc, actor }) : ChatMessageClass.getSpeaker({ actor });
++      session.tokenObject = tokenDoc?.object;
++    } catch (error) {
++      console.warn(`[${MODULE_ID}] narration speaker not found:`, error);
++    }
++  }
++
++  /** Show the whole line as a speech bubble over the token when its audio starts. */
++  private bubble(token: any, text: string, startAt: number): void {
++    const show = () => {
++      try {
++        const result = (globalThis as any).canvas?.hud?.bubbles?.broadcast(token, escapeHtml(text), { pan: false, requireVisible: true });
++        // Not awaited: the promise waits for the previous bubble of this token to fade, which may never happen in a hidden tab.
++        Promise.resolve(result).catch(error => console.warn(`[${MODULE_ID}] narration bubble failed:`, error));
++      } catch (error) {
++        console.warn(`[${MODULE_ID}] narration bubble failed:`, error);
++      }
++    };
++    setTimeout(show, Math.max(0, startAt - this.now()));
++  }
++
 +  private async writeMessage(session: Session): Promise<void> {
 +    const snapshot = session.segments.map(s => ({ ...s }));
 +    const content = segmentsText(snapshot);
 +    const flags = { [MODULE_ID]: { tts: { segments: snapshot } } };
 +    const ChatMessageClass = (globalThis as any).ChatMessage;
 +    if (!session.messageId) {
-+      const created = await ChatMessageClass.create({ content, speaker: { alias: session.speaker }, flags });
++      const created = await ChatMessageClass.create({ content, speaker: session.speakerData ?? { alias: session.speaker }, flags });
 +      session.messageId = created?.id;
 +      return;
 +    }
@@ -37635,10 +37676,10 @@ index 0000000..1aafc44
 +}
 diff --git a/packages/mcp-server/src/tools/speech-tools.test.ts b/packages/mcp-server/src/tools/speech-tools.test.ts
 new file mode 100644
-index 0000000..826b518
+index 0000000..c83dd53
 --- /dev/null
 +++ b/packages/mcp-server/src/tools/speech-tools.test.ts
-@@ -0,0 +1,178 @@
+@@ -0,0 +1,201 @@
 +import { describe, expect, it, vi } from 'vitest';
 +import { SpeechTools } from './speech-tools.js';
 +
@@ -37817,12 +37858,35 @@ index 0000000..826b518
 +    expect(segmentPlan(0.8).first).toBe(2);
 +  });
 +});
++
++describe('speaking as a character', () => {
++  it('passes the token or actor and the full line for the bubble with the first piece only', async () => {
++    const { tools, query } = make({ engine: 'kokoro', voice: 'bm_fable' });
++    await tools.handleSpeak({ text: 'Drop your gold. Or else.', token_id: 'tok1', speaker_name: 'Yeemik' });
++    const queued = query.mock.calls.filter(c => c[1]?.action === 'queue').map(c => c[1] as any);
++    expect(queued[0]).toMatchObject({ tokenId: 'tok1', bubbleText: 'Drop your gold. Or else.', speaker: 'Yeemik' });
++    for (const q of queued.slice(1)) expect(q.bubbleText).toBeUndefined();
++
++    const second = make({ engine: 'kokoro', voice: 'bm_fable' });
++    await second.tools.handleSpeak({ text: 'Hello there.', actor: 'Goblin' });
++    const first = second.query.mock.calls.find(c => c[1]?.action === 'queue')![1] as any;
++    expect(first).toMatchObject({ actorIdentifier: 'Goblin', bubbleText: 'Hello there.' });
++    expect(first.tokenId).toBeUndefined();
++  });
++  it('sends nothing extra when no character is given', async () => {
++    const { tools, query } = make({ engine: 'kokoro', voice: 'bm_fable' });
++    await tools.handleSpeak({ text: 'Plain narration.' });
++    const q = query.mock.calls.find(c => c[1]?.action === 'queue')![1] as any;
++    expect(q.tokenId).toBeUndefined();
++    expect(q.bubbleText).toBeUndefined();
++  });
++});
 diff --git a/packages/mcp-server/src/tools/speech-tools.ts b/packages/mcp-server/src/tools/speech-tools.ts
 new file mode 100644
-index 0000000..fecb039
+index 0000000..335aed8
 --- /dev/null
 +++ b/packages/mcp-server/src/tools/speech-tools.ts
-@@ -0,0 +1,439 @@
+@@ -0,0 +1,451 @@
 +import { randomInt } from 'crypto';
 +import { z } from 'zod';
 +import { FoundryClient } from '../foundry-client.js';
@@ -37896,6 +37960,8 @@ index 0000000..fecb039
 +    speed: z.number().min(0.5).max(2).optional(),
 +    engine: z.enum(SPEECH_ENGINES).optional(),
 +    speaker_name: z.string().min(1).max(60).optional(),
++    token_id: z.string().min(1).max(40).optional(),
++    actor: z.string().min(1).max(80).optional(),
 +    chat: z.boolean().optional(),
 +    seed: z.number().int().min(0).optional(),
 +  })
@@ -37926,7 +37992,7 @@ index 0000000..fecb039
 +          'Narrate or voice a line aloud for the whole table. It makes the speech with the GM\'s ComfyUI (the same one used for images), uploads the audio to the Foundry world, plays it for every connected player, and shows the words in the chat revealed in time with the audio. ' +
 +          'say {text, voice?, style?, language?, speed?, engine?, speaker_name?, chat?} speaks the text (up to 1500 characters, a paragraph or two): the engine, voice, style and speed default to what the GM set in the module settings (Narration). ' +
 +          'Engines: qwen3-fast (the best voice, streams while it generates: starts within about a second; needs the claude_tts node in ComfyUI; presets such as Ryan, "style" says how to speak), kokoro (fast, a few seconds per paragraph; voice is an id like bm_fable or af_heart), qwen3-custom (slower, preset voices such as Ryan or Serena, "style" says how to speak), qwen3-design (slowest; "voice" is a description such as "a gruff old dwarf with a Scottish accent"). ' +
-+          'speaker_name is the label in the chat (default Narrator, or the NPC\'s name); chat:false plays the audio without the chat text. ' +
++          'speaker_name is the label in the chat (default Narrator, or the NPC\'s name); token_id or actor makes it a character speaking: its name and portrait in the chat and the whole line as a speech bubble over its token when the audio starts; chat:false plays the audio without the chat text. ' +
 +          'The text is spoken sentence by sentence: the first sentence starts playing as soon as it is ready (about a second with kokoro or qwen3-fast) while the rest is generated, and each sentence appears in the chat as it is spoken. The call returns when everything is queued, not when it finishes playing. Write text to be heard: no stage directions, no markup, and spell out what should be said. Do not speak secrets or GM notes. ' +
 +          'describe shows the settings, which engines this ComfyUI can run and their voices; stop silences the narration now. Needs ComfyUI running with a text-to-speech node (Kokoro or Qwen3-TTS) and Allow Write Operations.',
 +        inputSchema: {
@@ -37940,6 +38006,8 @@ index 0000000..fecb039
 +            speed: { type: 'number', description: 'say: kokoro speed, 0.5 to 2 (default 1)' },
 +            engine: { type: 'string', enum: ['qwen3-fast', 'kokoro', 'qwen3-custom', 'qwen3-design'], description: 'say: override the engine' },
 +            speaker_name: { type: 'string', description: 'say: the name shown in the chat (default Narrator)' },
++            token_id: { type: 'string', description: 'say: speak as this token on the scene: the chat line carries it and a speech bubble shows over it' },
++            actor: { type: 'string', description: 'say: speak as this actor (name or id), using its token on the scene for the bubble. Ignored when token_id is given' },
 +            chat: { type: 'boolean', description: 'say: show the words in chat in time with the audio (default: the setting)' },
 +            seed: { type: 'number', description: 'say: a fixed seed for qwen3 engines, to repeat a take' },
 +          },
@@ -38049,6 +38117,7 @@ index 0000000..fecb039
 +        speaker,
 +        sync,
 +        ...(index === 0 ? { startDelayMs: bufferMs } : {}),
++        ...this.speakerFields(a, text, index),
 +      });
 +      if (queued?.success === false) {
 +        await this.stopQuietly();
@@ -38135,6 +38204,7 @@ index 0000000..fecb039
 +            speaker,
 +            sync,
 +            ...(index === 0 ? { startDelayMs: FAST_PREROLL_MS } : {}),
++            ...this.speakerFields(a, text, index),
 +          });
 +          if (queued?.success === false) throw new Error(queued.error || 'Foundry could not play the speech');
 +          if (queued?.messageId) messageId = queued.messageId;
@@ -38208,6 +38278,12 @@ index 0000000..fecb039
 +    } catch (error) {
 +      return { available: false, needs: 'the claude_tts custom node in ComfyUI', detail: error instanceof Error ? error.message : String(error) };
 +    }
++  }
++
++  /** Who the line is spoken as (a token or actor on the scene), and the full line for the speech bubble that shows when the audio starts. */
++  private speakerFields(a: z.infer<typeof schema>, text: string, index: number): Record<string, string> {
++    const who = a.token_id ? { tokenId: a.token_id } : a.actor ? { actorIdentifier: a.actor } : null;
++    return who ? { ...who, ...(index === 0 ? { bubbleText: text } : {}) } : {};
 +  }
 +
 +  private async stopQuietly(): Promise<void> {
