@@ -2,7 +2,7 @@
   "id": "foundry-mcp-bridge-scenes",
   "title": "Foundry MCP Bridge (Scenes)",
   "description": "Unofficial variant of Foundry MCP Bridge by Adam Dooley (MIT licence) that adds a manage-scenes tool for creating and editing scenes. Installs next to the original under its own id; enable only one of the two per world.",
-  "version": "0.8.6.51",
+  "version": "0.8.6.52",
   "compatibility": {
     "minimum": "13",
     "verified": "14",

@@ -20459,12 +20459,12 @@ index d689724..29b47d7 100644
        hint: 'Higher quality = better detail but slower generation. Generation time depends on your hardware.',
 diff --git a/packages/foundry-module/src/speech-player.ts b/packages/foundry-module/src/speech-player.ts
 new file mode 100644
-index 0000000..609ad9f
+index 0000000..187153b
 --- /dev/null
 +++ b/packages/foundry-module/src/speech-player.ts
-@@ -0,0 +1,250 @@
+@@ -0,0 +1,280 @@
 +import { MODULE_ID } from './constants.js';
-+import { escapeHtml, planSegment, segmentsHtml, segmentsText, speechSettingsFrom, type SpeechSegment } from './speech-utils.js';
++import { escapeHtml, planSegment, segmentsEnd, segmentsHtml, segmentsText, speechSettingsFrom, type SpeechSegment } from './speech-utils.js';
 +
 +/**
 + * Narration at the table. The MCP server sends the audio in pieces; the GM's browser decides when each piece
@@ -20504,6 +20504,9 @@ index 0000000..609ad9f
 +  private sources = new Set<AudioBufferSourceNode>();
 +  private buffers = new Map<string, Promise<AudioBuffer | null>>();
 +  private gain: GainNode | null = null;
++  /** narration messages whose popup notification stays open until their audio has ended: message id to end time */
++  private holds = new Map<string, number>();
++  private holdTimer: ReturnType<typeof setInterval> | undefined;
 +
 +  /** Listen for the GM's orders and reveal narrated chat messages. Call once, when the game is ready. */
 +  attach(): void {
@@ -20694,6 +20697,32 @@ index 0000000..609ad9f
 +    this.sources.clear();
 +  }
 +
++  /**
++   * Foundry closes a chat popup (the notification at the bottom right) five seconds after it appears, however long the
++   * narration still has to run. Keep resetting that countdown until the audio has ended; after that Foundry's own
++   * countdown fades the popup out. Every update of the message extends the hold.
++   */
++  private hold(messageId: string | undefined, endAt: number): void {
++    if (!messageId || endAt <= this.now()) return;
++    this.holds.set(messageId, Math.max(endAt, this.holds.get(messageId) ?? 0));
++    if (this.holdTimer) return;
++    this.holdTimer = setInterval(() => {
++      const now = this.now();
++      for (const [id, end] of this.holds) {
++        if (now >= end) {
++          this.holds.delete(id);
++          continue;
++        }
++        const popup = document.querySelector<HTMLElement & { _lifeSpan?: number }>(`#chat-notifications .message[data-message-id="${id}"]`);
++        if (popup) popup._lifeSpan = 0;
++      }
++      if (this.holds.size === 0 && this.holdTimer) {
++        clearInterval(this.holdTimer);
++        this.holdTimer = undefined;
++      }
++    }, 400);
++  }
++
 +  /** Show the words of a narrated message when their time comes. */
 +  private reveal(message: any, html: HTMLElement): void {
 +    const tts = message?.getFlag?.(MODULE_ID, 'tts');
@@ -20702,6 +20731,7 @@ index 0000000..609ad9f
 +    const body = html.querySelector('.message-content');
 +    if (!body) return;
 +    body.innerHTML = segmentsHtml(segments);
++    this.hold(message.id, segmentsEnd(segments));
 +    const now = this.now();
 +    body.querySelectorAll<HTMLElement>('.mcp-tts-w').forEach(span => {
 +      const wait = Number(span.dataset.at) - now;
@@ -20715,12 +20745,12 @@ index 0000000..609ad9f
 +export { speechSettingsFrom };
 diff --git a/packages/foundry-module/src/speech-utils.test.ts b/packages/foundry-module/src/speech-utils.test.ts
 new file mode 100644
-index 0000000..8c05bc4
+index 0000000..edc57f9
 --- /dev/null
 +++ b/packages/foundry-module/src/speech-utils.test.ts
-@@ -0,0 +1,53 @@
+@@ -0,0 +1,60 @@
 +import { describe, expect, it } from 'vitest';
-+import { LEAD_MS, planSegment, segmentsHtml, segmentsText, speechSettingsFrom, wordTimes } from './speech-utils.js';
++import { LEAD_MS, planSegment, segmentsEnd, segmentsHtml, segmentsText, speechSettingsFrom, wordTimes } from './speech-utils.js';
 +
 +describe('planSegment', () => {
 +  it('starts the first piece after the lead and any requested delay', () => {
@@ -20765,6 +20795,13 @@ index 0000000..8c05bc4
 +  });
 +});
 +
++describe('segmentsEnd', () => {
++  it('is when the last audio ends', () => {
++    expect(segmentsEnd([{ text: 'a', at: 1000, seconds: 2 }, { text: 'b', at: 3000, seconds: 1.5 }])).toBe(4500);
++    expect(segmentsEnd([])).toBe(0);
++  });
++});
++
 +describe('speechSettingsFrom', () => {
 +  it('reads the settings with defaults and ignores odd values', () => {
 +    const s = speechSettingsFrom(k => ({ ttsEngine: 'qwen3-fast', ttsVoice: ' Ryan ', ttsSpeed: 9, ttsSyncText: false })[k]);
@@ -20774,10 +20811,10 @@ index 0000000..8c05bc4
 +});
 diff --git a/packages/foundry-module/src/speech-utils.ts b/packages/foundry-module/src/speech-utils.ts
 new file mode 100644
-index 0000000..65b3c60
+index 0000000..5e8447e
 --- /dev/null
 +++ b/packages/foundry-module/src/speech-utils.ts
-@@ -0,0 +1,86 @@
+@@ -0,0 +1,91 @@
 +/**
 + * Narration in the table's browsers: when each piece of audio starts, when each word of the chat text
 + * appears. No Foundry globals, so it can be tested. All times are server time in milliseconds
@@ -20841,6 +20878,11 @@ index 0000000..65b3c60
 +export function segmentsHtml(segments: SpeechSegment[]): string {
 +  const spans = segments.flatMap(s => wordTimes(s.text, s.at, s.seconds)).map(w => `<span class="mcp-tts-w" data-at="${w.at}">${escapeHtml(w.word)}</span>`);
 +  return `<p class="mcp-tts">${spans.join(' ')}</p>`;
++}
++
++/** When the audio of the segments ends (server time), or 0 when there are none. */
++export function segmentsEnd(segments: SpeechSegment[]): number {
++  return segments.reduce((end, s) => Math.max(end, s.at + s.seconds * 1000), 0);
 +}
 +
 +/** The plain text of the segments, for the message content (search, export, clients without the module). */
