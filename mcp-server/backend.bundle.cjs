@@ -85690,58 +85690,6 @@ var init_constants = __esm({
   }
 });
 
-// dist/comfyui-target.js
-function parseComfyTarget(raw) {
-  if (raw === void 0 || raw === null)
-    return { ...BUILTIN_TARGET };
-  if (typeof raw !== "object")
-    throw new Error("ComfyUI target must be an object");
-  const input = raw;
-  if (input.mode === void 0 || input.mode === "builtin")
-    return { ...BUILTIN_TARGET };
-  if (input.mode !== "custom")
-    throw new Error('ComfyUI mode must be "builtin" or "custom"');
-  const host = typeof input.host === "string" ? input.host.trim() : "";
-  if (!host || !(HOSTNAME.test(host) || IPV6.test(host))) {
-    throw new Error("ComfyUI host must be a host name or IP address (no http://, no port, no path)");
-  }
-  const port = input.port;
-  if (typeof port !== "number" || !Number.isInteger(port) || port < 1 || port > 65535) {
-    throw new Error("ComfyUI port must be a whole number from 1 to 65535");
-  }
-  const secure = input.secure === void 0 ? false : input.secure;
-  if (typeof secure !== "boolean")
-    throw new Error("ComfyUI secure must be true or false");
-  return { mode: "custom", host, port, secure };
-}
-function comfyBaseUrl(target) {
-  return `${target.secure ? "https" : "http"}://${target.host}:${target.port}`;
-}
-function comfyWebSocketUrl(target, clientId) {
-  return `${target.secure ? "wss" : "ws"}://${target.host}:${target.port}/ws?clientId=${encodeURIComponent(clientId)}`;
-}
-function sameComfyTarget(a, b) {
-  return a.mode === b.mode && a.host === b.host && a.port === b.port && a.secure === b.secure;
-}
-function describeComfyTarget(target) {
-  return target.mode === "builtin" ? `built-in ComfyUI at ${comfyBaseUrl(target)}` : `custom ComfyUI at ${comfyBaseUrl(target)}`;
-}
-var BUILTIN_COMFY_PORT, BUILTIN_TARGET, HOSTNAME, IPV6;
-var init_comfyui_target = __esm({
-  "dist/comfyui-target.js"() {
-    "use strict";
-    BUILTIN_COMFY_PORT = 31411;
-    BUILTIN_TARGET = {
-      mode: "builtin",
-      host: "127.0.0.1",
-      port: BUILTIN_COMFY_PORT,
-      secure: false
-    };
-    HOSTNAME = /^[A-Za-z0-9](?:[A-Za-z0-9.-]{0,251}[A-Za-z0-9])?$/;
-    IPV6 = /^\[[0-9A-Fa-f:.]+\]$/;
-  }
-});
-
 // ../../node_modules/pngjs/lib/chunkstream.js
 var require_chunkstream = __commonJS({
   "../../node_modules/pngjs/lib/chunkstream.js"(exports2, module2) {
@@ -87702,7 +87650,7 @@ var require_png = __commonJS({
     var Parser = require_parser_async();
     var Packer = require_packer_async();
     var PNGSync = require_png_sync();
-    var PNG3 = exports2.PNG = function(options) {
+    var PNG4 = exports2.PNG = function(options) {
       Stream.call(this);
       options = options || {};
       this.width = options.width | 0;
@@ -87731,9 +87679,9 @@ var require_png = __commonJS({
       this._parser.on("close", this._handleClose.bind(this));
       this._packer.on("error", this.emit.bind(this, "error"));
     };
-    util4.inherits(PNG3, Stream);
-    PNG3.sync = PNGSync;
-    PNG3.prototype.pack = function() {
+    util4.inherits(PNG4, Stream);
+    PNG4.sync = PNGSync;
+    PNG4.prototype.pack = function() {
       if (!this.data || !this.data.length) {
         this.emit("error", "No data provided");
         return this;
@@ -87745,7 +87693,7 @@ var require_png = __commonJS({
       );
       return this;
     };
-    PNG3.prototype.parse = function(data, callback) {
+    PNG4.prototype.parse = function(data, callback) {
       if (callback) {
         let onParsed, onError;
         onParsed = function(parsedData) {
@@ -87763,27 +87711,27 @@ var require_png = __commonJS({
       this.end(data);
       return this;
     };
-    PNG3.prototype.write = function(data) {
+    PNG4.prototype.write = function(data) {
       this._parser.write(data);
       return true;
     };
-    PNG3.prototype.end = function(data) {
+    PNG4.prototype.end = function(data) {
       this._parser.end(data);
     };
-    PNG3.prototype._metadata = function(metadata) {
+    PNG4.prototype._metadata = function(metadata) {
       this.width = metadata.width;
       this.height = metadata.height;
       this.emit("metadata", metadata);
     };
-    PNG3.prototype._gamma = function(gamma) {
+    PNG4.prototype._gamma = function(gamma) {
       this.gamma = gamma;
     };
-    PNG3.prototype._handleClose = function() {
+    PNG4.prototype._handleClose = function() {
       if (!this._parser.writable && !this._packer.readable) {
         this.emit("close");
       }
     };
-    PNG3.bitblt = function(src, dst, srcX, srcY, width, height, deltaX, deltaY) {
+    PNG4.bitblt = function(src, dst, srcX, srcY, width, height, deltaX, deltaY) {
       srcX |= 0;
       srcY |= 0;
       width |= 0;
@@ -87805,11 +87753,11 @@ var require_png = __commonJS({
         );
       }
     };
-    PNG3.prototype.bitblt = function(dst, srcX, srcY, width, height, deltaX, deltaY) {
-      PNG3.bitblt(this, dst, srcX, srcY, width, height, deltaX, deltaY);
+    PNG4.prototype.bitblt = function(dst, srcX, srcY, width, height, deltaX, deltaY) {
+      PNG4.bitblt(this, dst, srcX, srcY, width, height, deltaX, deltaY);
       return this;
     };
-    PNG3.adjustGamma = function(src) {
+    PNG4.adjustGamma = function(src) {
       if (src.gamma) {
         for (let y = 0; y < src.height; y++) {
           for (let x = 0; x < src.width; x++) {
@@ -87824,9 +87772,61 @@ var require_png = __commonJS({
         src.gamma = 0;
       }
     };
-    PNG3.prototype.adjustGamma = function() {
-      PNG3.adjustGamma(this);
+    PNG4.prototype.adjustGamma = function() {
+      PNG4.adjustGamma(this);
     };
+  }
+});
+
+// dist/comfyui-target.js
+function parseComfyTarget(raw) {
+  if (raw === void 0 || raw === null)
+    return { ...BUILTIN_TARGET };
+  if (typeof raw !== "object")
+    throw new Error("ComfyUI target must be an object");
+  const input = raw;
+  if (input.mode === void 0 || input.mode === "builtin")
+    return { ...BUILTIN_TARGET };
+  if (input.mode !== "custom")
+    throw new Error('ComfyUI mode must be "builtin" or "custom"');
+  const host = typeof input.host === "string" ? input.host.trim() : "";
+  if (!host || !(HOSTNAME.test(host) || IPV6.test(host))) {
+    throw new Error("ComfyUI host must be a host name or IP address (no http://, no port, no path)");
+  }
+  const port = input.port;
+  if (typeof port !== "number" || !Number.isInteger(port) || port < 1 || port > 65535) {
+    throw new Error("ComfyUI port must be a whole number from 1 to 65535");
+  }
+  const secure = input.secure === void 0 ? false : input.secure;
+  if (typeof secure !== "boolean")
+    throw new Error("ComfyUI secure must be true or false");
+  return { mode: "custom", host, port, secure };
+}
+function comfyBaseUrl(target) {
+  return `${target.secure ? "https" : "http"}://${target.host}:${target.port}`;
+}
+function comfyWebSocketUrl(target, clientId) {
+  return `${target.secure ? "wss" : "ws"}://${target.host}:${target.port}/ws?clientId=${encodeURIComponent(clientId)}`;
+}
+function sameComfyTarget(a, b) {
+  return a.mode === b.mode && a.host === b.host && a.port === b.port && a.secure === b.secure;
+}
+function describeComfyTarget(target) {
+  return target.mode === "builtin" ? `built-in ComfyUI at ${comfyBaseUrl(target)}` : `custom ComfyUI at ${comfyBaseUrl(target)}`;
+}
+var BUILTIN_COMFY_PORT, BUILTIN_TARGET, HOSTNAME, IPV6;
+var init_comfyui_target = __esm({
+  "dist/comfyui-target.js"() {
+    "use strict";
+    BUILTIN_COMFY_PORT = 31411;
+    BUILTIN_TARGET = {
+      mode: "builtin",
+      host: "127.0.0.1",
+      port: BUILTIN_COMFY_PORT,
+      secure: false
+    };
+    HOSTNAME = /^[A-Za-z0-9](?:[A-Za-z0-9.-]{0,251}[A-Za-z0-9])?$/;
+    IPV6 = /^\[[0-9A-Fa-f:.]+\]$/;
   }
 });
 
@@ -112195,6 +112195,19 @@ var CompendiumTools = class {
 
 // dist/tools/scene.js
 init_zod();
+function withSceneAlias(args, background = false) {
+  if (!args || typeof args !== "object")
+    return args;
+  const out = { ...args };
+  if (out.scene !== void 0 && out.scene_identifier === void 0)
+    out.scene_identifier = out.scene;
+  delete out.scene;
+  if (background && out.background_image !== void 0 && out.background === void 0)
+    out.background = out.background_image;
+  if (background)
+    delete out.background_image;
+  return out;
+}
 var SceneTools = class {
   foundryClient;
   logger;
@@ -112244,6 +112257,7 @@ var SceneTools = class {
               type: "string",
               description: "Scene id or exact name"
             },
+            scene: { type: "string", description: "Same as scene_identifier" },
             playlist: {
               type: ["string", "null"],
               description: "Playlist id or unique name, or null to clear"
@@ -112252,8 +112266,7 @@ var SceneTools = class {
               type: ["string", "null"],
               description: "PlaylistSound id or unique name within the playlist, or null to clear"
             }
-          },
-          required: ["scene_identifier"]
+          }
         }
       },
       {
@@ -112271,6 +112284,8 @@ var SceneTools = class {
               type: "string",
               description: "Scene id or exact name. Required for update; optional for describe."
             },
+            scene: { type: "string", description: "Same as scene_identifier (the name other tools use)" },
+            background_image: { type: ["string", "null"], description: "Same as background" },
             name: {
               type: "string",
               description: "Scene name. Required for create; renames on update."
@@ -112388,7 +112403,7 @@ var SceneTools = class {
       playlist: external_exports.string().nullable().optional(),
       playlist_sound: external_exports.string().nullable().optional()
     });
-    const parsed = schema6.parse(args);
+    const parsed = schema6.parse(withSceneAlias(args));
     this.logger.info("Updating scene music", { scene_identifier: parsed.scene_identifier });
     try {
       const result = await this.foundryClient.query("foundry-mcp-bridge.update-scene-music", parsed);
@@ -112431,7 +112446,7 @@ var SceneTools = class {
       }).strict().optional(),
       activate: external_exports.boolean().optional()
     }).strict();
-    const parsed = schema6.parse(args);
+    const parsed = schema6.parse(withSceneAlias(args, true));
     if (parsed.action === "create" && !parsed.name) {
       throw new Error("name is required for create");
     }
@@ -116603,7 +116618,7 @@ var TokenManipulationTools = class {
     return [
       {
         name: "move-token",
-        description: "Move a token to a new position (pixels). The token is found on any scene (or pass scene). Moving a token into a teleport region teleports it. Can optionally animate the movement.",
+        description: 'Move a token to a new position, in pixels (default) or in grid squares with units:"squares" (x and y then count from the top-left corner of the map, like manage-scene-objects, padding handled for you; use x 11 y 11 for the square in column 11, row 11). The token is found on any scene (or pass scene). Moving a token into a teleport region teleports it. Can optionally animate the movement.',
         inputSchema: {
           type: "object",
           properties: {
@@ -116613,18 +116628,19 @@ var TokenManipulationTools = class {
             },
             x: {
               type: "number",
-              description: "The new X coordinate (in pixels)"
+              description: "The new X coordinate (pixels, or grid squares with units squares)"
             },
             y: {
               type: "number",
-              description: "The new Y coordinate (in pixels)"
+              description: "The new Y coordinate (pixels, or grid squares with units squares)"
             },
             animate: {
               type: "boolean",
               description: "Whether to animate the movement (default: false)",
               default: false
             },
-            scene: { type: "string", description: "Scene id or exact name (default: found automatically)" }
+            scene: { type: "string", description: "Scene id or exact name (default: found automatically)" },
+            units: { type: "string", enum: ["pixels", "squares"], description: "What x and y are (default pixels)" }
           },
           required: ["tokenId", "x", "y"]
         }
@@ -116723,7 +116739,8 @@ var TokenManipulationTools = class {
             tokenId: {
               type: "string",
               description: "The ID of the token to get details for"
-            }
+            },
+            scene: { type: "string", description: "Scene id or exact name (default: found on any scene)" }
           },
           required: ["tokenId"]
         }
@@ -116765,22 +116782,28 @@ var TokenManipulationTools = class {
       tokenId: external_exports.string(),
       x: external_exports.number(),
       y: external_exports.number(),
-      animate: external_exports.boolean().optional().default(false)
+      animate: external_exports.boolean().optional().default(false),
+      scene: external_exports.string().min(1).optional(),
+      units: external_exports.enum(["pixels", "squares"]).optional()
     });
-    const { tokenId, x, y, animate } = schema6.parse(args);
+    const { tokenId, x, y, animate, scene, units } = schema6.parse(args);
     this.logger.info("Moving token", { tokenId, x, y, animate });
     try {
       const result = await this.foundryClient.query("foundry-mcp-bridge.move-token", {
         tokenId,
         x,
         y,
-        animate
+        animate,
+        ...scene ? { scene } : {},
+        ...units ? { units } : {}
       });
       this.logger.debug("Token moved successfully", { tokenId });
       return {
         success: true,
         tokenId,
-        newPosition: { x, y },
+        newPosition: result?.newPosition ?? { x, y },
+        ...result?.newSquares ? { newSquares: result.newSquares } : {},
+        ...result?.scene ? { scene: result.scene } : {},
         animated: animate
       };
     } catch (error) {
@@ -116856,13 +116879,15 @@ var TokenManipulationTools = class {
   }
   async handleGetTokenDetails(args) {
     const schema6 = external_exports.object({
-      tokenId: external_exports.string()
+      tokenId: external_exports.string(),
+      scene: external_exports.string().min(1).optional()
     });
-    const { tokenId } = schema6.parse(args);
+    const { tokenId, scene } = schema6.parse(args);
     this.logger.info("Getting token details", { tokenId });
     try {
       const tokenData = await this.foundryClient.query("foundry-mcp-bridge.get-token-details", {
-        tokenId
+        tokenId,
+        ...scene ? { scene } : {}
       });
       this.logger.debug("Retrieved token details", {
         tokenId,
@@ -120238,7 +120263,206 @@ var import_crypto5 = require("crypto");
 var import_fs2 = require("fs");
 var import_os = __toESM(require("os"), 1);
 var import_path2 = __toESM(require("path"), 1);
+var import_pngjs = __toESM(require_png(), 1);
 init_zod();
+
+// dist/tools/prop-keying.js
+var dist = (data, i, bg) => {
+  const dr = data[i] - bg[0];
+  const dg = data[i + 1] - bg[1];
+  const db = data[i + 2] - bg[2];
+  return Math.sqrt(dr * dr + dg * dg + db * db);
+};
+function median(values) {
+  const sorted = [...values].sort((a, b) => a - b);
+  return sorted[Math.floor(sorted.length / 2)] ?? 0;
+}
+function borderColour(img) {
+  const { width, height, data } = img;
+  const reds = [];
+  const greens = [];
+  const blues = [];
+  const add = (x, y) => {
+    const i = (y * width + x) * 4;
+    reds.push(data[i]);
+    greens.push(data[i + 1]);
+    blues.push(data[i + 2]);
+  };
+  for (let x = 0; x < width; x++) {
+    add(x, 0);
+    add(x, height - 1);
+  }
+  for (let y = 1; y < height - 1; y++) {
+    add(0, y);
+    add(width - 1, y);
+  }
+  const colour = [median(reds), median(greens), median(blues)];
+  let near2 = 0;
+  for (let k = 0; k < reds.length; k++) {
+    const dr = reds[k] - colour[0];
+    const dg = greens[k] - colour[1];
+    const db = blues[k] - colour[2];
+    if (Math.sqrt(dr * dr + dg * dg + db * db) <= 60)
+      near2++;
+  }
+  return { colour, spread: 1 - near2 / reds.length };
+}
+function keyOutBackground(img, options = {}) {
+  const { width, height } = img;
+  if (!(width > 0 && height > 0) || img.data.length < width * height * 4)
+    throw new Error("The picture is empty");
+  const tolerance = options.tolerance ?? 60;
+  if (!(tolerance >= 1 && tolerance <= 200))
+    throw new Error("tolerance must be from 1 to 200");
+  const soft = tolerance * 2.2;
+  const warnings = [];
+  const { colour: bg, spread: spread3 } = borderColour(img);
+  if (spread3 > 0.35) {
+    throw new Error(`The border of the picture is not one flat colour (${Math.round(spread3 * 100)}% of it differs from ${bg.join(",")}); the object touches the edge or the background is patterned. Generate it again with more empty space around the object.`);
+  }
+  if (spread3 > 0.1)
+    warnings.push(`${Math.round(spread3 * 100)}% of the border differs from the background colour; the object may touch the edge`);
+  const src = img.data;
+  const out = new Uint8Array(width * height * 4);
+  out.set(src.subarray(0, width * height * 4));
+  const reached = new Uint8Array(width * height);
+  const queue = new Int32Array(width * height);
+  let head = 0;
+  let tail = 0;
+  const push = (x, y) => {
+    const p = y * width + x;
+    if (reached[p])
+      return;
+    if (dist(src, p * 4, bg) > soft)
+      return;
+    reached[p] = 1;
+    queue[tail++] = p;
+  };
+  for (let x = 0; x < width; x++) {
+    push(x, 0);
+    push(x, height - 1);
+  }
+  for (let y = 0; y < height; y++) {
+    push(0, y);
+    push(width - 1, y);
+  }
+  while (head < tail) {
+    const p = queue[head++];
+    const x = p % width;
+    const y = (p - x) / width;
+    if (x > 0)
+      push(x - 1, y);
+    if (x < width - 1)
+      push(x + 1, y);
+    if (y > 0)
+      push(x, y - 1);
+    if (y < height - 1)
+      push(x, y + 1);
+  }
+  let opaque = 0;
+  let minX = width;
+  let minY = height;
+  let maxX = -1;
+  let maxY = -1;
+  for (let p = 0; p < width * height; p++) {
+    const i = p * 4;
+    let alpha = 255;
+    if (reached[p]) {
+      const d = dist(src, i, bg);
+      alpha = d <= tolerance ? 0 : Math.round((d - tolerance) / (soft - tolerance) * 255);
+      if (alpha > 0 && alpha < 255) {
+        const a = alpha / 255;
+        for (let c = 0; c < 3; c++) {
+          const v = (src[i + c] - bg[c] * (1 - a)) / a;
+          out[i + c] = Math.max(0, Math.min(255, Math.round(v)));
+        }
+      }
+    }
+    out[i + 3] = alpha;
+    if (alpha > 0)
+      opaque++;
+    if (alpha > 8) {
+      const x = p % width;
+      const y = (p - x) / width;
+      if (x < minX)
+        minX = x;
+      if (x > maxX)
+        maxX = x;
+      if (y < minY)
+        minY = y;
+      if (y > maxY)
+        maxY = y;
+    }
+  }
+  const share = opaque / (width * height);
+  if (maxX < 0)
+    throw new Error("Nothing is left after removing the background; the object has the background colour");
+  if (share > 0.97)
+    warnings.push("Almost nothing was removed; the background may not be a flat colour that differs from the object");
+  if (share < 0.01)
+    warnings.push("Very little is left; the tolerance may be too high or the object too small");
+  const box = { x: minX, y: minY, width: maxX - minX + 1, height: maxY - minY + 1 };
+  if (options.crop === false) {
+    return { width, height, data: out, background: bg, opaqueShare: share, borderSpread: spread3, box, warnings };
+  }
+  const pad = Math.max(0, options.padding ?? 2);
+  const x0 = Math.max(0, box.x - pad);
+  const y0 = Math.max(0, box.y - pad);
+  const x1 = Math.min(width, box.x + box.width + pad);
+  const y1 = Math.min(height, box.y + box.height + pad);
+  const w = x1 - x0;
+  const h = y1 - y0;
+  const cropped = new Uint8Array(w * h * 4);
+  for (let y = 0; y < h; y++) {
+    const from = ((y0 + y) * width + x0) * 4;
+    cropped.set(out.subarray(from, from + w * 4), y * w * 4);
+  }
+  return { width: w, height: h, data: cropped, background: bg, opaqueShare: share, borderSpread: spread3, box, warnings };
+}
+function downscale(img, maxSide) {
+  const longest = Math.max(img.width, img.height);
+  if (!(maxSide >= 1) || longest <= maxSide)
+    return img;
+  const scale = maxSide / longest;
+  const w = Math.max(1, Math.round(img.width * scale));
+  const h = Math.max(1, Math.round(img.height * scale));
+  const out = new Uint8Array(w * h * 4);
+  for (let y = 0; y < h; y++) {
+    const y0 = y * img.height / h;
+    const y1 = (y + 1) * img.height / h;
+    for (let x = 0; x < w; x++) {
+      const x0 = x * img.width / w;
+      const x1 = (x + 1) * img.width / w;
+      let r = 0;
+      let g = 0;
+      let b = 0;
+      let a = 0;
+      let weight = 0;
+      for (let sy = Math.floor(y0); sy < Math.ceil(y1); sy++) {
+        const wy = Math.min(sy + 1, y1) - Math.max(sy, y0);
+        for (let sx = Math.floor(x0); sx < Math.ceil(x1); sx++) {
+          const wx = Math.min(sx + 1, x1) - Math.max(sx, x0);
+          const wgt = wx * wy;
+          const i = (sy * img.width + sx) * 4;
+          const alpha = img.data[i + 3] / 255;
+          r += img.data[i] * alpha * wgt;
+          g += img.data[i + 1] * alpha * wgt;
+          b += img.data[i + 2] * alpha * wgt;
+          a += alpha * wgt;
+          weight += wgt;
+        }
+      }
+      const o = (y * w + x) * 4;
+      if (a > 0) {
+        out[o] = Math.round(r / a);
+        out[o + 1] = Math.round(g / a);
+        out[o + 2] = Math.round(b / a);
+      }
+      out[o + 3] = weight > 0 ? Math.round(a / weight * 255) : 0;
+    }
+  }
+  return { width: w, height: h, data: out };
+}
 
 // dist/image-profiles.js
 var IMAGE_KINDS = ["map", "portrait", "token", "handout"];
@@ -120252,6 +120476,8 @@ var LIMITS = {
   minSide: 256,
   maxSide: 6400,
   maxPixels: 4096 * 4096,
+  /** MiniMax H3 gives poor results below about 2 megapixels, whatever size is finally wanted. */
+  minH3Pixels: 2 * 1024 * 1024,
   maxText: 1e3
 };
 var H3_DEFAULTS = {
@@ -120302,6 +120528,22 @@ function text(value, fallback, max = LIMITS.maxText) {
 }
 function snapSide(value, multiple = 8) {
   return clamp(Math.round(value / multiple) * multiple, LIMITS.minSide, LIMITS.maxSide);
+}
+function raiseToMinPixels(width, height, multiple, minPixels = LIMITS.minH3Pixels) {
+  if (width * height >= minPixels)
+    return { width, height, raised: false };
+  const scale = Math.sqrt(minPixels / (width * height));
+  let w = Math.ceil(width * scale / multiple) * multiple;
+  let h = Math.ceil(height * scale / multiple) * multiple;
+  while (w * h < minPixels) {
+    if (w <= h)
+      w += multiple;
+    else
+      h += multiple;
+  }
+  w = Math.min(w, LIMITS.maxSide);
+  h = Math.min(h, LIMITS.maxSide);
+  return { width: w, height: h, raised: true };
 }
 function fitPixels(width, height, multiple = 8) {
   let w = snapSide(width, multiple);
@@ -120384,7 +120626,15 @@ function resolveGeneration(kind, profile, request) {
     throw new Error(`At most ${MAX_REFERENCE_IMAGES} reference images are allowed`);
   }
   const multiple = profile.workflow === "minimax-h3" ? 32 : 8;
-  const size = fitPixels(request.width ?? profile.width, request.height ?? profile.height, multiple);
+  let size = fitPixels(request.width ?? profile.width, request.height ?? profile.height, multiple);
+  let raisedFrom;
+  if (profile.workflow === "minimax-h3") {
+    const raised = raiseToMinPixels(size.width, size.height, multiple);
+    if (raised.raised) {
+      raisedFrom = { width: size.width, height: size.height };
+      size = { width: raised.width, height: raised.height };
+    }
+  }
   const steps = Math.round(clamp(request.steps ?? profile.steps, LIMITS.minSteps, LIMITS.maxSteps));
   const seed = request.seed !== void 0 && Number.isFinite(request.seed) ? Math.abs(Math.trunc(request.seed)) : Math.floor(Math.random() * 2 ** 32);
   const negativeExtra = request.negativePrompt?.trim();
@@ -120403,7 +120653,8 @@ function resolveGeneration(kind, profile, request) {
     seed,
     positive: `${profile.promptPrefix}${prompt}${profile.promptSuffix}`,
     negative: profile.workflow === "minimax-h3" ? "" : negativeExtra ? [profile.negativePrompt, negativeExtra].filter(Boolean).join(", ") : profile.negativePrompt,
-    referenceImages: references
+    referenceImages: references,
+    ...raisedFrom ? { raisedFrom } : {}
   };
 }
 function buildCheckpointWorkflow(gen, filenamePrefix) {
@@ -120509,7 +120760,8 @@ var generateSchema = external_exports.object({
   seed: external_exports.number().int().min(0).optional(),
   reference_images: external_exports.array(external_exports.string().min(1)).max(MAX_REFERENCE_IMAGES).optional(),
   upload: external_exports.boolean().optional(),
-  folder: external_exports.string().max(80).optional()
+  folder: external_exports.string().max(80).optional(),
+  max_side: external_exports.number().int().min(64).max(4096).optional()
 }).strict();
 function slugify(text2, maxLength = 40) {
   const slug2 = text2.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, maxLength).replace(/-+$/g, "");
@@ -120553,7 +120805,8 @@ var ImageGenerationTools = class {
               type: "string",
               description: "Extra things to avoid, added to the profile's negative prompt"
             },
-            width: { type: "number", description: "Override the profile width (pixels, 256-2048)" },
+            max_side: { type: "number", description: "Shrink the finished picture so its longest side is at most this many pixels (64-4096). MiniMax H3 is always generated at 2 megapixels or more (smaller sizes are raised), so use this when a smaller final picture is wanted." },
+            width: { type: "number", description: "Override the profile width (pixels, 256-2048). MiniMax H3 sizes below about 2 megapixels are raised to that." },
             height: { type: "number", description: "Override the profile height (pixels, 256-2048)" },
             steps: { type: "number", description: "Override the profile step count" },
             seed: {
@@ -120635,7 +120888,19 @@ var ImageGenerationTools = class {
       throw new Error(`Image generation failed: ${message}`);
     }
     const seconds = Math.round((Date.now() - started) / 1e3);
-    const localPath = await this.saveLocalCopy(`${baseName}.png`, result.image);
+    let image = result.image;
+    let shrunkTo;
+    if (parsed.max_side) {
+      const decoded = import_pngjs.PNG.sync.read(image);
+      const small = downscale({ width: decoded.width, height: decoded.height, data: decoded.data }, parsed.max_side);
+      if (small.width !== decoded.width) {
+        const png = new import_pngjs.PNG({ width: small.width, height: small.height });
+        png.data = Buffer.from(small.data);
+        image = import_pngjs.PNG.sync.write(png);
+        shrunkTo = `${small.width}x${small.height}`;
+      }
+    }
+    const localPath = await this.saveLocalCopy(`${baseName}.png`, image);
     const summary = {
       kind,
       workflow: generation.workflow,
@@ -120643,6 +120908,8 @@ var ImageGenerationTools = class {
       references: references.length,
       steps: generation.steps,
       size: `${generation.width}x${generation.height}`,
+      ...generation.raisedFrom ? { raised_from: `${generation.raisedFrom.width}x${generation.raisedFrom.height}`, note: "MiniMax H3 needs about 2 megapixels, so the size was raised" } : {},
+      ...shrunkTo ? { shrunk_to: shrunkTo } : {},
       seed: generation.seed,
       seconds,
       local_path: localPath
@@ -120654,7 +120921,7 @@ var ImageGenerationTools = class {
     try {
       const uploaded = await this.foundryClient.query("foundry-mcp-bridge.upload-file", {
         filename: `${baseName}.png`,
-        imageData: result.image.toString("base64"),
+        imageData: image.toString("base64"),
         folder
       }, UPLOAD_TIMEOUT_MS2);
       if (uploaded?.success === false) {
@@ -121080,9 +121347,10 @@ var objectSchema = external_exports.union([
   soundSchema
 ]);
 var sceneObjectsSchema = external_exports.object({
-  action: external_exports.enum(["place", "describe", "remove"]),
+  action: external_exports.enum(["place", "describe", "remove", "update"]),
   scene: external_exports.string().min(1).optional(),
   objects: external_exports.array(objectSchema).min(1).max(200).optional(),
+  updates: external_exports.array(external_exports.record(external_exports.any())).min(1).max(200).optional(),
   ids: external_exports.array(external_exports.string().min(1)).max(500).optional(),
   all_mine: external_exports.boolean().optional(),
   kind: external_exports.enum(["token", "light", "wall", "note", "tile", "sound"]).optional()
@@ -121186,11 +121454,17 @@ var SceneObjectTools = class {
     return [
       {
         name: "manage-scene-objects",
-        description: `Place tokens, lights, walls, map pins, tiles (pictures laid on the map: rugs, furniture, props) and ambient sounds on a scene by grid square, describe what is on a scene, or remove objects this tool created (it never removes anything else). Positions are in GRID SQUARES from the top-left corner of the map image: (0, 0) is the top-left corner of the first square, (2.5, 1.5) the centre of the square in column 2, row 1 (counting from 0). Use preview-scene first to see the numbered grid. describe returns the scene grid size so you know the valid range. place takes objects (up to 200): {kind:"token", actor, x, y} puts the actor's token with its top-left corner at that square (use whole numbers; actor is an id or exact name); {kind:"light", x, y, bright, dim} makes a light at that point with radii in squares (optional color, alpha, angle, rotation, animation, hidden); {kind:"wall", points:[[x1,y1],[x2,y2],...]} draws walls along a chain of points (add closed:true to join the ends) or {kind:"wall", rect:[x,y,width,height]} draws the four walls of a rectangle, with preset wall (default), door, secret_door, invisible (blocks movement only) or window (blocks movement, lets light and sight through), and for doors door_state closed, open or locked; {kind:"note", x, y, journal, page?, text?} puts a map pin (the label text defaults to the journal name) that opens that journal or page when clicked; pins are only seen by players who may read the journal unless global is true. {kind:"tile", x, y, width, height, src, rotation?, alpha?, hidden?, elevation?} lays an image (a path in the Foundry files, e.g. an uploaded prop) over the map with its top-left corner at x, y and the given size in squares; {kind:"sound", x, y, radius, path, volume?, repeat?, walls?, easing?, hidden?} places a looping ambient sound audible within radius squares (path is an audio file in the Foundry files); tokens also accept width and height in squares (e.g. 2 for a Large creature) to override the actor's size. Use whole or half squares for wall points and make wall ends meet exactly, otherwise light and sight leak through gaps. remove needs ids or all_mine:true (optionally with kind) and only removes objects created by this tool. scene is an id or exact name; it defaults to the scene the GM is viewing.`,
+        description: `Place tokens, lights, walls, map pins, tiles (pictures laid on the map: rugs, furniture, props) and ambient sounds on a scene by grid square, describe what is on a scene, or remove objects this tool created (it never removes anything else). Positions are in GRID SQUARES from the top-left corner of the map image: (0, 0) is the top-left corner of the first square, (2.5, 1.5) the centre of the square in column 2, row 1 (counting from 0). Use preview-scene first to see the numbered grid. describe returns the scene grid size so you know the valid range. place takes objects (up to 200): {kind:"token", actor, x, y} puts the actor's token with its top-left corner at that square (use whole numbers; actor is an id or exact name); {kind:"light", x, y, bright, dim} makes a light at that point with radii in squares (optional color, alpha, angle, rotation, animation, hidden); {kind:"wall", points:[[x1,y1],[x2,y2],...]} draws walls along a chain of points (add closed:true to join the ends) or {kind:"wall", rect:[x,y,width,height]} draws the four walls of a rectangle, with preset wall (default), door, secret_door, invisible (blocks movement only) or window (blocks movement, lets light and sight through), and for doors door_state closed, open or locked; {kind:"note", x, y, journal, page?, text?} puts a map pin (the label text defaults to the journal name) that opens that journal or page when clicked; pins are only seen by players who may read the journal unless global is true. {kind:"tile", x, y, width, height, src, rotation?, alpha?, hidden?, elevation?} lays an image (a path in the Foundry files, e.g. an uploaded prop) over the map with its top-left corner at x, y and the given size in squares; {kind:"sound", x, y, radius, path, volume?, repeat?, walls?, easing?, hidden?} places a looping ambient sound audible within radius squares (path is an audio file in the Foundry files); tokens also accept width and height in squares (e.g. 2 for a Large creature) to override the actor's size. Use whole or half squares for wall points and make wall ends meet exactly, otherwise light and sight leak through gaps. update takes updates (up to 200): [{id, ...fields}] to change objects this tool placed, without removing them: x and y move it (grid squares; give one to keep the other), and per kind: token name, width, height, hidden, disposition, elevation; light bright, dim, color, alpha, angle, rotation, animation (null stops it), hidden; note text, font_size, icon_size, icon, global; tile width, height, src, rotation, alpha, elevation, hidden; sound radius, path, volume, repeat, walls, easing, hidden; wall door_state (closed, open, locked; doors only, walls cannot be moved). remove needs ids or all_mine:true (optionally with kind) and only removes objects created by this tool. scene is an id or exact name; it defaults to the scene the GM is viewing.`,
         inputSchema: {
           type: "object",
           properties: {
-            action: { type: "string", enum: ["place", "describe", "remove"] },
+            action: { type: "string", enum: ["place", "describe", "remove", "update"] },
+            updates: {
+              type: "array",
+              maxItems: 200,
+              description: "update: [{id, x?, y?, ...fields to change}]",
+              items: { type: "object", additionalProperties: true }
+            },
             scene: {
               type: "string",
               description: "Scene id or exact name (default: the scene being viewed)"
@@ -121479,6 +121753,9 @@ var SceneObjectTools = class {
     const parsed = sceneObjectsSchema.parse(args);
     if (parsed.action === "place" && !parsed.objects) {
       throw new Error("objects is required for place");
+    }
+    if (parsed.action === "update" && !parsed.updates) {
+      throw new Error("updates is required for update");
     }
     if (parsed.action === "remove" && !parsed.all_mine && !(parsed.ids && parsed.ids.length)) {
       throw new Error("remove needs ids or all_mine: true");
@@ -121835,13 +122112,13 @@ var ModuleTools = class {
 var import_fs5 = require("fs");
 var import_os3 = __toESM(require("os"), 1);
 var import_path4 = __toESM(require("path"), 1);
-var import_pngjs2 = __toESM(require_png(), 1);
+var import_pngjs3 = __toESM(require_png(), 1);
 init_zod();
 
 // dist/tools/layout-image.js
 var import_fs4 = require("fs");
 var import_jpeg_js = __toESM(require_jpeg_js(), 1);
-var import_pngjs = __toESM(require_png(), 1);
+var import_pngjs2 = __toESM(require_png(), 1);
 var cached = null;
 async function decodeImage(file) {
   const stat = await import_fs4.promises.stat(file);
@@ -121851,7 +122128,7 @@ async function decodeImage(file) {
   const buf = await import_fs4.promises.readFile(file);
   let image;
   if (buf[0] === 137 && buf[1] === 80) {
-    const png = import_pngjs.PNG.sync.read(buf);
+    const png = import_pngjs2.PNG.sync.read(buf);
     image = { width: png.width, height: png.height, data: png.data };
   } else if (buf[0] === 255 && buf[1] === 216) {
     const raw = import_jpeg_js.default.decode(buf, { useTArray: true, maxMemoryUsageInMB: 512 });
@@ -121861,160 +122138,6 @@ async function decodeImage(file) {
   }
   cached = { key, image };
   return image;
-}
-
-// dist/tools/prop-keying.js
-var dist = (data, i, bg) => {
-  const dr = data[i] - bg[0];
-  const dg = data[i + 1] - bg[1];
-  const db = data[i + 2] - bg[2];
-  return Math.sqrt(dr * dr + dg * dg + db * db);
-};
-function median(values) {
-  const sorted = [...values].sort((a, b) => a - b);
-  return sorted[Math.floor(sorted.length / 2)] ?? 0;
-}
-function borderColour(img) {
-  const { width, height, data } = img;
-  const reds = [];
-  const greens = [];
-  const blues = [];
-  const add = (x, y) => {
-    const i = (y * width + x) * 4;
-    reds.push(data[i]);
-    greens.push(data[i + 1]);
-    blues.push(data[i + 2]);
-  };
-  for (let x = 0; x < width; x++) {
-    add(x, 0);
-    add(x, height - 1);
-  }
-  for (let y = 1; y < height - 1; y++) {
-    add(0, y);
-    add(width - 1, y);
-  }
-  const colour = [median(reds), median(greens), median(blues)];
-  let near2 = 0;
-  for (let k = 0; k < reds.length; k++) {
-    const dr = reds[k] - colour[0];
-    const dg = greens[k] - colour[1];
-    const db = blues[k] - colour[2];
-    if (Math.sqrt(dr * dr + dg * dg + db * db) <= 60)
-      near2++;
-  }
-  return { colour, spread: 1 - near2 / reds.length };
-}
-function keyOutBackground(img, options = {}) {
-  const { width, height } = img;
-  if (!(width > 0 && height > 0) || img.data.length < width * height * 4)
-    throw new Error("The picture is empty");
-  const tolerance = options.tolerance ?? 60;
-  if (!(tolerance >= 1 && tolerance <= 200))
-    throw new Error("tolerance must be from 1 to 200");
-  const soft = tolerance * 2.2;
-  const warnings = [];
-  const { colour: bg, spread: spread3 } = borderColour(img);
-  if (spread3 > 0.35) {
-    throw new Error(`The border of the picture is not one flat colour (${Math.round(spread3 * 100)}% of it differs from ${bg.join(",")}); the object touches the edge or the background is patterned. Generate it again with more empty space around the object.`);
-  }
-  if (spread3 > 0.1)
-    warnings.push(`${Math.round(spread3 * 100)}% of the border differs from the background colour; the object may touch the edge`);
-  const src = img.data;
-  const out = new Uint8Array(width * height * 4);
-  out.set(src.subarray(0, width * height * 4));
-  const reached = new Uint8Array(width * height);
-  const queue = new Int32Array(width * height);
-  let head = 0;
-  let tail = 0;
-  const push = (x, y) => {
-    const p = y * width + x;
-    if (reached[p])
-      return;
-    if (dist(src, p * 4, bg) > soft)
-      return;
-    reached[p] = 1;
-    queue[tail++] = p;
-  };
-  for (let x = 0; x < width; x++) {
-    push(x, 0);
-    push(x, height - 1);
-  }
-  for (let y = 0; y < height; y++) {
-    push(0, y);
-    push(width - 1, y);
-  }
-  while (head < tail) {
-    const p = queue[head++];
-    const x = p % width;
-    const y = (p - x) / width;
-    if (x > 0)
-      push(x - 1, y);
-    if (x < width - 1)
-      push(x + 1, y);
-    if (y > 0)
-      push(x, y - 1);
-    if (y < height - 1)
-      push(x, y + 1);
-  }
-  let opaque = 0;
-  let minX = width;
-  let minY = height;
-  let maxX = -1;
-  let maxY = -1;
-  for (let p = 0; p < width * height; p++) {
-    const i = p * 4;
-    let alpha = 255;
-    if (reached[p]) {
-      const d = dist(src, i, bg);
-      alpha = d <= tolerance ? 0 : Math.round((d - tolerance) / (soft - tolerance) * 255);
-      if (alpha > 0 && alpha < 255) {
-        const a = alpha / 255;
-        for (let c = 0; c < 3; c++) {
-          const v = (src[i + c] - bg[c] * (1 - a)) / a;
-          out[i + c] = Math.max(0, Math.min(255, Math.round(v)));
-        }
-      }
-    }
-    out[i + 3] = alpha;
-    if (alpha > 0)
-      opaque++;
-    if (alpha > 8) {
-      const x = p % width;
-      const y = (p - x) / width;
-      if (x < minX)
-        minX = x;
-      if (x > maxX)
-        maxX = x;
-      if (y < minY)
-        minY = y;
-      if (y > maxY)
-        maxY = y;
-    }
-  }
-  const share = opaque / (width * height);
-  if (maxX < 0)
-    throw new Error("Nothing is left after removing the background; the object has the background colour");
-  if (share > 0.97)
-    warnings.push("Almost nothing was removed; the background may not be a flat colour that differs from the object");
-  if (share < 0.01)
-    warnings.push("Very little is left; the tolerance may be too high or the object too small");
-  const box = { x: minX, y: minY, width: maxX - minX + 1, height: maxY - minY + 1 };
-  if (options.crop === false) {
-    return { width, height, data: out, background: bg, opaqueShare: share, borderSpread: spread3, box, warnings };
-  }
-  const pad = Math.max(0, options.padding ?? 2);
-  const x0 = Math.max(0, box.x - pad);
-  const y0 = Math.max(0, box.y - pad);
-  const x1 = Math.min(width, box.x + box.width + pad);
-  const y1 = Math.min(height, box.y + box.height + pad);
-  const w = x1 - x0;
-  const h = y1 - y0;
-  const cropped = new Uint8Array(w * h * 4);
-  for (let y = 0; y < h; y++) {
-    const from = ((y0 + y) * width + x0) * 4;
-    cropped.set(out.subarray(from, from + w * 4), y * w * 4);
-  }
-  return { width: w, height: h, data: cropped, background: bg, opaqueShare: share, borderSpread: spread3, box, warnings };
 }
 
 // dist/tools/prop-tools.js
@@ -122029,6 +122152,7 @@ var schema2 = external_exports.object({
   image: external_exports.string().min(1).optional(),
   key: external_exports.enum(["magenta", "green", "blue"]).optional(),
   image_size: external_exports.number().int().min(256).max(2048).optional(),
+  final_size: external_exports.number().int().min(32).max(2048).optional(),
   tolerance: external_exports.number().min(1).max(200).optional(),
   seed: external_exports.number().int().optional(),
   negative_prompt: external_exports.string().max(500).optional(),
@@ -122071,7 +122195,8 @@ var PropTools = class {
             prompt: { type: "string", description: "What the object is and looks like (the tool adds the top-down view and the flat background)" },
             image: { type: "string", description: "Existing picture on this computer to remove the background from, instead of generating" },
             key: { type: "string", enum: ["magenta", "green", "blue"], description: "Background colour to generate on (default magenta)" },
-            image_size: { type: "number", description: "Generated picture size in pixels, a multiple of 32 (default 1024)" },
+            image_size: { type: "number", description: "Size to generate at, a multiple of 32 (default 1024). MiniMax H3 draws badly below about 2 megapixels, so anything smaller is raised to that automatically; the prop is shrunk afterwards." },
+            final_size: { type: "number", description: "Longest side in pixels of the finished prop picture (default 512; 32 to 2048). The object is generated large and shrunk to this." },
             tolerance: { type: "number", description: "How different from the background a pixel must be to stay (default 60)" },
             seed: { type: "number" },
             negative_prompt: { type: "string" },
@@ -122128,17 +122253,21 @@ var PropTools = class {
     const picture = await decodeImage(source);
     const keyed = keyOutBackground({ width: picture.width, height: picture.height, data: picture.data }, { ...a.tolerance !== void 0 ? { tolerance: a.tolerance } : {} });
     steps.push(`background removed (was rgb ${keyed.background.join(",")}), cropped to ${keyed.width} x ${keyed.height}`);
-    const png = new import_pngjs2.PNG({ width: keyed.width, height: keyed.height });
-    png.data = Buffer.from(keyed.data);
+    const finalSide = a.final_size ?? 512;
+    const small = downscale({ width: keyed.width, height: keyed.height, data: keyed.data }, finalSide);
+    if (small.width !== keyed.width)
+      steps.push(`shrunk to ${small.width} x ${small.height}`);
+    const png = new import_pngjs3.PNG({ width: small.width, height: small.height });
+    png.data = Buffer.from(small.data);
     await import_fs5.promises.mkdir(this.folder, { recursive: true });
     const fileName = `${propFileName(a.name)}-${Date.now().toString(36)}.png`;
     const local = import_path4.default.join(this.folder, fileName);
-    await import_fs5.promises.writeFile(local, import_pngjs2.PNG.sync.write(png));
+    await import_fs5.promises.writeFile(local, import_pngjs3.PNG.sync.write(png));
     const result = {
       success: true,
       name: a.name,
       local_path: local,
-      pixels: { width: keyed.width, height: keyed.height },
+      pixels: { width: small.width, height: small.height },
       ...keyed.warnings.length > 0 ? { warnings: keyed.warnings } : {}
     };
     if (!this.upload) {
@@ -122152,7 +122281,7 @@ var PropTools = class {
     steps.push(`uploaded to ${uploaded.path}`);
     if (a.x !== void 0 && a.y !== void 0) {
       const width = a.width ?? 2;
-      const height = a.height ?? Math.round(width * keyed.height / keyed.width * 100) / 100;
+      const height = a.height ?? Math.round(width * small.height / small.width * 100) / 100;
       const placed = await this.foundryClient.query("foundry-mcp-bridge.manage-scene-objects", {
         action: "place",
         ...a.scene ? { scene: a.scene } : {},
@@ -122290,7 +122419,7 @@ var AuditTools = class {
     return [
       {
         name: "audit-world",
-        description: "Read-only checklist of what is missing or broken in the world, worst first: scenes without a background, walls, tokens, lights or music; tokens whose actor is gone; teleport regions that are hidden (hidden regions never run), have no destination or point at a region that no longer exists; scene music bound to a deleted playlist; empty playlists; duplicate scene names; no active scene. Each finding names the tool that fixes it, and a per-scene table gives the counts. scene limits it to one scene; backup scenes made by manage-scene-backups are skipped unless include_backups is true. Changes nothing. Needs the Foundry tab open in a browser.",
+        description: "Read-only checklist of what is missing or broken in the world, worst first: scenes without a background, walls, tokens, lights or music; tokens whose actor is gone; teleport regions that are hidden (hidden regions never run), have no destination or point at a region that no longer exists; map pins pointing at a missing journal or page; dark scenes with token vision and no lights; actors still on the default silhouette; player characters nobody owns; empty playlists; duplicate scene names; no active scene. Each finding names the tool that fixes it, and a per-scene table gives the counts. scene limits it to one scene; backup scenes made by manage-scene-backups are skipped unless include_backups is true. Changes nothing. Needs the Foundry tab open in a browser.",
         inputSchema: {
           type: "object",
           properties: {
@@ -122982,6 +123111,19 @@ function legendFor(layout) {
 // dist/tools/layout-town.js
 var SIDES = ["n", "s", "e", "w"];
 var MAX_REPEAT = 40;
+var GROUND_FILLS = ["grass", "road", "sand", "water"];
+function groundInsertIndex(existing, added) {
+  if (added.length === 0)
+    return void 0;
+  const allGround = added.every((s) => {
+    const f = s?.fill;
+    return typeof f === "string" && GROUND_FILLS.includes(f) && s?.shape !== "door";
+  });
+  if (!allGround)
+    return void 0;
+  const i = existing.findIndex((s) => s.fill === "building" && s.shape !== "door");
+  return i >= 0 ? i : void 0;
+}
 var isNum = (v) => typeof v === "number" && Number.isFinite(v);
 function pair(v, label, what) {
   if (!Array.isArray(v) || v.length !== 2 || !isNum(v[0]) || !isNum(v[1])) {
@@ -123104,6 +123246,7 @@ function doorPortals(shapes) {
     const horizontal = s.dir === "h";
     const [x, y] = s.at;
     const centre = horizontal ? [x + len / 2, y] : [x, y + len / 2];
+    const along = (start) => Math.floor(start) + Math.floor((len - 1) / 2) + 0.5;
     let owner;
     let side;
     for (const r of rects) {
@@ -123131,17 +123274,17 @@ function doorPortals(shapes) {
     let inside;
     const cell = (v) => Math.floor(v) + 0.5;
     if (side === "n")
-      [outside, inside] = [[cell(centre[0]), Math.round(y) - 0.5], [cell(centre[0]), Math.round(y) + 0.5]];
+      [outside, inside] = [[along(x), Math.round(y) - 0.5], [along(x), Math.round(y) + 0.5]];
     else if (side === "s")
-      [outside, inside] = [[cell(centre[0]), Math.round(y) + 0.5], [cell(centre[0]), Math.round(y) - 0.5]];
+      [outside, inside] = [[along(x), Math.round(y) + 0.5], [along(x), Math.round(y) - 0.5]];
     else if (side === "w")
-      [outside, inside] = [[Math.round(x) - 0.5, cell(centre[1])], [Math.round(x) + 0.5, cell(centre[1])]];
+      [outside, inside] = [[Math.round(x) - 0.5, along(y)], [Math.round(x) + 0.5, along(y)]];
     else if (side === "e")
-      [outside, inside] = [[Math.round(x) + 0.5, cell(centre[1])], [Math.round(x) - 0.5, cell(centre[1])]];
+      [outside, inside] = [[Math.round(x) + 0.5, along(y)], [Math.round(x) - 0.5, along(y)]];
     else if (horizontal)
-      [outside, inside] = [[cell(centre[0]), Math.round(y) - 0.5], [cell(centre[0]), Math.round(y) + 0.5]];
+      [outside, inside] = [[along(x), Math.round(y) - 0.5], [along(x), Math.round(y) + 0.5]];
     else
-      [outside, inside] = [[Math.round(x) - 0.5, cell(centre[1])], [Math.round(x) + 0.5, cell(centre[1])]];
+      [outside, inside] = [[Math.round(x) - 0.5, along(y)], [Math.round(x) + 0.5, along(y)]];
     portals.push({
       door: s.id ?? null,
       centre,
@@ -123584,8 +123727,10 @@ function alignToImage(layout, image, maxShift = 1.5) {
   const r = rasterize(layout);
   const bright = brightnessGrid(image, layout.columns, layout.rows);
   const mask = new Uint8Array(r.w * r.h);
+  const structure = layout.wallFills.length > 0 && !layout.wallFills.includes("floor");
+  const wanted = new Set(layout.wallFills.map((f) => FILL_NAMES.indexOf(f)));
   for (let k = 0; k < mask.length; k++)
-    mask[k] = r.fill[k] === ROCK ? 0 : 1;
+    mask[k] = structure ? wanted.has(r.fill[k]) ? 1 : 0 : r.fill[k] === ROCK ? 0 : 1;
   const n = Math.round(maxShift * SAMPLES);
   const correlate = (sx, sy) => {
     let count = 0;
@@ -123617,7 +123762,8 @@ function alignToImage(layout, image, maxShift = 1.5) {
     const varM = sumMM - sumM * sumM / count;
     if (varB <= 1e-9 || varM <= 1e-9)
       return 0;
-    return cov / Math.sqrt(varB * varM);
+    const c = cov / Math.sqrt(varB * varM);
+    return structure ? Math.abs(c) : c;
   };
   const scoreAtZero = correlate(0, 0);
   let best = { sx: 0, sy: 0, score: scoreAtZero };
@@ -123811,13 +123957,13 @@ function redoChanges(doc, steps) {
   doc.redo = redo;
   return done;
 }
-function addShapes(doc, raws, after) {
+function addShapes(doc, raws, after, atIndex) {
   if (!Array.isArray(raws) || raws.length === 0)
     throw new Error("shapes must be a non-empty list");
   if (doc.shapes.length + raws.length > MAX_DOC_SHAPES) {
     throw new Error(`A layout holds at most ${MAX_DOC_SHAPES} shapes`);
   }
-  let at = doc.shapes.length;
+  let at = atIndex !== void 0 && after === void 0 ? Math.max(0, Math.min(atIndex, doc.shapes.length)) : doc.shapes.length;
   if (after !== void 0) {
     const i = doc.shapes.findIndex((s) => s.id === after);
     if (i < 0)
@@ -124373,7 +124519,9 @@ var LayoutTools = class {
         if (!a.shapes)
           throw new Error("add needs shapes");
         const before = captureState(doc);
-        const ids = addShapes(doc, expandShapeSpecs(a.shapes), a.after);
+        const expanded = expandShapeSpecs(a.shapes);
+        const under = a.after === void 0 ? groundInsertIndex(doc.shapes, expanded) : void 0;
+        const ids = addShapes(doc, expanded, a.after, under);
         commitChange(doc, `add ${ids.length} shape${ids.length === 1 ? "" : "s"} (${ids.join(", ")})`, before);
         await this.store.save(doc);
         return this.summary(doc, "add", ids);
@@ -124773,7 +124921,7 @@ var LayoutTools = class {
     const uploaded = await this.upload({
       file_path: localPath,
       folder: a.upload_folder ?? "maps",
-      filename: a.filename ?? `${doc.id}-${Date.now().toString(36)}.png`
+      filename: a.filename ? /\.[a-z0-9]{2,5}$/i.test(a.filename) ? a.filename : `${a.filename}.png` : `${doc.id}-${Date.now().toString(36)}.png`
     });
     if (uploaded?.success === false || !uploaded?.path)
       throw new Error(uploaded?.error || "The map could not be uploaded");

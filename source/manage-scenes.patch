@@ -3022,6 +3022,87 @@ index 0000000..666579f
 +    await expect(da.manageModules({ action: 'explode' as any })).rejects.toThrow('Unknown action');
 +  });
 +});
+diff --git a/packages/foundry-module/src/data-access.object-update.test.ts b/packages/foundry-module/src/data-access.object-update.test.ts
+new file mode 100644
+index 0000000..346798e
+--- /dev/null
++++ b/packages/foundry-module/src/data-access.object-update.test.ts
+@@ -0,0 +1,75 @@
++/** manage-scene-objects update: moves and edits objects this tool placed. Foundry is stubbed. */
++import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
++import { FoundryDataAccess } from './data-access.js';
++
++const MODULE = 'foundry-mcp-bridge-scenes';
++const mine = { [MODULE]: { sceneObjectsTool: true } };
++
++function setup() {
++  const updated: Array<{ type: string; data: any[] }> = [];
++  const doc = (id: string, extra: any = {}) => ({ id, flags: mine, x: 700, y: 400, ...extra });
++  const col = (docs: any[]) => ({ contents: docs, get: (id: string) => docs.find(d => d.id === id) });
++  const scene: any = {
++    id: 's1',
++    name: 'Town',
++    width: 2000,
++    height: 1500,
++    padding: 0,
++    grid: { size: 100, distance: 5, units: 'ft' },
++    dimensions: { sceneX: 0, sceneY: 0, sceneWidth: 2000, sceneHeight: 1500 },
++    tokens: col([]),
++    lights: col([doc('l1')]),
++    walls: col([doc('w1', { door: 1 }), doc('w2', { door: 0 })]),
++    notes: col([doc('n1'), { id: 'n2', flags: {}, x: 0, y: 0 }]),
++    tiles: col([]),
++    sounds: col([]),
++    updateEmbeddedDocuments: vi.fn(async (type: string, data: any[]) => {
++      updated.push({ type, data });
++      return data;
++    }),
++  };
++  vi.stubGlobal('Hooks', { on: vi.fn(), callAll: vi.fn() });
++  vi.stubGlobal('game', {
++    ready: true,
++    world: { id: 'w', getFlag: vi.fn(() => []), setFlag: vi.fn() },
++    user: { id: 'gm', name: 'GM' },
++    scenes: { contents: [scene], viewed: scene, current: scene },
++    actors: { contents: [] },
++    settings: { get: (_m: string, key: string) => (key === 'allowWriteOperations' ? true : undefined) },
++  });
++  return { da: new FoundryDataAccess(), scene, updated };
++}
++
++describe('manageSceneObjects update', () => {
++  beforeEach(() => vi.unstubAllGlobals());
++  afterEach(() => vi.unstubAllGlobals());
++
++  it('moves a pin and edits a light and a door in one call', async () => {
++    const { da, updated } = setup();
++    const r = await da.manageSceneObjects({
++      action: 'update',
++      scene: 's1',
++      updates: [{ id: 'n1', x: 10, text: 'Inn' }, { id: 'l1', bright: 2, dim: 4 }, { id: 'w1', door_state: 'open' }],
++    });
++    expect(r.updated).toEqual([
++      { kind: 'note', id: 'n1', changed: ['x', 'text'] },
++      { kind: 'light', id: 'l1', changed: ['bright', 'dim'] },
++      { kind: 'wall', id: 'w1', changed: ['door_state'] },
++    ]);
++    const byType = Object.fromEntries(updated.map(u => [u.type, u.data[0]]));
++    expect(byType.Note).toEqual({ _id: 'n1', x: 1000, y: 400, text: 'Inn' });
++    expect(byType.AmbientLight).toEqual({ _id: 'l1', 'config.bright': 10, 'config.dim': 20 });
++    expect(byType.Wall).toEqual({ _id: 'w1', ds: 1 });
++  });
++
++  it('refuses what it did not place, what is missing and bad fields, changing nothing', async () => {
++    const { da, updated } = setup();
++    await expect(da.manageSceneObjects({ action: 'update', scene: 's1', updates: [{ id: 'n2', text: 'x' }] })).rejects.toThrow('not created by this tool');
++    await expect(da.manageSceneObjects({ action: 'update', scene: 's1', updates: [{ id: 'zzz', text: 'x' }] })).rejects.toThrow('no object with id zzz');
++    await expect(da.manageSceneObjects({ action: 'update', scene: 's1', updates: [{ id: 'w2', door_state: 'open' }] })).rejects.toThrow('only applies to doors');
++    await expect(da.manageSceneObjects({ action: 'update', scene: 's1', updates: [{ id: 'n1', text: 'ok' }, { id: 'l1', color: 'red' }] })).rejects.toThrow('#RRGGBB');
++    await expect(da.manageSceneObjects({ action: 'update', scene: 's1', updates: [{ id: 'n1', kind: 'light', text: 'x' }] })).rejects.toThrow('no light with id n1');
++    await expect(da.manageSceneObjects({ action: 'update', scene: 's1', updates: [] })).rejects.toThrow('non-empty');
++    expect(updated).toHaveLength(0);
++  });
++});
 diff --git a/packages/foundry-module/src/data-access.play.test.ts b/packages/foundry-module/src/data-access.play.test.ts
 new file mode 100644
 index 0000000..fd1d7d0
@@ -4412,11 +4493,86 @@ index 0000000..3539e49
 +    expect(b.update).not.toHaveBeenCalled();
 +  });
 +});
+diff --git a/packages/foundry-module/src/data-access.token-squares.test.ts b/packages/foundry-module/src/data-access.token-squares.test.ts
+new file mode 100644
+index 0000000..26e6aab
+--- /dev/null
++++ b/packages/foundry-module/src/data-access.token-squares.test.ts
+@@ -0,0 +1,69 @@
++/** move-token in grid squares, and get-token-details on any scene. Foundry is stubbed. */
++import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
++import { FoundryDataAccess } from './data-access.js';
++
++function makeScene(id: string, name: string, tokenId: string) {
++  const update = vi.fn(async () => undefined);
++  const token = { id: tokenId, name: `Token ${tokenId}`, x: 5, y: 6, width: 1, height: 1, update, texture: { src: 'a.png' } };
++  return {
++    id,
++    name,
++    width: 1280,
++    height: 1280,
++    padding: 0.25,
++    grid: { size: 64, distance: 5, units: 'ft' },
++    dimensions: { sceneX: 320, sceneY: 320, sceneWidth: 1280, sceneHeight: 1280 },
++    tokens: new Map([[tokenId, token]]),
++    update,
++  };
++}
++
++function setup() {
++  const a = makeScene('sa', 'Trail', 'ta');
++  const b = makeScene('sb', 'Town', 'tb');
++  vi.stubGlobal('Hooks', { on: vi.fn(), callAll: vi.fn() });
++  vi.stubGlobal('game', {
++    ready: true,
++    world: { id: 'w', getFlag: vi.fn(() => []), setFlag: vi.fn() },
++    user: { id: 'gm', name: 'GM' },
++    scenes: { contents: [a, b], current: a, viewed: a },
++    settings: { get: (_m: string, key: string) => (key === 'allowWriteOperations' ? true : undefined) },
++  });
++  return { da: new FoundryDataAccess(), a, b };
++}
++
++describe('move-token in squares', () => {
++  beforeEach(() => vi.unstubAllGlobals());
++  afterEach(() => vi.unstubAllGlobals());
++
++  it('converts squares to pixels with the padding offset', async () => {
++    const { da, b } = setup();
++    const r = await da.moveToken({ tokenId: 'tb', x: 11, y: 2.5, units: 'squares', animate: false });
++    expect(b.update).toHaveBeenCalledWith({ x: 320 + 11 * 64, y: 320 + 2.5 * 64 }, { animate: false });
++    expect(r).toMatchObject({ success: true, newPosition: { x: 1024, y: 480 }, newSquares: { x: 11, y: 2.5 }, scene: { id: 'sb', name: 'Town' } });
++  });
++  it('keeps pixels the default and refuses bad units and squares off the map', async () => {
++    const { da, b } = setup();
++    await da.moveToken({ tokenId: 'tb', x: 640, y: 640, animate: false });
++    expect(b.update).toHaveBeenCalledWith({ x: 640, y: 640 }, { animate: false });
++    await expect(da.moveToken({ tokenId: 'tb', x: 1, y: 1, units: 'feet' as any })).rejects.toThrow('units must be pixels or squares');
++    await expect(da.moveToken({ tokenId: 'tb', x: 21, y: 1, units: 'squares' })).rejects.toThrow('inside the map');
++    await expect(da.moveToken({ tokenId: 'tb', x: -1, y: 1, units: 'squares' })).rejects.toThrow('inside the map');
++  });
++});
++
++describe('get-token-details on any scene', () => {
++  beforeEach(() => vi.unstubAllGlobals());
++  afterEach(() => vi.unstubAllGlobals());
++
++  it('finds a token on a scene that is not the current one', async () => {
++    const { da } = setup();
++    const r = await da.getTokenDetails({ tokenId: 'tb' });
++    expect(r).toMatchObject({ success: true, id: 'tb', name: 'Token tb' });
++  });
++  it('takes a scene and says where it looked', async () => {
++    const { da } = setup();
++    await expect(da.getTokenDetails({ tokenId: 'ta', scene: 'Town' })).rejects.toThrow('not found in scene "Town"');
++    await expect(da.getTokenDetails({ tokenId: 'zz' })).rejects.toThrow('not found in scene "Trail"');
++  });
++});
 diff --git a/packages/foundry-module/src/data-access.ts b/packages/foundry-module/src/data-access.ts
-index eecda7e..e42882a 100644
+index eecda7e..8862823 100644
 --- a/packages/foundry-module/src/data-access.ts
 +++ b/packages/foundry-module/src/data-access.ts
-@@ -1,5 +1,127 @@
+@@ -1,5 +1,128 @@
  import { MODULE_ID, ERROR_MESSAGES, TOKEN_DISPOSITIONS } from './constants.js';
  import { permissionManager } from './permissions.js';
 +import {
@@ -4517,7 +4673,8 @@ index eecda7e..e42882a 100644
 +  stripForCreate,
 +  summarisePlan,
 +} from './scene-backup-utils.js';
-+import { auditSnapshot, type AuditScene, type AuditSnapshot, type AuditTeleport } from './world-audit-utils.js';
++import { buildObjectUpdate, OBJECT_DOCUMENT, type ObjectKind } from './object-update-utils.js';
++import { auditSnapshot, type AuditActor, type AuditScene, type AuditSnapshot, type AuditTeleport } from './world-audit-utils.js';
 +import { buildTeleportBehavior, linkEndSpec, teleportDestinations, type LinkEnd, type LinkOptions } from './link-utils.js';
 +import { measureGrid as measureGridInPicture } from './grid-measure-utils.js';
 +import {
@@ -4544,7 +4701,7 @@ index eecda7e..e42882a 100644
  import { transactionManager } from './transaction-manager.js';
  
  // The same five characters foundry.utils.escapeHTML replaces in v14, kept local because
-@@ -4681,12 +4803,28 @@ export class FoundryDataAccess {
+@@ -4681,12 +4804,28 @@ export class FoundryDataAccess {
        type: 'random' | 'grid' | 'center' | 'coordinates';
        coordinates?: { x: number; y: number }[];
      };
@@ -4573,7 +4730,7 @@ index eecda7e..e42882a 100644
        // Validate inputs
        if (!packId || !itemId) {
          throw new Error('Both packId and itemId are required');
-@@ -4753,10 +4891,33 @@ export class FoundryDataAccess {
+@@ -4753,10 +4892,33 @@ export class FoundryDataAccess {
            }
  
            // Organize created actors in a folder - use "Foundry MCP Creatures" for generic monsters
@@ -4608,7 +4765,7 @@ index eecda7e..e42882a 100644
  
            // Create the actor
            const newActor = await Actor.create(actorData);
-@@ -6714,7 +6875,7 @@ export class FoundryDataAccess {
+@@ -6714,7 +6876,7 @@ export class FoundryDataAccess {
  
          // Send socket request to GM
          if (game.socket) {
@@ -4617,7 +4774,7 @@ index eecda7e..e42882a 100644
              type: 'requestMessageUpdate',
              buttonId,
              userId,
-@@ -8101,198 +8262,3330 @@ export class FoundryDataAccess {
+@@ -8101,198 +8263,3393 @@ export class FoundryDataAccess {
      }
    }
  
@@ -5744,12 +5901,30 @@ index eecda7e..e42882a 100644
 +          musicPlaylist,
 +          musicPlaylistExists: !musicPlaylist || playlistIds.has(musicPlaylist),
 +          teleports,
++          brokenPins: ((scene.notes?.contents || []) as any[]).filter(n => {
++            if (!n.entryId) return false;
++            const journal = g.journal?.get?.(n.entryId);
++            if (!journal) return true;
++            return !!n.pageId && !journal.pages?.get?.(n.pageId);
++          }).length,
++          darkness: Number(scene.environment?.darknessLevel ?? scene.darkness ?? 0),
++          tokenVision: !!(scene.tokenVision ?? true),
++          globalLight: !!(scene.environment?.globalLight?.enabled ?? scene.globalLight ?? false),
 +        };
 +      });
 +      const snapshot: AuditSnapshot = {
 +        scenes: options.include_backups ? scenes.map(s => ({ ...s, isBackup: false })) : scenes,
 +        playlists: (((g.playlists?.contents || []) as any[]).map(p => ({ id: p.id, name: p.name, soundCount: size(p.sounds) }))),
 +        actorCount: actorIds.size,
++        actors: (((g.actors?.contents || []) as any[]).map(a => ({
++          id: a.id,
++          name: a.name,
++          type: a.type,
++          hasImage: !!a.img && !/mystery-man/.test(String(a.img)),
++          hasPlayerOwner: Object.entries(a.ownership ?? {}).some(
++            ([userId, level]) => userId !== 'default' && Number(level) >= 3 && !g.users?.get?.(userId)?.isGM
++          ),
++        })) as AuditActor[]),
 +      };
 +      const result = auditSnapshot(snapshot);
 +      return {
@@ -6286,9 +6461,10 @@ index eecda7e..e42882a 100644
 +   * this tool created (never anything else).
 +   */
 +  async manageSceneObjects(options: {
-+    action: 'place' | 'describe' | 'remove';
++    action: 'place' | 'describe' | 'remove' | 'update';
 +    scene?: string;
 +    objects?: Array<Record<string, any>>;
++    updates?: Array<Record<string, any>>;
 +    ids?: string[];
 +    all_mine?: boolean;
 +    kind?: 'token' | 'light' | 'wall' | 'note' | 'tile' | 'sound';
@@ -6297,8 +6473,8 @@ index eecda7e..e42882a 100644
 +
 +    try {
 +      const action = options.action;
-+      if (action !== 'place' && action !== 'describe' && action !== 'remove') {
-+        throw new Error(`Unknown action: ${String(action)} (place | describe | remove)`);
++      if (action !== 'place' && action !== 'describe' && action !== 'remove' && action !== 'update') {
++        throw new Error(`Unknown action: ${String(action)} (place | describe | remove | update)`);
 +      }
 +      const scene = this.resolveSceneForObjects(options.scene);
 +      const geom = getGridGeometry(scene);
@@ -6480,6 +6656,50 @@ index eecda7e..e42882a 100644
 +          created,
 +          ...(warnings.length > 0 ? { warnings } : {}),
 +        };
++      }
++
++      if (action === 'update') {
++        const specs = options.updates ?? [];
++        if (!Array.isArray(specs) || specs.length === 0) throw new Error('updates must be a non-empty list');
++        if (specs.length > 200) throw new Error('At most 200 updates per call');
++        const sceneCollections: Record<string, any> = {
++          token: scene.tokens,
++          light: scene.lights,
++          wall: scene.walls,
++          note: scene.notes,
++          tile: scene.tiles,
++          sound: scene.sounds,
++        };
++        const byKind: Record<string, any[]> = {};
++        const changed: Array<{ kind: string; id: string; changed: string[] }> = [];
++        specs.forEach((spec, index) => {
++          const label = `updates[${index}]`;
++          if (!spec || typeof spec !== 'object' || typeof spec.id !== 'string') throw new Error(`${label}: id is required`);
++          let kind: ObjectKind | undefined;
++          let doc: any;
++          for (const k of Object.keys(sceneCollections) as ObjectKind[]) {
++            if (spec.kind && spec.kind !== k) continue;
++            const found = sceneCollections[k]?.get?.(spec.id);
++            if (found) {
++              kind = k;
++              doc = found;
++              break;
++            }
++          }
++          if (!kind || !doc) throw new Error(`${label}: no ${spec.kind ?? 'object'} with id ${spec.id} on this scene`);
++          if (!this.isToolObject(doc)) {
++            throw new Error(`${label}: ${spec.id} was not created by this tool (only its own objects can be changed)`);
++          }
++          if (kind === 'wall' && !doc.door) throw new Error(`${label}: door_state only applies to doors`);
++          const data = buildObjectUpdate(kind, spec, geom, { x: doc.x, y: doc.y }, label);
++          (byKind[kind] ??= []).push({ _id: doc.id, ...data });
++          changed.push({ kind, id: doc.id, changed: Object.keys(spec).filter(k => k !== 'id' && k !== 'kind') });
++        });
++        for (const [kind, list] of Object.entries(byKind)) {
++          await scene.updateEmbeddedDocuments(OBJECT_DOCUMENT[kind as ObjectKind], list);
++        }
++        this.auditLog('manageSceneObjects:update', { scene: scene.id, count: specs.length }, 'success');
++        return { success: true, action, scene: { id: scene.id, name: scene.name }, updated: changed };
 +      }
 +
 +      // remove: only objects this tool created.
@@ -8106,7 +8326,7 @@ index eecda7e..e42882a 100644
          case 'play':
            await pl.playAll();
            return { success: true, action: 'play', playlist: info };
-@@ -8304,20 +11597,48 @@ export class FoundryDataAccess {
+@@ -8304,20 +11661,48 @@ export class FoundryDataAccess {
            return { success: true, action: 'cycle-mode', playlist: info, mode: pl.mode as number };
          case 'play-sound':
          case 'stop-sound': {
@@ -8161,7 +8381,7 @@ index eecda7e..e42882a 100644
        }
      } catch (error) {
        throw new Error(
-@@ -8468,6 +11789,21 @@ export class FoundryDataAccess {
+@@ -8468,6 +11853,21 @@ export class FoundryDataAccess {
      }
    }
  
@@ -8183,15 +8403,16 @@ index eecda7e..e42882a 100644
    /**
     * Move a token to a new position on the scene
     */
-@@ -8476,6 +11812,7 @@ export class FoundryDataAccess {
+@@ -8476,6 +11876,8 @@ export class FoundryDataAccess {
      x: number;
      y: number;
      animate?: boolean;
 +    scene?: string;
++    units?: 'pixels' | 'squares';
    }): Promise<any> {
      this.validateFoundryState();
  
-@@ -8489,14 +11826,11 @@ export class FoundryDataAccess {
+@@ -8489,21 +11891,33 @@ export class FoundryDataAccess {
      }
  
      try {
@@ -8205,10 +8426,45 @@ index eecda7e..e42882a 100644
        if (!token) {
 -        throw new Error(`Token ${data.tokenId} not found in current scene`);
 +        throw new Error(`Token ${data.tokenId} not found in scene "${scene.name}"`);
++      }
++
++      if (data.units !== undefined && data.units !== 'pixels' && data.units !== 'squares') {
++        throw new Error('units must be pixels or squares');
++      }
++      // In squares the position counts from the top-left of the map image (padding handled here).
++      let target = { x: data.x, y: data.y };
++      let squares: { x: number; y: number } | undefined;
++      if (data.units === 'squares') {
++        const geom = getGridGeometry(scene);
++        if (data.x < 0 || data.y < 0 || data.x > geom.columns || data.y > geom.rows) {
++          throw new Error(`x and y must be squares inside the map (0 to ${geom.columns} across, 0 to ${geom.rows} down)`);
++        }
++        target = squaresToPixels(geom, data.x, data.y);
++        squares = { x: data.x, y: data.y };
        }
  
        // Update token position
-@@ -8533,7 +11867,13 @@ export class FoundryDataAccess {
+       await token.update(
+         {
+-          x: data.x,
+-          y: data.y,
++          x: target.x,
++          y: target.y,
+         },
+         { animate: data.animate !== false }
+       );
+@@ -8514,7 +11928,9 @@ export class FoundryDataAccess {
+         success: true,
+         tokenId: token.id,
+         tokenName: token.name,
+-        newPosition: { x: data.x, y: data.y },
++        scene: { id: scene.id, name: scene.name },
++        newPosition: target,
++        ...(squares ? { newSquares: squares } : {}),
+         animated: data.animate !== false,
+       };
+     } catch (error) {
+@@ -8533,7 +11949,13 @@ export class FoundryDataAccess {
    /**
     * Update token properties
     */
@@ -8223,7 +8479,7 @@ index eecda7e..e42882a 100644
      this.validateFoundryState();
  
      // Use permission system
-@@ -8546,20 +11886,19 @@ export class FoundryDataAccess {
+@@ -8546,20 +11968,19 @@ export class FoundryDataAccess {
      }
  
      try {
@@ -8250,7 +8506,30 @@ index eecda7e..e42882a 100644
  
        // Apply updates
        await token.update(cleanUpdates);
-@@ -11274,7 +14613,10 @@ export class FoundryDataAccess {
+@@ -8651,18 +12072,15 @@ export class FoundryDataAccess {
+   /**
+    * Get detailed information about a token
+    */
+-  async getTokenDetails(data: { tokenId: string }): Promise<any> {
++  async getTokenDetails(data: { tokenId: string; scene?: string }): Promise<any> {
+     this.validateFoundryState();
+ 
+     try {
+-      const scene = (game.scenes as any).current;
+-      if (!scene) {
+-        throw new Error('No active scene found');
+-      }
+-
++      // Found on any scene (the viewed scene first), or on the scene named.
++      const scene = this.findTokenScene(data.tokenId, data.scene);
+       const token = scene.tokens.get(data.tokenId);
+       if (!token) {
+-        throw new Error(`Token ${data.tokenId} not found in current scene`);
++        throw new Error(`Token ${data.tokenId} not found in scene "${scene.name}"`);
+       }
+ 
+       // Return flat structure that matches MCP server expectations
+@@ -11274,7 +14692,10 @@ export class FoundryDataAccess {
        name: string;
        type: string;
        img?: string;
@@ -8261,7 +8540,7 @@ index eecda7e..e42882a 100644
      }>;
      folder?: string;
    }): Promise<{ created: Array<{ id: string; name: string; type: string }>; total: number }> {
-@@ -11286,6 +14628,19 @@ export class FoundryDataAccess {
+@@ -11286,6 +14707,19 @@ export class FoundryDataAccess {
      const docs = params.actors.map(a => {
        const doc: Record<string, any> = { name: a.name, type: a.type };
        if (a.img) doc.img = a.img;
@@ -8281,7 +8560,7 @@ index eecda7e..e42882a 100644
  
        // Merge system data, adding safe defaults for systems that require certain
        // fields to exist during data preparation (avoids non-fatal init errors).
-@@ -11471,7 +14826,16 @@ export class FoundryDataAccess {
+@@ -11471,7 +14905,16 @@ export class FoundryDataAccess {
     * Merges supplied fields into the actor (top-level keys overwrite).
     */
    async updateActors(
@@ -8299,7 +8578,7 @@ index eecda7e..e42882a 100644
    ): Promise<{ updated: Array<{ id: string; name: string }>; total: number }> {
      const updatedActors: Array<{ id: string; name: string }> = [];
  
-@@ -11482,6 +14846,7 @@ export class FoundryDataAccess {
+@@ -11482,6 +14925,7 @@ export class FoundryDataAccess {
        const patch: Record<string, any> = {};
        if (u.name !== undefined) patch.name = u.name;
        if (u.img !== undefined) patch.img = u.img;
@@ -8307,7 +8586,7 @@ index eecda7e..e42882a 100644
        if (u.system !== undefined) {
          // Build a single patch.system nested object so Foundry deep-merges everything
          // in one pass without flat-key vs nested-key conflicts.
-@@ -11504,6 +14869,19 @@ export class FoundryDataAccess {
+@@ -11504,6 +14948,19 @@ export class FoundryDataAccess {
          }
          patch.system = systemPatch;
        }
@@ -10997,6 +11276,222 @@ index 0000000..855e0cb
 +  }
 +  return { ok: problems.length === 0, change, unchanged, problems };
 +}
+diff --git a/packages/foundry-module/src/object-update-utils.test.ts b/packages/foundry-module/src/object-update-utils.test.ts
+new file mode 100644
+index 0000000..7658d89
+--- /dev/null
++++ b/packages/foundry-module/src/object-update-utils.test.ts
+@@ -0,0 +1,54 @@
++import { describe, expect, it } from 'vitest';
++import { buildObjectUpdate } from './object-update-utils.js';
++import type { GridGeometry } from './scene-objects-utils.js';
++
++const geom: GridGeometry = { size: 100, originX: 200, originY: 100, sceneWidth: 2000, sceneHeight: 1500, columns: 20, rows: 15, distance: 5, units: 'ft' };
++const cur = { x: 700, y: 400 }; // square (5, 3)
++
++describe('buildObjectUpdate', () => {
++  it('moves in squares and keeps the other axis', () => {
++    expect(buildObjectUpdate('note', { x: 10 }, geom, cur, 'u')).toEqual({ x: 1200, y: 400 });
++    expect(buildObjectUpdate('note', { y: 2.5 }, geom, cur, 'u')).toEqual({ x: 700, y: 350 });
++    expect(buildObjectUpdate('token', { x: 1, y: 2 }, geom, cur, 'u')).toEqual({ x: 300, y: 300 });
++  });
++  it('rejects positions off the map and unknown fields', () => {
++    expect(() => buildObjectUpdate('note', { x: 21 }, geom, cur, 'u')).toThrow('x must be grid squares');
++    expect(() => buildObjectUpdate('token', { bright: 3 }, geom, cur, 'u')).toThrow('bright cannot be changed on a token');
++    expect(() => buildObjectUpdate('token', {}, geom, cur, 'u')).toThrow('nothing to change');
++    expect(() => buildObjectUpdate('wall', { x: 1, door_state: 'open' }, geom, cur, 'u')).toThrow('cannot be changed on a wall');
++  });
++  it('converts light radii and uses dotted config keys', () => {
++    expect(buildObjectUpdate('light', { bright: 3, dim: 6, color: '#FFA040', alpha: 0.5, animation: 'torch' }, geom, cur, 'u')).toEqual({
++      'config.bright': 15,
++      'config.dim': 30,
++      'config.color': '#ffa040',
++      'config.alpha': 0.5,
++      'config.animation': { type: 'torch', speed: 5, intensity: 5 },
++    });
++    expect(buildObjectUpdate('light', { animation: null }, geom, cur, 'u')).toEqual({ 'config.animation': { type: null } });
++    expect(() => buildObjectUpdate('light', { color: 'red' }, geom, cur, 'u')).toThrow('#RRGGBB');
++    expect(() => buildObjectUpdate('light', { animation: 'sparkle' }, geom, cur, 'u')).toThrow('animation');
++  });
++  it('handles tokens, notes, tiles and sounds', () => {
++    expect(buildObjectUpdate('token', { name: 'Boss', width: 2, disposition: -1, hidden: true, elevation: 5 }, geom, cur, 'u')).toEqual({
++      name: 'Boss', width: 2, disposition: -1, hidden: true, elevation: 5,
++    });
++    expect(() => buildObjectUpdate('token', { disposition: 3 }, geom, cur, 'u')).toThrow('disposition');
++    expect(buildObjectUpdate('note', { text: 'Inn', font_size: 40, icon_size: 64, global: true, icon: 'a.svg' }, geom, cur, 'u')).toEqual({
++      text: 'Inn', fontSize: 40, iconSize: 64, global: true, 'texture.src': 'a.svg',
++    });
++    expect(buildObjectUpdate('tile', { width: 2, height: 1.5, rotation: 90, alpha: 0.4, src: 'p/a.png' }, geom, cur, 'u')).toEqual({
++      width: 200, height: 150, rotation: 90, alpha: 0.4, 'texture.src': 'p/a.png',
++    });
++    expect(() => buildObjectUpdate('tile', { src: 'http://x/a.png' }, geom, cur, 'u')).toThrow('Foundry files');
++    expect(buildObjectUpdate('sound', { radius: 4, volume: 0.2, repeat: false, walls: false, easing: true, path: 'a.mp3' }, geom, cur, 'u')).toEqual({
++      radius: 20, volume: 0.2, repeat: false, walls: false, easing: true, path: 'a.mp3',
++    });
++    expect(() => buildObjectUpdate('sound', { volume: 2 }, geom, cur, 'u')).toThrow('volume');
++  });
++  it('sets door states', () => {
++    expect(buildObjectUpdate('wall', { door_state: 'locked' }, geom, cur, 'u')).toEqual({ ds: 2 });
++    expect(buildObjectUpdate('wall', { door_state: 'open' }, geom, cur, 'u')).toEqual({ ds: 1 });
++    expect(() => buildObjectUpdate('wall', { door_state: 'ajar' }, geom, cur, 'u')).toThrow('door_state');
++  });
++});
+diff --git a/packages/foundry-module/src/object-update-utils.ts b/packages/foundry-module/src/object-update-utils.ts
+new file mode 100644
+index 0000000..d4efc4c
+--- /dev/null
++++ b/packages/foundry-module/src/object-update-utils.ts
+@@ -0,0 +1,150 @@
++/**
++ * Pure helper for manage-scene-objects update: turn the fields asked for (grid squares and tool
++ * units) into a partial Foundry update for one placed object. No Foundry globals.
++ */
++import { squaresToPixels, type GridGeometry } from './scene-objects-utils.js';
++
++export type ObjectKind = 'token' | 'light' | 'wall' | 'note' | 'tile' | 'sound';
++
++export const OBJECT_DOCUMENT: Record<ObjectKind, string> = {
++  token: 'Token',
++  light: 'AmbientLight',
++  wall: 'Wall',
++  note: 'Note',
++  tile: 'Tile',
++  sound: 'AmbientSound',
++};
++
++/** Fields each kind accepts, besides id and kind. */
++export const UPDATE_FIELDS: Record<ObjectKind, readonly string[]> = {
++  token: ['x', 'y', 'name', 'width', 'height', 'hidden', 'disposition', 'elevation'],
++  light: ['x', 'y', 'bright', 'dim', 'color', 'alpha', 'angle', 'rotation', 'animation', 'hidden'],
++  wall: ['door_state'],
++  note: ['x', 'y', 'text', 'font_size', 'icon_size', 'icon', 'global'],
++  tile: ['x', 'y', 'width', 'height', 'src', 'rotation', 'alpha', 'elevation', 'hidden'],
++  sound: ['x', 'y', 'radius', 'path', 'volume', 'repeat', 'walls', 'easing', 'hidden'],
++};
++
++const DOOR_STATES: Record<string, number> = { closed: 0, open: 1, locked: 2 };
++const LIGHT_ANIMATIONS = ['torch', 'pulse', 'chroma', 'wave', 'fog', 'sunburst', 'dome', 'emanation', 'hexa', 'ghost', 'energy', 'roiling', 'hole'];
++
++const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
++
++function inRange(v: unknown, min: number, max: number, label: string, name: string, what = 'a number'): number {
++  if (!isNum(v) || v < min || v > max) throw new Error(`${label}: ${name} must be ${what} from ${min} to ${max}`);
++  return v;
++}
++
++/**
++ * Build the update for one object. `current` gives the object's present x and y in pixels so that
++ * changing only x or only y keeps the other. Throws a clear error for anything not allowed.
++ */
++export function buildObjectUpdate(
++  kind: ObjectKind,
++  spec: Record<string, any>,
++  geom: GridGeometry,
++  current: { x?: number; y?: number } | undefined,
++  label: string
++): Record<string, any> {
++  if (!(kind in UPDATE_FIELDS)) throw new Error(`${label}: kind must be token, light, wall, note, tile or sound`);
++  const allowed = UPDATE_FIELDS[kind];
++  const given = Object.keys(spec).filter(k => k !== 'id' && k !== 'kind');
++  if (given.length === 0) throw new Error(`${label}: nothing to change (allowed for a ${kind}: ${allowed.join(', ')})`);
++  for (const key of given) {
++    if (!allowed.includes(key)) throw new Error(`${label}: ${key} cannot be changed on a ${kind} (allowed: ${allowed.join(', ')})`);
++  }
++
++  const data: Record<string, any> = {};
++  const maxX = geom.sceneWidth / geom.size;
++  const maxY = geom.sceneHeight / geom.size;
++
++  if (spec.x !== undefined || spec.y !== undefined) {
++    if (kind === 'wall') throw new Error(`${label}: walls cannot be moved`);
++    const cx = isNum(current?.x) ? (current!.x! - geom.originX) / geom.size : 0;
++    const cy = isNum(current?.y) ? (current!.y! - geom.originY) / geom.size : 0;
++    const nx = spec.x !== undefined ? inRange(spec.x, 0, maxX, label, 'x', 'grid squares') : cx;
++    const ny = spec.y !== undefined ? inRange(spec.y, 0, maxY, label, 'y', 'grid squares') : cy;
++    const p = squaresToPixels(geom, nx, ny);
++    data.x = p.x;
++    data.y = p.y;
++  }
++  if (spec.hidden !== undefined) data.hidden = !!spec.hidden;
++  if (spec.elevation !== undefined) {
++    if (!isNum(spec.elevation)) throw new Error(`${label}: elevation must be a number`);
++    data.elevation = spec.elevation;
++  }
++  if (spec.alpha !== undefined) {
++    const a = inRange(spec.alpha, 0, 1, label, 'alpha');
++    if (kind === 'light') data['config.alpha'] = a;
++    else data.alpha = a;
++  }
++  if (spec.rotation !== undefined) {
++    if (!isNum(spec.rotation)) throw new Error(`${label}: rotation must be degrees`);
++    data.rotation = spec.rotation;
++  }
++
++  switch (kind) {
++    case 'token':
++      if (spec.name !== undefined) data.name = String(spec.name);
++      for (const dim of ['width', 'height'] as const) {
++        if (spec[dim] !== undefined) data[dim] = inRange(spec[dim], 0.5, 20, label, dim, 'a number of squares');
++      }
++      if (spec.disposition !== undefined) {
++        if (![-1, 0, 1].includes(spec.disposition)) throw new Error(`${label}: disposition must be -1, 0 or 1`);
++        data.disposition = spec.disposition;
++      }
++      break;
++    case 'light':
++      if (spec.bright !== undefined) data['config.bright'] = inRange(spec.bright, 0, 400, label, 'bright', 'squares') * geom.distance;
++      if (spec.dim !== undefined) data['config.dim'] = inRange(spec.dim, 0, 400, label, 'dim', 'squares') * geom.distance;
++      if (spec.color !== undefined) {
++        if (typeof spec.color !== 'string' || !/^#[0-9a-fA-F]{6}$/.test(spec.color)) throw new Error(`${label}: color must look like #RRGGBB`);
++        data['config.color'] = spec.color.toLowerCase();
++      }
++      if (spec.angle !== undefined) data['config.angle'] = inRange(spec.angle, 1, 360, label, 'angle', 'degrees');
++      if (spec.animation !== undefined) {
++        if (spec.animation === null) data['config.animation'] = { type: null };
++        else if (!LIGHT_ANIMATIONS.includes(spec.animation)) throw new Error(`${label}: animation must be one of ${LIGHT_ANIMATIONS.join(', ')}`);
++        else data['config.animation'] = { type: spec.animation, speed: 5, intensity: 5 };
++      }
++      break;
++    case 'wall':
++      if (!(spec.door_state in DOOR_STATES)) throw new Error(`${label}: door_state must be closed, open or locked`);
++      data.ds = DOOR_STATES[spec.door_state];
++      break;
++    case 'note':
++      if (spec.text !== undefined) data.text = String(spec.text);
++      if (spec.font_size !== undefined) data.fontSize = inRange(spec.font_size, 8, 128, label, 'font_size', 'a number');
++      if (spec.icon_size !== undefined) data.iconSize = inRange(spec.icon_size, 32, 512, label, 'icon_size', 'a number');
++      if (spec.icon !== undefined) data['texture.src'] = String(spec.icon);
++      if (spec.global !== undefined) data.global = !!spec.global;
++      break;
++    case 'tile':
++      for (const dim of ['width', 'height'] as const) {
++        if (spec[dim] !== undefined) {
++          data[dim] = Math.round(inRange(spec[dim], 0.01, 400, label, dim, 'a number of squares') * geom.size);
++        }
++      }
++      if (spec.src !== undefined) {
++        if (typeof spec.src !== 'string' || !spec.src.trim() || /^[a-z]+:\/\//i.test(spec.src)) {
++          throw new Error(`${label}: src must be a path in the Foundry files`);
++        }
++        data['texture.src'] = spec.src.trim();
++      }
++      break;
++    case 'sound':
++      if (spec.radius !== undefined) data.radius = inRange(spec.radius, 0.01, 400, label, 'radius', 'squares') * geom.distance;
++      if (spec.path !== undefined) {
++        if (typeof spec.path !== 'string' || !spec.path.trim() || /^[a-z]+:\/\//i.test(spec.path)) {
++          throw new Error(`${label}: path must be an audio file in the Foundry files`);
++        }
++        data.path = spec.path.trim();
++      }
++      if (spec.volume !== undefined) data.volume = inRange(spec.volume, 0, 1, label, 'volume');
++      for (const flag of ['repeat', 'walls', 'easing'] as const) {
++        if (spec[flag] !== undefined) data[flag] = !!spec[flag];
++      }
++      break;
++  }
++  return data;
++}
 diff --git a/packages/foundry-module/src/play-utils.test.ts b/packages/foundry-module/src/play-utils.test.ts
 new file mode 100644
 index 0000000..a9c8bf1
@@ -12025,7 +12520,7 @@ index 0000000..542d273
 +  return view ? outSize : { width, height };
 +}
 diff --git a/packages/foundry-module/src/queries.ts b/packages/foundry-module/src/queries.ts
-index 9fe02ba..170ce3d 100644
+index 9fe02ba..49b14d4 100644
 --- a/packages/foundry-module/src/queries.ts
 +++ b/packages/foundry-module/src/queries.ts
 @@ -1,7 +1,8 @@
@@ -12117,7 +12612,7 @@ index 9fe02ba..170ce3d 100644
 +      return { error: 'Access denied', success: false };
 +    }
 +    if (!data?.action) {
-+      throw new Error('action is required (place | describe | remove)');
++      throw new Error('action is required (place | describe | remove | update)');
 +    }
 +    return await this.dataAccess.manageSceneObjects(data);
 +  }
@@ -14445,6 +14940,55 @@ index 0000000..7d181c7
 +  }
 +  return bytes;
 +}
+diff --git a/packages/foundry-module/src/world-audit-extra.test.ts b/packages/foundry-module/src/world-audit-extra.test.ts
+new file mode 100644
+index 0000000..7b37163
+--- /dev/null
++++ b/packages/foundry-module/src/world-audit-extra.test.ts
+@@ -0,0 +1,43 @@
++import { describe, expect, it } from 'vitest';
++import { auditSnapshot, type AuditActor, type AuditScene, type AuditSnapshot } from './world-audit-utils.js';
++
++const scene = (over: Partial<AuditScene> = {}): AuditScene => ({
++  id: 's1', name: 'Cave', isBackup: false, active: true, navigation: true, hasBackground: true,
++  walls: 10, doors: 1, tokens: 3, tokensWithoutActor: 0, lights: 2, sounds: 0, notes: 0, tiles: 0, regions: 0,
++  musicPlaylist: 'p1', musicPlaylistExists: true, teleports: [], ...over,
++});
++const actor = (over: Partial<AuditActor> = {}): AuditActor => ({ id: 'a1', name: 'Goblin', type: 'npc', hasImage: true, hasPlayerOwner: false, ...over });
++const snap = (scenes: AuditScene[], actors: AuditActor[] = [actor()]): AuditSnapshot => ({
++  scenes,
++  playlists: [{ id: 'p1', name: 'Mix', soundCount: 2 }],
++  actorCount: actors.length,
++  actors,
++});
++const messages = (s: AuditSnapshot) => auditSnapshot(s).findings.map(f => `${f.severity}: ${f.message}`);
++
++describe('extra audit checks', () => {
++  it('says nothing when all is well, and old snapshots without the new fields still work', () => {
++    expect(messages(snap([scene()]))).toEqual([]);
++    expect(auditSnapshot({ scenes: [scene()], playlists: [], actorCount: 1 }).findings).toEqual([]);
++  });
++  it('flags broken pins', () => {
++    const m = messages(snap([scene({ brokenPins: 2 })]));
++    expect(m).toEqual(['warning: 2 map pin(s) point at a journal or page that no longer exists']);
++  });
++  it('flags a dark scene that players cannot see in, but not a lit or global-light one', () => {
++    const dark = { darkness: 0.8, tokenVision: true, globalLight: false, lights: 0 };
++    expect(messages(snap([scene(dark)])).join('|')).toContain('players will see nothing');
++    const sees = (over: Partial<AuditScene>) => messages(snap([scene({ ...dark, ...over })])).some(m => m.includes('players will see nothing'));
++    expect(sees({ lights: 1 })).toBe(false);
++    expect(sees({ globalLight: true })).toBe(false);
++    expect(sees({ tokenVision: false })).toBe(false);
++    expect(sees({ darkness: 0.3 })).toBe(false);
++    expect(sees({})).toBe(true);
++  });
++  it('lists actors with the default image and unowned player characters', () => {
++    const many = Array.from({ length: 8 }, (_, i) => actor({ id: `n${i}`, name: `NPC ${i}`, hasImage: false }));
++    const m = messages(snap([scene()], [...many, actor({ id: 'pc', name: 'Thorin', type: 'character', hasPlayerOwner: false }), actor({ id: 'pc2', name: 'Bilbo', type: 'character', hasPlayerOwner: true })]));
++    expect(m[0]).toContain('8 actor(s) still have the default silhouette: NPC 0, NPC 1, NPC 2, NPC 3, NPC 4, NPC 5, and 2 more');
++    expect(m[1]).toBe('info: 1 player character(s) are not owned by any player: Thorin');
++  });
++});
 diff --git a/packages/foundry-module/src/world-audit-utils.test.ts b/packages/foundry-module/src/world-audit-utils.test.ts
 new file mode 100644
 index 0000000..203becc
@@ -14523,10 +15067,10 @@ index 0000000..203becc
 +});
 diff --git a/packages/foundry-module/src/world-audit-utils.ts b/packages/foundry-module/src/world-audit-utils.ts
 new file mode 100644
-index 0000000..0561245
+index 0000000..8ab0d36
 --- /dev/null
 +++ b/packages/foundry-module/src/world-audit-utils.ts
-@@ -0,0 +1,133 @@
+@@ -0,0 +1,165 @@
 +/**
 + * Pure checks for audit-world: given a plain snapshot of the world's scenes, playlists and
 + * actors, list what is missing or broken. No Foundry globals, so it can be tested.
@@ -14563,6 +15107,21 @@ index 0000000..0561245
 +  musicPlaylist: string | null;
 +  musicPlaylistExists: boolean;
 +  teleports: AuditTeleport[];
++  /** Map pins whose journal or page no longer exists. */
++  brokenPins?: number;
++  darkness?: number;
++  tokenVision?: boolean;
++  globalLight?: boolean;
++}
++
++export interface AuditActor {
++  id: string;
++  name: string;
++  type: string;
++  /** False when the actor still has Foundry's default silhouette (or none). */
++  hasImage: boolean;
++  /** A non-GM user owns it. */
++  hasPlayerOwner: boolean;
 +}
 +
 +export interface AuditPlaylist {
@@ -14575,6 +15134,7 @@ index 0000000..0561245
 +  scenes: AuditScene[];
 +  playlists: AuditPlaylist[];
 +  actorCount: number;
++  actors?: AuditActor[];
 +}
 +
 +export interface AuditFinding {
@@ -14614,6 +15174,12 @@ index 0000000..0561245
 +      add({ severity: 'warning', ...here, message: `${s.tokensWithoutActor} token(s) whose actor no longer exists`, fix: 'delete-tokens or relink' });
 +    }
 +    if (s.walls > 0 && s.lights === 0) add({ severity: 'info', ...here, message: 'Walls but no lights (fine for a lit map, dark for a dungeon)', fix: 'layout lights' });
++    if ((s.brokenPins ?? 0) > 0) {
++      add({ severity: 'warning', ...here, message: `${s.brokenPins} map pin(s) point at a journal or page that no longer exists`, fix: 'manage-scene-objects update/remove, or recreate the journal' });
++    }
++    if ((s.darkness ?? 0) >= 0.5 && s.tokenVision && !s.globalLight && s.lights === 0) {
++      add({ severity: 'warning', ...here, message: 'Dark scene with token vision but no lights: players will see nothing', fix: 'layout lights, manage-scene-objects light, or lower darkness' });
++    }
 +    if (!s.musicPlaylist) add({ severity: 'info', ...here, message: 'No music', fix: 'setup-scene-sound' });
 +    else if (!s.musicPlaylistExists) {
 +      add({ severity: 'error', ...here, message: `Music is bound to a playlist that no longer exists (${s.musicPlaylist})`, fix: 'setup-scene-sound or update-scene-music' });
@@ -14636,6 +15202,16 @@ index 0000000..0561245
 +    if (p.soundCount === 0) add({ severity: 'warning', playlist: p.name, message: 'Playlist has no tracks', fix: 'manage-playlists add_sounds' });
 +  }
 +  if (snapshot.actorCount === 0) add({ severity: 'info', message: 'The world has no actors' });
++  const actors = snapshot.actors ?? [];
++  const names = (list: AuditActor[]) => list.slice(0, 6).map(a => a.name).join(', ') + (list.length > 6 ? `, and ${list.length - 6} more` : '');
++  const noImage = actors.filter(a => !a.hasImage);
++  if (noImage.length > 0) {
++    add({ severity: 'info', message: `${noImage.length} actor(s) still have the default silhouette: ${names(noImage)}`, fix: 'generate-image (portrait or token), then manage-actors tokenImg/img' });
++  }
++  const unowned = actors.filter(a => a.type === 'character' && !a.hasPlayerOwner);
++  if (unowned.length > 0) {
++    add({ severity: 'info', message: `${unowned.length} player character(s) are not owned by any player: ${names(unowned)}`, fix: 'assign-actor-ownership' });
++  }
 +
 +  findings.sort((a, b) => RANK[a.severity] - RANK[b.severity]);
 +  const summary: Record<AuditSeverity, number> = { error: 0, warning: 0, info: 0 };
@@ -16382,6 +16958,99 @@ index 6495485..e335970 100644
  
        this.pendingQueries.set(queryId, { resolve, reject, timeout });
  
+diff --git a/packages/mcp-server/src/h3-size.test.ts b/packages/mcp-server/src/h3-size.test.ts
+new file mode 100644
+index 0000000..f899faa
+--- /dev/null
++++ b/packages/mcp-server/src/h3-size.test.ts
+@@ -0,0 +1,87 @@
++/** MiniMax H3 pictures are generated at 2 megapixels or more and shrunk afterwards. */
++import { describe, expect, it } from 'vitest';
++import { DEFAULT_PROFILES, LIMITS, raiseToMinPixels, resolveGeneration } from './image-profiles.js';
++import { downscale } from './tools/prop-keying.js';
++
++const MIN = 2 * 1024 * 1024;
++
++describe('raiseToMinPixels', () => {
++  it('leaves a big enough size alone', () => {
++    expect(raiseToMinPixels(2048, 2048, 32)).toEqual({ width: 2048, height: 2048, raised: false });
++    expect(raiseToMinPixels(1664, 2432, 32).raised).toBe(false);
++  });
++  it('raises small squares and keeps the shape, in multiples of 32', () => {
++    const r = raiseToMinPixels(512, 512, 32);
++    expect(r.raised).toBe(true);
++    expect(r.width * r.height).toBeGreaterThanOrEqual(MIN);
++    expect(r.width).toBe(r.height);
++    expect(r.width % 32).toBe(0);
++    expect(r.width * r.height).toBeLessThan(MIN * 1.1);
++  });
++  it('keeps a wide or tall shape', () => {
++    const wide = raiseToMinPixels(1280, 704, 32);
++    expect(wide.width * wide.height).toBeGreaterThanOrEqual(MIN);
++    expect(wide.width / wide.height).toBeCloseTo(1280 / 704, 1);
++    const tall = raiseToMinPixels(256, 1024, 32);
++    expect(tall.width * tall.height).toBeGreaterThanOrEqual(MIN);
++    expect(tall.height / tall.width).toBeCloseTo(4, 0);
++    expect(wide.width % 32 === 0 && wide.height % 32 === 0 && tall.width % 32 === 0 && tall.height % 32 === 0).toBe(true);
++  });
++});
++
++describe('resolveGeneration and the 2 megapixel minimum', () => {
++  const h3 = { ...DEFAULT_PROFILES.portrait };
++  it('raises a small H3 request and says what was asked', () => {
++    const gen = resolveGeneration('token', h3, { prompt: 'a barrel', width: 512, height: 512 });
++    expect(gen.width * gen.height).toBeGreaterThanOrEqual(LIMITS.minH3Pixels);
++    expect(gen.raisedFrom).toEqual({ width: 512, height: 512 });
++  });
++  it('does not touch a big H3 request, and does not raise checkpoint pictures', () => {
++    const big = resolveGeneration('portrait', h3, { prompt: 'x' });
++    expect(big.raisedFrom).toBeUndefined();
++    const cp = resolveGeneration('map', { ...DEFAULT_PROFILES.map, checkpoint: 'sdxl.safetensors' }, { prompt: 'x', width: 512, height: 512 });
++    expect([cp.width, cp.height]).toEqual([512, 512]);
++    expect(cp.raisedFrom).toBeUndefined();
++  });
++  it('raises the profile size too when the profile itself is small', () => {
++    const gen = resolveGeneration('token', { ...h3, width: 768, height: 768 }, { prompt: 'x' });
++    expect(gen.width * gen.height).toBeGreaterThanOrEqual(LIMITS.minH3Pixels);
++  });
++});
++
++describe('downscale', () => {
++  const solid = (w: number, h: number, rgba: [number, number, number, number]) => {
++    const data = new Uint8Array(w * h * 4);
++    for (let i = 0; i < w * h; i++) data.set(rgba, i * 4);
++    return { width: w, height: h, data };
++  };
++  it('returns the same picture when it is small enough', () => {
++    const img = solid(100, 50, [1, 2, 3, 255]);
++    expect(downscale(img, 100)).toBe(img);
++    expect(downscale(img, 500)).toBe(img);
++  });
++  it('shrinks the longest side and keeps the shape and colour', () => {
++    const small = downscale(solid(1000, 500, [200, 100, 50, 255]), 250);
++    expect([small.width, small.height]).toEqual([250, 125]);
++    expect(Array.from(small.data.slice(0, 4))).toEqual([200, 100, 50, 255]);
++  });
++  it('averages a checker pattern to grey', () => {
++    const w = 4;
++    const data = new Uint8Array(w * w * 4);
++    for (let y = 0; y < w; y++) for (let x = 0; x < w; x++) data.set((x + y) % 2 ? [255, 255, 255, 255] : [0, 0, 0, 255], (y * w + x) * 4);
++    const out = downscale({ width: w, height: w, data }, 2);
++    expect(out.width).toBe(2);
++    expect(out.data[0]).toBeGreaterThan(120);
++    expect(out.data[0]).toBeLessThan(135);
++  });
++  it('does not bleed the colour of transparent pixels into the edge', () => {
++    // left half opaque red, right half transparent black
++    const w = 4;
++    const data = new Uint8Array(w * 1 * 4);
++    data.set([255, 0, 0, 255, 255, 0, 0, 255, 0, 0, 0, 0, 0, 0, 0, 0]);
++    const out = downscale({ width: w, height: 1, data }, 1);
++    expect(out.data[0]).toBe(255); // still pure red, not darkened
++    expect(out.data[3]).toBeGreaterThan(120);
++    expect(out.data[3]).toBeLessThan(135);
++  });
++});
 diff --git a/packages/mcp-server/src/image-profiles.test.ts b/packages/mcp-server/src/image-profiles.test.ts
 new file mode 100644
 index 0000000..6a768d6
@@ -16632,10 +17301,10 @@ index 0000000..6a768d6
 +});
 diff --git a/packages/mcp-server/src/image-profiles.ts b/packages/mcp-server/src/image-profiles.ts
 new file mode 100644
-index 0000000..571d10c
+index 0000000..fe89bd3
 --- /dev/null
 +++ b/packages/mcp-server/src/image-profiles.ts
-@@ -0,0 +1,399 @@
+@@ -0,0 +1,437 @@
 +/**
 + * Image generation profiles: what to generate with (model, sampler, size, prompt wording) for
 + * each kind of picture. The GM edits them in the Foundry module's settings; this file turns
@@ -16689,6 +17358,8 @@ index 0000000..571d10c
 +  minSide: 256,
 +  maxSide: 6400,
 +  maxPixels: 4096 * 4096,
++  /** MiniMax H3 gives poor results below about 2 megapixels, whatever size is finally wanted. */
++  minH3Pixels: 2 * 1024 * 1024,
 +  maxText: 1000,
 +} as const;
 +
@@ -16747,6 +17418,31 @@ index 0000000..571d10c
 +/** Round to a multiple (8 for Stable Diffusion, 32 for MiniMax H3) within the allowed length. */
 +export function snapSide(value: number, multiple = 8): number {
 +  return clamp(Math.round(value / multiple) * multiple, LIMITS.minSide, LIMITS.maxSide);
++}
++
++/**
++ * Make a picture at least minPixels big, keeping its shape and a multiple of the given step.
++ * Used for MiniMax H3, which needs about 2 megapixels to draw well; a smaller final size is
++ * made afterwards by shrinking the result.
++ */
++export function raiseToMinPixels(
++  width: number,
++  height: number,
++  multiple: number,
++  minPixels: number = LIMITS.minH3Pixels
++): { width: number; height: number; raised: boolean } {
++  if (width * height >= minPixels) return { width, height, raised: false };
++  const scale = Math.sqrt(minPixels / (width * height));
++  let w = Math.ceil((width * scale) / multiple) * multiple;
++  let h = Math.ceil((height * scale) / multiple) * multiple;
++  // Rounding up per side can overshoot a little; never fall below the minimum.
++  while (w * h < minPixels) {
++    if (w <= h) w += multiple;
++    else h += multiple;
++  }
++  w = Math.min(w, LIMITS.maxSide);
++  h = Math.min(h, LIMITS.maxSide);
++  return { width: w, height: h, raised: true };
 +}
 +
 +/** Keep the picture inside the pixel budget while keeping its shape. */
@@ -16859,6 +17555,8 @@ index 0000000..571d10c
 +  positive: string;
 +  negative: string;
 +  referenceImages: string[];
++  /** The size asked for, when it was raised to the 2 megapixel minimum of MiniMax H3. */
++  raisedFrom?: { width: number; height: number };
 +}
 +
 +const SETTINGS_HINT = 'In Foundry open the module settings, click "Configure Image Generation"';
@@ -16895,7 +17593,15 @@ index 0000000..571d10c
 +  }
 +
 +  const multiple = profile.workflow === 'minimax-h3' ? 32 : 8;
-+  const size = fitPixels(request.width ?? profile.width, request.height ?? profile.height, multiple);
++  let size = fitPixels(request.width ?? profile.width, request.height ?? profile.height, multiple);
++  let raisedFrom: { width: number; height: number } | undefined;
++  if (profile.workflow === 'minimax-h3') {
++    const raised = raiseToMinPixels(size.width, size.height, multiple);
++    if (raised.raised) {
++      raisedFrom = { width: size.width, height: size.height };
++      size = { width: raised.width, height: raised.height };
++    }
++  }
 +  const steps = Math.round(clamp(request.steps ?? profile.steps, LIMITS.minSteps, LIMITS.maxSteps));
 +  const seed =
 +    request.seed !== undefined && Number.isFinite(request.seed)
@@ -16923,6 +17629,7 @@ index 0000000..571d10c
 +          ? [profile.negativePrompt, negativeExtra].filter(Boolean).join(', ')
 +          : profile.negativePrompt,
 +    referenceImages: references,
++    ...(raisedFrom ? { raisedFrom } : {}),
 +  };
 +}
 +
@@ -17314,7 +18021,7 @@ index 0000000..ad50367
 +});
 diff --git a/packages/mcp-server/src/tools/audit-tools.ts b/packages/mcp-server/src/tools/audit-tools.ts
 new file mode 100644
-index 0000000..7d0d680
+index 0000000..f20b694
 --- /dev/null
 +++ b/packages/mcp-server/src/tools/audit-tools.ts
 @@ -0,0 +1,55 @@
@@ -17348,7 +18055,7 @@ index 0000000..7d0d680
 +      {
 +        name: 'audit-world',
 +        description:
-+          'Read-only checklist of what is missing or broken in the world, worst first: scenes without a background, walls, tokens, lights or music; tokens whose actor is gone; teleport regions that are hidden (hidden regions never run), have no destination or point at a region that no longer exists; scene music bound to a deleted playlist; empty playlists; duplicate scene names; no active scene. Each finding names the tool that fixes it, and a per-scene table gives the counts. scene limits it to one scene; backup scenes made by manage-scene-backups are skipped unless include_backups is true. Changes nothing. Needs the Foundry tab open in a browser.',
++          'Read-only checklist of what is missing or broken in the world, worst first: scenes without a background, walls, tokens, lights or music; tokens whose actor is gone; teleport regions that are hidden (hidden regions never run), have no destination or point at a region that no longer exists; map pins pointing at a missing journal or page; dark scenes with token vision and no lights; actors still on the default silhouette; player characters nobody owns; empty playlists; duplicate scene names; no active scene. Each finding names the tool that fixes it, and a per-scene table gives the counts. scene limits it to one scene; backup scenes made by manage-scene-backups are skipped unless include_backups is true. Changes nothing. Needs the Foundry tab open in a browser.',
 +        inputSchema: {
 +          type: 'object',
 +          properties: {
@@ -17818,19 +18525,21 @@ index 0000000..4b2190f
 +});
 diff --git a/packages/mcp-server/src/tools/image-generation.ts b/packages/mcp-server/src/tools/image-generation.ts
 new file mode 100644
-index 0000000..7aee1e5
+index 0000000..530dc36
 --- /dev/null
 +++ b/packages/mcp-server/src/tools/image-generation.ts
-@@ -0,0 +1,353 @@
+@@ -0,0 +1,372 @@
 +import { createHash } from 'crypto';
 +import { promises as fs } from 'fs';
 +import os from 'os';
 +import path from 'path';
++import { PNG } from 'pngjs';
 +import { z } from 'zod';
 +import { FoundryClient } from '../foundry-client.js';
 +import { Logger } from '../logger.js';
 +import type { ComfyModels } from '../comfyui-models.js';
 +import { detectImageType, UPLOAD_MAX_BYTES } from './upload.js';
++import { downscale } from './prop-keying.js';
 +import {
 +  buildWorkflow,
 +  IMAGE_KINDS,
@@ -17878,6 +18587,7 @@ index 0000000..7aee1e5
 +    reference_images: z.array(z.string().min(1)).max(MAX_REFERENCE_IMAGES).optional(),
 +    upload: z.boolean().optional(),
 +    folder: z.string().max(80).optional(),
++    max_side: z.number().int().min(64).max(4096).optional(),
 +  })
 +  .strict();
 +
@@ -17933,7 +18643,8 @@ index 0000000..7aee1e5
 +              type: 'string',
 +              description: 'Extra things to avoid, added to the profile\'s negative prompt',
 +            },
-+            width: { type: 'number', description: 'Override the profile width (pixels, 256-2048)' },
++            max_side: { type: 'number', description: 'Shrink the finished picture so its longest side is at most this many pixels (64-4096). MiniMax H3 is always generated at 2 megapixels or more (smaller sizes are raised), so use this when a smaller final picture is wanted.' },
++            width: { type: 'number', description: 'Override the profile width (pixels, 256-2048). MiniMax H3 sizes below about 2 megapixels are raised to that.' },
 +            height: { type: 'number', description: 'Override the profile height (pixels, 256-2048)' },
 +            steps: { type: 'number', description: 'Override the profile step count' },
 +            seed: {
@@ -18033,7 +18744,20 @@ index 0000000..7aee1e5
 +    }
 +    const seconds = Math.round((Date.now() - started) / 1000);
 +
-+    const localPath = await this.saveLocalCopy(`${baseName}.png`, result.image);
++    let image: Buffer = result.image;
++    let shrunkTo: string | undefined;
++    if (parsed.max_side) {
++      // MiniMax H3 is generated at 2 megapixels or more; the finished picture can be smaller.
++      const decoded = PNG.sync.read(image);
++      const small = downscale({ width: decoded.width, height: decoded.height, data: decoded.data }, parsed.max_side);
++      if (small.width !== decoded.width) {
++        const png = new PNG({ width: small.width, height: small.height });
++        png.data = Buffer.from(small.data);
++        image = PNG.sync.write(png);
++        shrunkTo = `${small.width}x${small.height}`;
++      }
++    }
++    const localPath = await this.saveLocalCopy(`${baseName}.png`, image);
 +
 +    const summary = {
 +      kind,
@@ -18042,6 +18766,8 @@ index 0000000..7aee1e5
 +      references: references.length,
 +      steps: generation.steps,
 +      size: `${generation.width}x${generation.height}`,
++      ...(generation.raisedFrom ? { raised_from: `${generation.raisedFrom.width}x${generation.raisedFrom.height}`, note: 'MiniMax H3 needs about 2 megapixels, so the size was raised' } : {}),
++      ...(shrunkTo ? { shrunk_to: shrunkTo } : {}),
 +      seed: generation.seed,
 +      seconds,
 +      local_path: localPath,
@@ -18057,7 +18783,7 @@ index 0000000..7aee1e5
 +        'foundry-mcp-bridge.upload-file',
 +        {
 +          filename: `${baseName}.png`,
-+          imageData: result.image.toString('base64'),
++          imageData: image.toString('base64'),
 +          folder,
 +        },
 +        UPLOAD_TIMEOUT_MS
@@ -19234,10 +19960,10 @@ index 0000000..bdfdd49
 +});
 diff --git a/packages/mcp-server/src/tools/layout-analysis.ts b/packages/mcp-server/src/tools/layout-analysis.ts
 new file mode 100644
-index 0000000..c0da42b
+index 0000000..bd7d3ef
 --- /dev/null
 +++ b/packages/mcp-server/src/tools/layout-analysis.ts
-@@ -0,0 +1,584 @@
+@@ -0,0 +1,590 @@
 +/**
 + * Looking at a layout as data: where the floor is, what is connected, where a creature or a
 + * light can go, and how well a generated picture lines up with the sketch. Pure functions on a
@@ -19770,7 +20496,11 @@ index 0000000..c0da42b
 +  const r = rasterize(layout);
 +  const bright = brightnessGrid(image, layout.columns, layout.rows);
 +  const mask = new Uint8Array(r.w * r.h);
-+  for (let k = 0; k < mask.length; k++) mask[k] = r.fill[k] === ROCK ? 0 : 1;
++  // A dungeon is matched on everything that is not rock. A town, whose walls go round buildings and
++  // not floors, is matched on the buildings, which is what stands out against the ground.
++  const structure = layout.wallFills.length > 0 && !layout.wallFills.includes('floor');
++  const wanted = new Set(layout.wallFills.map(f => FILL_NAMES.indexOf(f)));
++  for (let k = 0; k < mask.length; k++) mask[k] = structure ? (wanted.has(r.fill[k]!) ? 1 : 0) : r.fill[k] === ROCK ? 0 : 1;
 +  const n = Math.round(maxShift * SAMPLES);
 +
 +  const correlate = (sx: number, sy: number): number => {
@@ -19802,7 +20532,9 @@ index 0000000..c0da42b
 +    const varB = sumBB - (sumB * sumB) / count;
 +    const varM = sumMM - (sumM * sumM) / count;
 +    if (varB <= 1e-9 || varM <= 1e-9) return 0;
-+    return cov / Math.sqrt(varB * varM);
++    const c = cov / Math.sqrt(varB * varM);
++    // Roofs can be darker or lighter than the ground; what matters is that they line up.
++    return structure ? Math.abs(c) : c;
 +  };
 +
 +  const scoreAtZero = correlate(0, 0);
@@ -19824,7 +20556,7 @@ index 0000000..c0da42b
 +}
 diff --git a/packages/mcp-server/src/tools/layout-doc.ts b/packages/mcp-server/src/tools/layout-doc.ts
 new file mode 100644
-index 0000000..d3d9a54
+index 0000000..15642c3
 --- /dev/null
 +++ b/packages/mcp-server/src/tools/layout-doc.ts
 @@ -0,0 +1,602 @@
@@ -20097,12 +20829,12 @@ index 0000000..d3d9a54
 +}
 +
 +/** Add shapes on top (or after the shape `after`). Returns the new ids. */
-+export function addShapes(doc: LayoutDoc, raws: unknown[], after?: number): number[] {
++export function addShapes(doc: LayoutDoc, raws: unknown[], after?: number, atIndex?: number): number[] {
 +  if (!Array.isArray(raws) || raws.length === 0) throw new Error('shapes must be a non-empty list');
 +  if (doc.shapes.length + raws.length > MAX_DOC_SHAPES) {
 +    throw new Error(`A layout holds at most ${MAX_DOC_SHAPES} shapes`);
 +  }
-+  let at = doc.shapes.length;
++  let at = atIndex !== undefined && after === undefined ? Math.max(0, Math.min(atIndex, doc.shapes.length)) : doc.shapes.length;
 +  if (after !== undefined) {
 +    const i = doc.shapes.findIndex(s => s.id === after);
 +    if (i < 0) throw new Error(`after: shape ${after} not found`);
@@ -20469,6 +21201,111 @@ index 0000000..5cc3d03
 +  cached = { key, image };
 +  return image;
 +}
+diff --git a/packages/mcp-server/src/tools/layout-polish.test.ts b/packages/mcp-server/src/tools/layout-polish.test.ts
+new file mode 100644
+index 0000000..5df82b5
+--- /dev/null
++++ b/packages/mcp-server/src/tools/layout-polish.test.ts
+@@ -0,0 +1,99 @@
++/** Layout polish: ground under buildings, build filename, door portals, align on a town. */
++import { afterAll, describe, expect, it, vi } from 'vitest';
++import { promises as fs } from 'fs';
++import os from 'os';
++import path from 'path';
++import { LayoutTools } from './layout.js';
++import { addShapes, createDoc, layoutOf } from './layout-doc.js';
++import { alignToImage } from './layout-analysis.js';
++import { doorPortals, expandShapeSpecs, groundInsertIndex } from './layout-town.js';
++import { renderLayout } from './layout-utils.js';
++
++const folder = path.join(os.tmpdir(), `layout-polish-test-${Date.now()}`);
++afterAll(async () => {
++  await fs.rm(folder, { recursive: true, force: true });
++});
++
++describe('groundInsertIndex', () => {
++  const existing = [{ fill: 'grass' }, { fill: 'building' }, { fill: 'door', shape: 'door' }, { fill: 'building' }];
++  it('puts ground under the first building', () => {
++    expect(groundInsertIndex(existing, [{ shape: 'path', fill: 'road' }, { shape: 'ellipse', fill: 'sand' }])).toBe(1);
++  });
++  it('leaves everything else on top', () => {
++    expect(groundInsertIndex(existing, [{ shape: 'rect', fill: 'floor' }])).toBeUndefined();
++    expect(groundInsertIndex(existing, [{ shape: 'path', fill: 'road' }, { shape: 'rect', fill: 'building' }])).toBeUndefined();
++    expect(groundInsertIndex(existing, [{ shape: 'door', fill: 'door' }])).toBeUndefined();
++    expect(groundInsertIndex([{ fill: 'grass' }], [{ fill: 'road' }])).toBeUndefined();
++    expect(groundInsertIndex(existing, [])).toBeUndefined();
++  });
++});
++
++describe('add keeps roads under buildings', () => {
++  const make = () => {
++    const logger: any = { info: vi.fn(), debug: vi.fn(), error: vi.fn(), warn: vi.fn(), child: () => logger };
++    return new LayoutTools({ logger, folder });
++  };
++  it('inserts a road below an earlier building, and respects after', async () => {
++    const t = make();
++    await t.handleLayout({ action: 'new', name: 'Town', columns: 12, rows: 8, background: 'grass', wall_fills: ['building'] });
++    await t.handleLayout({ action: 'add', layout: 'town', shapes: [{ shape: 'building', rect: [4, 2, 4, 3] }] });
++    await t.handleLayout({ action: 'add', layout: 'town', shapes: [{ shape: 'path', path: [[0, 3], [12, 3]], width: 2, fill: 'road' }] });
++    const listed = await t.handleLayout({ action: 'show', layout: 'town', shapes_list: true });
++    expect(listed.shapes.map((s: any) => s.fill)).toEqual(['road', 'building']);
++    // after: wins, putting the road on top again
++    await t.handleLayout({ action: 'add', layout: 'town', after: 1, shapes: [{ shape: 'path', path: [[0, 6], [12, 6]], fill: 'road' }] });
++    const again = await t.handleLayout({ action: 'show', layout: 'town', shapes_list: true });
++    expect(again.shapes.map((s: any) => s.fill)).toEqual(['road', 'building', 'road']);
++  });
++});
++
++describe('build filename', () => {
++  it('adds .png when the filename has no extension', async () => {
++    const logger: any = { info: vi.fn(), debug: vi.fn(), error: vi.fn(), warn: vi.fn(), child: () => logger };
++    const upload = vi.fn(async () => ({ success: true, path: 'worlds/w/uploads/maps/x.png' }));
++    const generate = vi.fn(async () => ({ success: true, local_path: path.join(folder, 'none.png') }));
++    const client: any = { query: vi.fn(async () => ({ success: true, scene: { id: 'sc', name: 'S' } })) };
++    const tools = new LayoutTools({ logger, folder, foundryClient: client, generate, upload } as any);
++    await tools.handleLayout({ action: 'new', name: 'Fname', columns: 20, rows: 16 });
++    await tools.handleLayout({ action: 'add', layout: 'fname', shapes: [{ shape: 'room', at: [2, 2], size: [6, 6] }] });
++    for (const [given, expected] of [['phandalin', 'phandalin.png'], ['town.webp', 'town.webp'], ['a.b.png', 'a.b.png']] as const) {
++      await tools
++        .handleLayout({ action: 'build', layout: 'fname', scene_name: 'S', prompt: 'p', filename: given, walls: false, auto_align: false })
++        .catch((e: any) => { console.log("ERR", e.message); });
++      expect(upload).toHaveBeenLastCalledWith(expect.objectContaining({ filename: expected }));
++    }
++  });
++});
++
++describe('portals for wide doors', () => {
++  it('uses the middle square of the door, the first of two', () => {
++    const doc = createDoc({ name: 't', columns: 20, rows: 20 });
++    addShapes(doc, expandShapeSpecs([{ shape: 'building', rect: [2, 10, 5, 4], doors: [{ side: 'w', offset: 1, size: 2 }, { side: 's', offset: 1, size: 3 }] }]));
++    const [west, south] = doorPortals(doc.shapes as any);
++    expect(west).toMatchObject({ centre: [2, 12], outside: [1.5, 11.5], inside: [2.5, 11.5] });
++    expect(south).toMatchObject({ centre: [4.5, 14], outside: [4.5, 14.5], inside: [4.5, 13.5] });
++  });
++});
++
++describe('align on a town', () => {
++  it('matches buildings when walls go round buildings, instead of reporting none', () => {
++    const doc = createDoc({ name: 'town', columns: 24, rows: 16, grid_size: 32, background: 'grass', wall_fills: ['building'] } as any);
++    addShapes(doc, [
++      { shape: 'rect', rect: [3, 2, 6, 4], fill: 'building' },
++      { shape: 'rect', rect: [12, 8, 5, 5], fill: 'building' },
++      { shape: 'rect', rect: [4, 10, 3, 3], fill: 'building' },
++    ]);
++    const layout = layoutOf(doc);
++    const sketch = renderLayout(layout);
++    const data = new Uint8Array(sketch.width * sketch.height * 4);
++    for (let i = 0; i < sketch.width * sketch.height; i++) {
++      data[i * 4] = sketch.rgb[i * 3]!;
++      data[i * 4 + 1] = sketch.rgb[i * 3 + 1]!;
++      data[i * 4 + 2] = sketch.rgb[i * 3 + 2]!;
++      data[i * 4 + 3] = 255;
++    }
++    const result = alignToImage(layout, { width: sketch.width, height: sketch.height, data });
++    expect(result.quality).toBe('good');
++    expect(result.shift).toEqual([0, 0]);
++  });
++});
 diff --git a/packages/mcp-server/src/tools/layout-tool.test.ts b/packages/mcp-server/src/tools/layout-tool.test.ts
 new file mode 100644
 index 0000000..0af03d8
@@ -20900,10 +21737,10 @@ index 0000000..0b23198
 +});
 diff --git a/packages/mcp-server/src/tools/layout-town.ts b/packages/mcp-server/src/tools/layout-town.ts
 new file mode 100644
-index 0000000..a492778
+index 0000000..bf6e11b
 --- /dev/null
 +++ b/packages/mcp-server/src/tools/layout-town.ts
-@@ -0,0 +1,193 @@
+@@ -0,0 +1,213 @@
 +/**
 + * Town helpers for the layout tool: a `building` composite (a walled block with doors on chosen
 + * sides), a `repeat` option that copies any shape along a step, and `doorPortals`, which lists
@@ -20914,6 +21751,24 @@ index 0000000..a492778
 +type Side = (typeof SIDES)[number];
 +
 +export const MAX_REPEAT = 40;
++
++/** Fills that lie on the ground: new shapes of these go under buildings already drawn. */
++const GROUND_FILLS = ['grass', 'road', 'sand', 'water'];
++
++/**
++ * Where a batch of new shapes should go when no `after` is given: under the first building, if every
++ * new shape is ground (a road must not paint over a house). undefined means on top, as usual.
++ */
++export function groundInsertIndex(existing: Array<{ fill?: string; shape?: string }>, added: unknown[]): number | undefined {
++  if (added.length === 0) return undefined;
++  const allGround = added.every(s => {
++    const f = (s as any)?.fill;
++    return typeof f === 'string' && GROUND_FILLS.includes(f) && (s as any)?.shape !== 'door';
++  });
++  if (!allGround) return undefined;
++  const i = existing.findIndex(s => s.fill === 'building' && s.shape !== 'door');
++  return i >= 0 ? i : undefined;
++}
 +
 +const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
 +
@@ -21055,6 +21910,8 @@ index 0000000..a492778
 +    const horizontal = s.dir === 'h';
 +    const [x, y] = s.at as [number, number];
 +    const centre: [number, number] = horizontal ? [x + len / 2, y] : [x, y + len / 2];
++    // The square in front of the door: the middle one of those it covers (the first of two).
++    const along = (start: number) => Math.floor(start) + Math.floor((len - 1) / 2) + 0.5;
 +    // The building is the last rect whose edge the door sits on, and whose span covers the door.
 +    let owner: PortalShape | undefined;
 +    let side: Side | undefined;
@@ -21078,12 +21935,12 @@ index 0000000..a492778
 +    let outside: [number, number];
 +    let inside: [number, number];
 +    const cell = (v: number) => Math.floor(v) + 0.5;
-+    if (side === 'n') [outside, inside] = [[cell(centre[0]), Math.round(y) - 0.5], [cell(centre[0]), Math.round(y) + 0.5]];
-+    else if (side === 's') [outside, inside] = [[cell(centre[0]), Math.round(y) + 0.5], [cell(centre[0]), Math.round(y) - 0.5]];
-+    else if (side === 'w') [outside, inside] = [[Math.round(x) - 0.5, cell(centre[1])], [Math.round(x) + 0.5, cell(centre[1])]];
-+    else if (side === 'e') [outside, inside] = [[Math.round(x) + 0.5, cell(centre[1])], [Math.round(x) - 0.5, cell(centre[1])]];
-+    else if (horizontal) [outside, inside] = [[cell(centre[0]), Math.round(y) - 0.5], [cell(centre[0]), Math.round(y) + 0.5]];
-+    else [outside, inside] = [[Math.round(x) - 0.5, cell(centre[1])], [Math.round(x) + 0.5, cell(centre[1])]];
++    if (side === 'n') [outside, inside] = [[along(x), Math.round(y) - 0.5], [along(x), Math.round(y) + 0.5]];
++    else if (side === 's') [outside, inside] = [[along(x), Math.round(y) + 0.5], [along(x), Math.round(y) - 0.5]];
++    else if (side === 'w') [outside, inside] = [[Math.round(x) - 0.5, along(y)], [Math.round(x) + 0.5, along(y)]];
++    else if (side === 'e') [outside, inside] = [[Math.round(x) + 0.5, along(y)], [Math.round(x) - 0.5, along(y)]];
++    else if (horizontal) [outside, inside] = [[along(x), Math.round(y) - 0.5], [along(x), Math.round(y) + 0.5]];
++    else [outside, inside] = [[Math.round(x) - 0.5, along(y)], [Math.round(x) + 0.5, along(y)]];
 +    portals.push({
 +      door: s.id ?? null,
 +      centre,
@@ -21812,10 +22669,10 @@ index 0000000..5b5d028
 +
 diff --git a/packages/mcp-server/src/tools/layout.ts b/packages/mcp-server/src/tools/layout.ts
 new file mode 100644
-index 0000000..aeada17
+index 0000000..ea23c7f
 --- /dev/null
 +++ b/packages/mcp-server/src/tools/layout.ts
-@@ -0,0 +1,875 @@
+@@ -0,0 +1,878 @@
 +import { promises as fs } from 'fs';
 +import path from 'path';
 +import { z } from 'zod';
@@ -21823,7 +22680,7 @@ index 0000000..aeada17
 +import { Logger } from '../logger.js';
 +import { FILLS, encodePng, legendFor, renderLayout, wallsFromLayout } from './layout-utils.js';
 +import { decodeImage } from './layout-image.js';
-+import { doorPortals, expandShapeSpecs } from './layout-town.js';
++import { doorPortals, expandShapeSpecs, groundInsertIndex } from './layout-town.js';
 +import {
 +  alignToImage,
 +  checkLayout,
@@ -22151,7 +23008,10 @@ index 0000000..aeada17
 +      case 'add': {
 +        if (!a.shapes) throw new Error('add needs shapes');
 +        const before = captureState(doc);
-+        const ids = addShapes(doc, expandShapeSpecs(a.shapes), a.after);
++        const expanded = expandShapeSpecs(a.shapes);
++        // Roads, grass and the like go under buildings already drawn, unless after says otherwise.
++        const under = a.after === undefined ? groundInsertIndex(doc.shapes as any, expanded) : undefined;
++        const ids = addShapes(doc, expanded, a.after, under);
 +        commitChange(doc, `add ${ids.length} shape${ids.length === 1 ? '' : 's'} (${ids.join(', ')})`, before);
 +        await this.store.save(doc);
 +        return this.summary(doc, 'add', ids);
@@ -22539,7 +23399,7 @@ index 0000000..aeada17
 +    const uploaded = await this.upload({
 +      file_path: localPath,
 +      folder: a.upload_folder ?? 'maps',
-+      filename: a.filename ?? `${doc.id}-${Date.now().toString(36)}.png`,
++      filename: a.filename ? (/\.[a-z0-9]{2,5}$/i.test(a.filename) ? a.filename : `${a.filename}.png`) : `${doc.id}-${Date.now().toString(36)}.png`,
 +    });
 +    if (uploaded?.success === false || !uploaded?.path) throw new Error(uploaded?.error || 'The map could not be uploaded');
 +    steps.push(`uploaded to ${uploaded.path}`);
@@ -23278,12 +24138,111 @@ index 7bc0280..9f7d39f 100644
  
      this.logger.info('Controlling playlist', {
        playlist: parsed.playlist,
+diff --git a/packages/mcp-server/src/tools/polish.test.ts b/packages/mcp-server/src/tools/polish.test.ts
+new file mode 100644
+index 0000000..44ae426
+--- /dev/null
++++ b/packages/mcp-server/src/tools/polish.test.ts
+@@ -0,0 +1,93 @@
++/** Polish batch: update for scene objects, scene aliases, move-token units, token details on any scene. */
++import { describe, expect, it, vi } from 'vitest';
++import { SceneTools } from './scene.js';
++import { TokenManipulationTools } from './token-manipulation.js';
++import { SceneObjectTools } from './scene-objects.js';
++
++const logger: any = { info: vi.fn(), debug: vi.fn(), error: vi.fn(), warn: vi.fn(), child: () => logger };
++const client = (impl?: (m: string, d: any) => unknown) => {
++  const query = vi.fn(impl ?? (async () => ({ success: true })));
++  return { foundryClient: { query } as any, logger, query };
++};
++
++describe('manage-scene-objects update', () => {
++  const make = () => {
++    const c = client(async () => ({ success: true, updated: [] }));
++    return { tools: new SceneObjectTools({ foundryClient: c.foundryClient, logger } as any), query: c.query };
++  };
++  it('is in the definition and forwards the updates', async () => {
++    const { tools, query } = make();
++    const def = tools.getToolDefinitions().find(d => d.name === 'manage-scene-objects')!;
++    expect((def.inputSchema.properties as any).action.enum).toContain('update');
++    expect((def.inputSchema.properties as any).updates).toBeDefined();
++    expect(def.description).toContain('update takes updates');
++    await tools.handleManageSceneObjects({ action: 'update', scene: 'Town', updates: [{ id: 'n1', x: 10 }] });
++    expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.manage-scene-objects', {
++      action: 'update',
++      scene: 'Town',
++      updates: [{ id: 'n1', x: 10 }],
++    });
++  });
++  it('needs updates', async () => {
++    const { tools, query } = make();
++    await expect(tools.handleManageSceneObjects({ action: 'update' })).rejects.toThrow('updates is required');
++    await expect(tools.handleManageSceneObjects({ action: 'update', updates: [] })).rejects.toThrow();
++    expect(query).not.toHaveBeenCalled();
++  });
++});
++
++describe('scene argument aliases', () => {
++  it('manage-scenes takes scene and background_image', async () => {
++    const c = client(async () => ({ scene: { id: 's1', name: 'Road' } }));
++    const tools = new SceneTools({ foundryClient: c.foundryClient, logger });
++    await tools.handleManageScenes({ action: 'update', scene: 'Road', background_image: 'a/b.png' });
++    expect(c.query).toHaveBeenCalledWith('foundry-mcp-bridge.manage-scenes', {
++      action: 'update',
++      scene_identifier: 'Road',
++      background: 'a/b.png',
++    });
++    const def = tools.getToolDefinitions().find(d => d.name === 'manage-scenes')!;
++    expect((def.inputSchema.properties as any).scene).toBeDefined();
++  });
++  it('scene_identifier still works and update still needs one', async () => {
++    const c = client(async () => ({ scene: { id: 's1', name: 'Road' } }));
++    const tools = new SceneTools({ foundryClient: c.foundryClient, logger });
++    await tools.handleManageScenes({ action: 'update', scene_identifier: 'Road', name: 'Trail' });
++    expect(c.query).toHaveBeenCalledWith('foundry-mcp-bridge.manage-scenes', { action: 'update', scene_identifier: 'Road', name: 'Trail' });
++    await expect(tools.handleManageScenes({ action: 'update', name: 'x' })).rejects.toThrow('scene_identifier is required');
++  });
++  it('update-scene-music takes scene and no longer lists scene_identifier as required', async () => {
++    const c = client(async () => ({}));
++    const tools = new SceneTools({ foundryClient: c.foundryClient, logger });
++    await tools.handleUpdateSceneMusic({ scene: 'Road', playlist: 'Mix' });
++    expect(c.query).toHaveBeenCalledWith('foundry-mcp-bridge.update-scene-music', { scene_identifier: 'Road', playlist: 'Mix' });
++    const def = tools.getToolDefinitions().find(d => d.name === 'update-scene-music')!;
++    expect((def.inputSchema as any).required).toBeUndefined();
++    await expect(tools.handleUpdateSceneMusic({ playlist: 'Mix' })).rejects.toThrow();
++  });
++});
++
++describe('move-token and get-token-details', () => {
++  it('sends the scene and units and reports the squares', async () => {
++    const c = client(async () => ({ success: true, newPosition: { x: 1024, y: 480 }, newSquares: { x: 11, y: 2.5 }, scene: { id: 's', name: 'Town' } }));
++    const tools = new TokenManipulationTools({ foundryClient: c.foundryClient, logger });
++    const r = await tools.handleMoveToken({ tokenId: 't', x: 11, y: 2.5, units: 'squares', scene: 'Town' });
++    expect(c.query).toHaveBeenCalledWith('foundry-mcp-bridge.move-token', { tokenId: 't', x: 11, y: 2.5, animate: false, scene: 'Town', units: 'squares' });
++    expect(r).toMatchObject({ success: true, newPosition: { x: 1024, y: 480 }, newSquares: { x: 11, y: 2.5 }, scene: { name: 'Town' } });
++    await expect(tools.handleMoveToken({ tokenId: 't', x: 1, y: 1, units: 'feet' })).rejects.toThrow();
++    const def = tools.getToolDefinitions().find(d => d.name === 'move-token')!;
++    expect((def.inputSchema.properties as any).units.enum).toEqual(['pixels', 'squares']);
++  });
++  it('keeps the old request shape when nothing new is given', async () => {
++    const c = client(async () => ({ success: true }));
++    const tools = new TokenManipulationTools({ foundryClient: c.foundryClient, logger });
++    await tools.handleMoveToken({ tokenId: 't', x: 5, y: 6 });
++    expect(c.query).toHaveBeenCalledWith('foundry-mcp-bridge.move-token', { tokenId: 't', x: 5, y: 6, animate: false });
++  });
++  it('passes the scene to get-token-details', async () => {
++    const c = client(async () => ({ success: true, id: 't', name: 'x', x: 1, y: 1 }));
++    const tools = new TokenManipulationTools({ foundryClient: c.foundryClient, logger });
++    await tools.handleGetTokenDetails({ tokenId: 't', scene: 'Town' }).catch(() => undefined);
++    expect(c.query).toHaveBeenCalledWith('foundry-mcp-bridge.get-token-details', { tokenId: 't', scene: 'Town' });
++  });
++});
 diff --git a/packages/mcp-server/src/tools/prop-keying.ts b/packages/mcp-server/src/tools/prop-keying.ts
 new file mode 100644
-index 0000000..c7d6d06
+index 0000000..313554e
 --- /dev/null
 +++ b/packages/mcp-server/src/tools/prop-keying.ts
-@@ -0,0 +1,183 @@
+@@ -0,0 +1,232 @@
 +/**
 + * Turns a picture of an object on a flat coloured background into a picture with a transparent
 + * background (a prop that can be laid on a map as a tile). Pure pixel work, no files.
@@ -23467,6 +24426,137 @@ index 0000000..c7d6d06
 +  }
 +  return { width: w, height: h, data: cropped, background: bg, opaqueShare: share, borderSpread: spread, box, warnings };
 +}
++
++/**
++ * Shrink a picture so its longest side is at most maxSide, averaging the pixels it covers
++ * (alpha-weighted, so a transparent edge does not bleed a dark fringe). Returns the picture as it
++ * is when it is already small enough.
++ */
++export function downscale(img: Pixels, maxSide: number): Pixels {
++  const longest = Math.max(img.width, img.height);
++  if (!(maxSide >= 1) || longest <= maxSide) return img;
++  const scale = maxSide / longest;
++  const w = Math.max(1, Math.round(img.width * scale));
++  const h = Math.max(1, Math.round(img.height * scale));
++  const out = new Uint8Array(w * h * 4);
++  for (let y = 0; y < h; y++) {
++    const y0 = (y * img.height) / h;
++    const y1 = ((y + 1) * img.height) / h;
++    for (let x = 0; x < w; x++) {
++      const x0 = (x * img.width) / w;
++      const x1 = ((x + 1) * img.width) / w;
++      let r = 0;
++      let g = 0;
++      let b = 0;
++      let a = 0;
++      let weight = 0;
++      for (let sy = Math.floor(y0); sy < Math.ceil(y1); sy++) {
++        const wy = Math.min(sy + 1, y1) - Math.max(sy, y0);
++        for (let sx = Math.floor(x0); sx < Math.ceil(x1); sx++) {
++          const wx = Math.min(sx + 1, x1) - Math.max(sx, x0);
++          const wgt = wx * wy;
++          const i = (sy * img.width + sx) * 4;
++          const alpha = img.data[i + 3]! / 255;
++          r += img.data[i]! * alpha * wgt;
++          g += img.data[i + 1]! * alpha * wgt;
++          b += img.data[i + 2]! * alpha * wgt;
++          a += alpha * wgt;
++          weight += wgt;
++        }
++      }
++      const o = (y * w + x) * 4;
++      if (a > 0) {
++        out[o] = Math.round(r / a);
++        out[o + 1] = Math.round(g / a);
++        out[o + 2] = Math.round(b / a);
++      }
++      out[o + 3] = weight > 0 ? Math.round((a / weight) * 255) : 0;
++    }
++  }
++  return { width: w, height: h, data: out };
++}
+diff --git a/packages/mcp-server/src/tools/prop-size.test.ts b/packages/mcp-server/src/tools/prop-size.test.ts
+new file mode 100644
+index 0000000..d806758
+--- /dev/null
++++ b/packages/mcp-server/src/tools/prop-size.test.ts
+@@ -0,0 +1,76 @@
++/** make-prop generates large (H3 needs 2 megapixels) and shrinks the finished prop. */
++import { afterAll, describe, expect, it, vi } from 'vitest';
++import { promises as fs } from 'fs';
++import os from 'os';
++import path from 'path';
++import { PNG } from 'pngjs';
++import { PropTools } from './prop-tools.js';
++
++const tmp: string[] = [];
++afterAll(async () => {
++  for (const f of tmp) await fs.rm(f, { force: true });
++});
++
++/** 1600 x 1200 magenta picture with a 1000 x 600 brown object in the middle. */
++async function bigSource(): Promise<string> {
++  const w = 1600;
++  const h = 1200;
++  const png = new PNG({ width: w, height: h });
++  for (let y = 0; y < h; y++) {
++    for (let x = 0; x < w; x++) {
++      const inside = x >= 300 && x < 1300 && y >= 300 && y < 900;
++      const c = inside ? [90, 60, 30] : [255, 0, 255];
++      const i = (y * w + x) * 4;
++      png.data[i] = c[0]!;
++      png.data[i + 1] = c[1]!;
++      png.data[i + 2] = c[2]!;
++      png.data[i + 3] = 255;
++    }
++  }
++  const file = path.join(os.tmpdir(), `prop-size-${Date.now()}-${Math.random().toString(36).slice(2)}.png`);
++  await fs.writeFile(file, PNG.sync.write(png));
++  tmp.push(file);
++  return file;
++}
++
++function makeTools(generate?: any) {
++  const query = vi.fn(async () => ({ success: true, scene: { id: 's', name: 'S' }, created: [{ kind: 'tile', id: 't1', x: 1, y: 1 }] }));
++  const logger: any = { info: vi.fn(), debug: vi.fn(), error: vi.fn(), warn: vi.fn(), child: () => logger };
++  const upload = vi.fn(async (a: any) => ({ success: true, path: `worlds/w/uploads/props/${a.filename}` }));
++  return { tools: new PropTools({ foundryClient: { query } as any, logger, generate, upload }), query, upload };
++}
++
++describe('make-prop final size', () => {
++  it('shrinks a big prop to 512 on its longest side by default, keeping the shape', async () => {
++    const { tools } = makeTools();
++    const r = await tools.handleMakeProp({ name: 'Big', image: await bigSource() });
++    tmp.push(r.local_path);
++    expect(Math.max(r.pixels.width, r.pixels.height)).toBe(512);
++    expect(r.pixels.width / r.pixels.height).toBeCloseTo(1000 / 600, 1);
++    const saved = PNG.sync.read(await fs.readFile(r.local_path));
++    expect([saved.width, saved.height]).toEqual([r.pixels.width, r.pixels.height]);
++    expect(r.steps ?? []).toBeDefined();
++  });
++  it('takes final_size, and keeps the picture when it is already smaller', async () => {
++    const { tools } = makeTools();
++    const small = await tools.handleMakeProp({ name: 'Small', image: await bigSource(), final_size: 128 });
++    tmp.push(small.local_path);
++    expect(Math.max(small.pixels.width, small.pixels.height)).toBe(128);
++    const full = await tools.handleMakeProp({ name: 'Full', image: await bigSource(), final_size: 2048 });
++    tmp.push(full.local_path);
++    expect(full.pixels.width).toBeGreaterThan(900);
++    await expect(tools.handleMakeProp({ name: 'x', image: await bigSource(), final_size: 8 })).rejects.toThrow();
++  });
++  it('sizes the tile from the shrunk picture and still asks the generator for a big size', async () => {
++    const src = await bigSource();
++    const generate = vi.fn(async () => ({ success: true, local_path: src, seconds: 1 }));
++    const { tools, query } = makeTools(generate);
++    const r = await tools.handleMakeProp({ name: 'Gen', prompt: 'a table', image_size: 512, x: 1, y: 1, width: 2, scene: 'S' });
++    tmp.push(r.local_path);
++    expect(generate).toHaveBeenCalledWith(expect.objectContaining({ width: 512, height: 512 }));
++    const placed = (query.mock.calls as any[][])[0]![1].objects[0];
++    expect(placed.width).toBe(2);
++    expect(placed.height).toBeCloseTo(1.2, 1);
++    expect(tools.getToolDefinitions()[0]!.description).toBeDefined();
++  });
++});
 diff --git a/packages/mcp-server/src/tools/prop-tools.test.ts b/packages/mcp-server/src/tools/prop-tools.test.ts
 new file mode 100644
 index 0000000..24b9cd1
@@ -23666,10 +24756,10 @@ index 0000000..24b9cd1
 +});
 diff --git a/packages/mcp-server/src/tools/prop-tools.ts b/packages/mcp-server/src/tools/prop-tools.ts
 new file mode 100644
-index 0000000..aaf77a2
+index 0000000..9bce4bf
 --- /dev/null
 +++ b/packages/mcp-server/src/tools/prop-tools.ts
-@@ -0,0 +1,203 @@
+@@ -0,0 +1,209 @@
 +import { promises as fs } from 'fs';
 +import os from 'os';
 +import path from 'path';
@@ -23678,7 +24768,7 @@ index 0000000..aaf77a2
 +import { FoundryClient } from '../foundry-client.js';
 +import { Logger } from '../logger.js';
 +import { decodeImage } from './layout-image.js';
-+import { keyOutBackground } from './prop-keying.js';
++import { downscale, keyOutBackground } from './prop-keying.js';
 +
 +export interface PropToolsOptions {
 +  foundryClient: FoundryClient;
@@ -23702,6 +24792,7 @@ index 0000000..aaf77a2
 +    image: z.string().min(1).optional(),
 +    key: z.enum(['magenta', 'green', 'blue']).optional(),
 +    image_size: z.number().int().min(256).max(2048).optional(),
++    final_size: z.number().int().min(32).max(2048).optional(),
 +    tolerance: z.number().min(1).max(200).optional(),
 +    seed: z.number().int().optional(),
 +    negative_prompt: z.string().max(500).optional(),
@@ -23759,7 +24850,8 @@ index 0000000..aaf77a2
 +            prompt: { type: 'string', description: 'What the object is and looks like (the tool adds the top-down view and the flat background)' },
 +            image: { type: 'string', description: 'Existing picture on this computer to remove the background from, instead of generating' },
 +            key: { type: 'string', enum: ['magenta', 'green', 'blue'], description: 'Background colour to generate on (default magenta)' },
-+            image_size: { type: 'number', description: 'Generated picture size in pixels, a multiple of 32 (default 1024)' },
++            image_size: { type: 'number', description: 'Size to generate at, a multiple of 32 (default 1024). MiniMax H3 draws badly below about 2 megapixels, so anything smaller is raised to that automatically; the prop is shrunk afterwards.' },
++            final_size: { type: 'number', description: 'Longest side in pixels of the finished prop picture (default 512; 32 to 2048). The object is generated large and shrunk to this.' },
 +            tolerance: { type: 'number', description: 'How different from the background a pixel must be to stay (default 60)' },
 +            seed: { type: 'number' },
 +            negative_prompt: { type: 'string' },
@@ -23819,8 +24911,12 @@ index 0000000..aaf77a2
 +    );
 +    steps.push(`background removed (was rgb ${keyed.background.join(',')}), cropped to ${keyed.width} x ${keyed.height}`);
 +
-+    const png = new PNG({ width: keyed.width, height: keyed.height });
-+    png.data = Buffer.from(keyed.data);
++    // Generated large (H3 needs 2 megapixels); a prop does not need that many pixels, so shrink it.
++    const finalSide = a.final_size ?? 512;
++    const small = downscale({ width: keyed.width, height: keyed.height, data: keyed.data }, finalSide);
++    if (small.width !== keyed.width) steps.push(`shrunk to ${small.width} x ${small.height}`);
++    const png = new PNG({ width: small.width, height: small.height });
++    png.data = Buffer.from(small.data);
 +    await fs.mkdir(this.folder, { recursive: true });
 +    const fileName = `${propFileName(a.name)}-${Date.now().toString(36)}.png`;
 +    const local = path.join(this.folder, fileName);
@@ -23830,7 +24926,7 @@ index 0000000..aaf77a2
 +      success: true,
 +      name: a.name,
 +      local_path: local,
-+      pixels: { width: keyed.width, height: keyed.height },
++      pixels: { width: small.width, height: small.height },
 +      ...(keyed.warnings.length > 0 ? { warnings: keyed.warnings } : {}),
 +    };
 +
@@ -23845,7 +24941,7 @@ index 0000000..aaf77a2
 +
 +    if (a.x !== undefined && a.y !== undefined) {
 +      const width = a.width ?? 2;
-+      const height = a.height ?? Math.round(((width * keyed.height) / keyed.width) * 100) / 100;
++      const height = a.height ?? Math.round(((width * small.height) / small.width) * 100) / 100;
 +      const placed = await this.foundryClient.query('foundry-mcp-bridge.manage-scene-objects', {
 +        action: 'place',
 +        ...(a.scene ? { scene: a.scene } : {}),
@@ -24274,10 +25370,10 @@ index 0000000..eb8f72a
 +});
 diff --git a/packages/mcp-server/src/tools/scene-objects.ts b/packages/mcp-server/src/tools/scene-objects.ts
 new file mode 100644
-index 0000000..b29e804
+index 0000000..ca5f723
 --- /dev/null
 +++ b/packages/mcp-server/src/tools/scene-objects.ts
-@@ -0,0 +1,787 @@
+@@ -0,0 +1,798 @@
 +import { promises as fs } from 'fs';
 +import os from 'os';
 +import path from 'path';
@@ -24430,9 +25526,10 @@ index 0000000..b29e804
 +
 +const sceneObjectsSchema = z
 +  .object({
-+    action: z.enum(['place', 'describe', 'remove']),
++    action: z.enum(['place', 'describe', 'remove', 'update']),
 +    scene: z.string().min(1).optional(),
 +    objects: z.array(objectSchema).min(1).max(200).optional(),
++    updates: z.array(z.record(z.any())).min(1).max(200).optional(),
 +    ids: z.array(z.string().min(1)).max(500).optional(),
 +    all_mine: z.boolean().optional(),
 +    kind: z.enum(['token', 'light', 'wall', 'note', 'tile', 'sound']).optional(),
@@ -24572,11 +25669,18 @@ index 0000000..b29e804
 +          'Positions are in GRID SQUARES from the top-left corner of the map image: (0, 0) is the top-left corner of the first square, (2.5, 1.5) the centre of the square in column 2, row 1 (counting from 0). ' +
 +          'Use preview-scene first to see the numbered grid. describe returns the scene grid size so you know the valid range. ' +
 +          'place takes objects (up to 200): {kind:"token", actor, x, y} puts the actor\'s token with its top-left corner at that square (use whole numbers; actor is an id or exact name); {kind:"light", x, y, bright, dim} makes a light at that point with radii in squares (optional color, alpha, angle, rotation, animation, hidden); {kind:"wall", points:[[x1,y1],[x2,y2],...]} draws walls along a chain of points (add closed:true to join the ends) or {kind:"wall", rect:[x,y,width,height]} draws the four walls of a rectangle, with preset wall (default), door, secret_door, invisible (blocks movement only) or window (blocks movement, lets light and sight through), and for doors door_state closed, open or locked; {kind:"note", x, y, journal, page?, text?} puts a map pin (the label text defaults to the journal name) that opens that journal or page when clicked; pins are only seen by players who may read the journal unless global is true. {kind:"tile", x, y, width, height, src, rotation?, alpha?, hidden?, elevation?} lays an image (a path in the Foundry files, e.g. an uploaded prop) over the map with its top-left corner at x, y and the given size in squares; {kind:"sound", x, y, radius, path, volume?, repeat?, walls?, easing?, hidden?} places a looping ambient sound audible within radius squares (path is an audio file in the Foundry files); tokens also accept width and height in squares (e.g. 2 for a Large creature) to override the actor\'s size. Use whole or half squares for wall points and make wall ends meet exactly, otherwise light and sight leak through gaps. ' +
++          'update takes updates (up to 200): [{id, ...fields}] to change objects this tool placed, without removing them: x and y move it (grid squares; give one to keep the other), and per kind: token name, width, height, hidden, disposition, elevation; light bright, dim, color, alpha, angle, rotation, animation (null stops it), hidden; note text, font_size, icon_size, icon, global; tile width, height, src, rotation, alpha, elevation, hidden; sound radius, path, volume, repeat, walls, easing, hidden; wall door_state (closed, open, locked; doors only, walls cannot be moved). ' +
 +          'remove needs ids or all_mine:true (optionally with kind) and only removes objects created by this tool. scene is an id or exact name; it defaults to the scene the GM is viewing.',
 +        inputSchema: {
 +          type: 'object',
 +          properties: {
-+            action: { type: 'string', enum: ['place', 'describe', 'remove'] },
++            action: { type: 'string', enum: ['place', 'describe', 'remove', 'update'] },
++            updates: {
++              type: 'array',
++              maxItems: 200,
++              description: 'update: [{id, x?, y?, ...fields to change}]',
++              items: { type: 'object', additionalProperties: true },
++            },
 +            scene: {
 +              type: 'string',
 +              description: 'Scene id or exact name (default: the scene being viewed)',
@@ -24886,6 +25990,9 @@ index 0000000..b29e804
 +    const parsed = sceneObjectsSchema.parse(args);
 +    if (parsed.action === 'place' && !parsed.objects) {
 +      throw new Error('objects is required for place');
++    }
++    if (parsed.action === 'update' && !parsed.updates) {
++      throw new Error('updates is required for update');
 +    }
 +    if (parsed.action === 'remove' && !parsed.all_mine && !(parsed.ids && parsed.ids.length)) {
 +      throw new Error('remove needs ids or all_mine: true');
@@ -25860,13 +26967,45 @@ index 0000000..d4f0b89
 +  });
 +});
 diff --git a/packages/mcp-server/src/tools/scene.ts b/packages/mcp-server/src/tools/scene.ts
-index 1e422bf..956dcab 100644
+index 1e422bf..a3e86c3 100644
 --- a/packages/mcp-server/src/tools/scene.ts
 +++ b/packages/mcp-server/src/tools/scene.ts
-@@ -72,6 +72,102 @@ export class SceneTools {
-           required: ['scene_identifier'],
-         },
-       },
+@@ -7,6 +7,20 @@ export interface SceneToolsOptions {
+   logger: Logger;
+ }
+ 
++/**
++ * Other tools call the scene argument scene; these two call it scene_identifier. Accept both, and
++ * background_image for background, so a guess does not fail.
++ */
++export function withSceneAlias(args: any, background = false): any {
++  if (!args || typeof args !== 'object') return args;
++  const out: any = { ...args };
++  if (out.scene !== undefined && out.scene_identifier === undefined) out.scene_identifier = out.scene;
++  delete out.scene;
++  if (background && out.background_image !== undefined && out.background === undefined) out.background = out.background_image;
++  if (background) delete out.background_image;
++  return out;
++}
++
+ export class SceneTools {
+   private foundryClient: FoundryClient;
+   private logger: Logger;
+@@ -60,6 +74,7 @@ export class SceneTools {
+               type: 'string',
+               description: 'Scene id or exact name',
+             },
++            scene: { type: 'string', description: 'Same as scene_identifier' },
+             playlist: {
+               type: ['string', 'null'],
+               description: 'Playlist id or unique name, or null to clear',
+@@ -69,7 +84,104 @@ export class SceneTools {
+               description: 'PlaylistSound id or unique name within the playlist, or null to clear',
+             },
+           },
+-          required: ['scene_identifier'],
++        },
++      },
 +      {
 +        name: 'manage-scenes',
 +        description:
@@ -25883,6 +27022,8 @@ index 1e422bf..956dcab 100644
 +              type: 'string',
 +              description: 'Scene id or exact name. Required for update; optional for describe.',
 +            },
++            scene: { type: 'string', description: 'Same as scene_identifier (the name other tools use)' },
++            background_image: { type: ['string', 'null'], description: 'Same as background' },
 +            name: {
 +              type: 'string',
 +              description: 'Scene name. Required for create; renames on update.',
@@ -25961,12 +27102,19 @@ index 1e422bf..956dcab 100644
 +            },
 +          },
 +          required: ['action'],
-+        },
-+      },
+         },
+       },
      ];
-   }
+@@ -129,7 +241,7 @@ export class SceneTools {
+       playlist: z.string().nullable().optional(),
+       playlist_sound: z.string().nullable().optional(),
+     });
+-    const parsed = schema.parse(args);
++    const parsed = schema.parse(withSceneAlias(args));
  
-@@ -147,6 +243,74 @@ export class SceneTools {
+     this.logger.info('Updating scene music', { scene_identifier: parsed.scene_identifier });
+     try {
+@@ -147,6 +259,74 @@ export class SceneTools {
      }
    }
  
@@ -26014,7 +27162,7 @@ index 1e422bf..956dcab 100644
 +        activate: z.boolean().optional(),
 +      })
 +      .strict();
-+    const parsed = schema.parse(args);
++    const parsed = schema.parse(withSceneAlias(args, true));
 +
 +    if (parsed.action === 'create' && !parsed.name) {
 +      throw new Error('name is required for create');
@@ -26089,7 +27237,7 @@ index 0000000..75481f8
 +  });
 +});
 diff --git a/packages/mcp-server/src/tools/token-manipulation.ts b/packages/mcp-server/src/tools/token-manipulation.ts
-index 6afedf1..9c96331 100644
+index 6afedf1..00b0493 100644
 --- a/packages/mcp-server/src/tools/token-manipulation.ts
 +++ b/packages/mcp-server/src/tools/token-manipulation.ts
 @@ -24,7 +24,7 @@ export class TokenManipulationTools {
@@ -26097,19 +27245,33 @@ index 6afedf1..9c96331 100644
          name: 'move-token',
          description:
 -          'Move a token to a new position on the current scene. Can optionally animate the movement.',
-+          'Move a token to a new position (pixels). The token is found on any scene (or pass scene). Moving a token into a teleport region teleports it. Can optionally animate the movement.',
++          'Move a token to a new position, in pixels (default) or in grid squares with units:"squares" (x and y then count from the top-left corner of the map, like manage-scene-objects, padding handled for you; use x 11 y 11 for the square in column 11, row 11). The token is found on any scene (or pass scene). Moving a token into a teleport region teleports it. Can optionally animate the movement.',
          inputSchema: {
            type: 'object',
            properties: {
-@@ -45,6 +45,7 @@ export class TokenManipulationTools {
+@@ -34,17 +34,19 @@ export class TokenManipulationTools {
+             },
+             x: {
+               type: 'number',
+-              description: 'The new X coordinate (in pixels)',
++              description: 'The new X coordinate (pixels, or grid squares with units squares)',
+             },
+             y: {
+               type: 'number',
+-              description: 'The new Y coordinate (in pixels)',
++              description: 'The new Y coordinate (pixels, or grid squares with units squares)',
+             },
+             animate: {
+               type: 'boolean',
                description: 'Whether to animate the movement (default: false)',
                default: false,
              },
 +            scene: { type: 'string', description: 'Scene id or exact name (default: found automatically)' },
++            units: { type: 'string', enum: ['pixels', 'squares'], description: 'What x and y are (default pixels)' },
            },
            required: ['tokenId', 'x', 'y'],
          },
-@@ -52,7 +53,7 @@ export class TokenManipulationTools {
+@@ -52,7 +54,7 @@ export class TokenManipulationTools {
        {
          name: 'update-token',
          description:
@@ -26118,7 +27280,7 @@ index 6afedf1..9c96331 100644
          inputSchema: {
            type: 'object',
            properties: {
-@@ -107,8 +108,14 @@ export class TokenManipulationTools {
+@@ -107,8 +109,14 @@ export class TokenManipulationTools {
                  },
                },
              },
@@ -26134,7 +27296,48 @@ index 6afedf1..9c96331 100644
          },
        },
        {
-@@ -220,6 +227,8 @@ export class TokenManipulationTools {
+@@ -140,6 +148,7 @@ export class TokenManipulationTools {
+               type: 'string',
+               description: 'The ID of the token to get details for',
+             },
++            scene: { type: 'string', description: 'Scene id or exact name (default: found on any scene)' },
+           },
+           required: ['tokenId'],
+         },
+@@ -187,9 +196,11 @@ export class TokenManipulationTools {
+       x: z.number(),
+       y: z.number(),
+       animate: z.boolean().optional().default(false),
++      scene: z.string().min(1).optional(),
++      units: z.enum(['pixels', 'squares']).optional(),
+     });
+ 
+-    const { tokenId, x, y, animate } = schema.parse(args);
++    const { tokenId, x, y, animate, scene, units } = schema.parse(args);
+ 
+     this.logger.info('Moving token', { tokenId, x, y, animate });
+ 
+@@ -199,6 +210,8 @@ export class TokenManipulationTools {
+         x,
+         y,
+         animate,
++        ...(scene ? { scene } : {}),
++        ...(units ? { units } : {}),
+       });
+ 
+       this.logger.debug('Token moved successfully', { tokenId });
+@@ -206,7 +219,9 @@ export class TokenManipulationTools {
+       return {
+         success: true,
+         tokenId,
+-        newPosition: { x, y },
++        newPosition: result?.newPosition ?? { x, y },
++        ...(result?.newSquares ? { newSquares: result.newSquares } : {}),
++        ...(result?.scene ? { scene: result.scene } : {}),
+         animated: animate,
+       };
+     } catch (error) {
+@@ -220,6 +235,8 @@ export class TokenManipulationTools {
    async handleUpdateToken(args: any): Promise<any> {
      const schema = z.object({
        tokenId: z.string(),
@@ -26143,7 +27346,7 @@ index 6afedf1..9c96331 100644
        updates: z.object({
          x: z.number().optional(),
          y: z.number().optional(),
-@@ -231,10 +240,11 @@ export class TokenManipulationTools {
+@@ -231,10 +248,11 @@ export class TokenManipulationTools {
          name: z.string().optional(),
          elevation: z.number().optional(),
          lockRotation: z.boolean().optional(),
@@ -26157,7 +27360,7 @@ index 6afedf1..9c96331 100644
  
      this.logger.info('Updating token', { tokenId, updates });
  
-@@ -242,6 +252,8 @@ export class TokenManipulationTools {
+@@ -242,6 +260,8 @@ export class TokenManipulationTools {
        const result = await this.foundryClient.query('foundry-mcp-bridge.update-token', {
          tokenId,
          updates,
@@ -26166,6 +27369,25 @@ index 6afedf1..9c96331 100644
        });
  
        this.logger.debug('Token updated successfully', { tokenId, result });
+@@ -296,15 +316,17 @@ export class TokenManipulationTools {
+   async handleGetTokenDetails(args: any): Promise<any> {
+     const schema = z.object({
+       tokenId: z.string(),
++      scene: z.string().min(1).optional(),
+     });
+ 
+-    const { tokenId } = schema.parse(args);
++    const { tokenId, scene } = schema.parse(args);
+ 
+     this.logger.info('Getting token details', { tokenId });
+ 
+     try {
+       const tokenData = await this.foundryClient.query('foundry-mcp-bridge.get-token-details', {
+         tokenId,
++        ...(scene ? { scene } : {}),
+       });
+ 
+       this.logger.debug('Retrieved token details', {
 diff --git a/packages/mcp-server/src/tools/upload.test.ts b/packages/mcp-server/src/tools/upload.test.ts
 new file mode 100644
 index 0000000..941b06b
