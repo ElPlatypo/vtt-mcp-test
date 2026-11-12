@@ -123448,7 +123448,8 @@ var schema8 = external_exports.object({
   ability: external_exports.string().min(1).optional(),
   save: external_exports.string().min(1).optional(),
   dc: external_exports.number().min(0).max(40).optional(),
-  public: external_exports.boolean().optional()
+  public: external_exports.boolean().optional(),
+  consume: external_exports.boolean().optional()
 }).strict();
 var CombatTools = class {
   foundryClient;
@@ -123484,6 +123485,7 @@ var CombatTools = class {
             ability: { type: "string", description: "check: an ability check, e.g. dex" },
             save: { type: "string", description: "check: a saving throw, e.g. wis" },
             dc: { type: "number", description: "check: the difficulty; success is reported against it" },
+            consume: { type: "boolean", description: "attack: spend the item charges, ammunition or spell slot (default true)" },
             public: { type: "boolean", description: "attack, check: post the rolls for everyone (default: GM only, so hidden monsters are not given away)" }
           },
           required: ["action"],
