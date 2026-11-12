@@ -1657,10 +1657,10 @@ index 0000000..6c9da45
 +}
 diff --git a/packages/foundry-module/src/combat-actions.test.ts b/packages/foundry-module/src/combat-actions.test.ts
 new file mode 100644
-index 0000000..678475a
+index 0000000..b7fbae2
 --- /dev/null
 +++ b/packages/foundry-module/src/combat-actions.test.ts
-@@ -0,0 +1,118 @@
+@@ -0,0 +1,127 @@
 +/** Attacks, saves and checks through the dnd5e activity and actor roll APIs (stubbed). */
 +import { describe, expect, it, vi } from 'vitest';
 +import { performAttack, performCheck, pickActivity, resolveKey } from './combat-actions.js';
@@ -1723,7 +1723,16 @@ index 0000000..678475a
 +    const crit = attacker('attack');
 +    crit.activity.rollAttack = vi.fn(async () => [roll(25, { natural: 20, isCritical: true, isSuccess: true, options: { target: 13 } })]);
 +    await performAttack(crit, [target('Mira', 12, 13)], {});
-+    expect(crit.activity.rollDamage).toHaveBeenCalledWith({ isCritical: true }, { configure: false }, { create: true });
++    expect(crit.activity.rollDamage).toHaveBeenCalledWith({ isCritical: true }, { configure: false }, { create: true, rollMode: 'gmroll' });
++  });
++  it('posts rolls to the GM only unless public is asked', async () => {
++    const quiet = attacker('attack');
++    await performAttack(quiet, [target('Mira', 12, 13)], {});
++    expect(quiet.activity.rollAttack.mock.calls[0][2]).toEqual({ create: true, rollMode: 'gmroll' });
++    expect(quiet.activity.use.mock.calls[0][2]).toEqual({ create: true, rollMode: 'gmroll' });
++    const loud = attacker('attack');
++    await performAttack(loud, [target('Mira', 12, 13)], { public: true });
++    expect(loud.activity.rollAttack.mock.calls[0][2]).toEqual({ create: true, rollMode: 'publicroll' });
 +  });
 +  it('can skip consuming and applying', async () => {
 +    const a = attacker('attack');
@@ -1736,7 +1745,7 @@ index 0000000..678475a
 +  it('rolls an attack with advantage and no target', async () => {
 +    const a = attacker('attack');
 +    const r = await performAttack(a, [], { advantage: true });
-+    expect(a.activity.rollAttack).toHaveBeenCalledWith({ advantage: true }, { configure: false }, { create: true });
++    expect(a.activity.rollAttack).toHaveBeenCalledWith({ advantage: true }, { configure: false }, { create: true, rollMode: 'gmroll' });
 +    expect(r.results[0].roll).toBe(15);
 +  });
 +  it('rolls a save once for damage and each target saves, taking half on a success', async () => {
@@ -1749,7 +1758,7 @@ index 0000000..678475a
 +    expect(r).toMatchObject({ kind: 'save', dc: 13, ability: 'dex' });
 +    expect(r.results[0]).toMatchObject({ target: 'Mira', saved: true, hp: '20 -> 15' });
 +    expect(r.results[1]).toMatchObject({ target: 'Bo', saved: false, hp: '20 -> 10' });
-+    expect(saver.actor.rollSavingThrow).toHaveBeenCalledWith({ ability: 'dex', target: 13 }, { configure: false }, { create: true });
++    expect(saver.actor.rollSavingThrow).toHaveBeenCalledWith({ ability: 'dex', target: 13 }, { configure: false }, { create: true, rollMode: 'gmroll' });
 +  });
 +  it('says when there is nothing to use', async () => {
 +    await expect(performAttack({ name: 'Bob', actor: { items: { contents: [] } } }, [], {})).rejects.toThrow('no attack or save');
@@ -1768,7 +1777,7 @@ index 0000000..678475a
 +  it('rolls a skill against a dc', async () => {
 +    const actor = { rollSkill: vi.fn(async () => [roll(14, { natural: 11 })]) };
 +    const r = await performCheck(who(actor), { skill: 'perception', dc: 12, advantage: true }, tables);
-+    expect(actor.rollSkill).toHaveBeenCalledWith({ advantage: true, target: 12, skill: 'prc' }, { configure: false }, { create: true });
++    expect(actor.rollSkill).toHaveBeenCalledWith({ advantage: true, target: 12, skill: 'prc' }, { configure: false }, { create: true, rollMode: 'gmroll' });
 +    expect(r).toMatchObject({ roll: 'prc check', dc: 12, results: [{ name: 'Mira', total: 14, natural: 11, success: true }] });
 +  });
 +  it('rolls saves and ability checks, and wants exactly one kind', async () => {
@@ -1781,10 +1790,10 @@ index 0000000..678475a
 +});
 diff --git a/packages/foundry-module/src/combat-actions.ts b/packages/foundry-module/src/combat-actions.ts
 new file mode 100644
-index 0000000..07d7e08
+index 0000000..a3f2fd6
 --- /dev/null
 +++ b/packages/foundry-module/src/combat-actions.ts
-@@ -0,0 +1,197 @@
+@@ -0,0 +1,204 @@
 +/**
 + * Monster and character actions in combat: roll an attack (and damage, and apply it), roll a
 + * saving-throw ability against targets, or roll a check. Works through the dnd5e activity and actor
@@ -1797,6 +1806,8 @@ index 0000000..07d7e08
 +  disadvantage?: boolean;
 +  /** apply the damage to the targets (default true) */
 +  apply?: boolean;
++  /** post the rolls for everyone instead of only the GM (default false) */
++  public?: boolean;
 +  /** use up the item's charges, ammunition or spell slot, as using it normally does (default true) */
 +  consume?: boolean;
 +  /**
@@ -1813,7 +1824,8 @@ index 0000000..07d7e08
 +}
 +
 +const NO_DIALOG = { configure: false };
-+const WITH_MESSAGE = { create: true };
++/** The chat message of a roll: GM only by default (a hidden monster's attack must not show to players), public on request. */
++const messageFor = (isPublic?: boolean) => ({ create: true, rollMode: isPublic ? 'publicroll' : 'gmroll' });
 +
 +const total = (rolls: any): number => (Array.isArray(rolls) ? rolls : rolls ? [rolls] : []).reduce((n: number, r: any) => n + (Number(r?.total) || 0), 0);
 +const hpOf = (actor: any): number => Number(actor?.system?.attributes?.hp?.value ?? 0);
@@ -1854,6 +1866,7 @@ index 0000000..07d7e08
 +  if (!found) throw new Error(`${attacker.name} has no ${options.item ? `attack or save called "${options.item}"` : 'attack or save'} to use`);
 +  const { item, activity } = found;
 +  const apply = options.apply !== false;
++  const message = messageFor(options.public);
 +  const out: Record<string, any> = { attacker: attacker.name, item: item.name, kind: activity.type, results: [] as any[] };
 +  const config: Record<string, any> = {};
 +  if (options.advantage) config.advantage = true;
@@ -1864,13 +1877,13 @@ index 0000000..07d7e08
 +    const ability = abilities instanceof Set ? [...abilities][0] : Array.isArray(abilities) ? abilities[0] : abilities;
 +    const dc = Number(activity.save?.dc?.value ?? 0);
 +    const onSave = activity.damage?.onSave ?? 'half';
-+    const damage = typeof activity.rollDamage === 'function' ? await activity.rollDamage({}, NO_DIALOG, WITH_MESSAGE) : [];
++    const damage = typeof activity.rollDamage === 'function' ? await activity.rollDamage({}, NO_DIALOG, message) : [];
 +    out.dc = dc;
 +    out.ability = ability;
 +    out.damage = { total: total(damage), types: damageTypes(damage) };
 +    if (targets.length === 0) return out;
 +    for (const t of targets) {
-+      const rolls = await t.actor.rollSavingThrow({ ability, target: dc }, NO_DIALOG, WITH_MESSAGE);
++      const rolls = await t.actor.rollSavingThrow({ ability, target: dc }, NO_DIALOG, message);
 +      const saved = total(rolls?.[0] ? [rolls[0]] : []) >= dc;
 +      const factor = saved ? (onSave === 'half' ? 0.5 : onSave === 'none' ? 0 : 1) : 1;
 +      const before = hpOf(t.actor);
@@ -1885,12 +1898,12 @@ index 0000000..07d7e08
 +  const list: NamedActor[] = targets.length ? targets : [{ name: '', actor: null }];
 +  // using the item first spends what it costs (charges, ammunition, a spell slot) and posts its card
 +  if (options.consume !== false && typeof activity.use === 'function') {
-+    await activity.use({}, NO_DIALOG, WITH_MESSAGE);
++    await activity.use({}, NO_DIALOG, message);
 +  }
 +  try {
 +    for (const t of list) {
 +      options.setTarget?.(t.actor ? t : null);
-+      const rolls = await activity.rollAttack(config, NO_DIALOG, WITH_MESSAGE);
++      const rolls = await activity.rollAttack(config, NO_DIALOG, message);
 +      const roll = rolls?.[0];
 +      if (!roll) throw new Error('The attack was cancelled or could not be rolled');
 +      const natural = roll.dice?.[0]?.results?.find((r: any) => r.active !== false)?.result ?? roll.terms?.[0]?.total;
@@ -1903,7 +1916,7 @@ index 0000000..07d7e08
 +        const hit = typeof roll.isSuccess === 'boolean' && roll.options?.target !== undefined ? roll.isSuccess : crit || (!fumble && Number(roll.total) >= ac);
 +        row.ac = ac;
 +        row.hit = hit;
-+        await finishAttackRow(row, hit, crit, t, activity, apply);
++        await finishAttackRow(row, hit, crit, t, activity, apply, message);
 +      }
 +      out.results.push(row);
 +    }
@@ -1914,9 +1927,9 @@ index 0000000..07d7e08
 +}
 +
 +/** On a hit: roll damage (the system doubles the dice on a crit), apply it through the system's own rules, note hp. */
-+async function finishAttackRow(row: Record<string, any>, hit: boolean, crit: boolean, t: NamedActor, activity: any, apply: boolean): Promise<void> {
++async function finishAttackRow(row: Record<string, any>, hit: boolean, crit: boolean, t: NamedActor, activity: any, apply: boolean, message: Record<string, any>): Promise<void> {
 +  if (!hit || typeof activity.rollDamage !== 'function') return;
-+  const damage = await activity.rollDamage({ isCritical: crit }, NO_DIALOG, WITH_MESSAGE);
++  const damage = await activity.rollDamage({ isCritical: crit }, NO_DIALOG, message);
 +  row.damage = total(damage);
 +  const types = damageTypes(damage);
 +  if (types.length) row.damageTypes = types;
@@ -1936,6 +1949,8 @@ index 0000000..07d7e08
 +  dc?: number;
 +  advantage?: boolean;
 +  disadvantage?: boolean;
++  /** post the roll for everyone instead of only the GM (default false) */
++  public?: boolean;
 +}
 +
 +/** The key a name means: "perception" or "prc" for skills, "dex" or "dexterity" for abilities. */
@@ -1949,6 +1964,7 @@ index 0000000..07d7e08
 +export async function performCheck(who: NamedActor[], request: CheckRequest, tables: { skills: Record<string, any>; abilities: Record<string, any> }): Promise<Record<string, any>> {
 +  const kinds = [request.skill, request.ability, request.save].filter(Boolean).length;
 +  if (kinds !== 1) throw new Error('Give exactly one of skill, ability or save');
++  const message = messageFor(request.public);
 +  const config: Record<string, any> = {};
 +  if (request.advantage) config.advantage = true;
 +  if (request.disadvantage) config.disadvantage = true;
@@ -1959,17 +1975,17 @@ index 0000000..07d7e08
 +    const skill = resolveKey(tables.skills, request.skill);
 +    if (!skill) throw new Error(`Unknown skill "${request.skill}"`);
 +    label = `${skill} check`;
-+    run = actor => actor.rollSkill({ ...config, skill }, NO_DIALOG, WITH_MESSAGE);
++    run = actor => actor.rollSkill({ ...config, skill }, NO_DIALOG, message);
 +  } else {
 +    const raw = (request.ability ?? request.save) as string;
 +    const ability = resolveKey(tables.abilities, raw);
 +    if (!ability) throw new Error(`Unknown ability "${raw}"`);
 +    if (request.save) {
 +      label = `${ability} save`;
-+      run = actor => actor.rollSavingThrow({ ...config, ability }, NO_DIALOG, WITH_MESSAGE);
++      run = actor => actor.rollSavingThrow({ ...config, ability }, NO_DIALOG, message);
 +    } else {
 +      label = `${ability} check`;
-+      run = actor => actor.rollAbilityCheck({ ...config, ability }, NO_DIALOG, WITH_MESSAGE);
++      run = actor => actor.rollAbilityCheck({ ...config, ability }, NO_DIALOG, message);
 +    }
 +  }
 +  const results: Array<Record<string, any>> = [];
@@ -2830,10 +2846,10 @@ index 0000000..8e1aad5
 +});
 diff --git a/packages/foundry-module/src/data-access.combat.test.ts b/packages/foundry-module/src/data-access.combat.test.ts
 new file mode 100644
-index 0000000..56b875b
+index 0000000..fbf30c2
 --- /dev/null
 +++ b/packages/foundry-module/src/data-access.combat.test.ts
-@@ -0,0 +1,209 @@
+@@ -0,0 +1,223 @@
 +/** combat control: start an encounter, initiative, turns, damage and healing. Foundry is stubbed. */
 +import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 +import { FoundryDataAccess } from './data-access.js';
@@ -2980,6 +2996,20 @@ index 0000000..56b875b
 +    expect(combat.startCombat).toHaveBeenCalled();
 +    expect(r).toMatchObject({ success: true, added: ['Goblin 1', 'Mira'], rolled: 2 });
 +    expect(r.combat.started).toBe(true);
++  });
++
++  it('rolls each combatant its own initiative even when they share an actor', async () => {
++    const { da, combat } = setup();
++    await da.controlCombat({ action: 'start', roll: 'none', begin: false });
++    let n = 0;
++    for (const c of combat.combatants.contents) {
++      const total = 10 + n++ * 3;
++      c.getInitiativeRoll = vi.fn(async () => ({ _evaluated: false, total, evaluate: vi.fn(async function (this: any) { this._evaluated = true; }), toMessage: vi.fn(async () => undefined) }));
++    }
++    const r = await da.controlCombat({ action: 'roll' });
++    expect(r.rolled).toBe(2);
++    expect(combat.combatants.contents.map((c: any) => c.initiative)).toEqual([10, 13]);
++    expect(combat.rollInitiative).not.toHaveBeenCalled();
 +  });
 +
 +  it('can set up without beginning, only some tokens, no rolling', async () => {
@@ -7108,7 +7138,7 @@ index 0000000..26e6aab
 +  });
 +});
 diff --git a/packages/foundry-module/src/data-access.ts b/packages/foundry-module/src/data-access.ts
-index eecda7e..e064895 100644
+index eecda7e..3e9ac4e 100644
 --- a/packages/foundry-module/src/data-access.ts
 +++ b/packages/foundry-module/src/data-access.ts
 @@ -1,6 +1,137 @@
@@ -7249,7 +7279,7 @@ index eecda7e..e064895 100644
  
  // The same five characters foundry.utils.escapeHTML replaces in v14, kept local because
  // that helper isn't confirmed in v13, this module's minimum.
-@@ -1714,6 +1845,40 @@ const DND5E_SIZE: Record<string, string> = {
+@@ -1714,6 +1845,41 @@ const DND5E_SIZE: Record<string, string> = {
    gargantuan: 'gargantuan',
  };
  
@@ -7273,6 +7303,7 @@ index eecda7e..e064895 100644
 +  ability?: string;
 +  save?: string;
 +  dc?: number;
++  public?: boolean;
 +}
 +
 +export interface PartyRequest {
@@ -7290,7 +7321,7 @@ index eecda7e..e064895 100644
  export class FoundryDataAccess {
    private moduleId: string = MODULE_ID;
    private persistentIndex: PersistentCreatureIndex = new PersistentCreatureIndex();
-@@ -4681,12 +4846,28 @@ export class FoundryDataAccess {
+@@ -4681,12 +4847,28 @@ export class FoundryDataAccess {
        type: 'random' | 'grid' | 'center' | 'coordinates';
        coordinates?: { x: number; y: number }[];
      };
@@ -7319,7 +7350,7 @@ index eecda7e..e064895 100644
        // Validate inputs
        if (!packId || !itemId) {
          throw new Error('Both packId and itemId are required');
-@@ -4753,10 +4934,33 @@ export class FoundryDataAccess {
+@@ -4753,10 +4935,33 @@ export class FoundryDataAccess {
            }
  
            // Organize created actors in a folder - use "Foundry MCP Creatures" for generic monsters
@@ -7354,7 +7385,7 @@ index eecda7e..e064895 100644
  
            // Create the actor
            const newActor = await Actor.create(actorData);
-@@ -6714,7 +6918,7 @@ export class FoundryDataAccess {
+@@ -6714,7 +6919,7 @@ export class FoundryDataAccess {
  
          // Send socket request to GM
          if (game.socket) {
@@ -7363,7 +7394,7 @@ index eecda7e..e064895 100644
              type: 'requestMessageUpdate',
              buttonId,
              userId,
-@@ -8101,198 +8305,4344 @@ export class FoundryDataAccess {
+@@ -8101,198 +8306,4358 @@ export class FoundryDataAccess {
      }
    }
  
@@ -8755,8 +8786,20 @@ index eecda7e..e064895 100644
 +            .filter(c => (which === 'all' ? true : which === 'npcs' ? c.doc.isNPC && c.initiative == null : c.initiative == null))
 +            .map(c => c.id);
 +        }
-+        // one roll per combatant: rolling several ids in one call lets identical monsters share a result
-+        for (const id of ids) await combat.rollInitiative([id]);
++        // dnd5e applies one initiative roll to every combatant of the same actor, so identical
++        // monsters (unlinked tokens of one actor) would all share a result. Roll each combatant's own.
++        for (const id of ids) {
++          const combatant: any = members().find(m => m.id === id)?.doc;
++          if (combatant && typeof combatant.getInitiativeRoll === 'function') {
++            const roll = await combatant.getInitiativeRoll();
++            if (!roll._evaluated) await roll.evaluate();
++            await combatant.update({ initiative: roll.total });
++            const speaker = (globalThis as any).ChatMessage?.getSpeaker?.({ token: combatant.token, actor: combatant.actor });
++            await roll.toMessage({ ...(speaker ? { speaker } : {}), flavor: `${combatant.name} rolls for Initiative!` }, { rollMode: 'gmroll' });
++          } else {
++            await combat.rollInitiative([id]);
++          }
++        }
 +        return ids.length;
 +      };
 +
@@ -8934,6 +8977,7 @@ index eecda7e..e064895 100644
 +            ...(data.advantage ? { advantage: true } : {}),
 +            ...(data.disadvantage ? { disadvantage: true } : {}),
 +            ...(data.apply === false ? { apply: false } : {}),
++            ...(data.public ? { public: true } : {}),
 +          });
 +          Object.assign(out, result);
 +          if (missingTargets.length) out.notFound = missingTargets;
@@ -8951,6 +8995,7 @@ index eecda7e..e064895 100644
 +              ...(data.ability ? { ability: data.ability } : {}),
 +              ...(data.save ? { save: data.save } : {}),
 +              ...(data.dc !== undefined ? { dc: data.dc } : {}),
++              ...(data.public ? { public: true } : {}),
 +              ...(data.advantage ? { advantage: true } : {}),
 +              ...(data.disadvantage ? { disadvantage: true } : {}),
 +            },
@@ -11862,7 +11907,7 @@ index eecda7e..e064895 100644
          case 'play':
            await pl.playAll();
            return { success: true, action: 'play', playlist: info };
-@@ -8304,20 +12654,48 @@ export class FoundryDataAccess {
+@@ -8304,20 +12669,48 @@ export class FoundryDataAccess {
            return { success: true, action: 'cycle-mode', playlist: info, mode: pl.mode as number };
          case 'play-sound':
          case 'stop-sound': {
@@ -11917,7 +11962,7 @@ index eecda7e..e064895 100644
        }
      } catch (error) {
        throw new Error(
-@@ -8468,6 +12846,21 @@ export class FoundryDataAccess {
+@@ -8468,6 +12861,21 @@ export class FoundryDataAccess {
      }
    }
  
@@ -11939,7 +11984,7 @@ index eecda7e..e064895 100644
    /**
     * Move a token to a new position on the scene
     */
-@@ -8476,6 +12869,12 @@ export class FoundryDataAccess {
+@@ -8476,6 +12884,12 @@ export class FoundryDataAccess {
      x: number;
      y: number;
      animate?: boolean;
@@ -11952,7 +11997,7 @@ index eecda7e..e064895 100644
    }): Promise<any> {
      this.validateFoundryState();
  
-@@ -8489,24 +12888,57 @@ export class FoundryDataAccess {
+@@ -8489,24 +12903,57 @@ export class FoundryDataAccess {
      }
  
      try {
@@ -12023,7 +12068,7 @@ index eecda7e..e064895 100644
  
        this.auditLog('moveToken', data, 'success');
  
-@@ -8514,8 +12946,12 @@ export class FoundryDataAccess {
+@@ -8514,8 +12961,12 @@ export class FoundryDataAccess {
          success: true,
          tokenId: token.id,
          tokenName: token.name,
@@ -12037,7 +12082,7 @@ index eecda7e..e064895 100644
        };
      } catch (error) {
        this.auditLog(
-@@ -8530,10 +12966,56 @@ export class FoundryDataAccess {
+@@ -8530,10 +12981,56 @@ export class FoundryDataAccess {
      }
    }
  
@@ -12095,7 +12140,7 @@ index eecda7e..e064895 100644
      this.validateFoundryState();
  
      // Use permission system
-@@ -8546,20 +13028,19 @@ export class FoundryDataAccess {
+@@ -8546,20 +13043,19 @@ export class FoundryDataAccess {
      }
  
      try {
@@ -12122,7 +12167,7 @@ index eecda7e..e064895 100644
  
        // Apply updates
        await token.update(cleanUpdates);
-@@ -8651,18 +13132,15 @@ export class FoundryDataAccess {
+@@ -8651,18 +13147,15 @@ export class FoundryDataAccess {
    /**
     * Get detailed information about a token
     */
@@ -12145,7 +12190,7 @@ index eecda7e..e064895 100644
        }
  
        // Return flat structure that matches MCP server expectations
-@@ -11274,7 +15752,10 @@ export class FoundryDataAccess {
+@@ -11274,7 +15767,10 @@ export class FoundryDataAccess {
        name: string;
        type: string;
        img?: string;
@@ -12156,7 +12201,7 @@ index eecda7e..e064895 100644
      }>;
      folder?: string;
    }): Promise<{ created: Array<{ id: string; name: string; type: string }>; total: number }> {
-@@ -11286,6 +15767,19 @@ export class FoundryDataAccess {
+@@ -11286,6 +15782,19 @@ export class FoundryDataAccess {
      const docs = params.actors.map(a => {
        const doc: Record<string, any> = { name: a.name, type: a.type };
        if (a.img) doc.img = a.img;
@@ -12176,7 +12221,7 @@ index eecda7e..e064895 100644
  
        // Merge system data, adding safe defaults for systems that require certain
        // fields to exist during data preparation (avoids non-fatal init errors).
-@@ -11471,7 +15965,16 @@ export class FoundryDataAccess {
+@@ -11471,7 +15980,16 @@ export class FoundryDataAccess {
     * Merges supplied fields into the actor (top-level keys overwrite).
     */
    async updateActors(
@@ -12194,7 +12239,7 @@ index eecda7e..e064895 100644
    ): Promise<{ updated: Array<{ id: string; name: string }>; total: number }> {
      const updatedActors: Array<{ id: string; name: string }> = [];
  
-@@ -11482,6 +15985,7 @@ export class FoundryDataAccess {
+@@ -11482,6 +16000,7 @@ export class FoundryDataAccess {
        const patch: Record<string, any> = {};
        if (u.name !== undefined) patch.name = u.name;
        if (u.img !== undefined) patch.img = u.img;
@@ -12202,7 +12247,7 @@ index eecda7e..e064895 100644
        if (u.system !== undefined) {
          // Build a single patch.system nested object so Foundry deep-merges everything
          // in one pass without flat-key vs nested-key conflicts.
-@@ -11504,6 +16008,19 @@ export class FoundryDataAccess {
+@@ -11504,6 +16023,19 @@ export class FoundryDataAccess {
          }
          patch.system = systemPatch;
        }
@@ -23552,10 +23597,10 @@ index 0000000..ef4d95e
 +});
 diff --git a/packages/mcp-server/src/tools/combat-tools.ts b/packages/mcp-server/src/tools/combat-tools.ts
 new file mode 100644
-index 0000000..45f707d
+index 0000000..0bca1a9
 --- /dev/null
 +++ b/packages/mcp-server/src/tools/combat-tools.ts
-@@ -0,0 +1,89 @@
+@@ -0,0 +1,91 @@
 +import { z } from 'zod';
 +import { FoundryClient } from '../foundry-client.js';
 +import { Logger } from '../logger.js';
@@ -23588,6 +23633,7 @@ index 0000000..45f707d
 +    ability: z.string().min(1).optional(),
 +    save: z.string().min(1).optional(),
 +    dc: z.number().min(0).max(40).optional(),
++    public: z.boolean().optional(),
 +  })
 +  .strict();
 +
@@ -23606,7 +23652,7 @@ index 0000000..45f707d
 +        name: 'combat',
 +        description:
 +          'Run the combat tracker (Foundry\'s own, so tracker modules keep working). Every action returns a short readout: round, whose turn, and one line per combatant in order (initiative, name, hp, conditions). ' +
-+          'ACTIONS: status; start {scene?, who?, roll?, begin?} makes the encounter from tokens on the scene (who = list of: "all" (default), "hostile", "friendly", "neutral", "players", "npcs", or token/actor names; hidden tokens are included), rolls initiative for the ones without one (roll: missing (default) | npcs | all | none) and begins it (begin:false to only set it up); add {who, roll?} adds more tokens mid-fight; remove {names}; roll {names? | roll?} rolls initiative (default for everyone still without one); set_initiative {initiative:[{name, value}]}; next, previous, next_round move the turn (the first next begins the combat); damage / heal {amounts:[{target, amount}]} apply to combatants (or scene tokens) by name, through the system rules (temp HP, resistances are the system\'s job) and report hp before and after; defeat {names, defeated?(true)} marks defeated or not; end ends and deletes the encounter. ATTACK AND CHECK (the dnd5e system does the maths: modifiers, advantage, critical hits, resistances, chat cards): attack {attacker, item?, targets?, advantage?, disadvantage?, apply?(true)} uses an item of the attacker (default its first attack or save): spends its charges or slot, rolls the attack against each target (the target is targeted first, so the roll uses its AC and the card shows hit or miss), rolls damage on a hit (double dice on a crit) and applies it, reporting roll, natural, hit, damage and hp before and after; a save item (a breath weapon) rolls damage once and each target rolls a saving throw against its DC; apply:false rolls without applying. check {who:[names], skill | ability | save, dc?, advantage?, disadvantage?} rolls a skill (perception or prc), an ability check or a saving throw (dex or dexterity) for each name and reports totals and success against dc. attacker, targets and who match combatants, then scene tokens, then actors. Names match exactly, else part of a name or the actor name. Needs the Foundry tab open in a browser.',
++          'ACTIONS: status; start {scene?, who?, roll?, begin?} makes the encounter from tokens on the scene (who = list of: "all" (default), "hostile", "friendly", "neutral", "players", "npcs", or token/actor names; hidden tokens are included), rolls initiative for the ones without one (roll: missing (default) | npcs | all | none) and begins it (begin:false to only set it up); add {who, roll?} adds more tokens mid-fight; remove {names}; roll {names? | roll?} rolls initiative (default for everyone still without one); set_initiative {initiative:[{name, value}]}; next, previous, next_round move the turn (the first next begins the combat); damage / heal {amounts:[{target, amount}]} apply to combatants (or scene tokens) by name, through the system rules (temp HP, resistances are the system\'s job) and report hp before and after; defeat {names, defeated?(true)} marks defeated or not; end ends and deletes the encounter. ATTACK AND CHECK (the dnd5e system does the maths: modifiers, advantage, critical hits, resistances, chat cards): attack {attacker, item?, targets?, advantage?, disadvantage?, apply?(true)} uses an item of the attacker (default its first attack or save): spends its charges or slot, rolls the attack against each target (the target is targeted first, so the roll uses its AC and the card shows hit or miss), rolls damage on a hit (double dice on a crit) and applies it, reporting roll, natural, hit, damage and hp before and after; a save item (a breath weapon) rolls damage once and each target rolls a saving throw against its DC; apply:false rolls without applying. check {who:[names], skill | ability | save, dc?, advantage?, disadvantage?} rolls a skill (perception or prc), an ability check or a saving throw (dex or dexterity) for each name and reports totals and success against dc. Rolls are posted to the GM only unless public:true. attacker, targets and who match combatants, then scene tokens, then actors. Names match exactly, else part of a name or the actor name. Needs the Foundry tab open in a browser.',
 +        inputSchema: {
 +          type: 'object',
 +          properties: {
@@ -23629,6 +23675,7 @@ index 0000000..45f707d
 +            ability: { type: 'string', description: 'check: an ability check, e.g. dex' },
 +            save: { type: 'string', description: 'check: a saving throw, e.g. wis' },
 +            dc: { type: 'number', description: 'check: the difficulty; success is reported against it' },
++            public: { type: 'boolean', description: 'attack, check: post the rolls for everyone (default: GM only, so hidden monsters are not given away)' },
 +          },
 +          required: ['action'],
 +          additionalProperties: false,
@@ -34788,7 +34835,7 @@ index 0000000..75481f8
 +  });
 +});
 diff --git a/packages/mcp-server/src/tools/token-manipulation.ts b/packages/mcp-server/src/tools/token-manipulation.ts
-index 6afedf1..651001b 100644
+index 6afedf1..0f9dc84 100644
 --- a/packages/mcp-server/src/tools/token-manipulation.ts
 +++ b/packages/mcp-server/src/tools/token-manipulation.ts
 @@ -24,7 +24,7 @@ export class TokenManipulationTools {
@@ -34894,8 +34941,8 @@ index 6afedf1..651001b 100644
          success: true,
          tokenId,
 -        newPosition: { x, y },
-+        newPosition: result?.newPosition ?? { x, y },
-+        ...(result?.newSquares ? { newSquares: result.newSquares } : {}),
++        ...(result?.moved === false ? {} : { newPosition: result?.newPosition ?? { x, y } }),
++        ...(result?.moved !== false && result?.newSquares ? { newSquares: result.newSquares } : {}),
 +        ...(result?.scene ? { scene: result.scene } : {}),
          animated: animate,
 +        ...(result?.moved === false ? { moved: false } : result?.moved ? { moved: true } : {}),

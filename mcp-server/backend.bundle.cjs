@@ -116813,8 +116813,8 @@ var TokenManipulationTools = class {
       return {
         success: true,
         tokenId,
-        newPosition: result?.newPosition ?? { x, y },
-        ...result?.newSquares ? { newSquares: result.newSquares } : {},
+        ...result?.moved === false ? {} : { newPosition: result?.newPosition ?? { x, y } },
+        ...result?.moved !== false && result?.newSquares ? { newSquares: result.newSquares } : {},
         ...result?.scene ? { scene: result.scene } : {},
         animated: animate,
         ...result?.moved === false ? { moved: false } : result?.moved ? { moved: true } : {},
@@ -123447,7 +123447,8 @@ var schema8 = external_exports.object({
   skill: external_exports.string().min(1).optional(),
   ability: external_exports.string().min(1).optional(),
   save: external_exports.string().min(1).optional(),
-  dc: external_exports.number().min(0).max(40).optional()
+  dc: external_exports.number().min(0).max(40).optional(),
+  public: external_exports.boolean().optional()
 }).strict();
 var CombatTools = class {
   foundryClient;
@@ -123460,7 +123461,7 @@ var CombatTools = class {
     return [
       {
         name: "combat",
-        description: `Run the combat tracker (Foundry's own, so tracker modules keep working). Every action returns a short readout: round, whose turn, and one line per combatant in order (initiative, name, hp, conditions). ACTIONS: status; start {scene?, who?, roll?, begin?} makes the encounter from tokens on the scene (who = list of: "all" (default), "hostile", "friendly", "neutral", "players", "npcs", or token/actor names; hidden tokens are included), rolls initiative for the ones without one (roll: missing (default) | npcs | all | none) and begins it (begin:false to only set it up); add {who, roll?} adds more tokens mid-fight; remove {names}; roll {names? | roll?} rolls initiative (default for everyone still without one); set_initiative {initiative:[{name, value}]}; next, previous, next_round move the turn (the first next begins the combat); damage / heal {amounts:[{target, amount}]} apply to combatants (or scene tokens) by name, through the system rules (temp HP, resistances are the system's job) and report hp before and after; defeat {names, defeated?(true)} marks defeated or not; end ends and deletes the encounter. ATTACK AND CHECK (the dnd5e system does the maths: modifiers, advantage, critical hits, resistances, chat cards): attack {attacker, item?, targets?, advantage?, disadvantage?, apply?(true)} uses an item of the attacker (default its first attack or save): spends its charges or slot, rolls the attack against each target (the target is targeted first, so the roll uses its AC and the card shows hit or miss), rolls damage on a hit (double dice on a crit) and applies it, reporting roll, natural, hit, damage and hp before and after; a save item (a breath weapon) rolls damage once and each target rolls a saving throw against its DC; apply:false rolls without applying. check {who:[names], skill | ability | save, dc?, advantage?, disadvantage?} rolls a skill (perception or prc), an ability check or a saving throw (dex or dexterity) for each name and reports totals and success against dc. attacker, targets and who match combatants, then scene tokens, then actors. Names match exactly, else part of a name or the actor name. Needs the Foundry tab open in a browser.`,
+        description: `Run the combat tracker (Foundry's own, so tracker modules keep working). Every action returns a short readout: round, whose turn, and one line per combatant in order (initiative, name, hp, conditions). ACTIONS: status; start {scene?, who?, roll?, begin?} makes the encounter from tokens on the scene (who = list of: "all" (default), "hostile", "friendly", "neutral", "players", "npcs", or token/actor names; hidden tokens are included), rolls initiative for the ones without one (roll: missing (default) | npcs | all | none) and begins it (begin:false to only set it up); add {who, roll?} adds more tokens mid-fight; remove {names}; roll {names? | roll?} rolls initiative (default for everyone still without one); set_initiative {initiative:[{name, value}]}; next, previous, next_round move the turn (the first next begins the combat); damage / heal {amounts:[{target, amount}]} apply to combatants (or scene tokens) by name, through the system rules (temp HP, resistances are the system's job) and report hp before and after; defeat {names, defeated?(true)} marks defeated or not; end ends and deletes the encounter. ATTACK AND CHECK (the dnd5e system does the maths: modifiers, advantage, critical hits, resistances, chat cards): attack {attacker, item?, targets?, advantage?, disadvantage?, apply?(true)} uses an item of the attacker (default its first attack or save): spends its charges or slot, rolls the attack against each target (the target is targeted first, so the roll uses its AC and the card shows hit or miss), rolls damage on a hit (double dice on a crit) and applies it, reporting roll, natural, hit, damage and hp before and after; a save item (a breath weapon) rolls damage once and each target rolls a saving throw against its DC; apply:false rolls without applying. check {who:[names], skill | ability | save, dc?, advantage?, disadvantage?} rolls a skill (perception or prc), an ability check or a saving throw (dex or dexterity) for each name and reports totals and success against dc. Rolls are posted to the GM only unless public:true. attacker, targets and who match combatants, then scene tokens, then actors. Names match exactly, else part of a name or the actor name. Needs the Foundry tab open in a browser.`,
         inputSchema: {
           type: "object",
           properties: {
@@ -123482,7 +123483,8 @@ var CombatTools = class {
             skill: { type: "string", description: "check: a skill, e.g. perception or prc" },
             ability: { type: "string", description: "check: an ability check, e.g. dex" },
             save: { type: "string", description: "check: a saving throw, e.g. wis" },
-            dc: { type: "number", description: "check: the difficulty; success is reported against it" }
+            dc: { type: "number", description: "check: the difficulty; success is reported against it" },
+            public: { type: "boolean", description: "attack, check: post the rolls for everyone (default: GM only, so hidden monsters are not given away)" }
           },
           required: ["action"],
           additionalProperties: false
