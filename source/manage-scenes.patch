@@ -26153,10 +26153,10 @@ index 0000000..5df82b5
 +});
 diff --git a/packages/mcp-server/src/tools/layout-tool.test.ts b/packages/mcp-server/src/tools/layout-tool.test.ts
 new file mode 100644
-index 0000000..0af03d8
+index 0000000..55ad7a1
 --- /dev/null
 +++ b/packages/mcp-server/src/tools/layout-tool.test.ts
-@@ -0,0 +1,336 @@
+@@ -0,0 +1,361 @@
 +import { afterAll, describe, expect, it, vi } from 'vitest';
 +import { promises as fs } from 'fs';
 +import os from 'os';
@@ -26437,7 +26437,7 @@ index 0000000..0af03d8
 +      await make(tools, 'Apply one');
 +      const result = await tools.handleLayout({ action: 'apply_walls', layout: 'apply one', scene: 'Cave' });
 +
-+      expect(calls.map(c => c.data.action)).toEqual(['describe', 'remove', 'place']);
++      expect(calls.map(c => c.data.action)).toEqual(['describe', 'remove', 'place', 'describe']);
 +      expect(calls[0].data).toMatchObject({ scene: 'Cave', kind: 'wall' });
 +      expect(calls[1].data).toMatchObject({ all_mine: true, kind: 'wall' });
 +      const objects = calls[2].data.objects;
@@ -26453,7 +26453,7 @@ index 0000000..0af03d8
 +      const { tools, calls } = withFoundry();
 +      await make(tools, 'Apply two');
 +      await tools.handleLayout({ action: 'apply_walls', layout: 'apply two', replace: false, shift: [0.5, -1] });
-+      expect(calls.map(c => c.data.action)).toEqual(['describe', 'place']);
++      expect(calls.map(c => c.data.action)).toEqual(['describe', 'place', 'describe']);
 +      const xs = calls[1].data.objects.flatMap((o: any) => o.points.map((p: number[]) => p[0]));
 +      expect(Math.min(...xs)).toBe(2.5);
 +      const ys = calls[1].data.objects.flatMap((o: any) => o.points.map((p: number[]) => p[1]));
@@ -26464,6 +26464,31 @@ index 0000000..0af03d8
 +      expect(dry.dryRun).toBe(true);
 +      expect(dry.doors).toBe(2);
 +      expect(calls.length).toBe(before);
++    });
++
++    it('checks the walls afterwards, joins gaps and reports what is left', async () => {
++      const calls: any[] = [];
++      let described = 0;
++      const query = vi.fn(async (method: string, data: any) => {
++        calls.push({ method, data });
++        if (data.action === 'describe') {
++          described++;
++          if (described === 1) return { success: true, scene: { id: 's1', name: 'Cave' }, grid: { columns: 20, rows: 12 } };
++          return { success: true, walls: [
++            { id: 'a', from: [0, 0], to: [4, 0], door: null, createdByTool: true },
++            { id: 'b', from: [4.3, 0], to: [4.3, 3], door: null, createdByTool: true },
++            { id: 'c', from: [4, 0], to: [4, 1], door: null, createdByTool: true },
++          ] };
++        }
++        if (data.action === 'remove') return { success: true, removed: [] };
++        return { success: true, created: (data.objects ?? []).map((_: any, i: number) => ({ id: 'w' + i })) };
++      });
++      const logger: any = { info: vi.fn(), debug: vi.fn(), error: vi.fn(), warn: vi.fn(), child: () => logger };
++      const tools = new LayoutTools({ logger, folder, foundryClient: { query } as any });
++      await make(tools, 'Apply check');
++      const result = await tools.handleLayout({ action: 'apply_walls', layout: 'apply check', replace: false });
++      expect(result.wallCheck.fixed).toBeGreaterThan(0);
++      expect(calls.some(c => c.data.action === 'remove' && c.data.ids?.includes('b'))).toBe(true);
 +    });
 +
 +    it('refuses a scene whose squares do not match the layout, and works without a connection', async () => {
@@ -27514,11 +27539,12 @@ index 0000000..5b5d028
 +
 diff --git a/packages/mcp-server/src/tools/layout.ts b/packages/mcp-server/src/tools/layout.ts
 new file mode 100644
-index 0000000..ea23c7f
+index 0000000..9a340bf
 --- /dev/null
 +++ b/packages/mcp-server/src/tools/layout.ts
-@@ -0,0 +1,878 @@
+@@ -0,0 +1,907 @@
 +import { promises as fs } from 'fs';
++import { checkWalls, planFixes, type CheckWall } from './wall-check-utils.js';
 +import path from 'path';
 +import { z } from 'zod';
 +import { FoundryClient } from '../foundry-client.js';
@@ -28013,6 +28039,7 @@ index 0000000..ea23c7f
 +      created += res?.created?.length ?? 0;
 +    }
 +    this.logger.info('Layout walls placed', { layout: doc.id, ...plan, removed, created });
++    const check = await this.checkAndRepairWalls(scene);
 +    return {
 +      success: true,
 +      layout: doc.id,
@@ -28020,8 +28047,35 @@ index 0000000..ea23c7f
 +      ...plan,
 +      removedOldWalls: removed,
 +      wallSegmentsCreated: created,
++      ...(check ? { wallCheck: check } : {}),
 +      next: 'Open preview-scene to check where the walls fall on the picture; the generated art often draws its walls a little inside or outside the floor edge, so use shift or manage-scene-objects to adjust.',
 +    };
++  }
++
++  /** After placing walls: join ends that stop just short, drop duplicates, and report what is left. Never fails the placement. */
++  private async checkAndRepairWalls(scene: string | undefined): Promise<any | undefined> {
++    try {
++      const q = (data: any) => this.client().query('foundry-mcp-bridge.manage-scene-objects', data);
++      const target = scene ? { scene } : {};
++      const read = await q({ action: 'describe', kind: 'wall', ...target });
++      const walls: CheckWall[] = read?.walls;
++      if (!Array.isArray(walls)) return undefined;
++      const issues = checkWalls(walls);
++      const plan = planFixes(walls, issues);
++      if (plan.remove.length > 0) {
++        await q({ action: 'remove', kind: 'wall', ids: plan.remove, ...target });
++        if (plan.place.length > 0) await q({ action: 'place', ...target, objects: plan.place.map(p => ({ kind: 'wall', ...p })) });
++      }
++      const left = issues.filter(i => !i.fixable);
++      return {
++        fixed: plan.remove.length,
++        remaining: left.length,
++        ...(left.length > 0 ? { issues: left.slice(0, 10).map(i => i.message), note: 'Check these on preview-scene; loose ends are fine at open edges. Run manage-scene-objects check_walls to see all.' } : {}),
++      };
++    } catch (error) {
++      this.logger.warn('Wall check after placing failed', { error: error instanceof Error ? error.message : String(error) });
++      return undefined;
++    }
 +  }
 +
 +  private client(): FoundryClient {
@@ -30433,10 +30487,10 @@ index 0000000..49a16cf
 +}
 diff --git a/packages/mcp-server/src/tools/scene-objects.test.ts b/packages/mcp-server/src/tools/scene-objects.test.ts
 new file mode 100644
-index 0000000..eb8f72a
+index 0000000..e6495af
 --- /dev/null
 +++ b/packages/mcp-server/src/tools/scene-objects.test.ts
-@@ -0,0 +1,393 @@
+@@ -0,0 +1,432 @@
 +import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 +import { promises as fs } from 'fs';
 +import { SceneObjectTools } from './scene-objects.js';
@@ -30830,12 +30884,51 @@ index 0000000..eb8f72a
 +    expect(query).not.toHaveBeenCalled();
 +  });
 +});
++
++import { compactWallDescription, slimPreviewInfo } from './scene-objects.js';
++
++describe('smaller results', () => {
++  it('keeps only what is in view in the preview legend, and drops it when labels are off', () => {
++    const info = {
++      region: { x: 0, y: 0, width: 5, height: 5 },
++      layers: ['image'],
++      labelEvery: 1,
++      legend: { tokens: [{ n: 1, x: 1, y: 1, width: 1, height: 1 }, { n: 2, x: 20, y: 20, width: 1, height: 1 }], lights: [{ n: 'L1', x: 30, y: 30 }], notes: [], regions: [{ n: 'R1' }] },
++    };
++    const slim = slimPreviewInfo(info, {}, undefined);
++    expect(slim.legend.tokens).toHaveLength(1);
++    expect(slim.legend.lights).toHaveLength(0);
++    expect(slim.legend.regions).toBeUndefined();
++    expect(slim.layers).toBeUndefined();
++    expect(slimPreviewInfo(info, { labels: 'none' }, undefined).legend).toBeUndefined();
++    expect(slimPreviewInfo(info, { labels: 'none' }, true).legend).toBeDefined();
++    expect(slimPreviewInfo(info, {}, false).legend).toBeUndefined();
++  });
++
++  it('describes walls as short rows and can limit them to a region', () => {
++    const result = {
++      success: true,
++      walls: [
++        { id: 'a', from: [0, 0], to: [2, 0], door: null, createdByTool: true },
++        { id: 'b', from: [20, 20], to: [22, 20], door: 'door', doorState: 'locked', createdByTool: false },
++      ],
++    };
++    const all = compactWallDescription(result);
++    expect(all.walls).toEqual([
++      { id: 'a', c: [0, 0, 2, 0] },
++      { id: 'b', c: [20, 20, 22, 20], door: 'door', state: 'locked', other: true },
++    ]);
++    const near = compactWallDescription(result, { x: 0, y: 0, width: 5, height: 5 });
++    expect(near.walls.map((w: any) => w.id)).toEqual(['a']);
++    expect(near.shown).toBe(1);
++  });
++});
 diff --git a/packages/mcp-server/src/tools/scene-objects.ts b/packages/mcp-server/src/tools/scene-objects.ts
 new file mode 100644
-index 0000000..bb080c9
+index 0000000..da1485a
 --- /dev/null
 +++ b/packages/mcp-server/src/tools/scene-objects.ts
-@@ -0,0 +1,835 @@
+@@ -0,0 +1,891 @@
 +import { promises as fs } from 'fs';
 +import { checkWalls, planFixes, type CheckWall } from './wall-check-utils.js';
 +import os from 'os';
@@ -30987,10 +31080,55 @@ index 0000000..bb080c9
 +  soundSchema,
 +]);
 +
++/** Preview result without the parts the caller does not need: the legend only for what is in view, and only when labels are on. */
++export function slimPreviewInfo(info: any, sent: any, wantLegend: boolean | undefined): any {
++  const { legend, layers: _layers, labelEvery: _every, ...rest } = info;
++  const show = wantLegend ?? sent.labels !== 'none';
++  if (!show || !legend) return rest;
++  const view = info.region as { x: number; y: number; width: number; height: number } | undefined;
++  const inView = (x: number, y: number, w = 0, h = 0) =>
++    !view || (x + w >= view.x && x <= view.x + view.width && y + h >= view.y && y <= view.y + view.height);
++  return {
++    ...rest,
++    legend: {
++      ...(legend.tokens ? { tokens: legend.tokens.filter((t: any) => inView(t.x, t.y, t.width, t.height)) } : {}),
++      ...(legend.lights ? { lights: legend.lights.filter((l: any) => inView(l.x, l.y)) } : {}),
++      ...(legend.notes ? { notes: legend.notes.filter((n: any) => inView(n.x, n.y)) } : {}),
++      ...(legend.tiles ? { tiles: legend.tiles } : {}),
++      ...(!view && legend.regions ? { regions: legend.regions } : {}),
++    },
++  };
++}
++
++/** Walls as short rows, optionally only those touching a region: {id, c:[x1,y1,x2,y2], door?, state?, other?}. */
++export function compactWallDescription(result: any, region?: { x: number; y: number; width: number; height: number }): any {
++  const walls: any[] = Array.isArray(result?.walls) ? result.walls : [];
++  const inRegion = (w: any) => {
++    if (!region) return true;
++    const minX = Math.min(w.from[0], w.to[0]);
++    const maxX = Math.max(w.from[0], w.to[0]);
++    const minY = Math.min(w.from[1], w.to[1]);
++    const maxY = Math.max(w.from[1], w.to[1]);
++    return maxX >= region.x && minX <= region.x + region.width && maxY >= region.y && minY <= region.y + region.height;
++  };
++  const rows = walls.filter(inRegion).map(w => ({
++    id: w.id,
++    c: [w.from[0], w.from[1], w.to[0], w.to[1]],
++    ...(w.door ? { door: w.door, state: w.doorState } : {}),
++    ...(w.createdByTool === false ? { other: true } : {}),
++  }));
++  const { walls: _walls, ...rest } = result;
++  return { ...rest, ...(region ? { shown: rows.length } : {}), walls: rows, format: 'c = [x1, y1, x2, y2] in grid squares; other = not placed by this tool (cannot be removed)' };
++}
++
 +const sceneObjectsSchema = z
 +  .object({
 +    action: z.enum(['place', 'describe', 'remove', 'update', 'check_walls']),
 +    fix: z.boolean().optional(),
++    region: z
++      .object({ x: z.number(), y: z.number(), width: z.number().min(0.1), height: z.number().min(0.1) })
++      .strict()
++      .optional(),
 +    tolerance: z.number().min(0.05).max(1.5).optional(),
 +    scene: z.string().min(1).optional(),
 +    objects: z.array(objectSchema).min(1).max(200).optional(),
@@ -31088,6 +31226,7 @@ index 0000000..bb080c9
 +    labels: z.enum(['numbers', 'names', 'none']).optional(),
 +    dim: z.number().min(0).max(0.9).optional(),
 +    text: z.boolean().optional(),
++    legend: z.boolean().optional(),
 +    region: z
 +      .object({
 +        x: z.number().min(0),
@@ -31140,6 +31279,7 @@ index 0000000..bb080c9
 +          type: 'object',
 +          properties: {
 +            action: { type: 'string', enum: ['place', 'describe', 'remove', 'update', 'check_walls'] },
++            region: { type: 'object', description: 'describe walls: only the walls touching this rectangle {x, y, width, height} in grid squares (saves tokens)', properties: { x: { type: 'number' }, y: { type: 'number' }, width: { type: 'number' }, height: { type: 'number' } }, required: ['x', 'y', 'width', 'height'] },
 +            fix: { type: 'boolean', description: 'check_walls: repair what can be repaired (walls this tool placed) by moving ends to join and removing duplicates' },
 +            tolerance: { type: 'number', description: 'check_walls: how close (squares) an end must be to another wall to count as a gap (default 0.45)' },
 +            updates: {
@@ -31419,6 +31559,11 @@ index 0000000..bb080c9
 +                'numbers (default): tokens numbered 1, 2, 3..., lights L1..., regions R1..., with the list (names, positions, hidden) in the result so labels never overlap; names: write the names on the picture; none',
 +            },
 +            dim: { type: 'number', description: 'Darken the map image 0 to 0.9 so the overlay stands out' },
++            legend: {
++              type: 'boolean',
++              description:
++                'Include the list of tokens, lights and pins (names, positions) in the result. Default: yes when labels are on, and for a zoomed picture only what is in view. Pass false to save tokens when you only want the picture.',
++            },
 +            text: {
 +              type: 'boolean',
 +              description:
@@ -31469,8 +31614,9 @@ index 0000000..bb080c9
 +    if (parsed.action === 'check_walls') return this.checkSceneWalls(parsed);
 +    try {
 +      // The label of a light is only a note for the caller; do not send it.
++      const { region: _region, ...sent } = parsed;
 +      const payload = {
-+        ...parsed,
++        ...sent,
 +        ...(parsed.objects
 +          ? {
 +              objects: parsed.objects.map(o => {
@@ -31490,6 +31636,7 @@ index 0000000..bb080c9
 +      if (result?.success === false) {
 +        throw new Error(result.error || 'Request was refused');
 +      }
++      if (parsed.action === 'describe' && parsed.kind === 'wall') return compactWallDescription(result, parsed.region);
 +      return result;
 +    } catch (error) {
 +      this.logger.error('Failed to manage scene objects', error);
@@ -31605,7 +31752,9 @@ index 0000000..bb080c9
 +  }
 +
 +  async handlePreviewScene(args: any): Promise<any> {
-+    const { text, ...parsed } = previewSchema.parse(args ?? {});
++    const { text, legend: wantLegend, ...parsedArgs } = previewSchema.parse(args ?? {});
++    // A zoomed picture does not need to be big: default to a smaller one (cheaper to look at).
++    const parsed = parsedArgs.region && parsedArgs.max_size === undefined ? { ...parsedArgs, max_size: 1000 } : parsedArgs;
 +
 +    if (text) {
 +      try {
@@ -31646,7 +31795,7 @@ index 0000000..bb080c9
 +      await this.pruneOldPreviews(dir);
 +
 +      this.logger.info('Scene preview saved', { file });
-+      return { ...info, file };
++      return { ...slimPreviewInfo(info, parsed, wantLegend), file };
 +    } catch (error) {
 +      this.logger.error('Failed to preview scene', error);
 +      throw new Error(

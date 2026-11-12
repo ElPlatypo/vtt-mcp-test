@@ -121617,9 +121617,48 @@ var objectSchema = external_exports.union([
   tileSchema,
   soundSchema
 ]);
+function slimPreviewInfo(info, sent, wantLegend) {
+  const { legend, layers: _layers, labelEvery: _every, ...rest } = info;
+  const show = wantLegend ?? sent.labels !== "none";
+  if (!show || !legend)
+    return rest;
+  const view = info.region;
+  const inView = (x, y, w = 0, h = 0) => !view || x + w >= view.x && x <= view.x + view.width && y + h >= view.y && y <= view.y + view.height;
+  return {
+    ...rest,
+    legend: {
+      ...legend.tokens ? { tokens: legend.tokens.filter((t) => inView(t.x, t.y, t.width, t.height)) } : {},
+      ...legend.lights ? { lights: legend.lights.filter((l) => inView(l.x, l.y)) } : {},
+      ...legend.notes ? { notes: legend.notes.filter((n) => inView(n.x, n.y)) } : {},
+      ...legend.tiles ? { tiles: legend.tiles } : {},
+      ...!view && legend.regions ? { regions: legend.regions } : {}
+    }
+  };
+}
+function compactWallDescription(result, region2) {
+  const walls = Array.isArray(result?.walls) ? result.walls : [];
+  const inRegion = (w) => {
+    if (!region2)
+      return true;
+    const minX = Math.min(w.from[0], w.to[0]);
+    const maxX = Math.max(w.from[0], w.to[0]);
+    const minY = Math.min(w.from[1], w.to[1]);
+    const maxY = Math.max(w.from[1], w.to[1]);
+    return maxX >= region2.x && minX <= region2.x + region2.width && maxY >= region2.y && minY <= region2.y + region2.height;
+  };
+  const rows = walls.filter(inRegion).map((w) => ({
+    id: w.id,
+    c: [w.from[0], w.from[1], w.to[0], w.to[1]],
+    ...w.door ? { door: w.door, state: w.doorState } : {},
+    ...w.createdByTool === false ? { other: true } : {}
+  }));
+  const { walls: _walls, ...rest } = result;
+  return { ...rest, ...region2 ? { shown: rows.length } : {}, walls: rows, format: "c = [x1, y1, x2, y2] in grid squares; other = not placed by this tool (cannot be removed)" };
+}
 var sceneObjectsSchema = external_exports.object({
   action: external_exports.enum(["place", "describe", "remove", "update", "check_walls"]),
   fix: external_exports.boolean().optional(),
+  region: external_exports.object({ x: external_exports.number(), y: external_exports.number(), width: external_exports.number().min(0.1), height: external_exports.number().min(0.1) }).strict().optional(),
   tolerance: external_exports.number().min(0.05).max(1.5).optional(),
   scene: external_exports.string().min(1).optional(),
   objects: external_exports.array(objectSchema).min(1).max(200).optional(),
@@ -121694,6 +121733,7 @@ var previewSchema = external_exports.object({
   labels: external_exports.enum(["numbers", "names", "none"]).optional(),
   dim: external_exports.number().min(0).max(0.9).optional(),
   text: external_exports.boolean().optional(),
+  legend: external_exports.boolean().optional(),
   region: external_exports.object({
     x: external_exports.number().min(0),
     y: external_exports.number().min(0),
@@ -121732,6 +121772,7 @@ var SceneObjectTools = class {
           type: "object",
           properties: {
             action: { type: "string", enum: ["place", "describe", "remove", "update", "check_walls"] },
+            region: { type: "object", description: "describe walls: only the walls touching this rectangle {x, y, width, height} in grid squares (saves tokens)", properties: { x: { type: "number" }, y: { type: "number" }, width: { type: "number" }, height: { type: "number" } }, required: ["x", "y", "width", "height"] },
             fix: { type: "boolean", description: "check_walls: repair what can be repaired (walls this tool placed) by moving ends to join and removing duplicates" },
             tolerance: { type: "number", description: "check_walls: how close (squares) an end must be to another wall to count as a gap (default 0.45)" },
             updates: {
@@ -121994,6 +122035,10 @@ var SceneObjectTools = class {
               description: "numbers (default): tokens numbered 1, 2, 3..., lights L1..., regions R1..., with the list (names, positions, hidden) in the result so labels never overlap; names: write the names on the picture; none"
             },
             dim: { type: "number", description: "Darken the map image 0 to 0.9 so the overlay stands out" },
+            legend: {
+              type: "boolean",
+              description: "Include the list of tokens, lights and pins (names, positions) in the result. Default: yes when labels are on, and for a zoomed picture only what is in view. Pass false to save tokens when you only want the picture."
+            },
             text: {
               type: "boolean",
               description: "Return a text map instead of a picture (no image needed): walls #, doors D, secret doors s, tokens as 1-9/A-Z, lights *, pins n, regions : ! ~ on a character grid with column and row numbers, plus a key. Exact and cheap for crowded scenes."
@@ -122039,8 +122084,9 @@ var SceneObjectTools = class {
     if (parsed.action === "check_walls")
       return this.checkSceneWalls(parsed);
     try {
+      const { region: _region, ...sent } = parsed;
       const payload = {
-        ...parsed,
+        ...sent,
         ...parsed.objects ? {
           objects: parsed.objects.map((o) => {
             if (o.kind === "light") {
@@ -122055,6 +122101,8 @@ var SceneObjectTools = class {
       if (result?.success === false) {
         throw new Error(result.error || "Request was refused");
       }
+      if (parsed.action === "describe" && parsed.kind === "wall")
+        return compactWallDescription(result, parsed.region);
       return result;
     } catch (error) {
       this.logger.error("Failed to manage scene objects", error);
@@ -122157,7 +122205,8 @@ var SceneObjectTools = class {
     }
   }
   async handlePreviewScene(args) {
-    const { text: text3, ...parsed } = previewSchema.parse(args ?? {});
+    const { text: text3, legend: wantLegend, ...parsedArgs } = previewSchema.parse(args ?? {});
+    const parsed = parsedArgs.region && parsedArgs.max_size === void 0 ? { ...parsedArgs, max_size: 1e3 } : parsedArgs;
     if (text3) {
       try {
         const result = await this.foundryClient.query("foundry-mcp-bridge.preview-scene", { scene: parsed.scene, data_only: true }, PREVIEW_TIMEOUT_MS);
@@ -122185,7 +122234,7 @@ var SceneObjectTools = class {
       await import_fs3.promises.writeFile(file, Buffer.from(imageBase64, "base64"));
       await this.pruneOldPreviews(dir);
       this.logger.info("Scene preview saved", { file });
-      return { ...info, file };
+      return { ...slimPreviewInfo(info, parsed, wantLegend), file };
     } catch (error) {
       this.logger.error("Failed to preview scene", error);
       throw new Error(`Failed to preview scene: ${error instanceof Error ? error.message : "Unknown error"}`);
@@ -126242,6 +126291,7 @@ var LayoutTools = class {
       created += res?.created?.length ?? 0;
     }
     this.logger.info("Layout walls placed", { layout: doc.id, ...plan, removed, created });
+    const check = await this.checkAndRepairWalls(scene);
     return {
       success: true,
       layout: doc.id,
@@ -126249,8 +126299,36 @@ var LayoutTools = class {
       ...plan,
       removedOldWalls: removed,
       wallSegmentsCreated: created,
+      ...check ? { wallCheck: check } : {},
       next: "Open preview-scene to check where the walls fall on the picture; the generated art often draws its walls a little inside or outside the floor edge, so use shift or manage-scene-objects to adjust."
     };
+  }
+  /** After placing walls: join ends that stop just short, drop duplicates, and report what is left. Never fails the placement. */
+  async checkAndRepairWalls(scene) {
+    try {
+      const q = (data) => this.client().query("foundry-mcp-bridge.manage-scene-objects", data);
+      const target2 = scene ? { scene } : {};
+      const read = await q({ action: "describe", kind: "wall", ...target2 });
+      const walls = read?.walls;
+      if (!Array.isArray(walls))
+        return void 0;
+      const issues = checkWalls(walls);
+      const plan = planFixes(walls, issues);
+      if (plan.remove.length > 0) {
+        await q({ action: "remove", kind: "wall", ids: plan.remove, ...target2 });
+        if (plan.place.length > 0)
+          await q({ action: "place", ...target2, objects: plan.place.map((p) => ({ kind: "wall", ...p })) });
+      }
+      const left = issues.filter((i) => !i.fixable);
+      return {
+        fixed: plan.remove.length,
+        remaining: left.length,
+        ...left.length > 0 ? { issues: left.slice(0, 10).map((i) => i.message), note: "Check these on preview-scene; loose ends are fine at open edges. Run manage-scene-objects check_walls to see all." } : {}
+      };
+    } catch (error) {
+      this.logger.warn("Wall check after placing failed", { error: error instanceof Error ? error.message : String(error) });
+      return void 0;
+    }
   }
   client() {
     if (!this.foundryClient)
