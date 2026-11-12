@@ -1655,6 +1655,84 @@ index 0000000..6c9da45
 +  }
 +  return out;
 +}
+diff --git a/packages/foundry-module/src/chat-utils.ts b/packages/foundry-module/src/chat-utils.ts
+new file mode 100644
+index 0000000..7b93eaa
+--- /dev/null
++++ b/packages/foundry-module/src/chat-utils.ts
+@@ -0,0 +1,72 @@
++/**
++ * Chat reading: turning chat messages into short rows that say who spoke, what they said or rolled,
++ * and who a whisper was for, and picking the messages after a marker.
++ */
++import { htmlToText } from './rules-utils.js';
++
++export interface ChatRow {
++  id: string;
++  /** the player or GM who sent it */
++  who: string;
++  /** the character, token or alias it was sent as, when different */
++  as?: string;
++  kind: 'say' | 'roll' | 'whisper' | 'card';
++  text?: string;
++  roll?: { formula: string; total: number | string };
++  flavor?: string;
++  /** recipients of a whisper */
++  to?: string[];
++  fromGM: boolean;
++}
++
++const MAX_TEXT = 400;
++
++const cut = (text: string): string => (text.length > MAX_TEXT ? text.slice(0, MAX_TEXT - 3) + '...' : text);
++
++/** One chat message as a compact row. */
++export function chatRow(message: any, userName: (id: string) => string | undefined): ChatRow {
++  const author = message.author ?? undefined;
++  const authorId = author?.id ?? (typeof message.user === 'string' ? message.user : message.user?.id);
++  const who = author?.name ?? message.user?.name ?? (authorId ? userName(authorId) : undefined) ?? 'unknown';
++  const fromGM = !!(author?.isGM ?? message.user?.isGM);
++  const alias = message.speaker?.alias;
++  const text = htmlToText(message.content).replace(/\s+/g, ' ').trim();
++  const rolls: any[] = Array.isArray(message.rolls) ? message.rolls : [];
++  const whisper: string[] = Array.isArray(message.whisper) ? message.whisper : [];
++  const row: ChatRow = { id: message.id, who, fromGM, kind: whisper.length ? 'whisper' : rolls.length ? 'roll' : text ? 'say' : 'card' };
++  if (alias && alias !== who) row.as = alias;
++  if (text) row.text = cut(text);
++  if (rolls.length) row.roll = { formula: String(rolls[0].formula ?? ''), total: rolls[0].total ?? '' };
++  if (message.flavor) row.flavor = cut(htmlToText(message.flavor));
++  if (whisper.length) {
++    row.to = whisper.map(id => userName(id) ?? id);
++    if (rolls.length && row.kind === 'whisper') row.roll = { formula: String(rolls[0].formula ?? ''), total: rolls[0].total ?? '' };
++  }
++  return row;
++}
++
++export interface ChatFilter {
++  /** only messages after this message id */
++  since?: string | undefined;
++  /** players: only what players sent; all: everything */
++  from?: 'players' | 'all' | undefined;
++  /** false drops pure roll messages */
++  rolls?: boolean | undefined;
++}
++
++/** The messages that pass the filter, oldest first. Unknown `since` ids count as no marker. */
++export function selectMessages(messages: any[], filter: ChatFilter, userName: (id: string) => string | undefined): ChatRow[] {
++  let start = 0;
++  if (filter.since) {
++    const at = messages.findIndex(m => m.id === filter.since);
++    if (at >= 0) start = at + 1;
++  }
++  const rows: ChatRow[] = [];
++  for (const m of messages.slice(start)) {
++    const row = chatRow(m, userName);
++    if (filter.from === 'players' && row.fromGM) continue;
++    if (filter.rolls === false && row.kind === 'roll') continue;
++    rows.push(row);
++  }
++  return rows;
++}
 diff --git a/packages/foundry-module/src/combat-actions.test.ts b/packages/foundry-module/src/combat-actions.test.ts
 new file mode 100644
 index 0000000..29a397c
@@ -2845,6 +2923,107 @@ index 0000000..8e1aad5
 +    const gated = setup(false);
 +    await expect(gated.da.resolveAnnotations({ ids: ['x'] })).rejects.toThrow();
 +    await expect(gated.da.clearAnnotations({})).rejects.toThrow();
++  });
++});
+diff --git a/packages/foundry-module/src/data-access.chat.test.ts b/packages/foundry-module/src/data-access.chat.test.ts
+new file mode 100644
+index 0000000..bce686a
+--- /dev/null
++++ b/packages/foundry-module/src/data-access.chat.test.ts
+@@ -0,0 +1,95 @@
++/** chat: reading, waiting for players, narrating. Foundry is stubbed. */
++import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
++import { FoundryDataAccess } from './data-access.js';
++import { chatRow, selectMessages } from './chat-utils.js';
++
++const users: Record<string, any> = {
++  gm: { id: 'gm', name: 'Gamemaster', isGM: true },
++  cl: { id: 'cl', name: 'Claudio', isGM: false },
++};
++const name = (id: string) => users[id]?.name;
++const msg = (id: string, over: any = {}) => ({ id, author: users.cl, content: '', speaker: { alias: 'Randal' }, rolls: [], whisper: [], ...over });
++
++describe('chat utils', () => {
++  it('writes rows for speech, rolls, whispers and cards', () => {
++    expect(chatRow(msg('a', { content: '<p>I <b>search</b> the bodies.</p>' }), name)).toMatchObject({ kind: 'say', who: 'Claudio', as: 'Randal', text: 'I search the bodies.', fromGM: false });
++    expect(chatRow(msg('b', { rolls: [{ formula: '1d20+5', total: 18 }], flavor: 'Perception' }), name)).toMatchObject({ kind: 'roll', roll: { formula: '1d20+5', total: 18 }, flavor: 'Perception' });
++    expect(chatRow(msg('c', { author: users.gm, content: 'Psst.', whisper: ['cl'], speaker: { alias: 'Gamemaster' } }), name)).toMatchObject({ kind: 'whisper', to: ['Claudio'], fromGM: true });
++    expect(chatRow(msg('d'), name).kind).toBe('card');
++    expect(chatRow(msg('e', { content: 'x'.repeat(500) }), name).text!.length).toBe(400);
++  });
++  it('selects after a marker, by sender and without rolls', () => {
++    const all = [msg('1', { content: 'old' }), msg('2', { author: users.gm, content: 'gm line' }), msg('3', { rolls: [{ formula: '1d20', total: 4 }] }), msg('4', { content: 'new' })];
++    expect(selectMessages(all, { since: '1' }, name).map(r => r.id)).toEqual(['2', '3', '4']);
++    expect(selectMessages(all, { from: 'players' }, name).map(r => r.id)).toEqual(['1', '3', '4']);
++    expect(selectMessages(all, { from: 'players', rolls: false }, name).map(r => r.id)).toEqual(['1', '4']);
++    expect(selectMessages(all, { since: 'nope' }, name)).toHaveLength(4);
++  });
++});
++
++function setup() {
++  const messages: any[] = [msg('1', { content: 'hello' }), msg('2', { author: users.gm, content: 'welcome' })];
++  const create = vi.fn(async (d: any) => {
++    const m = msg('n' + messages.length, { author: users.gm, content: d.content, speaker: d.speaker, whisper: d.whisper ?? [] });
++    messages.push(m);
++    return m;
++  });
++  vi.stubGlobal('Hooks', { on: vi.fn(), callAll: vi.fn() });
++  vi.stubGlobal('ChatMessage', { create });
++  vi.stubGlobal('game', {
++    ready: true,
++    world: { id: 'w', getFlag: vi.fn(() => []), setFlag: vi.fn() },
++    user: users.gm,
++    users: Object.assign([users.gm, users.cl], { get: (id: string) => users[id] }),
++    messages: { contents: messages },
++    settings: { get: (_m: string, key: string) => (key === 'allowWriteOperations' ? true : undefined) },
++  });
++  return { da: new FoundryDataAccess(), messages, create };
++}
++
++describe('controlChat', () => {
++  beforeEach(() => vi.unstubAllGlobals());
++  afterEach(() => vi.unstubAllGlobals());
++
++  it('reads the log with a marker, and only what is new after it', async () => {
++    const { da, messages } = setup();
++    const first = await da.controlChat({});
++    expect(first.messages.map((m: any) => m.id)).toEqual(['1', '2']);
++    expect(first.marker).toBe('2');
++    messages.push(msg('3', { content: 'I attack' }));
++    const next = await da.controlChat({ since: first.marker });
++    expect(next.messages.map((m: any) => m.text)).toEqual(['I attack']);
++    expect((await da.controlChat({ limit: 1 })).omitted).toBe(2);
++  });
++  it('waits for a player message, ignoring the GM, and times out otherwise', async () => {
++    vi.useFakeTimers();
++    try {
++      const { da, messages } = setup();
++      const waiting = da.controlChat({ action: 'wait', timeout_s: 10 });
++      await vi.advanceTimersByTimeAsync(800);
++      messages.push(msg('3', { author: users.gm, content: 'gm only' }));
++      await vi.advanceTimersByTimeAsync(800);
++      messages.push(msg('4', { content: 'I open the door' }));
++      await vi.advanceTimersByTimeAsync(800);
++      const r = await waiting;
++      expect(r).toMatchObject({ timedOut: false, marker: '4' });
++      expect(r.messages.map((m: any) => m.text)).toEqual(['I open the door']);
++      const quiet = da.controlChat({ action: 'wait', timeout_s: 1 });
++      await vi.advanceTimersByTimeAsync(1500);
++      expect(await quiet).toMatchObject({ timedOut: true, messages: [] });
++    } finally {
++      vi.useRealTimers();
++    }
++  });
++  it('narrates publicly or as a whisper, escaping html', async () => {
++    const { da, create } = setup();
++    const pub = await da.controlChat({ action: 'narrate', content: 'The wind <rises>.\n\nA twig snaps.' });
++    expect(create).toHaveBeenLastCalledWith({ content: '<p>The wind &lt;rises&gt;.</p><p>A twig snaps.</p>', speaker: { alias: 'Narrator' } });
++    expect(pub).toMatchObject({ success: true, delivery: 'public' });
++    const priv = await da.controlChat({ action: 'narrate', content: 'You notice a glint.', whisperTo: ['claudio'], speaker: 'Your instincts' });
++    expect(create).toHaveBeenLastCalledWith({ content: '<p>You notice a glint.</p>', speaker: { alias: 'Your instincts' }, whisper: ['cl'] });
++    expect(priv).toMatchObject({ delivery: 'whisper', to: ['Claudio'] });
++    await expect(da.controlChat({ action: 'narrate' })).rejects.toThrow('needs content');
++    await expect(da.controlChat({ action: 'narrate', content: 'x', whisperTo: ['nobody'] })).rejects.toThrow('No matching players');
 +  });
 +});
 diff --git a/packages/foundry-module/src/data-access.combat.test.ts b/packages/foundry-module/src/data-access.combat.test.ts
@@ -7439,10 +7618,10 @@ index 0000000..26e6aab
 +  });
 +});
 diff --git a/packages/foundry-module/src/data-access.ts b/packages/foundry-module/src/data-access.ts
-index eecda7e..6288c87 100644
+index eecda7e..8d1e3c7 100644
 --- a/packages/foundry-module/src/data-access.ts
 +++ b/packages/foundry-module/src/data-access.ts
-@@ -1,6 +1,139 @@
+@@ -1,6 +1,140 @@
  import { MODULE_ID, ERROR_MESSAGES, TOKEN_DISPOSITIONS } from './constants.js';
  import { permissionManager } from './permissions.js';
 +import {
@@ -7578,11 +7757,12 @@ index eecda7e..6288c87 100644
 +import { performAttack, performCheck, type NamedActor } from './combat-actions.js';
 +import { partyRow, pickActors, pickClass, splitXp } from './party-utils.js';
 +import { clipText, htmlToText, searchPages, type RulePage } from './rules-utils.js';
++import { selectMessages } from './chat-utils.js';
 +import { adventureSections, creatureCr, creatureType, findByName, pickHeading, searchSections, type AdventureSection } from './plutonium-utils.js';
  
  // The same five characters foundry.utils.escapeHTML replaces in v14, kept local because
  // that helper isn't confirmed in v13, this module's minimum.
-@@ -1714,6 +1847,71 @@ const DND5E_SIZE: Record<string, string> = {
+@@ -1714,6 +1848,83 @@ const DND5E_SIZE: Record<string, string> = {
    gargantuan: 'gargantuan',
  };
  
@@ -7608,6 +7788,18 @@ index eecda7e..6288c87 100644
 +  dc?: number;
 +  public?: boolean;
 +  consume?: boolean;
++}
++
++export interface ChatControlRequest {
++  action?: 'read' | 'wait' | 'narrate';
++  since?: string;
++  from?: 'players' | 'all';
++  rolls?: boolean;
++  limit?: number;
++  timeout_s?: number;
++  content?: string;
++  speaker?: string;
++  whisperTo?: string[];
 +}
 +
 +export interface PlutoniumRequest {
@@ -7654,7 +7846,7 @@ index eecda7e..6288c87 100644
  export class FoundryDataAccess {
    private moduleId: string = MODULE_ID;
    private persistentIndex: PersistentCreatureIndex = new PersistentCreatureIndex();
-@@ -4681,12 +4879,28 @@ export class FoundryDataAccess {
+@@ -4681,12 +4892,28 @@ export class FoundryDataAccess {
        type: 'random' | 'grid' | 'center' | 'coordinates';
        coordinates?: { x: number; y: number }[];
      };
@@ -7683,7 +7875,7 @@ index eecda7e..6288c87 100644
        // Validate inputs
        if (!packId || !itemId) {
          throw new Error('Both packId and itemId are required');
-@@ -4753,10 +4967,33 @@ export class FoundryDataAccess {
+@@ -4753,10 +4980,33 @@ export class FoundryDataAccess {
            }
  
            // Organize created actors in a folder - use "Foundry MCP Creatures" for generic monsters
@@ -7718,7 +7910,7 @@ index eecda7e..6288c87 100644
  
            // Create the actor
            const newActor = await Actor.create(actorData);
-@@ -6714,7 +6951,7 @@ export class FoundryDataAccess {
+@@ -6714,7 +6964,7 @@ export class FoundryDataAccess {
  
          // Send socket request to GM
          if (game.socket) {
@@ -7727,7 +7919,7 @@ index eecda7e..6288c87 100644
              type: 'requestMessageUpdate',
              buttonId,
              userId,
-@@ -8101,198 +8338,4678 @@ export class FoundryDataAccess {
+@@ -8101,246 +8351,4816 @@ export class FoundryDataAccess {
      }
    }
  
@@ -7742,6 +7934,24 @@ index eecda7e..6288c87 100644
 -  async managePlaylists(options: {
 -    action: 'create' | 'update' | 'delete' | 'describe';
 -    playlist?: string | null;
+-    name?: string;
+-    mode?: number;
+-    fade?: number;
+-    description?: string;
+-    sorting?: 'a' | 'm';
+-    folder?: string | null;
+-    color?: string | null;
+-    sounds?: Array<{
+-      name?: string;
+-      path?: string;
+-      id?: string;
+-      volume?: number;
+-      repeat?: boolean;
+-      fade?: number;
+-    }>;
+-    updates?: Record<string, any>;
+-  }): Promise<any> {
+-    this.validateFoundryState();
 +  private summarizeScene(scene: any): Record<string, any> {
 +    const level = scene.levels?.contents?.[0];
 +    return {
@@ -7777,7 +7987,9 @@ index eecda7e..6288c87 100644
 +        : null,
 +    };
 +  }
-+
+ 
+-    try {
+-      const playlists = () => (game as any).playlists?.contents || [];
 +  /**
 +   * Turn manage-scenes options into a Scene update payload, validating ranges.
 +   * The background image is handled separately (it lives on a Level in v14).
@@ -7805,21 +8017,89 @@ index eecda7e..6288c87 100644
 +      }
 +      return value;
 +    };
-+
+ 
+-      if (options.action === 'describe') {
+-        const doc = options.playlist
+-          ? this.findMusicDoc((game as any).playlists, options.playlist, 'playlist')
+-          : null;
+-        if (!doc) {
+-          return {
+-            success: true,
+-            playlists: playlists().map((pl: any) => ({
+-              id: pl.id,
+-              name: pl.name,
+-              mode: pl.mode,
+-              playing: pl.playing,
+-              soundCount: pl.sounds?.size || 0,
+-            })),
+-          };
+-        }
+-        return {
+-          success: true,
+-          playlist: {
+-            id: doc.id,
+-            name: doc.name,
+-            mode: doc.mode,
+-            playing: doc.playing,
+-            description: doc.description || '',
+-            folder: doc.folder || null,
+-            sort: doc.sort,
+-            sounds: (doc.sounds?.contents || []).map((s: any) => ({
+-              id: s.id,
+-              name: s.name,
+-              path: s.path,
+-              volume: s.volume,
+-              repeat: s.repeat,
+-              fade: s.fade,
+-              playing: s.playing,
+-            })),
+-          },
+-        };
 +    if (options.name !== undefined) {
 +      if (typeof options.name !== 'string' || !options.name.trim()) {
 +        throw new Error('name must be a non-empty string');
-+      }
+       }
 +      data.name = options.name.trim();
 +    }
-+
+ 
+-      if (options.action === 'create') {
+-        if (!options.name || typeof options.name !== 'string') {
+-          throw new Error('name is required for create');
+-        }
+-        const data: Record<string, any> = { name: options.name };
+-        if (options.mode !== undefined) data.mode = options.mode;
+-        if (options.fade !== undefined) data.fade = options.fade;
+-        if (options.description !== undefined) data.description = options.description;
+-        if (options.sorting !== undefined) data.sorting = options.sorting;
+-        if (options.folder !== undefined) data.folder = options.folder;
+-        if (options.color !== undefined) data.color = options.color;
+-        const pl = await ((game as any).playlists as any).createDocuments([data]);
+-        const doc = Array.isArray(pl) ? pl[0] : pl;
 +    const width = number('width', 'width', 100, 20000, true);
 +    if (width !== undefined) data.width = width;
 +    const height = number('height', 'height', 100, 20000, true);
 +    if (height !== undefined) data.height = height;
 +    const padding = number('padding', 'padding', 0, 0.5, false);
 +    if (padding !== undefined) data.padding = padding;
-+
+ 
+-        let soundsCreated = 0;
+-        for (const s of options.sounds || []) {
+-          if (!s.path) {
+-            throw new Error(`sound entry needs a "path": ${JSON.stringify(s)}`);
+-          }
+-          const sdata: Record<string, any> = { path: s.path };
+-          if (s.name !== undefined) sdata.name = s.name;
+-          if (s.volume !== undefined) sdata.volume = s.volume;
+-          if (s.repeat !== undefined) sdata.repeat = s.repeat;
+-          if (s.fade !== undefined) sdata.fade = s.fade;
+-          await (doc as any).createEmbeddedDocuments('PlaylistSound', [sdata]);
+-          soundsCreated++;
+-        }
+-        return {
+-          success: true,
+-          playlist: { id: doc.id, name: doc.name, mode: doc.mode },
+-          soundsCreated,
+-        };
 +    const grid: Record<string, any> = {};
 +    // 50 is Foundry's CONST.GRID_MIN_SIZE
 +    const gridSize = number('grid_size', 'grid_size', 50, 1000, true);
@@ -7835,13 +8115,62 @@ index eecda7e..6288c87 100644
 +    if (options.grid_color !== undefined) {
 +      if (typeof options.grid_color !== 'string' || !/^#[0-9a-fA-F]{6}$/.test(options.grid_color)) {
 +        throw new Error('grid_color must be a #RRGGBB hex string');
-+      }
+       }
 +      grid.color = options.grid_color;
 +    }
 +    const gridAlpha = number('grid_alpha', 'grid_alpha', 0, 1, false);
 +    if (gridAlpha !== undefined) grid.alpha = gridAlpha;
 +    if (Object.keys(grid).length > 0) data.grid = grid;
-+
+ 
+-      if (options.action === 'update') {
+-        const doc = this.findMusicDoc((game as any).playlists, options.playlist, 'playlist');
+-        if (!doc) throw new Error('update requires a playlist identifier');
+-        const patch = { ...(options.updates || {}) } as Record<string, any>;
+-        for (const key of [
+-          'name',
+-          'mode',
+-          'fade',
+-          'description',
+-          'sorting',
+-          'folder',
+-          'color',
+-        ] as const) {
+-          if ((options as any)[key] !== undefined) patch[key] = (options as any)[key];
+-        }
+-        if (Object.keys(patch).length) await doc.update(patch);
+-        // Sound-level ops in the same call
+-        let soundsTouched = 0;
+-        for (const s of options.sounds || []) {
+-          if (!s.path && !s.name && !s.id) continue;
+-          const list = doc.sounds?.contents || [];
+-          let snd: any = null;
+-          if (s.id) snd = list.find((x: any) => x.id === s.id);
+-          else {
+-            const byPath = s.path ? list.filter((x: any) => x.path === s.path) : [];
+-            const byName = s.name ? list.filter((x: any) => x.name === s.name) : [];
+-            snd = byPath.length === 1 ? byPath[0] : byName.length === 1 ? byName[0] : null;
+-          }
+-          if (!snd) {
+-            throw new Error(
+-              `sound not found in playlist "${doc.name}" (need exact id or unique path/name)`
+-            );
+-          }
+-          const spatch: Record<string, any> = {};
+-          if (s.name !== undefined) spatch.name = s.name;
+-          if (s.path !== undefined) spatch.path = s.path;
+-          if (s.volume !== undefined) spatch.volume = s.volume;
+-          if (s.repeat !== undefined) spatch.repeat = s.repeat;
+-          if (s.fade !== undefined) spatch.fade = s.fade;
+-          if (Object.keys(spatch).length) {
+-            await snd.update(spatch);
+-            soundsTouched++;
+-          }
+-        }
+-        return {
+-          success: true,
+-          playlist: { id: doc.id, name: doc.name },
+-          soundsUpdated: soundsTouched,
+-        };
 +    const shiftX = number('grid_shift_x', 'grid_shift_x', -5000, 5000, true);
 +    if (shiftX !== undefined) data.shiftX = shiftX;
 +    const shiftY = number('grid_shift_y', 'grid_shift_y', -5000, 5000, true);
@@ -7853,18 +8182,32 @@ index eecda7e..6288c87 100644
 +    if (options.weather !== undefined) {
 +      if (options.weather !== null && (typeof options.weather !== 'string' || options.weather.length > 64)) {
 +        throw new Error('weather must be a weather effect id (such as rain, snow, fog) or null for none');
-+      }
+       }
 +      data.weather = options.weather ?? '';
 +    }
-+
+ 
+-      if (options.action === 'delete') {
+-        // Delete never guesses: exact id or name only.
+-        const doc = this.findMusicDoc((game as any).playlists, options.playlist, 'playlist', {
+-          exact: true,
+-        });
+-        if (!doc) throw new Error('delete requires a playlist identifier');
+-        const name = doc.name;
+-        await doc.delete();
+-        return { success: true, deleted: name };
 +    if (options.background_color !== undefined) {
 +      const color = options.background_color;
 +      if (color !== null && (typeof color !== 'string' || !/^#[0-9a-fA-F]{6}$/.test(color))) {
 +        throw new Error('background_color must be a #RRGGBB hex string or null');
-+      }
+       }
 +      data.backgroundColor = color;
 +    }
-+
+ 
+-      throw new Error(`Unknown action: ${options.action}`);
+-    } catch (error) {
+-      throw new Error(
+-        `Failed to manage playlists: ${error instanceof Error ? error.message : 'Unknown error'}`
+-      );
 +    if (options.token_vision !== undefined) {
 +      if (typeof options.token_vision !== 'boolean')
 +        throw new Error('token_vision must be boolean');
@@ -7878,7 +8221,7 @@ index eecda7e..6288c87 100644
 +      if (typeof options.global_light !== 'boolean')
 +        throw new Error('global_light must be boolean');
 +      environment.globalLight = { enabled: options.global_light };
-+    }
+     }
 +    if (Object.keys(environment).length > 0) data.environment = environment;
 +
 +    if (options.navigation !== undefined) {
@@ -7891,13 +8234,54 @@ index eecda7e..6288c87 100644
 +    }
 +
 +    return data;
-+  }
-+
-+  /**
+   }
+ 
+   /**
+-   * Playback control. Supports playlist-level play/stop/cycle-mode and
+-   * per-sound play/stop, all through the client Playlist API so the server
+-   * and every connected client stay in sync.
 +   * Set or clear a scene's background image. Foundry v14 removed Scene#background:
 +   * the image lives on the scene's first Level (mirrors socket-bridge's scene creation).
 +   * v13 and earlier use the flat background.src field on the Scene.
-+   */
+    */
+-  async controlPlaylist(options: {
+-    playlist: string;
+-    command: 'play' | 'stop' | 'cycle-mode' | 'play-sound' | 'stop-sound';
+-    sound?: string;
+-  }): Promise<any> {
+-    this.validateFoundryState();
+-
+-    try {
+-      const pl = this.findMusicDoc((game as any).playlists, options.playlist, 'playlist');
+-      if (!pl) throw new Error('playlist identifier is required');
+-      const info = { id: pl.id, name: pl.name, mode: pl.mode };
+-
+-      switch (options.command) {
+-        case 'play':
+-          await pl.playAll();
+-          return { success: true, action: 'play', playlist: info };
+-        case 'stop':
+-          await pl.stopAll();
+-          return { success: true, action: 'stop', playlist: info };
+-        case 'cycle-mode':
+-          await pl.cycleMode();
+-          return { success: true, action: 'cycle-mode', playlist: info, mode: pl.mode as number };
+-        case 'play-sound':
+-        case 'stop-sound': {
+-          if (!options.sound) throw new Error(`command ${options.command} requires "sound"`);
+-          const snd = this.findMusicDoc(pl.sounds, options.sound, 'playlistSound');
+-          if (!snd) throw new Error(`sound not found: "${options.sound}"`);
+-          if (options.command === 'play-sound') await pl.playSound(snd);
+-          else await pl.stopSound(snd);
+-          return {
+-            success: true,
+-            action: options.command,
+-            playlist: info,
+-            sound: { id: snd.id, name: snd.name, path: snd.path },
+-          };
+-        }
+-        default:
+-          throw new Error(`Unknown command: ${options.command}`);
 +  private async applySceneBackground(scene: any, src: string | null): Promise<void> {
 +    const generation = (game as any).release?.generation ?? 0;
 +    if (generation >= 14) {
@@ -7906,18 +8290,30 @@ index eecda7e..6288c87 100644
 +        await level.update({ background: { src } });
 +      } else if (src) {
 +        await scene.createEmbeddedDocuments('Level', [{ name: 'Base', background: { src } }]);
-+      }
+       }
+-    } catch (error) {
+-      throw new Error(
+-        `Failed to control playlist: ${error instanceof Error ? error.message : 'Unknown error'}`
+-      );
 +    } else {
 +      await scene.update({ background: { src } });
-+    }
-+  }
-+
-+  /**
+     }
+   }
+ 
+-  // ===== PHASE 7: CHARACTER ENTITY AND TOKEN MANIPULATION METHODS =====
+-
+   /**
+-   * Get detailed information about a specific entity within a character (item, action, or effect)
 +   * Set the canvas colour behind the background. Foundry v14 has no Scene#backgroundColor
 +   * field in the document source: the colour lives on the first Level's background
 +   * (Scene#backgroundColor is only a derived getter, and writing it is silently ignored).
 +   * Verified against a v14.369 world.
-+   */
+    */
+-  async getCharacterEntity(data: {
+-    characterIdentifier: string;
+-    entityIdentifier: string;
+-  }): Promise<any> {
+-    this.validateFoundryState();
 +  private async applySceneBackgroundColor(scene: any, color: string): Promise<void> {
 +    const level = scene.levels?.contents?.[0];
 +    if (level) {
@@ -7926,7 +8322,11 @@ index eecda7e..6288c87 100644
 +      await scene.createEmbeddedDocuments('Level', [{ name: 'Base', background: { color } }]);
 +    }
 +  }
-+
+ 
+-    try {
+-      const serializeDocument = (document: any): Record<string, any> => {
+-        const source = document?.toObject?.() ?? document?._source ?? document ?? {};
+-        return source as Record<string, any>;
 +  /**
 +   * Compare what was requested with what the scene reports afterwards, so a write that
 +   * Foundry silently dropped is reported instead of claimed as a success.
@@ -7995,22 +8395,7 @@ index eecda7e..6288c87 100644
 +  async manageScenes(options: {
 +    action: 'create' | 'update' | 'describe';
 +    scene_identifier?: string;
-     name?: string;
--    mode?: number;
--    fade?: number;
--    description?: string;
--    sorting?: 'a' | 'm';
--    folder?: string | null;
--    color?: string | null;
--    sounds?: Array<{
--      name?: string;
--      path?: string;
--      id?: string;
--      volume?: number;
--      repeat?: boolean;
--      fade?: number;
--    }>;
--    updates?: Record<string, any>;
++    name?: string;
 +    background?: string | null;
 +    width?: number;
 +    height?: number;
@@ -8033,59 +8418,19 @@ index eecda7e..6288c87 100644
 +    weather?: string | null;
 +    initial_view?: { x: number; y: number; scale?: number };
 +    activate?: boolean;
-   }): Promise<any> {
-     this.validateFoundryState();
- 
-     try {
--      const playlists = () => (game as any).playlists?.contents || [];
--
-       if (options.action === 'describe') {
--        const doc = options.playlist
--          ? this.findMusicDoc((game as any).playlists, options.playlist, 'playlist')
--          : null;
--        if (!doc) {
--          return {
--            success: true,
--            playlists: playlists().map((pl: any) => ({
--              id: pl.id,
--              name: pl.name,
--              mode: pl.mode,
--              playing: pl.playing,
--              soundCount: pl.sounds?.size || 0,
--            })),
--          };
++  }): Promise<any> {
++    this.validateFoundryState();
++
++    try {
++      if (options.action === 'describe') {
 +        if (options.scene_identifier) {
 +          const scene = this.findSceneByIdentifier(options.scene_identifier);
 +          return { success: true, scene: this.summarizeScene(scene) };
-         }
--        return {
--          success: true,
--          playlist: {
--            id: doc.id,
--            name: doc.name,
--            mode: doc.mode,
--            playing: doc.playing,
--            description: doc.description || '',
--            folder: doc.folder || null,
--            sort: doc.sort,
--            sounds: (doc.sounds?.contents || []).map((s: any) => ({
--              id: s.id,
--              name: s.name,
--              path: s.path,
--              volume: s.volume,
--              repeat: s.repeat,
--              fade: s.fade,
--              playing: s.playing,
--            })),
--          },
--        };
++        }
 +        const scenes = (game.scenes?.contents || []) as any[];
 +        return { success: true, scenes: scenes.map(scene => this.summarizeScene(scene)) };
-       }
- 
--      if (options.action === 'create') {
--        if (!options.name || typeof options.name !== 'string') {
--          throw new Error('name is required for create');
++      }
++
 +      if (options.action !== 'create' && options.action !== 'update') {
 +        throw new Error(`Unknown action: ${String(options.action)} (create | update | describe)`);
 +      }
@@ -8098,58 +8443,18 @@ index eecda7e..6288c87 100644
 +      if (options.background !== undefined && options.background !== null) {
 +        if (typeof options.background !== 'string' || !options.background.trim()) {
 +          throw new Error('background must be a file path string or null to clear it');
-         }
--        const data: Record<string, any> = { name: options.name };
--        if (options.mode !== undefined) data.mode = options.mode;
--        if (options.fade !== undefined) data.fade = options.fade;
--        if (options.description !== undefined) data.description = options.description;
--        if (options.sorting !== undefined) data.sorting = options.sorting;
--        if (options.folder !== undefined) data.folder = options.folder;
--        if (options.color !== undefined) data.color = options.color;
--        const pl = await ((game as any).playlists as any).createDocuments([data]);
--        const doc = Array.isArray(pl) ? pl[0] : pl;
++        }
 +      }
- 
--        let soundsCreated = 0;
--        for (const s of options.sounds || []) {
--          if (!s.path) {
--            throw new Error(`sound entry needs a "path": ${JSON.stringify(s)}`);
--          }
--          const sdata: Record<string, any> = { path: s.path };
--          if (s.name !== undefined) sdata.name = s.name;
--          if (s.volume !== undefined) sdata.volume = s.volume;
--          if (s.repeat !== undefined) sdata.repeat = s.repeat;
--          if (s.fade !== undefined) sdata.fade = s.fade;
--          await (doc as any).createEmbeddedDocuments('PlaylistSound', [sdata]);
--          soundsCreated++;
++
 +      const data = this.buildSceneData(options);
 +      const view = options.initial_view;
 +      if (view !== undefined) {
 +        const bad = (v: unknown) => typeof v !== 'number' || !Number.isFinite(v);
 +        if (!view || bad(view.x) || bad(view.y) || (view.scale !== undefined && (bad(view.scale) || view.scale < 0.25 || view.scale > 3))) {
 +          throw new Error('initial_view must be {x, y, scale?} with x and y in grid squares and scale 0.25 to 3');
-         }
--        return {
--          success: true,
--          playlist: { id: doc.id, name: doc.name, mode: doc.mode },
--          soundsCreated,
--        };
-       }
- 
--      if (options.action === 'update') {
--        const doc = this.findMusicDoc((game as any).playlists, options.playlist, 'playlist');
--        if (!doc) throw new Error('update requires a playlist identifier');
--        const patch = { ...(options.updates || {}) } as Record<string, any>;
--        for (const key of [
--          'name',
--          'mode',
--          'fade',
--          'description',
--          'sorting',
--          'folder',
--          'color',
--        ] as const) {
--          if ((options as any)[key] !== undefined) patch[key] = (options as any)[key];
++        }
++      }
++
 +      // On v14 the canvas colour is a Level property, not a Scene field: split it out
 +      // so it is not sent to Scene.create / scene.update (where it is silently dropped).
 +      let levelColor: string | undefined;
@@ -8162,35 +8467,7 @@ index eecda7e..6288c87 100644
 +      if (options.action === 'create') {
 +        if (!data.name) {
 +          throw new Error('name is required for create');
-         }
--        if (Object.keys(patch).length) await doc.update(patch);
--        // Sound-level ops in the same call
--        let soundsTouched = 0;
--        for (const s of options.sounds || []) {
--          if (!s.path && !s.name && !s.id) continue;
--          const list = doc.sounds?.contents || [];
--          let snd: any = null;
--          if (s.id) snd = list.find((x: any) => x.id === s.id);
--          else {
--            const byPath = s.path ? list.filter((x: any) => x.path === s.path) : [];
--            const byName = s.name ? list.filter((x: any) => x.name === s.name) : [];
--            snd = byPath.length === 1 ? byPath[0] : byName.length === 1 ? byName[0] : null;
--          }
--          if (!snd) {
--            throw new Error(
--              `sound not found in playlist "${doc.name}" (need exact id or unique path/name)`
--            );
--          }
--          const spatch: Record<string, any> = {};
--          if (s.name !== undefined) spatch.name = s.name;
--          if (s.path !== undefined) spatch.path = s.path;
--          if (s.volume !== undefined) spatch.volume = s.volume;
--          if (s.repeat !== undefined) spatch.repeat = s.repeat;
--          if (s.fade !== undefined) spatch.fade = s.fade;
--          if (Object.keys(spatch).length) {
--            await snd.update(spatch);
--            soundsTouched++;
--          }
++        }
 +        scene = await (globalThis as any).Scene.create(data);
 +        if (!scene) {
 +          throw new Error('Foundry did not return the created scene');
@@ -8211,18 +8488,9 @@ index eecda7e..6288c87 100644
 +        }
 +        if (Object.keys(data).length > 0) {
 +          await scene.update(data);
-         }
--        return {
--          success: true,
--          playlist: { id: doc.id, name: doc.name },
--          soundsUpdated: soundsTouched,
--        };
-       }
- 
--      if (options.action === 'delete') {
--        // Delete never guesses: exact id or name only.
--        const doc = this.findMusicDoc((game as any).playlists, options.playlist, 'playlist', {
--          exact: true,
++        }
++      }
++
 +      if (options.background !== undefined) {
 +        await this.applySceneBackground(scene, options.background);
 +      }
@@ -8235,17 +8503,12 @@ index eecda7e..6288c87 100644
 +        const centre = squaresToPixels(geom, view.x, view.y);
 +        await scene.update({
 +          initial: { x: centre.x, y: centre.y, ...(view.scale !== undefined ? { scale: view.scale } : {}) },
-         });
--        if (!doc) throw new Error('delete requires a playlist identifier');
--        const name = doc.name;
--        await doc.delete();
--        return { success: true, deleted: name };
++        });
 +      }
 +      if (options.activate === true) {
 +        await scene.activate();
-       }
- 
--      throw new Error(`Unknown action: ${options.action}`);
++      }
++
 +      this.auditLog(`manageScenes:${options.action}`, options, 'success');
 +
 +      const summary = this.summarizeScene(scene);
@@ -8256,21 +8519,19 @@ index eecda7e..6288c87 100644
 +        scene: summary,
 +        ...(warnings.length > 0 ? { warnings } : {}),
 +      };
-     } catch (error) {
++    } catch (error) {
 +      this.auditLog(
 +        `manageScenes:${options?.action}`,
 +        options,
 +        'failure',
 +        error instanceof Error ? error.message : 'Unknown error'
 +      );
-       throw new Error(
--        `Failed to manage playlists: ${error instanceof Error ? error.message : 'Unknown error'}`
++      throw new Error(
 +        `Failed to ${options?.action ?? 'manage'} scene: ${error instanceof Error ? error.message : 'Unknown error'}`
-       );
-     }
-   }
- 
--  /**
++      );
++    }
++  }
++
 +  // ===== WORLD HOUSEKEEPING (FOLDERS, MOVE, RENAME, DELETE) =====
 +
 +  private worldCollection(type: string): any {
@@ -9361,6 +9622,68 @@ index eecda7e..6288c87 100644
 +      return { ...out, combat: compactCombat(combat) };
 +    } catch (error) {
 +      throw new Error(`Failed to run the combat: ${error instanceof Error ? error.message : 'Unknown error'}`);
++    }
++  }
++
++  // ===== CHAT: READ, WAIT, NARRATE =====
++
++  /**
++   * Read the chat log, wait for what players say or roll, or speak as the narrator. Reading returns short
++   * rows plus a marker (the last message id) to pass as since next time, so a table can be followed without
++   * rereading the log.
++   */
++  async controlChat(data: ChatControlRequest): Promise<any> {
++    this.validateFoundryState();
++    const action = data?.action ?? 'read';
++    if (!['read', 'wait', 'narrate'].includes(action)) throw new Error('action must be read, wait or narrate');
++    if (action === 'narrate') {
++      const gate = permissionManager.checkWritePermission('modifyScene', {});
++      if (!gate.allowed) throw new Error(`${ERROR_MESSAGES.ACCESS_DENIED}: ${gate.reason}`);
++    }
++    try {
++      const g = game as any;
++      const userName = (id: string): string | undefined => g.users?.get?.(id)?.name;
++      const all = (): any[] => ((g.messages?.contents || [...(g.messages || [])]) as any[]);
++      const lastId = (): string | undefined => all().at(-1)?.id;
++
++      if (action === 'narrate') {
++        const text = String(data.content ?? '').trim();
++        if (!text) throw new Error('narrate needs content');
++        const whisper = data.whisperTo?.length ? this.resolveWhisperTargets(data.whisperTo) : [];
++        const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
++        const html = text
++          .split(/\n{2,}/)
++          .map(p => `<p>${esc(p).replace(/\n/g, '<br>')}</p>`)
++          .join('');
++        const created = await (globalThis as any).ChatMessage.create({
++          content: html,
++          speaker: { alias: data.speaker?.trim() || 'Narrator' },
++          ...(whisper.length ? { whisper } : {}),
++        });
++        return { success: true, id: created?.id ?? null, delivery: whisper.length ? 'whisper' : 'public', to: whisper.map(id => userName(id) ?? id), marker: lastId() };
++      }
++
++      const limit = Math.max(1, Math.min(50, Number(data.limit ?? 15)));
++      const from = data.from ?? (action === 'wait' ? 'players' : 'all');
++      const filter = { since: data.since, from, rolls: data.rolls } as const;
++
++      if (action === 'wait') {
++        const timeout = Math.max(1, Math.min(55, Number(data.timeout_s ?? 30))) * 1000;
++        const marker = data.since ?? lastId();
++        const started = Date.now();
++        for (;;) {
++          const rows = selectMessages(all(), { ...filter, since: marker }, userName);
++          if (rows.length > 0) return { success: true, timedOut: false, messages: rows.slice(0, limit), marker: lastId() };
++          if (Date.now() - started >= timeout) return { success: true, timedOut: true, messages: [], marker: lastId() };
++          await new Promise(r => setTimeout(r, 400));
++        }
++      }
++
++      const rows = selectMessages(all(), filter, userName);
++      const shown = rows.slice(-limit);
++      return { success: true, messages: shown, ...(rows.length > shown.length ? { omitted: rows.length - shown.length } : {}), marker: lastId() };
++    } catch (error) {
++      throw new Error(`Chat request failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
 +    }
 +  }
 +
@@ -12463,21 +12786,19 @@ index eecda7e..6288c87 100644
 +  }
 +
 +  /**
-    * Playback control. Supports playlist-level play/stop/cycle-mode and
-    * per-sound play/stop, all through the client Playlist API so the server
-    * and every connected client stay in sync.
-    */
-   async controlPlaylist(options: {
--    playlist: string;
--    command: 'play' | 'stop' | 'cycle-mode' | 'play-sound' | 'stop-sound';
++   * Playback control. Supports playlist-level play/stop/cycle-mode and
++   * per-sound play/stop, all through the client Playlist API so the server
++   * and every connected client stay in sync.
++   */
++  async controlPlaylist(options: {
 +    playlist?: string;
 +    command: (typeof PLAYLIST_COMMANDS)[number];
-     sound?: string;
++    sound?: string;
 +    volume?: number;
-   }): Promise<any> {
-     this.validateFoundryState();
- 
-     try {
++  }): Promise<any> {
++    this.validateFoundryState();
++
++    try {
 +      const command = options.command;
 +      if (!(PLAYLIST_COMMANDS as readonly string[]).includes(command)) {
 +        throw new Error(`Unknown command: ${String(command)} (${PLAYLIST_COMMANDS.join(', ')})`);
@@ -12521,9 +12842,9 @@ index eecda7e..6288c87 100644
 +        return { success: true, action: command, stopped };
 +      }
 +
-       const pl = this.findMusicDoc((game as any).playlists, options.playlist, 'playlist');
-       if (!pl) throw new Error('playlist identifier is required');
-       const info = { id: pl.id, name: pl.name, mode: pl.mode };
++      const pl = this.findMusicDoc((game as any).playlists, options.playlist, 'playlist');
++      if (!pl) throw new Error('playlist identifier is required');
++      const info = { id: pl.id, name: pl.name, mode: pl.mode };
 +      const sounds = ((pl.sounds?.contents || []) as any[]);
 +      const target = (): any => {
 +        if (!options.sound) throw new Error(`command ${command} requires "sound"`);
@@ -12548,31 +12869,29 @@ index eecda7e..6288c87 100644
 +        }
 +        return paused;
 +      };
- 
--      switch (options.command) {
++
 +      switch (command) {
-         case 'play':
-           await pl.playAll();
-           return { success: true, action: 'play', playlist: info };
-@@ -8304,20 +13021,48 @@ export class FoundryDataAccess {
-           return { success: true, action: 'cycle-mode', playlist: info, mode: pl.mode as number };
-         case 'play-sound':
-         case 'stop-sound': {
--          if (!options.sound) throw new Error(`command ${options.command} requires "sound"`);
--          const snd = this.findMusicDoc(pl.sounds, options.sound, 'playlistSound');
--          if (!snd) throw new Error(`sound not found: "${options.sound}"`);
--          if (options.command === 'play-sound') await pl.playSound(snd);
++        case 'play':
++          await pl.playAll();
++          return { success: true, action: 'play', playlist: info };
++        case 'stop':
++          await pl.stopAll();
++          return { success: true, action: 'stop', playlist: info };
++        case 'cycle-mode':
++          await pl.cycleMode();
++          return { success: true, action: 'cycle-mode', playlist: info, mode: pl.mode as number };
++        case 'play-sound':
++        case 'stop-sound': {
 +          const snd = target();
 +          if (command === 'play-sound') await pl.playSound(snd);
-           else await pl.stopSound(snd);
-           return {
-             success: true,
--            action: options.command,
++          else await pl.stopSound(snd);
++          return {
++            success: true,
 +            action: command,
-             playlist: info,
-             sound: { id: snd.id, name: snd.name, path: snd.path },
-           };
-         }
++            playlist: info,
++            sound: { id: snd.id, name: snd.name, path: snd.path },
++          };
++        }
 +        case 'pause':
 +        case 'pause-sound': {
 +          const done = await pause(command === 'pause' ? sounds : [target()]);
@@ -12603,13 +12922,35 @@ index eecda7e..6288c87 100644
 +          await pl.updateEmbeddedDocuments('PlaylistSound', list.map(s => ({ _id: s.id, volume: options.volume })));
 +          return { success: true, action: command, playlist: info, volume: options.volume, sounds: list.length };
 +        }
-         default:
--          throw new Error(`Unknown command: ${options.command}`);
++        default:
 +          throw new Error(`Unknown command: ${command}`);
-       }
-     } catch (error) {
-       throw new Error(
-@@ -8468,6 +13213,21 @@ export class FoundryDataAccess {
++      }
++    } catch (error) {
++      throw new Error(
++        `Failed to control playlist: ${error instanceof Error ? error.message : 'Unknown error'}`
++      );
++    }
++  }
++
++  // ===== PHASE 7: CHARACTER ENTITY AND TOKEN MANIPULATION METHODS =====
++
++  /**
++   * Get detailed information about a specific entity within a character (item, action, or effect)
++   */
++  async getCharacterEntity(data: {
++    characterIdentifier: string;
++    entityIdentifier: string;
++  }): Promise<any> {
++    this.validateFoundryState();
++
++    try {
++      const serializeDocument = (document: any): Record<string, any> => {
++        const source = document?.toObject?.() ?? document?._source ?? document ?? {};
++        return source as Record<string, any>;
+       };
+ 
+       // Find the character first
+@@ -8468,6 +13288,21 @@ export class FoundryDataAccess {
      }
    }
  
@@ -12631,7 +12972,7 @@ index eecda7e..6288c87 100644
    /**
     * Move a token to a new position on the scene
     */
-@@ -8476,6 +13236,12 @@ export class FoundryDataAccess {
+@@ -8476,6 +13311,12 @@ export class FoundryDataAccess {
      x: number;
      y: number;
      animate?: boolean;
@@ -12644,7 +12985,7 @@ index eecda7e..6288c87 100644
    }): Promise<any> {
      this.validateFoundryState();
  
-@@ -8489,24 +13255,57 @@ export class FoundryDataAccess {
+@@ -8489,24 +13330,57 @@ export class FoundryDataAccess {
      }
  
      try {
@@ -12715,7 +13056,7 @@ index eecda7e..6288c87 100644
  
        this.auditLog('moveToken', data, 'success');
  
-@@ -8514,8 +13313,12 @@ export class FoundryDataAccess {
+@@ -8514,8 +13388,12 @@ export class FoundryDataAccess {
          success: true,
          tokenId: token.id,
          tokenName: token.name,
@@ -12729,7 +13070,7 @@ index eecda7e..6288c87 100644
        };
      } catch (error) {
        this.auditLog(
-@@ -8530,10 +13333,56 @@ export class FoundryDataAccess {
+@@ -8530,10 +13408,56 @@ export class FoundryDataAccess {
      }
    }
  
@@ -12787,7 +13128,7 @@ index eecda7e..6288c87 100644
      this.validateFoundryState();
  
      // Use permission system
-@@ -8546,20 +13395,19 @@ export class FoundryDataAccess {
+@@ -8546,20 +13470,19 @@ export class FoundryDataAccess {
      }
  
      try {
@@ -12814,7 +13155,7 @@ index eecda7e..6288c87 100644
  
        // Apply updates
        await token.update(cleanUpdates);
-@@ -8651,18 +13499,15 @@ export class FoundryDataAccess {
+@@ -8651,18 +13574,15 @@ export class FoundryDataAccess {
    /**
     * Get detailed information about a token
     */
@@ -12837,7 +13178,7 @@ index eecda7e..6288c87 100644
        }
  
        // Return flat structure that matches MCP server expectations
-@@ -11274,7 +16119,10 @@ export class FoundryDataAccess {
+@@ -11274,7 +16194,10 @@ export class FoundryDataAccess {
        name: string;
        type: string;
        img?: string;
@@ -12848,7 +13189,7 @@ index eecda7e..6288c87 100644
      }>;
      folder?: string;
    }): Promise<{ created: Array<{ id: string; name: string; type: string }>; total: number }> {
-@@ -11286,6 +16134,19 @@ export class FoundryDataAccess {
+@@ -11286,6 +16209,19 @@ export class FoundryDataAccess {
      const docs = params.actors.map(a => {
        const doc: Record<string, any> = { name: a.name, type: a.type };
        if (a.img) doc.img = a.img;
@@ -12868,7 +13209,7 @@ index eecda7e..6288c87 100644
  
        // Merge system data, adding safe defaults for systems that require certain
        // fields to exist during data preparation (avoids non-fatal init errors).
-@@ -11471,7 +16332,16 @@ export class FoundryDataAccess {
+@@ -11471,7 +16407,16 @@ export class FoundryDataAccess {
     * Merges supplied fields into the actor (top-level keys overwrite).
     */
    async updateActors(
@@ -12886,7 +13227,7 @@ index eecda7e..6288c87 100644
    ): Promise<{ updated: Array<{ id: string; name: string }>; total: number }> {
      const updatedActors: Array<{ id: string; name: string }> = [];
  
-@@ -11482,6 +16352,7 @@ export class FoundryDataAccess {
+@@ -11482,6 +16427,7 @@ export class FoundryDataAccess {
        const patch: Record<string, any> = {};
        if (u.name !== undefined) patch.name = u.name;
        if (u.img !== undefined) patch.img = u.img;
@@ -12894,7 +13235,7 @@ index eecda7e..6288c87 100644
        if (u.system !== undefined) {
          // Build a single patch.system nested object so Foundry deep-merges everything
          // in one pass without flat-key vs nested-key conflicts.
-@@ -11504,6 +16375,19 @@ export class FoundryDataAccess {
+@@ -11504,6 +16450,19 @@ export class FoundryDataAccess {
          }
          patch.system = systemPatch;
        }
@@ -17526,7 +17867,7 @@ index 0000000..557e34d
 +  return view ? outSize : { width, height };
 +}
 diff --git a/packages/foundry-module/src/queries.ts b/packages/foundry-module/src/queries.ts
-index 9fe02ba..aa0408a 100644
+index 9fe02ba..d72ace5 100644
 --- a/packages/foundry-module/src/queries.ts
 +++ b/packages/foundry-module/src/queries.ts
 @@ -1,7 +1,8 @@
@@ -17548,7 +17889,7 @@ index 9fe02ba..aa0408a 100644
  
      // Character/Actor queries
      CONFIG.queries[`${modulePrefix}.getCharacterInfo`] = this.handleGetCharacterInfo.bind(this);
-@@ -46,6 +47,36 @@ export class QueryHandlers {
+@@ -46,6 +47,37 @@ export class QueryHandlers {
      CONFIG.queries[`${modulePrefix}.list-scenes`] = this.handleListScenes.bind(this);
      CONFIG.queries[`${modulePrefix}.switch-scene`] = this.handleSwitchScene.bind(this);
      CONFIG.queries[`${modulePrefix}.update-scene-music`] = this.handleUpdateSceneMusic.bind(this);
@@ -17576,6 +17917,7 @@ index 9fe02ba..aa0408a 100644
 +    CONFIG.queries[`${modulePrefix}.combat`] = this.handleCombat.bind(this);
 +    CONFIG.queries[`${modulePrefix}.party`] = this.handleParty.bind(this);
 +    CONFIG.queries[`${modulePrefix}.rules`] = this.handleRules.bind(this);
++    CONFIG.queries[`${modulePrefix}.chat`] = this.handleChat.bind(this);
 +    CONFIG.queries[`${modulePrefix}.pause`] = this.handlePause.bind(this);
 +    CONFIG.queries[`${modulePrefix}.plutonium`] = this.handlePlutonium.bind(this);
 +    CONFIG.queries[`${modulePrefix}.adventure`] = this.handleAdventure.bind(this);
@@ -17585,7 +17927,7 @@ index 9fe02ba..aa0408a 100644
      CONFIG.queries[`${modulePrefix}.manage-playlists`] = this.handleManagePlaylists.bind(this);
      CONFIG.queries[`${modulePrefix}.control-playlist`] = this.handleControlPlaylist.bind(this);
  
-@@ -184,7 +215,7 @@ export class QueryHandlers {
+@@ -184,7 +216,7 @@ export class QueryHandlers {
     * Unregister all query handlers
     */
    unregisterHandlers(): void {
@@ -17594,7 +17936,7 @@ index 9fe02ba..aa0408a 100644
      const keysToRemove = Object.keys(CONFIG.queries).filter(key => key.startsWith(modulePrefix));
  
      for (const key of keysToRemove) {
-@@ -477,7 +508,7 @@ export class QueryHandlers {
+@@ -477,7 +509,7 @@ export class QueryHandlers {
     * Get list of all registered query methods
     */
    getRegisteredMethods(): string[] {
@@ -17603,7 +17945,7 @@ index 9fe02ba..aa0408a 100644
      return Object.keys(CONFIG.queries)
        .filter(key => key.startsWith(modulePrefix))
        .map(key => key.replace(`${modulePrefix}.`, ''));
-@@ -487,7 +518,7 @@ export class QueryHandlers {
+@@ -487,7 +519,7 @@ export class QueryHandlers {
     * Test if a specific query handler is registered
     */
    isMethodRegistered(method: string): boolean {
@@ -17612,7 +17954,7 @@ index 9fe02ba..aa0408a 100644
      return queryKey in CONFIG.queries && typeof CONFIG.queries[queryKey] === 'function';
    }
  
-@@ -530,6 +561,9 @@ export class QueryHandlers {
+@@ -530,6 +562,9 @@ export class QueryHandlers {
        if (data.placement) {
          requestData.placement = data.placement;
        }
@@ -17622,7 +17964,7 @@ index 9fe02ba..aa0408a 100644
  
        return await this.dataAccess.createActorFromCompendiumEntry(requestData);
      } catch (error) {
-@@ -1218,6 +1252,299 @@ export class QueryHandlers {
+@@ -1218,6 +1253,307 @@ export class QueryHandlers {
      }
    }
  
@@ -17754,6 +18096,14 @@ index 9fe02ba..aa0408a 100644
 +      return { error: 'Access denied', success: false };
 +    }
 +    return await this.dataAccess.setPause(data ?? {});
++  }
++
++  private async handleChat(data: any): Promise<any> {
++    const gmCheck = this.validateGMAccess();
++    if (!gmCheck.allowed) {
++      return { error: 'Access denied', success: false };
++    }
++    return await this.dataAccess.controlChat(data ?? {});
 +  }
 +
 +  private async handleRules(data: any): Promise<any> {
@@ -17922,7 +18272,7 @@ index 9fe02ba..aa0408a 100644
    private async handleManagePlaylists(data: any): Promise<any> {
      try {
        const gmCheck = this.validateGMAccess();
-@@ -1241,8 +1568,11 @@ export class QueryHandlers {
+@@ -1241,8 +1577,11 @@ export class QueryHandlers {
        if (!gmCheck.allowed) {
          return { error: 'Access denied', success: false };
        }
@@ -17936,7 +18286,7 @@ index 9fe02ba..aa0408a 100644
        }
        return await this.dataAccess.controlPlaylist(data);
      } catch (error) {
-@@ -1547,7 +1877,9 @@ export class QueryHandlers {
+@@ -1547,7 +1886,9 @@ export class QueryHandlers {
     */
    private async handleUpdateToken(data: {
      tokenId: string;
@@ -17947,7 +18297,7 @@ index 9fe02ba..aa0408a 100644
    }): Promise<any> {
      try {
        // SECURITY: Silent GM validation
-@@ -1561,8 +1893,8 @@ export class QueryHandlers {
+@@ -1561,8 +1902,8 @@ export class QueryHandlers {
        if (!data.tokenId) {
          throw new Error('tokenId is required');
        }
@@ -20430,10 +20780,10 @@ index 0000000..7d181c7
 +}
 diff --git a/packages/foundry-module/src/world-audit-extra.test.ts b/packages/foundry-module/src/world-audit-extra.test.ts
 new file mode 100644
-index 0000000..7b37163
+index 0000000..e2c6660
 --- /dev/null
 +++ b/packages/foundry-module/src/world-audit-extra.test.ts
-@@ -0,0 +1,43 @@
+@@ -0,0 +1,53 @@
 +import { describe, expect, it } from 'vitest';
 +import { auditSnapshot, type AuditActor, type AuditScene, type AuditSnapshot } from './world-audit-utils.js';
 +
@@ -20469,6 +20819,16 @@ index 0000000..7b37163
 +    expect(sees({ tokenVision: false })).toBe(false);
 +    expect(sees({ darkness: 0.3 })).toBe(false);
 +    expect(sees({})).toBe(true);
++  });
++  it('flags a daylight scene with token vision, no global light and no lights, once it has tokens', () => {
++    const day = { darkness: 0, tokenVision: true, globalLight: false, lights: 0, tokens: 2 };
++    const sees = (over: Partial<AuditScene>) => messages(snap([scene({ ...day, ...over })])).some(m => m.includes('Daylight scene with token vision'));
++    expect(sees({})).toBe(true);
++    expect(sees({ globalLight: true })).toBe(false);
++    expect(sees({ lights: 1 })).toBe(false);
++    expect(sees({ tokenVision: false })).toBe(false);
++    expect(sees({ tokens: 0 })).toBe(false);
++    expect(sees({ darkness: 0.8 })).toBe(false);
 +  });
 +  it('lists actors with the default image and unowned player characters', () => {
 +    const many = Array.from({ length: 8 }, (_, i) => actor({ id: `n${i}`, name: `NPC ${i}`, hasImage: false }));
@@ -20579,10 +20939,10 @@ index 0000000..203becc
 +});
 diff --git a/packages/foundry-module/src/world-audit-utils.ts b/packages/foundry-module/src/world-audit-utils.ts
 new file mode 100644
-index 0000000..3c7d2e4
+index 0000000..3460272
 --- /dev/null
 +++ b/packages/foundry-module/src/world-audit-utils.ts
-@@ -0,0 +1,171 @@
+@@ -0,0 +1,174 @@
 +/**
 + * Pure checks for audit-world: given a plain snapshot of the world's scenes, playlists and
 + * actors, list what is missing or broken. No Foundry globals, so it can be tested.
@@ -20697,6 +21057,9 @@ index 0000000..3c7d2e4
 +    }
 +    if ((s.darkness ?? 0) >= 0.5 && s.tokenVision && !s.globalLight && s.lights === 0) {
 +      add({ severity: 'warning', ...here, message: 'Dark scene with token vision but no lights: players will see nothing', fix: 'layout lights, manage-scene-objects light, or lower darkness' });
++    }
++    if ((s.darkness ?? 0) < 0.5 && s.tokenVision && !s.globalLight && s.lights === 0 && s.tokens > 0) {
++      add({ severity: 'warning', ...here, message: 'Daylight scene with token vision but global light off and no lights: players see only a few feet around their tokens', fix: 'manage-scenes update global_light: true (outdoor or lit map), or add lights' });
 +    }
 +    if (!s.musicPlaylist) add({ severity: 'info', ...here, message: 'No music', fix: 'setup-scene-sound' });
 +    else if (!s.musicPlaylistExists) {
@@ -21390,13 +21753,14 @@ index 096f27b..903a94e 100644
      "@vitest/coverage-v8": "^3.2.4",
      "esbuild": "^0.19.0",
 diff --git a/packages/mcp-server/src/backend.ts b/packages/mcp-server/src/backend.ts
-index 8967e33..70b2ce5 100644
+index 8967e33..7b1691e 100644
 --- a/packages/mcp-server/src/backend.ts
 +++ b/packages/mcp-server/src/backend.ts
-@@ -48,6 +48,41 @@ import { DnD5eAddFeatureTool } from './tools/dnd5e/add-feature.js';
+@@ -48,6 +48,42 @@ import { DnD5eAddFeatureTool } from './tools/dnd5e/add-feature.js';
  import { DnD5eNpcTools } from './tools/dnd5e/npc.js';
  import { DnD5eFeaturesFromCompendiumTools } from './tools/dnd5e/features.js';
  import { ChatTools } from './tools/chat.js';
++import { ChatControlTools } from './tools/chat-control.js';
 +import { UploadTools } from './tools/upload.js';
 +import { ImageGenerationTools } from './tools/image-generation.js';
 +
@@ -21435,7 +21799,7 @@ index 8967e33..70b2ce5 100644
  
  const CONTROL_HOST = '127.0.0.1';
  
-@@ -174,6 +209,22 @@ let comfyuiProcess: ChildProcess | null = null;
+@@ -174,6 +210,22 @@ let comfyuiProcess: ChildProcess | null = null;
  
  let comfyuiStatus: 'stopped' | 'starting' | 'running' | 'error' = 'stopped';
  
@@ -21458,7 +21822,7 @@ index 8967e33..70b2ce5 100644
  let lockFd: number | null = null;
  
  function acquireLock(): boolean {
-@@ -350,6 +401,18 @@ async function waitForComfyUIReady(timeoutMs: number = 60000): Promise<void> {
+@@ -350,6 +402,18 @@ async function waitForComfyUIReady(timeoutMs: number = 60000): Promise<void> {
  }
  
  async function startComfyUIService(logger: Logger): Promise<any> {
@@ -21477,7 +21841,7 @@ index 8967e33..70b2ce5 100644
    if (comfyuiStatus === 'running') {
      return { status: 'already_running', message: 'ComfyUI service is already running' };
    }
-@@ -472,6 +535,14 @@ async function startComfyUIService(logger: Logger): Promise<any> {
+@@ -472,6 +536,14 @@ async function startComfyUIService(logger: Logger): Promise<any> {
  }
  
  async function stopComfyUIService(logger: Logger): Promise<any> {
@@ -21492,7 +21856,7 @@ index 8967e33..70b2ce5 100644
    if (comfyuiStatus === 'stopped') {
      return { status: 'already_stopped', message: 'ComfyUI service is already stopped' };
    }
-@@ -510,7 +581,7 @@ async function checkComfyUIStatus(): Promise<any> {
+@@ -510,7 +582,7 @@ async function checkComfyUIStatus(): Promise<any> {
    // This handles both spawned processes and externally-started instances
  
    try {
@@ -21501,7 +21865,7 @@ index 8967e33..70b2ce5 100644
        signal: AbortSignal.timeout(5000),
      });
  
-@@ -520,16 +591,23 @@ async function checkComfyUIStatus(): Promise<any> {
+@@ -520,16 +592,23 @@ async function checkComfyUIStatus(): Promise<any> {
        comfyuiStatus = 'error';
      }
    } catch (error) {
@@ -21527,7 +21891,7 @@ index 8967e33..70b2ce5 100644
    };
  }
  
-@@ -1131,7 +1209,7 @@ async function processMapGenerationInBackend(
+@@ -1131,7 +1210,7 @@ async function processMapGenerationInBackend(
      );
  
      logger.error('Background map generation processing failed', { jobId, error });
@@ -21536,7 +21900,7 @@ index 8967e33..70b2ce5 100644
  
      // Emit failure to Foundry module
      foundryClient.sendMessage({
-@@ -1195,6 +1273,66 @@ async function startBackend(): Promise<void> {
+@@ -1195,6 +1274,66 @@ async function startBackend(): Promise<void> {
    const compendiumTools = new CompendiumTools({ foundryClient, logger, systemRegistry });
  
    const sceneTools = new SceneTools({ foundryClient, logger });
@@ -21603,7 +21967,15 @@ index 8967e33..70b2ce5 100644
    const playlistTools = new PlaylistTools({ foundryClient, logger });
  
    const actorCreationTools = new ActorCreationTools({ foundryClient, logger });
-@@ -1301,6 +1439,13 @@ async function startBackend(): Promise<void> {
+@@ -1214,6 +1353,7 @@ async function startBackend(): Promise<void> {
+   const questCreationTools = new QuestCreationTools({ foundryClient, logger });
+ 
+   const chatTools = new ChatTools({ foundryClient, logger });
++  const chatControlTools = new ChatControlTools({ foundryClient, logger });
+ 
+   const diceRollTools = new DiceRollTools({ foundryClient, logger });
+ 
+@@ -1301,6 +1441,13 @@ async function startBackend(): Promise<void> {
  
          let result: any;
  
@@ -21617,7 +21989,7 @@ index 8967e33..70b2ce5 100644
          switch (message.type) {
            case 'start-comfyui-service':
              result = await startComfyUIService(logger);
-@@ -1317,6 +1462,19 @@ async function startBackend(): Promise<void> {
+@@ -1317,6 +1464,19 @@ async function startBackend(): Promise<void> {
  
              break;
  
@@ -21637,7 +22009,7 @@ index 8967e33..70b2ce5 100644
            // Map generation handlers (following existing tool pattern)
            case 'generate-map-request':
              await fs.appendFile(
-@@ -1429,6 +1587,32 @@ async function startBackend(): Promise<void> {
+@@ -1429,6 +1589,32 @@ async function startBackend(): Promise<void> {
  
      ...sceneTools.getToolDefinitions(),
  
@@ -21670,7 +22042,16 @@ index 8967e33..70b2ce5 100644
      ...actorCreationTools.getToolDefinitions(),
      ...actorManagementTools.getToolDefinitions(),
      ...effectManagementTools.getToolDefinitions(),
-@@ -1456,7 +1640,11 @@ async function startBackend(): Promise<void> {
+@@ -1442,7 +1628,7 @@ async function startBackend(): Promise<void> {
+ 
+     ...questCreationTools.getToolDefinitions(),
+ 
+-    ...chatTools.getToolDefinitions(),
++    ...chatControlTools.getToolDefinitions(),
+ 
+     ...diceRollTools.getToolDefinitions(),
+ 
+@@ -1456,7 +1642,11 @@ async function startBackend(): Promise<void> {
  
      ...tokenManipulationTools.getToolDefinitions(),
  
@@ -21683,7 +22064,18 @@ index 8967e33..70b2ce5 100644
  
      ...playlistTools.getToolDefinitions(),
    ];
-@@ -1764,19 +1952,11 @@ async function startBackend(): Promise<void> {
+@@ -1661,6 +1851,10 @@ async function startBackend(): Promise<void> {
+ 
+                 // Chat tools
+ 
++                case 'chat':
++                  result = await chatControlTools.handleChat(args);
++                  break;
++
+                 case 'create-chat-message':
+                   result = await chatTools.handleCreateChatMessage(args);
+ 
+@@ -1764,19 +1958,11 @@ async function startBackend(): Promise<void> {
                  // Map generation tools
  
                  case 'generate-map':
@@ -21706,7 +22098,7 @@ index 8967e33..70b2ce5 100644
  
                  case 'list-scenes':
                    result = await mapGenerationTools.listScenes(args);
-@@ -1805,6 +1985,148 @@ async function startBackend(): Promise<void> {
+@@ -1805,6 +1991,148 @@ async function startBackend(): Promise<void> {
  
                    break;
  
@@ -24646,6 +25038,154 @@ index 0000000..2185d13
 +
 +    const result = await this.query('manage-journals', { action: 'update', journal: id, pages: updates });
 +    return { success: true, journal: { id, name }, ...done, ...(result?.warnings?.length ? { warnings: result.warnings } : {}) };
++  }
++}
+diff --git a/packages/mcp-server/src/tools/chat-control.test.ts b/packages/mcp-server/src/tools/chat-control.test.ts
+new file mode 100644
+index 0000000..09db1d4
+--- /dev/null
++++ b/packages/mcp-server/src/tools/chat-control.test.ts
+@@ -0,0 +1,39 @@
++import { describe, expect, it, vi } from 'vitest';
++import { ChatControlTools } from './chat-control.js';
++
++function make(response: any = { success: true }) {
++  const query = vi.fn(async () => response);
++  const logger: any = { info: vi.fn(), debug: vi.fn(), error: vi.fn(), warn: vi.fn(), child: () => logger };
++  return { tools: new ChatControlTools({ foundryClient: { query } as any, logger }), query };
++}
++
++describe('chat tool', () => {
++  it('is exposed with action required', () => {
++    const def = make().tools.getToolDefinitions()[0]!;
++    expect(def.name).toBe('chat');
++    expect(def.inputSchema.required).toEqual(['action']);
++  });
++  it('sends read, wait and narrate to the chat query, with a long enough timeout for wait', async () => {
++    const { tools, query } = make({ success: true, messages: [] });
++    await tools.handleChat({ action: 'read', since: 'abc', limit: 5 });
++    expect(query).toHaveBeenLastCalledWith('foundry-mcp-bridge.chat', { action: 'read', since: 'abc', limit: 5 }, 30000);
++    await tools.handleChat({ action: 'wait', timeout_s: 20 });
++    expect(query).toHaveBeenLastCalledWith('foundry-mcp-bridge.chat', { action: 'wait', timeout_s: 20 }, 35000);
++    await tools.handleChat({ action: 'narrate', content: 'Dusk falls.', whisperTo: ['Claudio'] });
++    expect(query).toHaveBeenLastCalledWith('foundry-mcp-bridge.chat', { action: 'narrate', content: 'Dusk falls.', whisperTo: ['Claudio'] }, 30000);
++  });
++  it('sends say through the existing speak query with only the speaking fields', async () => {
++    const { tools, query } = make({ success: true, id: 'm1' });
++    await tools.handleChat({ action: 'say', actorIdentifier: 'Sildar', content: 'Hold!', chatLog: true });
++    expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.createChatMessage', { actorIdentifier: 'Sildar', content: 'Hold!', chatLog: true });
++  });
++  it('rejects bad input and refused requests', async () => {
++    const { tools } = make();
++    await expect(tools.handleChat({ action: 'shout' })).rejects.toThrow();
++    await expect(tools.handleChat({ action: 'say', content: 'hi' })).rejects.toThrow('actorIdentifier or tokenId');
++    await expect(tools.handleChat({ action: 'say', actorIdentifier: 'A' })).rejects.toThrow('needs content');
++    await expect(tools.handleChat({ action: 'narrate' })).rejects.toThrow('needs content');
++    await expect(tools.handleChat({ action: 'wait', timeout_s: 500 })).rejects.toThrow();
++    await expect(make({ success: false, error: 'Access denied' }).tools.handleChat({ action: 'read' })).rejects.toThrow('Access denied');
++  });
++});
+diff --git a/packages/mcp-server/src/tools/chat-control.ts b/packages/mcp-server/src/tools/chat-control.ts
+new file mode 100644
+index 0000000..fb172ae
+--- /dev/null
++++ b/packages/mcp-server/src/tools/chat-control.ts
+@@ -0,0 +1,97 @@
++import { z } from 'zod';
++import { FoundryClient } from '../foundry-client.js';
++import { Logger } from '../logger.js';
++import { ChatTools } from './chat.js';
++
++export interface ChatControlOptions {
++  foundryClient: FoundryClient;
++  logger: Logger;
++}
++
++const schema = z
++  .object({
++    action: z.enum(['say', 'narrate', 'read', 'wait']),
++    // say
++    actorIdentifier: z.string().min(1).optional(),
++    tokenId: z.string().min(1).optional(),
++    language: z.string().min(1).optional(),
++    chatLog: z.boolean().optional(),
++    // say, narrate
++    content: z.string().min(1).max(4000).optional(),
++    whisperTo: z.array(z.string().min(1)).min(1).max(10).optional(),
++    // narrate
++    speaker: z.string().min(1).max(60).optional(),
++    // read, wait
++    since: z.string().min(1).max(40).optional(),
++    from: z.enum(['players', 'all']).optional(),
++    rolls: z.boolean().optional(),
++    limit: z.number().int().min(1).max(50).optional(),
++    timeout_s: z.number().int().min(1).max(55).optional(),
++  })
++  .strict();
++
++export class ChatControlTools {
++  private foundryClient: FoundryClient;
++  private logger: Logger;
++  private say: ChatTools;
++
++  constructor({ foundryClient, logger }: ChatControlOptions) {
++    this.foundryClient = foundryClient;
++    this.logger = logger.child({ component: 'ChatControlTools' });
++    this.say = new ChatTools({ foundryClient, logger });
++  }
++
++  getToolDefinitions() {
++    return [
++      {
++        name: 'chat',
++        description:
++          'Talk with the players through the chat. ' +
++          'read {since?, from?: players|all, rolls?, limit?(15)} returns the latest messages as short rows (who, as, kind say|roll|whisper|card, text, roll total, whisper recipients) and a marker: pass it as since next time to get only what is new. ' +
++          'wait {since?, timeout_s?(30, max 55), from?(players)} blocks until a player says or rolls something new, then returns it (timedOut:true when nothing came); use it to follow the table, then answer. ' +
++          'narrate {content, speaker?("Narrator"), whisperTo?} posts narration to everyone, or only to the named players when whisperTo is given. ' +
++          'say {actorIdentifier | tokenId, content, whisperTo?, language?, chatLog?} speaks as an actor or token: a speech bubble by default, or a chat-log line, optionally whispered or in a language (Polyglot). ' +
++          "Reading is GM-only and shows whispers; never repeat a whisper to other players. A player's chat is their action: respond to what they said, do not act for them. Needs the Foundry GM tab open and not minimized; narrate and say need Allow Write Operations.",
++        inputSchema: {
++          type: 'object',
++          properties: {
++            action: { type: 'string', enum: ['say', 'narrate', 'read', 'wait'], description: 'what to do' },
++            content: { type: 'string', description: 'say, narrate: plain text (html shows literally). In narrate a blank line starts a new paragraph' },
++            actorIdentifier: { type: 'string', description: 'say: name or id of the speaking actor' },
++            tokenId: { type: 'string', description: 'say: a specific token on the scene (prefer it when tokens share an actor)' },
++            whisperTo: { type: 'array', items: { type: 'string' }, description: 'say, narrate: exact player names or user ids; all must resolve or nothing is sent' },
++            language: { type: 'string', description: 'say: language key for Polyglot, e.g. "common"' },
++            chatLog: { type: 'boolean', description: 'say: post a chat-log message instead of only a bubble' },
++            speaker: { type: 'string', description: 'narrate: the name shown (default Narrator)' },
++            since: { type: 'string', description: 'read, wait: a marker (message id) from a previous result' },
++            from: { type: 'string', enum: ['players', 'all'], description: 'read (default all), wait (default players)' },
++            rolls: { type: 'boolean', description: 'read, wait: false leaves out pure roll messages' },
++            limit: { type: 'number', description: 'read, wait: at most this many messages (default 15, max 50)' },
++            timeout_s: { type: 'number', description: 'wait: seconds to wait (default 30, max 55)' },
++          },
++          required: ['action'],
++          additionalProperties: false,
++        },
++      },
++    ];
++  }
++
++  async handleChat(args: unknown): Promise<any> {
++    const a = schema.parse(args);
++    this.logger.info('Chat request', { action: a.action });
++    if (a.action === 'say') {
++      if (!a.content) throw new Error('say needs content');
++      if (!a.actorIdentifier && !a.tokenId) throw new Error('say needs actorIdentifier or tokenId');
++      const fields: Record<string, unknown> = {};
++      for (const k of ['actorIdentifier', 'tokenId', 'content', 'language', 'chatLog', 'whisperTo'] as const) {
++        if (a[k] !== undefined) fields[k] = a[k];
++      }
++      return this.say.handleCreateChatMessage(fields);
++    }
++    if (a.action === 'narrate' && !a.content) throw new Error('narrate needs content');
++    const timeoutMs = a.action === 'wait' ? ((a.timeout_s ?? 30) + 15) * 1000 : 30000;
++    const result = await this.foundryClient.query('foundry-mcp-bridge.chat', a, timeoutMs);
++    if (result?.success === false) throw new Error(result.error || 'Request was refused');
++    return result;
 +  }
 +}
 diff --git a/packages/mcp-server/src/tools/combat-tools.test.ts b/packages/mcp-server/src/tools/combat-tools.test.ts
@@ -35783,7 +36323,7 @@ index 0000000..d4f0b89
 +  });
 +});
 diff --git a/packages/mcp-server/src/tools/scene.ts b/packages/mcp-server/src/tools/scene.ts
-index 1e422bf..a3e86c3 100644
+index 1e422bf..749c1e8 100644
 --- a/packages/mcp-server/src/tools/scene.ts
 +++ b/packages/mcp-server/src/tools/scene.ts
 @@ -7,6 +7,20 @@ export interface SceneToolsOptions {
@@ -35878,7 +36418,7 @@ index 1e422bf..a3e86c3 100644
 +            },
 +            token_vision: { type: 'boolean', description: 'Whether tokens need vision to see' },
 +            darkness: { type: 'number', description: 'Ambient darkness, 0 (day) to 1 (night)' },
-+            global_light: { type: 'boolean', description: 'Enable global illumination' },
++            global_light: { type: 'boolean', description: 'Enable global illumination. Turn it on for daylight or lit maps when token vision is on: with it off and no lights, players see only a few feet around their tokens' },
 +            navigation: {
 +              type: 'boolean',
 +              description: 'Show the scene in the top navigation bar',
