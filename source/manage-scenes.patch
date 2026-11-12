@@ -6084,10 +6084,10 @@ index 0000000..8db7056
 +});
 diff --git a/packages/foundry-module/src/data-access.rules.test.ts b/packages/foundry-module/src/data-access.rules.test.ts
 new file mode 100644
-index 0000000..f988ac7
+index 0000000..b6149d7
 --- /dev/null
 +++ b/packages/foundry-module/src/data-access.rules.test.ts
-@@ -0,0 +1,92 @@
+@@ -0,0 +1,102 @@
 +/** rules lookup: utils and the data-access search/read over journal packs and world journals. */
 +import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 +import { FoundryDataAccess } from './data-access.js';
@@ -6166,6 +6166,16 @@ index 0000000..f988ac7
 +    expect(house.results[0]).toMatchObject({ page: 'Crits', source: 'world' });
 +    await da.lookupRules({ query: 'grappling' });
 +    expect(getDocuments).toHaveBeenCalledTimes(1);
++  });
++  it('pulls embedded pages into the text of the page that embeds them', async () => {
++    const { da } = setup();
++    const g = (globalThis as any).game;
++    g.packs.contents[0].getDocuments = async () => [
++      { name: 'Combat', pages: { contents: [{ uuid: 'stub', name: 'Making an Attack', type: 'text', text: { content: '<h2>Unseen Attackers</h2>@Embed[Compendium.x.JournalEntry.J.JournalEntryPage.deep inline]' } }] } },
++    ];
++    (globalThis as any).fromUuid = async (u: string) => (u.endsWith('.deep') ? { documentName: 'JournalEntryPage', text: { content: '<p>A hidden attacker gives away its location.</p>' } } : null);
++    const r = await da.lookupRules({ query: 'hidden attacker location', sources: ['dnd5e.rules'] });
++    expect(r.results[0]).toMatchObject({ page: 'Making an Attack' });
 +  });
 +  it('reads pages, and says when one is missing', async () => {
 +    const { da } = setup();
@@ -7239,7 +7249,7 @@ index 0000000..26e6aab
 +  });
 +});
 diff --git a/packages/foundry-module/src/data-access.ts b/packages/foundry-module/src/data-access.ts
-index eecda7e..21fd49d 100644
+index eecda7e..0b9cea9 100644
 --- a/packages/foundry-module/src/data-access.ts
 +++ b/packages/foundry-module/src/data-access.ts
 @@ -1,6 +1,138 @@
@@ -7507,7 +7517,7 @@ index eecda7e..21fd49d 100644
              type: 'requestMessageUpdate',
              buttonId,
              userId,
-@@ -8101,198 +8318,4458 @@ export class FoundryDataAccess {
+@@ -8101,198 +8318,4473 @@ export class FoundryDataAccess {
      }
    }
  
@@ -9147,11 +9157,26 @@ index eecda7e..21fd49d 100644
 +  private rulesCache = new Map<string, RulePage[]>();
 +
 +  /** The text pages of a journal, as searchable plain text. */
-+  private rulePagesOf(journal: any, source: string): RulePage[] {
++  private async rulePagesOf(journal: any, source: string): Promise<RulePage[]> {
 +    const pages: RulePage[] = [];
 +    for (const page of ((journal.pages?.contents || []) as any[])) {
 +      if (page.type && page.type !== 'text') continue;
-+      const text = htmlToText(page.text?.content);
++      const html = String(page.text?.content ?? '');
++      let text = htmlToText(html);
++      // Many rules pages are made of embeds of other pages: pull the embedded text in (one level).
++      const embeds = [...html.matchAll(/@Embed\[([^\]\s]+)[^\]]*\]/g)].map(m => m[1]!).slice(0, 12);
++      for (const uuid of embeds) {
++        try {
++          const doc: any = await (globalThis as any).fromUuid(uuid);
++          const parts = doc?.documentName === 'JournalEntry' ? ((doc.pages?.contents || []) as any[]) : doc ? [doc] : [];
++          for (const p of parts) {
++            const t = htmlToText(p.text?.content);
++            if (t) text += (text ? '\n\n' : '') + t;
++          }
++        } catch {
++          /* an embed that cannot be resolved is skipped */
++        }
++      }
 +      if (text) pages.push({ uuid: page.uuid, journal: journal.name, page: page.name, source, text });
 +    }
 +    return pages;
@@ -9215,7 +9240,7 @@ index eecda7e..21fd49d 100644
 +        searched.push(src.id);
 +        if (src.kind === 'world') {
 +          for (const journal of ((g.journal?.contents || []) as any[])) {
-+            if (/rule|house|reference|homebrew/i.test(journal.name ?? '')) pages.push(...this.rulePagesOf(journal, 'world'));
++            if (/rule|house|reference|homebrew/i.test(journal.name ?? '')) pages.push(...(await this.rulePagesOf(journal, 'world')));
 +          }
 +          continue;
 +        }
@@ -9223,7 +9248,7 @@ index eecda7e..21fd49d 100644
 +        if (!cached) {
 +          const pack = g.packs.get(src.id);
 +          cached = [];
-+          for (const journal of (await pack.getDocuments()) as any[]) cached.push(...this.rulePagesOf(journal, src.label));
++          for (const journal of (await pack.getDocuments()) as any[]) cached.push(...(await this.rulePagesOf(journal, src.label)));
 +          this.rulesCache.set(src.id, cached);
 +        }
 +        pages.push(...cached);
@@ -12118,7 +12143,7 @@ index eecda7e..21fd49d 100644
          case 'play':
            await pl.playAll();
            return { success: true, action: 'play', playlist: info };
-@@ -8304,20 +12781,48 @@ export class FoundryDataAccess {
+@@ -8304,20 +12796,48 @@ export class FoundryDataAccess {
            return { success: true, action: 'cycle-mode', playlist: info, mode: pl.mode as number };
          case 'play-sound':
          case 'stop-sound': {
@@ -12173,7 +12198,7 @@ index eecda7e..21fd49d 100644
        }
      } catch (error) {
        throw new Error(
-@@ -8468,6 +12973,21 @@ export class FoundryDataAccess {
+@@ -8468,6 +12988,21 @@ export class FoundryDataAccess {
      }
    }
  
@@ -12195,7 +12220,7 @@ index eecda7e..21fd49d 100644
    /**
     * Move a token to a new position on the scene
     */
-@@ -8476,6 +12996,12 @@ export class FoundryDataAccess {
+@@ -8476,6 +13011,12 @@ export class FoundryDataAccess {
      x: number;
      y: number;
      animate?: boolean;
@@ -12208,7 +12233,7 @@ index eecda7e..21fd49d 100644
    }): Promise<any> {
      this.validateFoundryState();
  
-@@ -8489,24 +13015,57 @@ export class FoundryDataAccess {
+@@ -8489,24 +13030,57 @@ export class FoundryDataAccess {
      }
  
      try {
@@ -12279,7 +12304,7 @@ index eecda7e..21fd49d 100644
  
        this.auditLog('moveToken', data, 'success');
  
-@@ -8514,8 +13073,12 @@ export class FoundryDataAccess {
+@@ -8514,8 +13088,12 @@ export class FoundryDataAccess {
          success: true,
          tokenId: token.id,
          tokenName: token.name,
@@ -12293,7 +12318,7 @@ index eecda7e..21fd49d 100644
        };
      } catch (error) {
        this.auditLog(
-@@ -8530,10 +13093,56 @@ export class FoundryDataAccess {
+@@ -8530,10 +13108,56 @@ export class FoundryDataAccess {
      }
    }
  
@@ -12351,7 +12376,7 @@ index eecda7e..21fd49d 100644
      this.validateFoundryState();
  
      // Use permission system
-@@ -8546,20 +13155,19 @@ export class FoundryDataAccess {
+@@ -8546,20 +13170,19 @@ export class FoundryDataAccess {
      }
  
      try {
@@ -12378,7 +12403,7 @@ index eecda7e..21fd49d 100644
  
        // Apply updates
        await token.update(cleanUpdates);
-@@ -8651,18 +13259,15 @@ export class FoundryDataAccess {
+@@ -8651,18 +13274,15 @@ export class FoundryDataAccess {
    /**
     * Get detailed information about a token
     */
@@ -12401,7 +12426,7 @@ index eecda7e..21fd49d 100644
        }
  
        // Return flat structure that matches MCP server expectations
-@@ -11274,7 +15879,10 @@ export class FoundryDataAccess {
+@@ -11274,7 +15894,10 @@ export class FoundryDataAccess {
        name: string;
        type: string;
        img?: string;
@@ -12412,7 +12437,7 @@ index eecda7e..21fd49d 100644
      }>;
      folder?: string;
    }): Promise<{ created: Array<{ id: string; name: string; type: string }>; total: number }> {
-@@ -11286,6 +15894,19 @@ export class FoundryDataAccess {
+@@ -11286,6 +15909,19 @@ export class FoundryDataAccess {
      const docs = params.actors.map(a => {
        const doc: Record<string, any> = { name: a.name, type: a.type };
        if (a.img) doc.img = a.img;
@@ -12432,7 +12457,7 @@ index eecda7e..21fd49d 100644
  
        // Merge system data, adding safe defaults for systems that require certain
        // fields to exist during data preparation (avoids non-fatal init errors).
-@@ -11471,7 +16092,16 @@ export class FoundryDataAccess {
+@@ -11471,7 +16107,16 @@ export class FoundryDataAccess {
     * Merges supplied fields into the actor (top-level keys overwrite).
     */
    async updateActors(
@@ -12450,7 +12475,7 @@ index eecda7e..21fd49d 100644
    ): Promise<{ updated: Array<{ id: string; name: string }>; total: number }> {
      const updatedActors: Array<{ id: string; name: string }> = [];
  
-@@ -11482,6 +16112,7 @@ export class FoundryDataAccess {
+@@ -11482,6 +16127,7 @@ export class FoundryDataAccess {
        const patch: Record<string, any> = {};
        if (u.name !== undefined) patch.name = u.name;
        if (u.img !== undefined) patch.img = u.img;
@@ -12458,7 +12483,7 @@ index eecda7e..21fd49d 100644
        if (u.system !== undefined) {
          // Build a single patch.system nested object so Foundry deep-merges everything
          // in one pass without flat-key vs nested-key conflicts.
-@@ -11504,6 +16135,19 @@ export class FoundryDataAccess {
+@@ -11504,6 +16150,19 @@ export class FoundryDataAccess {
          }
          patch.system = systemPatch;
        }
