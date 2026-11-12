@@ -691,6 +691,951 @@ index 0000000..0ffbb55
 +    expect(() => patch({ glow: 1 })).toThrow('unknown token option "glow"');
 +  });
 +});
+diff --git a/packages/foundry-module/src/annotation-scene.ts b/packages/foundry-module/src/annotation-scene.ts
+new file mode 100644
+index 0000000..6f83d3d
+--- /dev/null
++++ b/packages/foundry-module/src/annotation-scene.ts
+@@ -0,0 +1,101 @@
++/** Reading a scene as things that can be clicked, and keeping notes in scene flags. */
++import { MODULE_ID } from './constants.js';
++import { getGridGeometry } from './scene-objects-utils.js';
++import { roundSquares, type Annotation, type Clickable, type Point } from './annotation-utils.js';
++
++const FLAG = 'annotations';
++
++const contents = (collection: any): any[] => (collection?.contents ? [...collection.contents] : collection ? [...collection] : []);
++
++/** A region shape as a polygon in pixels. */
++function regionPolygon(shape: any): Point[] | null {
++  if (!shape) return null;
++  if (shape.type === 'rectangle') {
++    const { x, y, width, height } = shape;
++    return [[x, y], [x + width, y], [x + width, y + height], [x, y + height]];
++  }
++  if (shape.type === 'polygon' && Array.isArray(shape.points) && shape.points.length >= 6) {
++    const out: Point[] = [];
++    for (let i = 0; i + 1 < shape.points.length; i += 2) out.push([shape.points[i], shape.points[i + 1]]);
++    return out;
++  }
++  if (shape.type === 'ellipse' || shape.type === 'circle') {
++    const rx = shape.radiusX ?? shape.radius ?? 0;
++    const ry = shape.radiusY ?? shape.radius ?? 0;
++    const out: Point[] = [];
++    for (let i = 0; i < 32; i++) {
++      const a = (i / 32) * Math.PI * 2;
++      out.push([shape.x + Math.cos(a) * rx, shape.y + Math.sin(a) * ry]);
++    }
++    return out;
++  }
++  return null;
++}
++
++/** Everything on a scene a note can point at, in grid squares from the top-left of the map. */
++export function sceneClickables(scene: any): Clickable[] {
++  const geom = getGridGeometry(scene);
++  const size = geom.size;
++  /** a distance in squares */
++  const sq = (px: number) => Number(px ?? 0) / size;
++  /** a position in squares from the top-left of the map */
++  const px2x = (px: number) => (Number(px ?? 0) - geom.originX) / size;
++  const px2y = (px: number) => (Number(px ?? 0) - geom.originY) / size;
++  const out: Clickable[] = [];
++
++  for (const t of contents(scene.tokens)) {
++    out.push({ kind: 'token', id: t.id, name: t.name ?? t.actor?.name, x: px2x(t.x), y: px2y(t.y), width: Number(t.width ?? 1), height: Number(t.height ?? 1) });
++  }
++  for (const t of contents(scene.tiles)) {
++    out.push({ kind: 'tile', id: t.id, x: px2x(t.x), y: px2y(t.y), width: sq(t.width), height: sq(t.height) });
++  }
++  for (const d of contents(scene.drawings)) {
++    out.push({ kind: 'drawing', id: d.id, x: px2x(d.x), y: px2y(d.y), width: sq(d.shape?.width ?? 0), height: sq(d.shape?.height ?? 0) });
++  }
++  for (const l of contents(scene.lights)) out.push({ kind: 'light', id: l.id, at: [px2x(l.x), px2y(l.y)] });
++  for (const s of contents(scene.sounds)) out.push({ kind: 'sound', id: s.id, at: [px2x(s.x), px2y(s.y)] });
++  for (const n of contents(scene.notes)) out.push({ kind: 'note', id: n.id, name: n.text || n.entry?.name, at: [px2x(n.x), px2y(n.y)] });
++  for (const w of contents(scene.walls)) {
++    const c = w.c;
++    if (!Array.isArray(c) || c.length < 4) continue;
++    const door = w.door === 2 ? 'secret door' : w.door === 1 ? 'door' : undefined;
++    out.push({ kind: 'wall', id: w.id, segment: [[px2x(c[0]), px2y(c[1])], [px2x(c[2]), px2y(c[3])]], ...(door ? { door } : {}) });
++  }
++  for (const r of contents(scene.regions)) {
++    for (const shape of (r.shapes ?? []) as any[]) {
++      const polygon = regionPolygon(shape);
++      if (polygon) out.push({ kind: 'region', id: r.id, name: r.name, polygon: polygon.map(p => [px2x(p[0]), px2y(p[1])] as Point) });
++    }
++  }
++  return out;
++}
++
++/** The same things as single points (for counting what is inside an area). */
++export function sceneThings(scene: any): Array<{ kind: string; name?: string; x: number; y: number }> {
++  const things: Array<{ kind: string; name?: string; x: number; y: number }> = [];
++  for (const c of sceneClickables(scene)) {
++    if (c.kind === 'region') continue;
++    let x = c.x ?? 0;
++    let y = c.y ?? 0;
++    if (c.at) [x, y] = c.at;
++    else if (c.segment) {
++      x = (c.segment[0][0] + c.segment[1][0]) / 2;
++      y = (c.segment[0][1] + c.segment[1][1]) / 2;
++    } else if (c.width !== undefined && c.height !== undefined) {
++      x += c.width / 2;
++      y += c.height / 2;
++    }
++    things.push({ kind: c.kind === 'wall' && c.door ? 'door' : c.kind, ...(c.name ? { name: c.name } : {}), x: roundSquares(x), y: roundSquares(y) });
++  }
++  return things;
++}
++
++export function readAnnotations(scene: any): Annotation[] {
++  const stored = scene?.getFlag?.(MODULE_ID, FLAG) ?? scene?.flags?.[MODULE_ID]?.[FLAG];
++  return Array.isArray(stored) ? (stored as Annotation[]) : [];
++}
++
++export async function writeAnnotations(scene: any, list: Annotation[]): Promise<void> {
++  if (list.length === 0) await scene.unsetFlag(MODULE_ID, FLAG);
++  else await scene.setFlag(MODULE_ID, FLAG, list);
++}
+diff --git a/packages/foundry-module/src/annotation-ui.ts b/packages/foundry-module/src/annotation-ui.ts
+new file mode 100644
+index 0000000..42146f3
+--- /dev/null
++++ b/packages/foundry-module/src/annotation-ui.ts
+@@ -0,0 +1,477 @@
++/**
++ * "Notes for Claude": a group in the scene controls (upper left) with a select tool, a rectangle
++ * tool, a polygon tool and a notes list. The GM clicks an object or draws an area, writes what
++ * should change, and the note is kept on the scene for Claude to read (the annotations tool).
++ *
++ * This file talks to Foundry's canvas and dialogs, so it is checked by hand in Foundry; the
++ * geometry and storage it relies on are unit-tested (annotation-utils, annotation-scene).
++ */
++import { MODULE_ID } from './constants.js';
++import {
++  hitTest,
++  makeAnnotation,
++  makeArea,
++  rectPoints,
++  roundSquares,
++  targetOf,
++  type Annotation,
++  type Clickable,
++  type Point,
++} from './annotation-utils.js';
++import { readAnnotations, sceneClickables, writeAnnotations } from './annotation-scene.js';
++import { getGridGeometry } from './scene-objects-utils.js';
++
++type Mode = 'select' | 'rect' | 'polygon';
++
++const G = globalThis as any;
++const GROUP = 'mcp-annotate';
++const ORANGE = 0xff8a00;
++const BLUE = 0x2f9bff;
++
++const esc = (text: string): string =>
++  String(text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
++
++let mode: Mode | null = null;
++let overlay: any = null; // hover, selection and drawing
++let pins: any = null; // numbered outlines of open notes
++let hovered: Clickable | null = null;
++let dragStart: Point | null = null; // squares
++let dragNow: Point | null = null;
++let polygon: Point[] = [];
++let busy = false;
++let listening = false;
++
++// ---------- coordinates ----------
++
++function geometry(): ReturnType<typeof getGridGeometry> | null {
++  try {
++    return G.canvas?.scene ? getGridGeometry(G.canvas.scene) : null;
++  } catch {
++    return null;
++  }
++}
++
++/** A mouse event as grid squares from the top-left of the map. */
++function eventSquares(event: PointerEvent | MouseEvent): Point | null {
++  const geom = geometry();
++  const point = G.canvas?.canvasCoordinates?.({ x: event.clientX, y: event.clientY });
++  if (!geom || !point) return null;
++  return [(point.x - geom.originX) / geom.size, (point.y - geom.originY) / geom.size];
++}
++
++const toCanvas = (geom: { size: number; originX: number; originY: number }, p: Point): [number, number] => [geom.originX + p[0] * geom.size, geom.originY + p[1] * geom.size];
++
++// ---------- drawing ----------
++
++function layerParent(): any {
++  return G.canvas?.interface ?? G.canvas?.stage;
++}
++
++function ensureLayers(): void {
++  const parent = layerParent();
++  if (!parent || !G.PIXI) return;
++  if (!pins || pins.destroyed) {
++    pins = new G.PIXI.Container();
++    pins.eventMode = 'none';
++    parent.addChild(pins);
++  }
++  if (!overlay || overlay.destroyed) {
++    overlay = new G.PIXI.Graphics();
++    overlay.eventMode = 'none';
++    parent.addChild(overlay);
++  }
++}
++
++function strokeShape(g: any, geom: any, c: Clickable, color: number): void {
++  const cv = (p: Point) => toCanvas(geom, p);
++  const style = { width: 3, color, alpha: 0.95 };
++  if (c.at) {
++    const [x, y] = cv(c.at);
++    g.circle(x, y, geom.size * 0.45).fill({ color, alpha: 0.2 }).stroke(style);
++  } else if (c.segment) {
++    const [x1, y1] = cv(c.segment[0]);
++    const [x2, y2] = cv(c.segment[1]);
++    g.moveTo(x1, y1).lineTo(x2, y2).stroke({ ...style, width: 6 });
++  } else if (c.polygon) {
++    g.poly(c.polygon.flatMap(p => cv(p))).fill({ color, alpha: 0.12 }).stroke(style);
++  } else if (c.x !== undefined && c.y !== undefined && c.width !== undefined && c.height !== undefined) {
++    const [x, y] = cv([c.x, c.y]);
++    g.rect(x, y, c.width * geom.size, c.height * geom.size).fill({ color, alpha: 0.12 }).stroke(style);
++  }
++}
++
++function redrawOverlay(): void {
++  const geom = geometry();
++  if (!overlay || overlay.destroyed || !geom) return;
++  overlay.clear();
++  if (hovered && mode === 'select') strokeShape(overlay, geom, hovered, BLUE);
++  if (dragStart && dragNow && mode === 'rect') {
++    const pts = rectPoints(dragStart[0], dragStart[1], dragNow[0], dragNow[1]);
++    overlay.poly(pts.flatMap(p => toCanvas(geom, p))).fill({ color: BLUE, alpha: 0.18 }).stroke({ width: 3, color: BLUE, alpha: 0.95 });
++  }
++  if (mode === 'polygon' && polygon.length > 0) {
++    const pts = dragNow ? [...polygon, dragNow] : polygon;
++    const flat = pts.flatMap(p => toCanvas(geom, p));
++    if (pts.length >= 3) overlay.poly(flat).fill({ color: BLUE, alpha: 0.15 });
++    overlay.poly(flat, false).stroke({ width: 3, color: BLUE, alpha: 0.95 });
++    for (const p of polygon) overlay.circle(...toCanvas(geom, p), 5).fill({ color: BLUE });
++  }
++}
++
++/** Numbered outlines of the open notes of the scene being viewed. */
++export function redrawPins(): void {
++  try {
++    if (!G.game?.user?.isGM) return;
++    ensureLayers();
++    const geom = geometry();
++    if (!pins || pins.destroyed || !geom) return;
++    pins.removeChildren().forEach((child: any) => child.destroy?.());
++    const open = readAnnotations(G.canvas.scene).filter(a => a.status === 'open');
++    const g = new G.PIXI.Graphics();
++    pins.addChild(g);
++    const clickables = sceneClickables(G.canvas.scene);
++    for (const a of open) {
++      let corner: Point = [0, 0];
++      if (a.area) {
++        g.poly(a.area.points.flatMap(p => toCanvas(geom, p))).fill({ color: ORANGE, alpha: 0.1 }).stroke({ width: 2, color: ORANGE, alpha: 0.9 });
++        corner = [a.area.bbox.x, a.area.bbox.y];
++      } else if (a.target) {
++        const now = clickables.find(c => c.id === a.target!.id && c.kind === a.target!.kind);
++        if (now) {
++          strokeShape(g, geom, now, ORANGE);
++          const t = targetOf(now);
++          corner = [t.x, t.y];
++        } else {
++          corner = [a.target.x, a.target.y];
++        }
++      }
++      const [cx, cy] = toCanvas(geom, corner);
++      g.circle(cx, cy, 11).fill({ color: ORANGE }).stroke({ width: 2, color: 0xffffff });
++      const label = new G.PIXI.Text({ text: String(a.number), style: { fontSize: 13, fontWeight: 'bold', fill: 0x000000 } });
++      label.anchor?.set?.(0.5);
++      label.position.set(cx, cy);
++      pins.addChild(label);
++    }
++  } catch (error) {
++    console.warn(`[${MODULE_ID}] Could not draw the note pins:`, error);
++  }
++}
++
++// ---------- notes ----------
++
++async function askForText(title: string, summary: string): Promise<string | null> {
++  const DialogV2 = G.foundry?.applications?.api?.DialogV2;
++  if (!DialogV2) {
++    const typed = window.prompt(`${title}\n${summary}`);
++    return typed && typed.trim() ? typed : null;
++  }
++  try {
++    const result = await DialogV2.prompt({
++      window: { title },
++      content: `<p>${esc(summary)}</p><textarea name="note" rows="5" style="width:100%" autofocus placeholder="What should change? (e.g. change the picture of this prop, clean up the walls here, add three goblins)"></textarea>`,
++      ok: { label: 'Save note', callback: (_event: any, button: any) => button.form.elements.note.value },
++      rejectClose: false,
++    });
++    return typeof result === 'string' && result.trim() ? result : null;
++  } catch {
++    return null;
++  }
++}
++
++async function saveNote(input: { prompt: string; target?: ReturnType<typeof targetOf>; area?: ReturnType<typeof makeArea> }): Promise<void> {
++  const scene = G.canvas?.scene;
++  if (!scene) return;
++  const list = readAnnotations(scene);
++  const note = makeAnnotation({ scene: scene.id, sceneName: scene.name, ...input }, list);
++  await writeAnnotations(scene, [...list, note]);
++  G.ui?.notifications?.info(`Note ${note.number} saved for Claude`);
++  redrawPins();
++}
++
++async function finishSelect(point: Point): Promise<void> {
++  const hit = hitTest(sceneClickables(G.canvas.scene), point);
++  if (!hit) {
++    G.ui?.notifications?.warn('Nothing to select there. Click on a token, tile, light, wall, pin, sound, drawing or region.');
++    return;
++  }
++  const target = targetOf(hit);
++  const what = `${target.kind}${target.name ? ` "${target.name}"` : ''} at (${target.x}, ${target.y})`;
++  const prompt = await askForText('Note for Claude', `About this ${what}`);
++  if (prompt) await saveNote({ prompt, target });
++}
++
++async function finishArea(points: Point[], shape: 'rect' | 'polygon'): Promise<void> {
++  const area = makeArea(points, shape);
++  const b = area.bbox;
++  const prompt = await askForText('Note for Claude', `About this area: ${b.width} x ${b.height} squares from (${b.x}, ${b.y})`);
++  if (prompt) await saveNote({ prompt, area });
++}
++
++// ---------- pointer handling ----------
++
++function isCanvasEvent(event: Event): boolean {
++  const board = G.canvas?.app?.view ?? document.getElementById('board');
++  return !!board && event.target === board;
++}
++
++function resetDrawing(): void {
++  dragStart = null;
++  dragNow = null;
++  polygon = [];
++  hovered = null;
++  redrawOverlay();
++}
++
++function onPointerDown(event: PointerEvent): void {
++  if (!mode || busy || event.button !== 0 || !isCanvasEvent(event)) return;
++  const point = eventSquares(event);
++  if (!point) return;
++  event.preventDefault();
++  event.stopPropagation();
++  event.stopImmediatePropagation();
++  if (mode === 'select') {
++    busy = true;
++    finishSelect(point)
++      .catch(error => G.ui?.notifications?.error(String(error?.message ?? error)))
++      .finally(() => {
++        busy = false;
++        resetDrawing();
++      });
++  } else if (mode === 'rect') {
++    dragStart = point;
++    dragNow = point;
++  } else if (mode === 'polygon') {
++    polygon.push([roundSquares(point[0]), roundSquares(point[1])]);
++    dragNow = point;
++    redrawOverlay();
++  }
++}
++
++function onPointerMove(event: PointerEvent): void {
++  if (!mode || busy || !isCanvasEvent(event)) return;
++  const point = eventSquares(event);
++  if (!point) return;
++  if (mode === 'select') {
++    const hit = hitTest(sceneClickables(G.canvas.scene), point);
++    if (hit?.id !== hovered?.id || hit?.kind !== hovered?.kind) {
++      hovered = hit;
++      redrawOverlay();
++    }
++  } else if (mode === 'rect' && dragStart) {
++    dragNow = point;
++    redrawOverlay();
++  } else if (mode === 'polygon' && polygon.length > 0) {
++    dragNow = point;
++    redrawOverlay();
++  }
++}
++
++function onPointerUp(event: PointerEvent): void {
++  if (mode !== 'rect' || !dragStart || busy || event.button !== 0) return;
++  const end = eventSquares(event) ?? dragNow;
++  const start = dragStart;
++  dragStart = null;
++  dragNow = null;
++  if (!end || Math.abs(end[0] - start[0]) < 0.3 || Math.abs(end[1] - start[1]) < 0.3) {
++    redrawOverlay();
++    return;
++  }
++  busy = true;
++  finishArea(rectPoints(start[0], start[1], end[0], end[1]), 'rect')
++    .catch(error => G.ui?.notifications?.error(String(error?.message ?? error)))
++    .finally(() => {
++      busy = false;
++      resetDrawing();
++    });
++}
++
++function finishPolygon(): void {
++  if (mode !== 'polygon' || busy) return;
++  if (polygon.length < 3) {
++    G.ui?.notifications?.warn('Click at least three points, then double-click or press Enter to finish.');
++    return;
++  }
++  const points = polygon.slice();
++  busy = true;
++  finishArea(points, 'polygon')
++    .catch(error => G.ui?.notifications?.error(String(error?.message ?? error)))
++    .finally(() => {
++      busy = false;
++      resetDrawing();
++    });
++}
++
++function onDoubleClick(event: MouseEvent): void {
++  if (mode !== 'polygon' || !isCanvasEvent(event)) return;
++  event.preventDefault();
++  event.stopPropagation();
++  // the double click's second press already added a point on top of the first; drop the copy
++  if (polygon.length > 1) {
++    const [a, b] = [polygon[polygon.length - 1]!, polygon[polygon.length - 2]!];
++    if (Math.hypot(a[0] - b[0], a[1] - b[1]) < 0.2) polygon.pop();
++  }
++  finishPolygon();
++}
++
++function onKeyDown(event: KeyboardEvent): void {
++  if (!mode || busy) return;
++  const typing = (event.target as HTMLElement | null)?.matches?.('input, textarea, select, [contenteditable="true"]');
++  if (typing) return;
++  if (event.key === 'Escape') {
++    resetDrawing();
++  } else if (event.key === 'Enter' && mode === 'polygon') {
++    event.preventDefault();
++    finishPolygon();
++  } else if (event.key === 'Backspace' && mode === 'polygon' && polygon.length > 0) {
++    event.preventDefault();
++    polygon.pop();
++    redrawOverlay();
++  }
++}
++
++function startListening(): void {
++  if (listening) return;
++  listening = true;
++  document.body.addEventListener('pointerdown', onPointerDown, true);
++  document.body.addEventListener('pointermove', onPointerMove, true);
++  document.body.addEventListener('pointerup', onPointerUp, true);
++  document.body.addEventListener('dblclick', onDoubleClick, true);
++  document.addEventListener('keydown', onKeyDown, true);
++}
++
++function stopListening(): void {
++  if (!listening) return;
++  listening = false;
++  document.body.removeEventListener('pointerdown', onPointerDown, true);
++  document.body.removeEventListener('pointermove', onPointerMove, true);
++  document.body.removeEventListener('pointerup', onPointerUp, true);
++  document.body.removeEventListener('dblclick', onDoubleClick, true);
++  document.removeEventListener('keydown', onKeyDown, true);
++}
++
++function setMode(next: Mode | null): void {
++  mode = next;
++  resetDrawing();
++  if (next) {
++    ensureLayers();
++    startListening();
++    const hint =
++      next === 'select' ? 'Click an object to leave a note about it' : next === 'rect' ? 'Drag to draw an area' : 'Click points; double-click or Enter to finish, Backspace to undo, Esc to cancel';
++    G.ui?.notifications?.info(hint);
++  } else {
++    stopListening();
++  }
++}
++
++// ---------- notes list ----------
++
++async function openNotesPanel(): Promise<void> {
++  const scene = G.canvas?.scene;
++  if (!scene) return;
++  const DialogV2 = G.foundry?.applications?.api?.DialogV2;
++  if (!DialogV2) {
++    G.ui?.notifications?.warn('This Foundry version has no dialog for the notes list');
++    return;
++  }
++  const list: Annotation[] = readAnnotations(scene);
++  const rows = list.length
++    ? list
++        .map(a => {
++          const where = a.target ? `${a.target.kind}${a.target.name ? ` "${esc(a.target.name)}"` : ''}` : `area ${a.area!.bbox.width}x${a.area!.bbox.height}`;
++          const status = a.status === 'open' ? '' : ` <em>(${a.status})</em>`;
++          return `<li data-id="${esc(a.id)}" style="margin-bottom:6px"><strong>${a.number}.</strong> ${esc(a.prompt)}${status}<br><small>${where}</small>${
++            a.reply ? `<br><small><strong>Claude:</strong> ${esc(a.reply)}</small>` : ''
++          } <a data-del="${esc(a.id)}" title="Delete this note" style="float:right"><i class="fa-solid fa-trash"></i></a></li>`;
++        })
++        .join('')
++    : '<li><em>No notes on this scene yet.</em></li>';
++  await DialogV2.wait({
++    window: { title: `Notes for Claude: ${scene.name}` },
++    content: `<ul style="list-style:none;padding:0;margin:0;max-height:50vh;overflow:auto">${rows}</ul>`,
++    buttons: [
++      {
++        action: 'clear',
++        label: 'Clear finished',
++        callback: async () => {
++          await writeAnnotations(scene, readAnnotations(scene).filter(a => a.status === 'open'));
++          redrawPins();
++        },
++      },
++      { action: 'close', label: 'Close', default: true },
++    ],
++    render: (_event: any, dialog: any) => {
++      dialog.element?.querySelectorAll?.('[data-del]').forEach((el: HTMLElement) =>
++        el.addEventListener('click', async () => {
++          const id = el.getAttribute('data-del');
++          await writeAnnotations(scene, readAnnotations(scene).filter(a => a.id !== id));
++          el.closest('li')?.remove();
++          redrawPins();
++        })
++      );
++    },
++    rejectClose: false,
++  }).catch(() => undefined);
++}
++
++// ---------- registration ----------
++
++export function registerAnnotationUI(): void {
++  Hooks.on('getSceneControlButtons', (controls: any) => {
++    try {
++      if (!G.game?.user?.isGM) return;
++      const tool = (name: Mode, order: number, title: string, icon: string) => ({
++        name,
++        order,
++        title,
++        icon,
++        onChange: (_event: any, active: boolean) => {
++          if (active !== false) setMode(name);
++        },
++      });
++      controls[GROUP] = {
++        name: GROUP,
++        order: 99,
++        title: 'Notes for Claude',
++        icon: 'fa-solid fa-comment-dots',
++        visible: true,
++        activeTool: 'select',
++        onChange: (_event: any, active: boolean) => {
++          const current = G.ui?.controls?.tool?.name;
++          if (active) setMode(current === 'rect' || current === 'polygon' ? current : 'select');
++          else setMode(null);
++        },
++        tools: {
++          select: tool('select', 1, 'Select an object and leave a note', 'fa-solid fa-arrow-pointer'),
++          rect: tool('rect', 2, 'Draw a rectangle and leave a note', 'fa-solid fa-vector-square'),
++          polygon: tool('polygon', 3, 'Draw an area and leave a note', 'fa-solid fa-draw-polygon'),
++          list: {
++            name: 'list',
++            order: 4,
++            title: 'Notes on this scene',
++            icon: 'fa-solid fa-list-check',
++            button: true,
++            onChange: () => {
++              void openNotesPanel();
++            },
++          },
++        },
++      };
++    } catch (error) {
++      console.warn(`[${MODULE_ID}] Could not add the notes tools:`, error);
++    }
++  });
++
++  Hooks.on('canvasReady', () => {
++    overlay = null;
++    pins = null;
++    redrawPins();
++  });
++  Hooks.on('canvasTearDown', () => {
++    setMode(null);
++    overlay = null;
++    pins = null;
++  });
++  Hooks.on('updateScene', (scene: any) => {
++    if (scene?.id === G.canvas?.scene?.id) redrawPins();
++  });
++}
+diff --git a/packages/foundry-module/src/annotation-utils.test.ts b/packages/foundry-module/src/annotation-utils.test.ts
+new file mode 100644
+index 0000000..9eae350
+--- /dev/null
++++ b/packages/foundry-module/src/annotation-utils.test.ts
+@@ -0,0 +1,108 @@
++import { describe, expect, it } from 'vitest';
++import {
++  applyResolve,
++  distanceToSegment,
++  hitTest,
++  makeAnnotation,
++  makeArea,
++  newAnnotationId,
++  pointInPolygon,
++  polygonBounds,
++  rectPoints,
++  summariseArea,
++  targetOf,
++  type Clickable,
++} from './annotation-utils.js';
++
++describe('geometry', () => {
++  it('builds rectangles, bounds and areas', () => {
++    expect(rectPoints(5, 6, 2, 3)).toEqual([[2, 3], [5, 3], [5, 6], [2, 6]]);
++    expect(polygonBounds([[1, 2], [4, 2], [4, 7]])).toEqual({ x: 1, y: 2, width: 3, height: 5 });
++    const area = makeArea(rectPoints(1.04, 2.06, 4, 5), 'rect');
++    expect(area).toEqual({ shape: 'rect', points: [[1, 2.1], [4, 2.1], [4, 5], [1, 5]], bbox: { x: 1, y: 2.1, width: 3, height: 2.9 } });
++    expect(() => makeArea([[0, 0], [1, 1]], 'polygon')).toThrow('three points');
++  });
++  it('tests points against polygons and segments', () => {
++    const tri: Array<[number, number]> = [[0, 0], [10, 0], [0, 10]];
++    expect(pointInPolygon([2, 2], tri)).toBe(true);
++    expect(pointInPolygon([8, 8], tri)).toBe(false);
++    expect(distanceToSegment([5, 3], [0, 0], [10, 0])).toBe(3);
++    expect(distanceToSegment([-3, 4], [0, 0], [10, 0])).toBe(5);
++    expect(distanceToSegment([1, 1], [2, 2], [2, 2])).toBeCloseTo(Math.SQRT2);
++  });
++});
++
++describe('hitTest', () => {
++  const things: Clickable[] = [
++    { kind: 'tile', id: 'tile', x: 0, y: 0, width: 10, height: 10 },
++    { kind: 'token', id: 'tok', name: 'Goblin', x: 4, y: 4, width: 1, height: 1 },
++    { kind: 'light', id: 'light', at: [4.5, 4.5] },
++    { kind: 'wall', id: 'wall', segment: [[2, 8], [8, 8]], door: 'door' },
++    { kind: 'region', id: 'reg', name: 'Trap', polygon: [[6, 1], [9, 1], [9, 3], [6, 3]] },
++    { kind: 'drawing', id: 'draw', x: 1, y: 1, width: 2, height: 2 },
++  ];
++  it('prefers tokens over lights over tiles', () => {
++    expect(hitTest(things, [4.5, 4.5])?.id).toBe('tok');
++    expect(hitTest(things.filter(t => t.kind !== 'token'), [4.5, 4.5])?.id).toBe('light');
++    expect(hitTest(things.filter(t => t.kind === 'tile'), [4.5, 4.5])?.id).toBe('tile');
++  });
++  it('finds walls near the line, regions inside, and nothing in empty space', () => {
++    expect(hitTest(things, [5, 8.2])?.id).toBe('wall');
++    expect(hitTest(things, [5, 8.6])?.id).toBe('tile');
++    expect(hitTest(things, [7, 2])?.id).toBe('reg');
++    expect(hitTest(things, [20, 20])).toBeNull();
++    expect(hitTest([], [1, 1])).toBeNull();
++  });
++  it('takes the smaller of two overlapping drawings and tiles', () => {
++    const c: Clickable[] = [
++      { kind: 'tile', id: 'big', x: 0, y: 0, width: 10, height: 10 },
++      { kind: 'tile', id: 'small', x: 2, y: 2, width: 2, height: 2 },
++    ];
++    expect(hitTest(c, [3, 3])?.id).toBe('small');
++  });
++  it('describes a target in grid squares', () => {
++    expect(targetOf(things[1]!)).toEqual({ kind: 'token', id: 'tok', name: 'Goblin', x: 4, y: 4, width: 1, height: 1 });
++    expect(targetOf(things[2]!)).toEqual({ kind: 'light', id: 'light', x: 4.5, y: 4.5 });
++    expect(targetOf(things[3]!)).toEqual({ kind: 'wall', id: 'wall', x: 5, y: 8, door: 'door' });
++    expect(targetOf(things[4]!)).toEqual({ kind: 'region', id: 'reg', name: 'Trap', x: 6, y: 1 });
++  });
++});
++
++describe('annotations', () => {
++  const target = { kind: 'token' as const, id: 'tok', x: 1, y: 1 };
++  it('makes numbered open notes and checks them', () => {
++    const a = makeAnnotation({ scene: 's1', sceneName: 'Cave', prompt: '  change the picture ', target }, [], 1000);
++    expect(a).toMatchObject({ number: 1, type: 'object', prompt: 'change the picture', status: 'open', created: 1000, target });
++    expect(a.id).toMatch(/^n[a-z0-9]{9}$/);
++    const area = makeArea(rectPoints(0, 0, 3, 3), 'rect');
++    const b = makeAnnotation({ scene: 's1', sceneName: 'Cave', prompt: 'add enemies', area }, [a], 2000);
++    expect(b).toMatchObject({ number: 2, type: 'area' });
++    expect(() => makeAnnotation({ scene: 's', sceneName: 'x', prompt: '   ', target }, [])).toThrow('Write what');
++    expect(() => makeAnnotation({ scene: 's', sceneName: 'x', prompt: 'x'.repeat(2001), target }, [])).toThrow('at most');
++    expect(() => makeAnnotation({ scene: 's', sceneName: 'x', prompt: 'x' }, [])).toThrow('target object or an area');
++    expect(() => makeAnnotation({ scene: 's', sceneName: 'x', prompt: 'x', target, area }, [])).toThrow('target object or an area');
++    expect(newAnnotationId()).not.toBe(newAnnotationId());
++  });
++  it('resolves, replies, reopens and rejects bad statuses', () => {
++    const a = makeAnnotation({ scene: 's1', sceneName: 'Cave', prompt: 'x', target }, [], 1);
++    const done = applyResolve(a, { status: 'done', reply: ' Done, new picture ' }, 50);
++    expect(done).toMatchObject({ status: 'done', reply: 'Done, new picture', resolved: 50 });
++    const reopened = applyResolve(done, { status: 'open', reply: '' });
++    expect(reopened.status).toBe('open');
++    expect(reopened.resolved).toBeUndefined();
++    expect(reopened.reply).toBeUndefined();
++    expect(() => applyResolve(a, { status: 'later' as any })).toThrow('status must be');
++  });
++  it('counts what lies inside an area', () => {
++    const area = makeArea(rectPoints(0, 0, 5, 5), 'rect');
++    const things = [
++      { kind: 'token', name: 'Goblin', x: 1, y: 1 },
++      { kind: 'token', name: 'Far', x: 9, y: 9 },
++      { kind: 'light', x: 2, y: 2 },
++      { kind: 'light', x: 3, y: 3 },
++      { kind: 'wall', x: 4, y: 4 },
++    ];
++    expect(summariseArea(things, area)).toEqual({ tokens: ['Goblin'], lights: 2, walls: 1 });
++    expect(summariseArea([], area)).toEqual({});
++  });
++});
+diff --git a/packages/foundry-module/src/annotation-utils.ts b/packages/foundry-module/src/annotation-utils.ts
+new file mode 100644
+index 0000000..6c9da45
+--- /dev/null
++++ b/packages/foundry-module/src/annotation-utils.ts
+@@ -0,0 +1,235 @@
++/**
++ * Notes the GM leaves on a scene for Claude: a click on one object or a drawn area, with what
++ * should change. Plain data and geometry only; Foundry itself is not touched here.
++ */
++
++export type AnnotationStatus = 'open' | 'done' | 'dismissed';
++export const ANNOTATION_STATUSES: AnnotationStatus[] = ['open', 'done', 'dismissed'];
++export const ANNOTATION_KINDS = ['token', 'light', 'tile', 'sound', 'note', 'drawing', 'wall', 'region'] as const;
++export type AnnotationKind = (typeof ANNOTATION_KINDS)[number];
++
++export type Point = [number, number];
++
++export interface AnnotationTarget {
++  kind: AnnotationKind;
++  id: string;
++  name?: string;
++  /** grid squares from the top-left of the map (a wall: its middle) */
++  x: number;
++  y: number;
++  width?: number;
++  height?: number;
++  /** a door: its state */
++  door?: string;
++}
++
++export interface AnnotationArea {
++  shape: 'rect' | 'polygon';
++  points: Point[];
++  bbox: { x: number; y: number; width: number; height: number };
++}
++
++export interface Annotation {
++  id: string;
++  /** shown on the map pin; counts up per scene */
++  number: number;
++  scene: string;
++  sceneName: string;
++  type: 'object' | 'area';
++  target?: AnnotationTarget;
++  area?: AnnotationArea;
++  prompt: string;
++  status: AnnotationStatus;
++  created: number;
++  reply?: string;
++  resolved?: number;
++}
++
++export const MAX_PROMPT = 2000;
++
++export function newAnnotationId(): string {
++  const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
++  let id = 'n';
++  for (let i = 0; i < 9; i++) id += chars[Math.floor(Math.random() * chars.length)];
++  return id;
++}
++
++/** Grid squares to one decimal, so notes stay readable. */
++export const roundSquares = (value: number): number => Math.round(value * 10) / 10;
++
++export function polygonBounds(points: Point[]): { x: number; y: number; width: number; height: number } {
++  const xs = points.map(p => p[0]);
++  const ys = points.map(p => p[1]);
++  const x = Math.min(...xs);
++  const y = Math.min(...ys);
++  return { x: roundSquares(x), y: roundSquares(y), width: roundSquares(Math.max(...xs) - x), height: roundSquares(Math.max(...ys) - y) };
++}
++
++export function rectPoints(x1: number, y1: number, x2: number, y2: number): Point[] {
++  const left = Math.min(x1, x2);
++  const right = Math.max(x1, x2);
++  const top = Math.min(y1, y2);
++  const bottom = Math.max(y1, y2);
++  return [[left, top], [right, top], [right, bottom], [left, bottom]];
++}
++
++export function makeArea(points: Point[], shape: 'rect' | 'polygon'): AnnotationArea {
++  if (!Array.isArray(points) || points.length < 3) throw new Error('An area needs at least three points');
++  const rounded = points.map(p => [roundSquares(p[0]), roundSquares(p[1])] as Point);
++  return { shape, points: rounded, bbox: polygonBounds(rounded) };
++}
++
++export function pointInPolygon(point: Point, polygon: Point[]): boolean {
++  let inside = false;
++  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
++    const [xi, yi] = polygon[i]!;
++    const [xj, yj] = polygon[j]!;
++    if (yi > point[1] !== yj > point[1] && point[0] < ((xj - xi) * (point[1] - yi)) / (yj - yi) + xi) inside = !inside;
++  }
++  return inside;
++}
++
++export function distanceToSegment(p: Point, a: Point, b: Point): number {
++  const dx = b[0] - a[0];
++  const dy = b[1] - a[1];
++  const lengthSq = dx * dx + dy * dy;
++  const t = lengthSq === 0 ? 0 : Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / lengthSq));
++  return Math.hypot(p[0] - (a[0] + t * dx), p[1] - (a[1] + t * dy));
++}
++
++/** What can be clicked on a scene, in grid squares. */
++export interface Clickable {
++  kind: AnnotationKind;
++  id: string;
++  name?: string;
++  /** rectangle (tokens, tiles, drawings): top-left and size */
++  x?: number;
++  y?: number;
++  width?: number;
++  height?: number;
++  /** a point (lights, sounds, pins): where it is */
++  at?: Point;
++  /** a wall: its two ends */
++  segment?: [Point, Point];
++  /** a region: its outline */
++  polygon?: Point[];
++  door?: string;
++}
++
++/** Smaller things win over what lies under them; tokens first. */
++const PRIORITY: Record<AnnotationKind, number> = { token: 0, note: 1, light: 2, sound: 3, wall: 4, drawing: 5, region: 6, tile: 7 };
++
++const POINT_REACH = 0.45;
++const WALL_REACH = 0.3;
++
++function hitDistance(c: Clickable, p: Point): number | null {
++  if (c.at) {
++    const d = Math.hypot(c.at[0] - p[0], c.at[1] - p[1]);
++    return d <= POINT_REACH ? d : null;
++  }
++  if (c.segment) {
++    const d = distanceToSegment(p, c.segment[0], c.segment[1]);
++    return d <= WALL_REACH ? d : null;
++  }
++  if (c.polygon) return pointInPolygon(p, c.polygon) ? 0 : null;
++  if (c.x !== undefined && c.y !== undefined && c.width !== undefined && c.height !== undefined) {
++    return p[0] >= c.x && p[0] <= c.x + c.width && p[1] >= c.y && p[1] <= c.y + c.height ? 0 : null;
++  }
++  return null;
++}
++
++const area = (c: Clickable): number => (c.width !== undefined && c.height !== undefined ? c.width * c.height : 0);
++
++/** The thing under a point: by kind priority, then the smallest, then the nearest. */
++export function hitTest(things: Clickable[], point: Point): Clickable | null {
++  const hits = things
++    .map(c => ({ c, d: hitDistance(c, point) }))
++    .filter((h): h is { c: Clickable; d: number } => h.d !== null);
++  if (hits.length === 0) return null;
++  hits.sort((a, b) => PRIORITY[a.c.kind] - PRIORITY[b.c.kind] || area(a.c) - area(b.c) || a.d - b.d);
++  return hits[0]!.c;
++}
++
++export function targetOf(c: Clickable): AnnotationTarget {
++  let x = c.x ?? 0;
++  let y = c.y ?? 0;
++  if (c.at) [x, y] = c.at;
++  if (c.segment) {
++    x = (c.segment[0][0] + c.segment[1][0]) / 2;
++    y = (c.segment[0][1] + c.segment[1][1]) / 2;
++  }
++  if (c.polygon) {
++    const b = polygonBounds(c.polygon);
++    x = b.x;
++    y = b.y;
++  }
++  return {
++    kind: c.kind,
++    id: c.id,
++    ...(c.name ? { name: c.name } : {}),
++    x: roundSquares(x),
++    y: roundSquares(y),
++    ...(c.width !== undefined ? { width: roundSquares(c.width) } : {}),
++    ...(c.height !== undefined ? { height: roundSquares(c.height) } : {}),
++    ...(c.door ? { door: c.door } : {}),
++  };
++}
++
++export interface NewAnnotation {
++  scene: string;
++  sceneName: string;
++  prompt: string;
++  target?: AnnotationTarget;
++  area?: AnnotationArea;
++}
++
++export function makeAnnotation(input: NewAnnotation, existing: Annotation[], now: number = Date.now()): Annotation {
++  const prompt = (input.prompt ?? '').trim();
++  if (!prompt) throw new Error('Write what should change');
++  if (prompt.length > MAX_PROMPT) throw new Error(`The note may be at most ${MAX_PROMPT} characters`);
++  if (!!input.target === !!input.area) throw new Error('A note needs either a target object or an area');
++  const number = existing.reduce((max, a) => Math.max(max, a.number), 0) + 1;
++  return {
++    id: newAnnotationId(),
++    number,
++    scene: input.scene,
++    sceneName: input.sceneName,
++    type: input.target ? 'object' : 'area',
++    ...(input.target ? { target: input.target } : {}),
++    ...(input.area ? { area: input.area } : {}),
++    prompt,
++    status: 'open',
++    created: now,
++  };
++}
++
++export function applyResolve(a: Annotation, change: { status?: AnnotationStatus; reply?: string }, now: number = Date.now()): Annotation {
++  if (change.status !== undefined && !ANNOTATION_STATUSES.includes(change.status)) {
++    throw new Error(`status must be one of: ${ANNOTATION_STATUSES.join(', ')}`);
++  }
++  if (change.reply !== undefined && change.reply.length > MAX_PROMPT) throw new Error(`The reply may be at most ${MAX_PROMPT} characters`);
++  const next: Annotation = { ...a };
++  if (change.status !== undefined) {
++    next.status = change.status;
++    if (change.status === 'open') delete next.resolved;
++    else next.resolved = now;
++  }
++  if (change.reply !== undefined) {
++    if (change.reply.trim()) next.reply = change.reply.trim();
++    else delete next.reply;
++  }
++  return next;
++}
++
++/** What lies inside an area, counted by kind, with token names. */
++export function summariseArea(things: Array<{ kind: string; name?: string; x: number; y: number }>, areaDef: AnnotationArea): Record<string, any> {
++  const inside = things.filter(t => pointInPolygon([t.x, t.y], areaDef.points));
++  const out: Record<string, any> = {};
++  const tokens = inside.filter(t => t.kind === 'token').map(t => t.name ?? 'token');
++  if (tokens.length > 0) out.tokens = tokens;
++  for (const t of inside) {
++    if (t.kind === 'token') continue;
++    out[`${t.kind}s`] = (out[`${t.kind}s`] ?? 0) + 1;
++  }
++  return out;
++}
 diff --git a/packages/foundry-module/src/comfyui-manager.test.ts b/packages/foundry-module/src/comfyui-manager.test.ts
 new file mode 100644
 index 0000000..6034370
@@ -1293,6 +2238,153 @@ index 0000000..dd6edf5
 +    expect(actor.update).not.toHaveBeenCalled();
 +    const gated = setup(false);
 +    await expect(gated.da.setActorArt({ actor: 'a1', img: 'a.png' })).rejects.toThrow();
++  });
++});
+diff --git a/packages/foundry-module/src/data-access.annotations.test.ts b/packages/foundry-module/src/data-access.annotations.test.ts
+new file mode 100644
+index 0000000..8e1aad5
+--- /dev/null
++++ b/packages/foundry-module/src/data-access.annotations.test.ts
+@@ -0,0 +1,141 @@
++/** Notes left on the map: list with current state, resolve with a reply, clear finished ones. Foundry is stubbed. */
++import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
++import { FoundryDataAccess } from './data-access.js';
++import { makeAnnotation, makeArea, rectPoints, type Annotation } from './annotation-utils.js';
++import { sceneClickables, sceneThings } from './annotation-scene.js';
++import { MODULE_ID } from './constants.js';
++
++const mk = (contents: any[]) => ({ contents, size: contents.length });
++
++function makeScene(id: string, name: string, notes: Annotation[]) {
++  const flags: Record<string, any> = notes.length ? { annotations: notes } : {};
++  const scene: any = {
++    id,
++    name,
++    grid: { size: 100 },
++    dimensions: { sceneWidth: 3200, sceneHeight: 3200, sceneX: 0, sceneY: 0, size: 100 },
++    tokens: mk([{ id: 't1', name: 'Goblin 1', x: 300, y: 300, width: 1, height: 1 }, { id: 't2', name: 'Goblin 2', x: 900, y: 900, width: 1, height: 1 }]),
++    tiles: mk([{ id: 'ti1', x: 0, y: 0, width: 400, height: 400 }]),
++    drawings: mk([]),
++    lights: mk([{ id: 'l1', x: 250, y: 250 }]),
++    sounds: mk([]),
++    notes: mk([]),
++    walls: mk([{ id: 'w1', door: 2, c: [100, 100, 200, 100] }, { id: 'w2', door: 0, c: [100, 200, 200, 200] }]),
++    regions: mk([{ id: 'r1', name: 'Pit', shapes: [{ type: 'rectangle', x: 500, y: 500, width: 200, height: 200 }] }]),
++    getFlag: (m: string, k: string) => (m === MODULE_ID ? flags[k] : undefined),
++    setFlag: vi.fn(async (m: string, k: string, v: any) => { flags[k] = v; }),
++    unsetFlag: vi.fn(async (m: string, k: string) => { delete flags[k]; }),
++  };
++  return scene;
++}
++
++function setup(allow = true) {
++  const objectNote = makeAnnotation(
++    { scene: 's1', sceneName: 'Cave', prompt: 'Change this goblin picture', target: { kind: 'token', id: 't1', name: 'Goblin 1', x: 3, y: 3, width: 1, height: 1 } },
++    [], 1000
++  );
++  const movedNote = makeAnnotation(
++    { scene: 's1', sceneName: 'Cave', prompt: 'Move this goblin', target: { kind: 'token', id: 't2', name: 'Goblin 2', x: 1, y: 1, width: 1, height: 1 } },
++    [objectNote], 2000
++  );
++  const goneNote = makeAnnotation(
++    { scene: 's1', sceneName: 'Cave', prompt: 'Remove this', target: { kind: 'light', id: 'ghost', x: 5, y: 5 } },
++    [objectNote, movedNote], 3000
++  );
++  const areaNote = makeAnnotation(
++    { scene: 's1', sceneName: 'Cave', prompt: 'Add enemies here', area: makeArea(rectPoints(0, 0, 4, 4), 'rect') },
++    [objectNote, movedNote, goneNote], 4000
++  );
++  const doneNote: Annotation = { ...makeAnnotation({ scene: 's2', sceneName: 'Town', prompt: 'Old', area: makeArea(rectPoints(0, 0, 2, 2), 'rect') }, [], 500), status: 'done', resolved: 600 };
++  const s1 = makeScene('s1', 'Cave', [objectNote, movedNote, goneNote, areaNote]);
++  const s2 = makeScene('s2', 'Town', [doneNote]);
++  const s3 = makeScene('s3', 'Empty', []);
++  vi.stubGlobal('Hooks', { on: vi.fn(), callAll: vi.fn() });
++  vi.stubGlobal('game', {
++    ready: true,
++    world: { id: 'w', getFlag: vi.fn(() => []), setFlag: vi.fn() },
++    user: { id: 'gm', name: 'GM' },
++    scenes: Object.assign([s1, s2, s3], { contents: [s1, s2, s3] }),
++    settings: { get: (_m: string, key: string) => (key === 'allowWriteOperations' ? allow : undefined) },
++  });
++  return { da: new FoundryDataAccess(), s1, s2, s3, objectNote, movedNote, goneNote, areaNote, doneNote };
++}
++
++describe('scene as clickable things', () => {
++  it('reads every kind in grid squares', () => {
++    const { s1 } = setup();
++    const kinds = sceneClickables(s1).map(c => c.kind).sort();
++    expect(kinds).toEqual(['light', 'region', 'tile', 'token', 'token', 'wall', 'wall']);
++    const things = sceneThings(s1);
++    expect(things.find(t => t.kind === 'door')).toMatchObject({ x: 1.5, y: 1 });
++    expect(things.find(t => t.name === 'Goblin 1')).toMatchObject({ kind: 'token', x: 3.5, y: 3.5 });
++  });
++});
++
++describe('scene padding', () => {
++  it('counts squares from the top-left of the map, not of the padded canvas', () => {
++    const { s1 } = setup();
++    s1.dimensions = { sceneWidth: 3200, sceneHeight: 3200, sceneX: 200, sceneY: 100, size: 100 };
++    const token = sceneClickables(s1).find(c => c.id === 't1')!;
++    expect([token.x, token.y]).toEqual([1, 2]);
++    expect(sceneClickables(s1).find(c => c.id === 'ti1')).toMatchObject({ x: -2, y: -1, width: 4, height: 4 });
++  });
++});
++
++describe('listAnnotations', () => {
++  beforeEach(() => vi.unstubAllGlobals());
++  afterEach(() => vi.unstubAllGlobals());
++
++  it('lists open notes of every scene oldest first, with what is there now', async () => {
++    const { da } = setup();
++    const r = await da.listAnnotations({});
++    expect(r).toMatchObject({ success: true, status: 'open', count: 4 });
++    expect(r.notes.map((n: any) => n.number)).toEqual([1, 2, 3, 4]);
++    const [unchanged, moved, gone, area] = r.notes;
++    expect(unchanged).toMatchObject({ scene: { name: 'Cave' }, type: 'object', stillThere: true });
++    expect(unchanged.nowAt).toBeUndefined();
++    expect(moved.nowAt).toMatchObject({ x: 9, y: 9, name: 'Goblin 2' });
++    expect(gone.stillThere).toBe(false);
++    expect(area.inside).toEqual({ tokens: ['Goblin 1'], lights: 1, tiles: 1, doors: 1, walls: 1 });
++  });
++  it('filters by status and scene', async () => {
++    const { da } = setup();
++    expect((await da.listAnnotations({ status: 'done' })).notes.map((n: any) => n.prompt)).toEqual(['Old']);
++    expect((await da.listAnnotations({ status: 'all' })).count).toBe(5);
++    expect((await da.listAnnotations({ scene: 'Town', status: 'all' })).count).toBe(1);
++    expect((await da.listAnnotations({ scene: 's3' })).count).toBe(0);
++    await expect(da.listAnnotations({ status: 'soon' })).rejects.toThrow('status must be');
++    await expect(da.listAnnotations({ scene: 'Nowhere' })).rejects.toThrow('Scene not found');
++  });
++});
++
++describe('resolveAnnotations and clearAnnotations', () => {
++  beforeEach(() => vi.unstubAllGlobals());
++  afterEach(() => vi.unstubAllGlobals());
++
++  it('marks notes done with a reply, reports unknown ids, and can reopen', async () => {
++    const { da, s1, objectNote } = setup();
++    const r = await da.resolveAnnotations({ ids: [objectNote.id, 'nope'], reply: 'New picture set' });
++    expect(r).toMatchObject({ success: true, status: 'done', changed: [objectNote.id], notFound: ['nope'] });
++    const saved = s1.setFlag.mock.calls[0]![2] as Annotation[];
++    expect(saved.find(a => a.id === objectNote.id)).toMatchObject({ status: 'done', reply: 'New picture set' });
++    expect((await da.listAnnotations({})).count).toBe(3);
++    await da.resolveAnnotations({ ids: [objectNote.id], status: 'open' });
++    expect((await da.listAnnotations({})).count).toBe(4);
++  });
++  it('clears only finished notes and removes the flag when nothing is left', async () => {
++    const { da, s1, s2 } = setup();
++    expect(await da.clearAnnotations({})).toEqual({ success: true, removed: 1 });
++    expect(s2.unsetFlag).toHaveBeenCalled();
++    expect(s1.setFlag).not.toHaveBeenCalled();
++    expect(await da.clearAnnotations({})).toEqual({ success: true, removed: 0 });
++  });
++  it('refuses bad requests and respects the write gate', async () => {
++    const { da } = setup();
++    await expect(da.resolveAnnotations({ ids: [] })).rejects.toThrow('1 to 50');
++    await expect(da.resolveAnnotations({ ids: ['x'], status: 'later' })).resolves.toMatchObject({ notFound: ['x'] });
++    const gated = setup(false);
++    await expect(gated.da.resolveAnnotations({ ids: ['x'] })).rejects.toThrow();
++    await expect(gated.da.clearAnnotations({})).rejects.toThrow();
 +  });
 +});
 diff --git a/packages/foundry-module/src/data-access.create-actor-from-data.test.ts b/packages/foundry-module/src/data-access.create-actor-from-data.test.ts
@@ -5193,10 +6285,10 @@ index 0000000..26e6aab
 +  });
 +});
 diff --git a/packages/foundry-module/src/data-access.ts b/packages/foundry-module/src/data-access.ts
-index eecda7e..a62c2f7 100644
+index eecda7e..06d0f6a 100644
 --- a/packages/foundry-module/src/data-access.ts
 +++ b/packages/foundry-module/src/data-access.ts
-@@ -1,5 +1,131 @@
+@@ -1,5 +1,133 @@
  import { MODULE_ID, ERROR_MESSAGES, TOKEN_DISPOSITIONS } from './constants.js';
  import { permissionManager } from './permissions.js';
 +import {
@@ -5297,6 +6389,8 @@ index eecda7e..a62c2f7 100644
 +  stripForCreate,
 +  summarisePlan,
 +} from './scene-backup-utils.js';
++import { ANNOTATION_STATUSES, applyResolve, summariseArea, targetOf, type AnnotationStatus } from './annotation-utils.js';
++import { readAnnotations, sceneClickables, sceneThings, writeAnnotations } from './annotation-scene.js';
 +import { checkTarget, revealPatch, REVEAL_KINDS, selectTargets, type RevealKind, type RevealTarget, type SceneThing } from './reveal-utils.js';
 +import { combatSummary, partySummary, selectChat, type ChatQuery } from './table-utils.js';
 +import { LOOT_ITEM_TYPES, orderPackIds, ownershipLevel, parseCurrency, parseCustomItems, parseItemRequests, type ItemRequest } from './loot-utils.js';
@@ -5328,7 +6422,7 @@ index eecda7e..a62c2f7 100644
  import { transactionManager } from './transaction-manager.js';
  
  // The same five characters foundry.utils.escapeHTML replaces in v14, kept local because
-@@ -4681,12 +4807,28 @@ export class FoundryDataAccess {
+@@ -4681,12 +4809,28 @@ export class FoundryDataAccess {
        type: 'random' | 'grid' | 'center' | 'coordinates';
        coordinates?: { x: number; y: number }[];
      };
@@ -5357,7 +6451,7 @@ index eecda7e..a62c2f7 100644
        // Validate inputs
        if (!packId || !itemId) {
          throw new Error('Both packId and itemId are required');
-@@ -4753,10 +4895,33 @@ export class FoundryDataAccess {
+@@ -4753,10 +4897,33 @@ export class FoundryDataAccess {
            }
  
            // Organize created actors in a folder - use "Foundry MCP Creatures" for generic monsters
@@ -5392,7 +6486,7 @@ index eecda7e..a62c2f7 100644
  
            // Create the actor
            const newActor = await Actor.create(actorData);
-@@ -6714,7 +6879,7 @@ export class FoundryDataAccess {
+@@ -6714,7 +6881,7 @@ export class FoundryDataAccess {
  
          // Send socket request to GM
          if (game.socket) {
@@ -5401,7 +6495,7 @@ index eecda7e..a62c2f7 100644
              type: 'requestMessageUpdate',
              buttonId,
              userId,
-@@ -8101,198 +8266,3848 @@ export class FoundryDataAccess {
+@@ -8101,198 +8268,3949 @@ export class FoundryDataAccess {
      }
    }
  
@@ -6517,6 +7611,107 @@ index eecda7e..a62c2f7 100644
 +      };
 +    } catch (error) {
 +      throw new Error(`Failed to set actor art: ${error instanceof Error ? error.message : 'Unknown error'}`);
++    }
++  }
++
++  // ===== NOTES LEFT ON THE MAP BY THE GM =====
++
++  /** Notes the GM left on scenes (by clicking an object or drawing an area), with what is there now. */
++  async listAnnotations(data: { scene?: string; status?: string }): Promise<any> {
++    this.validateFoundryState();
++    try {
++      const status = data?.status ?? 'open';
++      if (status !== 'all' && !ANNOTATION_STATUSES.includes(status as AnnotationStatus)) throw new Error('status must be open, done, dismissed or all');
++      const scenes: any[] = data?.scene ? [this.findSceneByIdentifier(data.scene)] : (((game as any).scenes?.contents || []) as any[]);
++      const notes: any[] = [];
++      for (const scene of scenes) {
++        const list = readAnnotations(scene).filter(a => status === 'all' || a.status === status);
++        if (list.length === 0) continue;
++        const clickables = sceneClickables(scene);
++        const things = sceneThings(scene);
++        for (const a of list) {
++          const entry: Record<string, any> = {
++            id: a.id,
++            number: a.number,
++            scene: { id: scene.id, name: scene.name },
++            type: a.type,
++            prompt: a.prompt,
++            status: a.status,
++            created: a.created,
++          };
++          if (a.target) {
++            const now = clickables.find(c => c.id === a.target!.id && c.kind === a.target!.kind);
++            entry.target = a.target;
++            entry.stillThere = !!now;
++            if (now) {
++              const t = targetOf(now);
++              if (t.x !== a.target.x || t.y !== a.target.y || t.name !== a.target.name) entry.nowAt = t;
++            }
++          }
++          if (a.area) {
++            entry.area = a.area;
++            entry.inside = summariseArea(things, a.area);
++          }
++          if (a.reply) entry.reply = a.reply;
++          notes.push(entry);
++        }
++      }
++      notes.sort((x, y) => x.created - y.created);
++      return { success: true, status, count: notes.length, notes };
++    } catch (error) {
++      throw new Error(`Failed to list notes: ${error instanceof Error ? error.message : 'Unknown error'}`);
++    }
++  }
++
++  /** Mark notes done, dismissed or open again, and leave a reply the GM sees in the notes panel. */
++  async resolveAnnotations(data: { ids: string[]; status?: string; reply?: string }): Promise<any> {
++    this.validateFoundryState();
++    const gate = permissionManager.checkWritePermission('modifyScene', {});
++    if (!gate.allowed) throw new Error(`${ERROR_MESSAGES.ACCESS_DENIED}: ${gate.reason}`);
++    try {
++      if (!Array.isArray(data?.ids) || data.ids.length === 0 || data.ids.length > 50) throw new Error('ids must list 1 to 50 note ids');
++      const status = (data.status ?? 'done') as AnnotationStatus;
++      const changed: string[] = [];
++      const missing = new Set(data.ids);
++      for (const scene of (((game as any).scenes?.contents || []) as any[])) {
++        const list = readAnnotations(scene);
++        let touched = false;
++        const next = list.map(a => {
++          if (!missing.has(a.id)) return a;
++          missing.delete(a.id);
++          touched = true;
++          changed.push(a.id);
++          return applyResolve(a, { status, ...(data.reply !== undefined ? { reply: data.reply } : {}) });
++        });
++        if (touched) await writeAnnotations(scene, next);
++      }
++      this.auditLog('resolveAnnotations', { count: changed.length, status }, 'success');
++      return { success: true, status, changed, ...(missing.size ? { notFound: [...missing] } : {}) };
++    } catch (error) {
++      throw new Error(`Failed to update notes: ${error instanceof Error ? error.message : 'Unknown error'}`);
++    }
++  }
++
++  /** Remove finished (done or dismissed) notes, from one scene or all. */
++  async clearAnnotations(data: { scene?: string }): Promise<any> {
++    this.validateFoundryState();
++    const gate = permissionManager.checkWritePermission('modifyScene', {});
++    if (!gate.allowed) throw new Error(`${ERROR_MESSAGES.ACCESS_DENIED}: ${gate.reason}`);
++    try {
++      const scenes: any[] = data?.scene ? [this.findSceneByIdentifier(data.scene)] : (((game as any).scenes?.contents || []) as any[]);
++      let removed = 0;
++      for (const scene of scenes) {
++        const list = readAnnotations(scene);
++        const keep = list.filter(a => a.status === 'open');
++        if (keep.length !== list.length) {
++          removed += list.length - keep.length;
++          await writeAnnotations(scene, keep);
++        }
++      }
++      this.auditLog('clearAnnotations', { removed }, 'success');
++      return { success: true, removed };
++    } catch (error) {
++      throw new Error(`Failed to clear notes: ${error instanceof Error ? error.message : 'Unknown error'}`);
 +    }
 +  }
 +
@@ -9408,7 +10603,7 @@ index eecda7e..a62c2f7 100644
          case 'play':
            await pl.playAll();
            return { success: true, action: 'play', playlist: info };
-@@ -8304,20 +12119,48 @@ export class FoundryDataAccess {
+@@ -8304,20 +12222,48 @@ export class FoundryDataAccess {
            return { success: true, action: 'cycle-mode', playlist: info, mode: pl.mode as number };
          case 'play-sound':
          case 'stop-sound': {
@@ -9463,7 +10658,7 @@ index eecda7e..a62c2f7 100644
        }
      } catch (error) {
        throw new Error(
-@@ -8468,6 +12311,21 @@ export class FoundryDataAccess {
+@@ -8468,6 +12414,21 @@ export class FoundryDataAccess {
      }
    }
  
@@ -9485,7 +10680,7 @@ index eecda7e..a62c2f7 100644
    /**
     * Move a token to a new position on the scene
     */
-@@ -8476,6 +12334,8 @@ export class FoundryDataAccess {
+@@ -8476,6 +12437,8 @@ export class FoundryDataAccess {
      x: number;
      y: number;
      animate?: boolean;
@@ -9494,7 +10689,7 @@ index eecda7e..a62c2f7 100644
    }): Promise<any> {
      this.validateFoundryState();
  
-@@ -8489,21 +12349,33 @@ export class FoundryDataAccess {
+@@ -8489,21 +12452,33 @@ export class FoundryDataAccess {
      }
  
      try {
@@ -9535,7 +10730,7 @@ index eecda7e..a62c2f7 100644
          },
          { animate: data.animate !== false }
        );
-@@ -8514,7 +12386,9 @@ export class FoundryDataAccess {
+@@ -8514,7 +12489,9 @@ export class FoundryDataAccess {
          success: true,
          tokenId: token.id,
          tokenName: token.name,
@@ -9546,7 +10741,7 @@ index eecda7e..a62c2f7 100644
          animated: data.animate !== false,
        };
      } catch (error) {
-@@ -8533,7 +12407,13 @@ export class FoundryDataAccess {
+@@ -8533,7 +12510,13 @@ export class FoundryDataAccess {
    /**
     * Update token properties
     */
@@ -9561,7 +10756,7 @@ index eecda7e..a62c2f7 100644
      this.validateFoundryState();
  
      // Use permission system
-@@ -8546,20 +12426,19 @@ export class FoundryDataAccess {
+@@ -8546,20 +12529,19 @@ export class FoundryDataAccess {
      }
  
      try {
@@ -9588,7 +10783,7 @@ index eecda7e..a62c2f7 100644
  
        // Apply updates
        await token.update(cleanUpdates);
-@@ -8651,18 +12530,15 @@ export class FoundryDataAccess {
+@@ -8651,18 +12633,15 @@ export class FoundryDataAccess {
    /**
     * Get detailed information about a token
     */
@@ -9611,7 +10806,7 @@ index eecda7e..a62c2f7 100644
        }
  
        // Return flat structure that matches MCP server expectations
-@@ -11274,7 +15150,10 @@ export class FoundryDataAccess {
+@@ -11274,7 +15253,10 @@ export class FoundryDataAccess {
        name: string;
        type: string;
        img?: string;
@@ -9622,7 +10817,7 @@ index eecda7e..a62c2f7 100644
      }>;
      folder?: string;
    }): Promise<{ created: Array<{ id: string; name: string; type: string }>; total: number }> {
-@@ -11286,6 +15165,19 @@ export class FoundryDataAccess {
+@@ -11286,6 +15268,19 @@ export class FoundryDataAccess {
      const docs = params.actors.map(a => {
        const doc: Record<string, any> = { name: a.name, type: a.type };
        if (a.img) doc.img = a.img;
@@ -9642,7 +10837,7 @@ index eecda7e..a62c2f7 100644
  
        // Merge system data, adding safe defaults for systems that require certain
        // fields to exist during data preparation (avoids non-fatal init errors).
-@@ -11471,7 +15363,16 @@ export class FoundryDataAccess {
+@@ -11471,7 +15466,16 @@ export class FoundryDataAccess {
     * Merges supplied fields into the actor (top-level keys overwrite).
     */
    async updateActors(
@@ -9660,7 +10855,7 @@ index eecda7e..a62c2f7 100644
    ): Promise<{ updated: Array<{ id: string; name: string }>; total: number }> {
      const updatedActors: Array<{ id: string; name: string }> = [];
  
-@@ -11482,6 +15383,7 @@ export class FoundryDataAccess {
+@@ -11482,6 +15486,7 @@ export class FoundryDataAccess {
        const patch: Record<string, any> = {};
        if (u.name !== undefined) patch.name = u.name;
        if (u.img !== undefined) patch.img = u.img;
@@ -9668,7 +10863,7 @@ index eecda7e..a62c2f7 100644
        if (u.system !== undefined) {
          // Build a single patch.system nested object so Foundry deep-merges everything
          // in one pass without flat-key vs nested-key conflicts.
-@@ -11504,6 +15406,19 @@ export class FoundryDataAccess {
+@@ -11504,6 +15509,19 @@ export class FoundryDataAccess {
          }
          patch.system = systemPatch;
        }
@@ -12114,10 +13309,18 @@ index 0000000..eab3007
 +  });
 +}
 diff --git a/packages/foundry-module/src/main.ts b/packages/foundry-module/src/main.ts
-index 9024ead..26cc5c1 100644
+index 9024ead..b077a66 100644
 --- a/packages/foundry-module/src/main.ts
 +++ b/packages/foundry-module/src/main.ts
-@@ -414,6 +414,26 @@ class FoundryMCPBridge {
+@@ -4,6 +4,7 @@ import { QueryHandlers } from './queries.js';
+ import { ModuleSettings } from './settings.js';
+ import { CampaignHooks } from './campaign-hooks.js';
+ import { ComfyUIManager } from './comfyui-manager.js';
++import { registerAnnotationUI } from './annotation-ui.js';
+ // Connection control now handled through settings menu
+ 
+ /**
+@@ -414,6 +415,26 @@ class FoundryMCPBridge {
          return;
        }
  
@@ -12144,7 +13347,21 @@ index 9024ead..26cc5c1 100644
        console.log(`[${MODULE_ID}] Starting ComfyUI monitoring...`);
  
        // Show initial loading banner
-@@ -522,7 +542,7 @@ Hooks.once('ready', async () => {
+@@ -507,6 +528,13 @@ const foundryMCPBridge = new FoundryMCPBridge();
+ // Make it available globally for settings callbacks
+ (window as any).foundryMCPBridge = foundryMCPBridge;
+ 
++// Notes for Claude: scene control tools for leaving notes on objects and areas (GM only)
++try {
++  registerAnnotationUI();
++} catch (error) {
++  console.warn(`[${MODULE_ID}] Could not register the notes tools:`, error);
++}
++
+ // Foundry VTT Hooks
+ Hooks.once('init', async () => {
+   try {
+@@ -522,7 +550,7 @@ Hooks.once('ready', async () => {
  
      // Register socket listener for roll state management (after game.user is available)
  
@@ -13808,7 +15025,7 @@ index 0000000..542d273
 +  return view ? outSize : { width, height };
 +}
 diff --git a/packages/foundry-module/src/queries.ts b/packages/foundry-module/src/queries.ts
-index 9fe02ba..2461494 100644
+index 9fe02ba..b3ea9f7 100644
 --- a/packages/foundry-module/src/queries.ts
 +++ b/packages/foundry-module/src/queries.ts
 @@ -1,7 +1,8 @@
@@ -13830,7 +15047,7 @@ index 9fe02ba..2461494 100644
  
      // Character/Actor queries
      CONFIG.queries[`${modulePrefix}.getCharacterInfo`] = this.handleGetCharacterInfo.bind(this);
-@@ -46,6 +47,28 @@ export class QueryHandlers {
+@@ -46,6 +47,29 @@ export class QueryHandlers {
      CONFIG.queries[`${modulePrefix}.list-scenes`] = this.handleListScenes.bind(this);
      CONFIG.queries[`${modulePrefix}.switch-scene`] = this.handleSwitchScene.bind(this);
      CONFIG.queries[`${modulePrefix}.update-scene-music`] = this.handleUpdateSceneMusic.bind(this);
@@ -13855,11 +15072,12 @@ index 9fe02ba..2461494 100644
 +    CONFIG.queries[`${modulePrefix}.share-with-players`] = this.handleShareWithPlayers.bind(this);
 +    CONFIG.queries[`${modulePrefix}.read-table`] = this.handleReadTable.bind(this);
 +    CONFIG.queries[`${modulePrefix}.reveal`] = this.handleReveal.bind(this);
++    CONFIG.queries[`${modulePrefix}.annotations`] = this.handleAnnotations.bind(this);
 +    CONFIG.queries[`${modulePrefix}.inspect-document`] = this.handleInspectDocument.bind(this);
      CONFIG.queries[`${modulePrefix}.manage-playlists`] = this.handleManagePlaylists.bind(this);
      CONFIG.queries[`${modulePrefix}.control-playlist`] = this.handleControlPlaylist.bind(this);
  
-@@ -184,7 +207,7 @@ export class QueryHandlers {
+@@ -184,7 +208,7 @@ export class QueryHandlers {
     * Unregister all query handlers
     */
    unregisterHandlers(): void {
@@ -13868,7 +15086,7 @@ index 9fe02ba..2461494 100644
      const keysToRemove = Object.keys(CONFIG.queries).filter(key => key.startsWith(modulePrefix));
  
      for (const key of keysToRemove) {
-@@ -477,7 +500,7 @@ export class QueryHandlers {
+@@ -477,7 +501,7 @@ export class QueryHandlers {
     * Get list of all registered query methods
     */
    getRegisteredMethods(): string[] {
@@ -13877,7 +15095,7 @@ index 9fe02ba..2461494 100644
      return Object.keys(CONFIG.queries)
        .filter(key => key.startsWith(modulePrefix))
        .map(key => key.replace(`${modulePrefix}.`, ''));
-@@ -487,7 +510,7 @@ export class QueryHandlers {
+@@ -487,7 +511,7 @@ export class QueryHandlers {
     * Test if a specific query handler is registered
     */
    isMethodRegistered(method: string): boolean {
@@ -13886,7 +15104,7 @@ index 9fe02ba..2461494 100644
      return queryKey in CONFIG.queries && typeof CONFIG.queries[queryKey] === 'function';
    }
  
-@@ -530,6 +553,9 @@ export class QueryHandlers {
+@@ -530,6 +554,9 @@ export class QueryHandlers {
        if (data.placement) {
          requestData.placement = data.placement;
        }
@@ -13896,7 +15114,7 @@ index 9fe02ba..2461494 100644
  
        return await this.dataAccess.createActorFromCompendiumEntry(requestData);
      } catch (error) {
-@@ -1218,6 +1244,231 @@ export class QueryHandlers {
+@@ -1218,6 +1245,243 @@ export class QueryHandlers {
      }
    }
  
@@ -13984,6 +15202,18 @@ index 9fe02ba..2461494 100644
 +      return { error: 'Access denied', success: false };
 +    }
 +    return await this.dataAccess.setActorArt(data ?? {});
++  }
++
++  private async handleAnnotations(data: any): Promise<any> {
++    const gmCheck = this.validateGMAccess();
++    if (!gmCheck.allowed) {
++      return { error: 'Access denied', success: false };
++    }
++    const action = data?.action ?? 'list';
++    if (action === 'list') return await this.dataAccess.listAnnotations(data ?? {});
++    if (action === 'resolve') return await this.dataAccess.resolveAnnotations(data ?? {});
++    if (action === 'clear') return await this.dataAccess.clearAnnotations(data ?? {});
++    return { error: 'Unknown action: ' + String(action) + ' (list | resolve | clear)', success: false };
 +  }
 +
 +  private async handleReveal(data: any): Promise<any> {
@@ -14128,7 +15358,7 @@ index 9fe02ba..2461494 100644
    private async handleManagePlaylists(data: any): Promise<any> {
      try {
        const gmCheck = this.validateGMAccess();
-@@ -1241,8 +1492,11 @@ export class QueryHandlers {
+@@ -1241,8 +1505,11 @@ export class QueryHandlers {
        if (!gmCheck.allowed) {
          return { error: 'Access denied', success: false };
        }
@@ -14142,7 +15372,7 @@ index 9fe02ba..2461494 100644
        }
        return await this.dataAccess.controlPlaylist(data);
      } catch (error) {
-@@ -1547,7 +1801,9 @@ export class QueryHandlers {
+@@ -1547,7 +1814,9 @@ export class QueryHandlers {
     */
    private async handleUpdateToken(data: {
      tokenId: string;
@@ -14153,7 +15383,7 @@ index 9fe02ba..2461494 100644
    }): Promise<any> {
      try {
        // SECURITY: Silent GM validation
-@@ -1561,8 +1817,8 @@ export class QueryHandlers {
+@@ -1561,8 +1830,8 @@ export class QueryHandlers {
        if (!data.tokenId) {
          throw new Error('tokenId is required');
        }
@@ -17468,10 +18698,10 @@ index 096f27b..903a94e 100644
      "@vitest/coverage-v8": "^3.2.4",
      "esbuild": "^0.19.0",
 diff --git a/packages/mcp-server/src/backend.ts b/packages/mcp-server/src/backend.ts
-index 8967e33..b71927e 100644
+index 8967e33..a7aeba2 100644
 --- a/packages/mcp-server/src/backend.ts
 +++ b/packages/mcp-server/src/backend.ts
-@@ -48,6 +48,34 @@ import { DnD5eAddFeatureTool } from './tools/dnd5e/add-feature.js';
+@@ -48,6 +48,35 @@ import { DnD5eAddFeatureTool } from './tools/dnd5e/add-feature.js';
  import { DnD5eNpcTools } from './tools/dnd5e/npc.js';
  import { DnD5eFeaturesFromCompendiumTools } from './tools/dnd5e/features.js';
  import { ChatTools } from './tools/chat.js';
@@ -17499,6 +18729,7 @@ index 8967e33..b71927e 100644
 +import { CampaignMemoryTools } from './tools/campaign-memory.js';
 +import { TableTools } from './tools/table-tools.js';
 +import { RevealTools } from './tools/reveal-tools.js';
++import { AnnotationTools } from './tools/annotation-tools.js';
 +import { ActorArtTools } from './tools/actor-art-tools.js';
 +import { SceneSoundTools } from './tools/scene-sound-tools.js';
 +import { LayoutTools } from './tools/layout.js';
@@ -17506,7 +18737,7 @@ index 8967e33..b71927e 100644
  
  const CONTROL_HOST = '127.0.0.1';
  
-@@ -174,6 +202,22 @@ let comfyuiProcess: ChildProcess | null = null;
+@@ -174,6 +203,22 @@ let comfyuiProcess: ChildProcess | null = null;
  
  let comfyuiStatus: 'stopped' | 'starting' | 'running' | 'error' = 'stopped';
  
@@ -17529,7 +18760,7 @@ index 8967e33..b71927e 100644
  let lockFd: number | null = null;
  
  function acquireLock(): boolean {
-@@ -350,6 +394,18 @@ async function waitForComfyUIReady(timeoutMs: number = 60000): Promise<void> {
+@@ -350,6 +395,18 @@ async function waitForComfyUIReady(timeoutMs: number = 60000): Promise<void> {
  }
  
  async function startComfyUIService(logger: Logger): Promise<any> {
@@ -17548,7 +18779,7 @@ index 8967e33..b71927e 100644
    if (comfyuiStatus === 'running') {
      return { status: 'already_running', message: 'ComfyUI service is already running' };
    }
-@@ -472,6 +528,14 @@ async function startComfyUIService(logger: Logger): Promise<any> {
+@@ -472,6 +529,14 @@ async function startComfyUIService(logger: Logger): Promise<any> {
  }
  
  async function stopComfyUIService(logger: Logger): Promise<any> {
@@ -17563,7 +18794,7 @@ index 8967e33..b71927e 100644
    if (comfyuiStatus === 'stopped') {
      return { status: 'already_stopped', message: 'ComfyUI service is already stopped' };
    }
-@@ -510,7 +574,7 @@ async function checkComfyUIStatus(): Promise<any> {
+@@ -510,7 +575,7 @@ async function checkComfyUIStatus(): Promise<any> {
    // This handles both spawned processes and externally-started instances
  
    try {
@@ -17572,7 +18803,7 @@ index 8967e33..b71927e 100644
        signal: AbortSignal.timeout(5000),
      });
  
-@@ -520,16 +584,23 @@ async function checkComfyUIStatus(): Promise<any> {
+@@ -520,16 +585,23 @@ async function checkComfyUIStatus(): Promise<any> {
        comfyuiStatus = 'error';
      }
    } catch (error) {
@@ -17598,7 +18829,7 @@ index 8967e33..b71927e 100644
    };
  }
  
-@@ -1131,7 +1202,7 @@ async function processMapGenerationInBackend(
+@@ -1131,7 +1203,7 @@ async function processMapGenerationInBackend(
      );
  
      logger.error('Background map generation processing failed', { jobId, error });
@@ -17607,7 +18838,7 @@ index 8967e33..b71927e 100644
  
      // Emit failure to Foundry module
      foundryClient.sendMessage({
-@@ -1195,6 +1266,54 @@ async function startBackend(): Promise<void> {
+@@ -1195,6 +1267,55 @@ async function startBackend(): Promise<void> {
    const compendiumTools = new CompendiumTools({ foundryClient, logger, systemRegistry });
  
    const sceneTools = new SceneTools({ foundryClient, logger });
@@ -17651,6 +18882,7 @@ index 8967e33..b71927e 100644
 +  const campaignMemoryTools = new CampaignMemoryTools({ foundryClient, logger });
 +  const tableTools = new TableTools({ foundryClient, logger });
 +  const revealTools = new RevealTools({ foundryClient, logger });
++  const annotationTools = new AnnotationTools({ foundryClient, logger });
 +  const actorArtTools = new ActorArtTools({
 +    foundryClient,
 +    logger,
@@ -17662,7 +18894,7 @@ index 8967e33..b71927e 100644
    const playlistTools = new PlaylistTools({ foundryClient, logger });
  
    const actorCreationTools = new ActorCreationTools({ foundryClient, logger });
-@@ -1301,6 +1420,13 @@ async function startBackend(): Promise<void> {
+@@ -1301,6 +1422,13 @@ async function startBackend(): Promise<void> {
  
          let result: any;
  
@@ -17676,7 +18908,7 @@ index 8967e33..b71927e 100644
          switch (message.type) {
            case 'start-comfyui-service':
              result = await startComfyUIService(logger);
-@@ -1317,6 +1443,19 @@ async function startBackend(): Promise<void> {
+@@ -1317,6 +1445,19 @@ async function startBackend(): Promise<void> {
  
              break;
  
@@ -17696,7 +18928,7 @@ index 8967e33..b71927e 100644
            // Map generation handlers (following existing tool pattern)
            case 'generate-map-request':
              await fs.appendFile(
-@@ -1429,6 +1568,25 @@ async function startBackend(): Promise<void> {
+@@ -1429,6 +1570,26 @@ async function startBackend(): Promise<void> {
  
      ...sceneTools.getToolDefinitions(),
  
@@ -17714,6 +18946,7 @@ index 8967e33..b71927e 100644
 +    ...campaignMemoryTools.getToolDefinitions(),
 +    ...tableTools.getToolDefinitions(),
 +    ...revealTools.getToolDefinitions(),
++    ...annotationTools.getToolDefinitions(),
 +    ...actorArtTools.getToolDefinitions(),
 +    ...sceneSoundTools.getToolDefinitions(),
 +    ...layoutTools.getToolDefinitions(),
@@ -17722,7 +18955,7 @@ index 8967e33..b71927e 100644
      ...actorCreationTools.getToolDefinitions(),
      ...actorManagementTools.getToolDefinitions(),
      ...effectManagementTools.getToolDefinitions(),
-@@ -1456,7 +1614,11 @@ async function startBackend(): Promise<void> {
+@@ -1456,7 +1617,11 @@ async function startBackend(): Promise<void> {
  
      ...tokenManipulationTools.getToolDefinitions(),
  
@@ -17735,7 +18968,7 @@ index 8967e33..b71927e 100644
  
      ...playlistTools.getToolDefinitions(),
    ];
-@@ -1764,19 +1926,11 @@ async function startBackend(): Promise<void> {
+@@ -1764,19 +1929,11 @@ async function startBackend(): Promise<void> {
                  // Map generation tools
  
                  case 'generate-map':
@@ -17758,7 +18991,7 @@ index 8967e33..b71927e 100644
  
                  case 'list-scenes':
                    result = await mapGenerationTools.listScenes(args);
-@@ -1805,6 +1959,116 @@ async function startBackend(): Promise<void> {
+@@ -1805,6 +1962,120 @@ async function startBackend(): Promise<void> {
  
                    break;
  
@@ -17817,6 +19050,10 @@ index 8967e33..b71927e 100644
 +
 +                case 'make-actor-art':
 +                  result = await actorArtTools.handleMakeActorArt(args);
++                  break;
++
++                case 'annotations':
++                  result = await annotationTools.handle(args);
 +                  break;
 +
 +                case 'reveal':
@@ -19990,6 +21227,130 @@ index 8709ffc..1319987 100644
            })
          )
          .min(1),
+diff --git a/packages/mcp-server/src/tools/annotation-tools.test.ts b/packages/mcp-server/src/tools/annotation-tools.test.ts
+new file mode 100644
+index 0000000..d507fc7
+--- /dev/null
++++ b/packages/mcp-server/src/tools/annotation-tools.test.ts
+@@ -0,0 +1,36 @@
++import { describe, expect, it, vi } from 'vitest';
++import { AnnotationTools } from './annotation-tools.js';
++
++function make(result: any = { success: true }) {
++  const query = vi.fn(async () => result);
++  const logger: any = { info: vi.fn(), debug: vi.fn(), error: vi.fn(), warn: vi.fn(), child: () => logger };
++  return { tools: new AnnotationTools({ foundryClient: { query } as any, logger }), query };
++}
++
++describe('annotations', () => {
++  it('is exposed with action required', () => {
++    const def = make().tools.getToolDefinitions()[0]!;
++    expect(def.name).toBe('annotations');
++    expect(def.inputSchema.required).toEqual(['action']);
++  });
++  it('sends list, resolve and clear to the bridge', async () => {
++    const { tools, query } = make();
++    await tools.handle({ action: 'list' });
++    expect(query).toHaveBeenLastCalledWith('foundry-mcp-bridge.annotations', { action: 'list' });
++    await tools.handle({ action: 'list', scene: 'Cave', status: 'all' });
++    expect(query).toHaveBeenLastCalledWith('foundry-mcp-bridge.annotations', { action: 'list', scene: 'Cave', status: 'all' });
++    await tools.handle({ action: 'resolve', ids: ['n1', 'n2'], reply: 'Done: new picture' });
++    expect(query).toHaveBeenLastCalledWith('foundry-mcp-bridge.annotations', { action: 'resolve', ids: ['n1', 'n2'], reply: 'Done: new picture' });
++    await tools.handle({ action: 'clear' });
++    expect(query).toHaveBeenLastCalledWith('foundry-mcp-bridge.annotations', { action: 'clear' });
++  });
++  it('refuses bad input and passes on a refusal', async () => {
++    const { tools } = make();
++    await expect(tools.handle({})).rejects.toThrow();
++    await expect(tools.handle({ action: 'resolve' })).rejects.toThrow();
++    await expect(tools.handle({ action: 'resolve', ids: [] })).rejects.toThrow();
++    await expect(tools.handle({ action: 'list', status: 'soon' })).rejects.toThrow();
++    await expect(tools.handle({ action: 'list', ids: ['x'] })).rejects.toThrow();
++    await expect(make({ success: false, error: 'GM only' }).tools.handle({ action: 'list' })).rejects.toThrow('GM only');
++  });
++});
+diff --git a/packages/mcp-server/src/tools/annotation-tools.ts b/packages/mcp-server/src/tools/annotation-tools.ts
+new file mode 100644
+index 0000000..68dbfab
+--- /dev/null
++++ b/packages/mcp-server/src/tools/annotation-tools.ts
+@@ -0,0 +1,76 @@
++import { z } from 'zod';
++import { FoundryClient } from '../foundry-client.js';
++import { Logger } from '../logger.js';
++
++export interface AnnotationToolsOptions {
++  foundryClient: FoundryClient;
++  logger: Logger;
++}
++
++const schema = z.discriminatedUnion('action', [
++  z
++    .object({
++      action: z.literal('list'),
++      scene: z.string().min(1).optional(),
++      status: z.enum(['open', 'done', 'dismissed', 'all']).optional(),
++    })
++    .strict(),
++  z
++    .object({
++      action: z.literal('resolve'),
++      ids: z.array(z.string().min(1)).min(1).max(50),
++      status: z.enum(['open', 'done', 'dismissed']).optional(),
++      reply: z.string().max(2000).optional(),
++    })
++    .strict(),
++  z
++    .object({
++      action: z.literal('clear'),
++      scene: z.string().min(1).optional(),
++    })
++    .strict(),
++]);
++
++export class AnnotationTools {
++  private foundryClient: FoundryClient;
++  private logger: Logger;
++
++  constructor({ foundryClient, logger }: AnnotationToolsOptions) {
++    this.foundryClient = foundryClient;
++    this.logger = logger.child({ component: 'AnnotationTools' });
++  }
++
++  getToolDefinitions() {
++    return [
++      {
++        name: 'annotations',
++        description:
++          'The notes the GM leaves on the map with the "Notes for Claude" tools (upper-left scene controls in Foundry): a click on one object, or a drawn area, plus what should change ("change the picture of this prop", "clean up the walls here", "add enemies here"). ' +
++          'action list (default status open; also done, dismissed, all; optional scene): each note has id, number (the orange pin on the map), scene, prompt, and either target {kind: token | light | tile | sound | note | drawing | wall | region, id, name, x, y, width, height} or area {shape, points, bbox} in grid squares from the top-left of the map (the same coordinates the other scene tools use). ' +
++          'A target says stillThere:false when the object was deleted and nowAt when it moved; an area lists what is inside it (tokens by name, lights, walls, doors, tiles...). Check for open notes at the start of a session and whenever the GM says they left notes. ' +
++          'action resolve: ids, status (done by default; dismissed, or open to reopen) and reply (a short message the GM sees next to the note) once you have dealt with it. ' +
++          'action clear: removes finished (done and dismissed) notes.',
++        inputSchema: {
++          type: 'object',
++          properties: {
++            action: { type: 'string', enum: ['list', 'resolve', 'clear'] },
++            scene: { type: 'string', description: 'list or clear: only this scene (id or exact name)' },
++            status: { type: 'string', enum: ['open', 'done', 'dismissed', 'all'], description: 'list: which notes (default open); resolve: the new status (default done)' },
++            ids: { type: 'array', maxItems: 50, items: { type: 'string' }, description: 'resolve: ids of the notes' },
++            reply: { type: 'string', description: 'resolve: what you did, shown to the GM' },
++          },
++          required: ['action'],
++          additionalProperties: false,
++        },
++      },
++    ];
++  }
++
++  async handle(args: unknown): Promise<any> {
++    const a = schema.parse(args ?? {});
++    this.logger.info('Annotations', { action: a.action });
++    const result = await this.foundryClient.query('foundry-mcp-bridge.annotations', a);
++    if (result?.success === false) throw new Error(result.error || 'Request was refused');
++    return result;
++  }
++}
 diff --git a/packages/mcp-server/src/tools/audit-tools.test.ts b/packages/mcp-server/src/tools/audit-tools.test.ts
 new file mode 100644
 index 0000000..ad50367
