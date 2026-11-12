@@ -7108,7 +7108,7 @@ index 0000000..26e6aab
 +  });
 +});
 diff --git a/packages/foundry-module/src/data-access.ts b/packages/foundry-module/src/data-access.ts
-index eecda7e..8162671 100644
+index eecda7e..e064895 100644
 --- a/packages/foundry-module/src/data-access.ts
 +++ b/packages/foundry-module/src/data-access.ts
 @@ -1,6 +1,137 @@
@@ -11939,16 +11939,20 @@ index eecda7e..8162671 100644
    /**
     * Move a token to a new position on the scene
     */
-@@ -8476,6 +12869,8 @@ export class FoundryDataAccess {
+@@ -8476,6 +12869,12 @@ export class FoundryDataAccess {
      x: number;
      y: number;
      animate?: boolean;
 +    scene?: string;
 +    units?: 'pixels' | 'squares';
++    mode?: 'walk' | 'teleport';
++    ignore_speed?: boolean;
++    dash?: boolean;
++    used?: number;
    }): Promise<any> {
      this.validateFoundryState();
  
-@@ -8489,21 +12884,33 @@ export class FoundryDataAccess {
+@@ -8489,24 +12888,57 @@ export class FoundryDataAccess {
      }
  
      try {
@@ -11962,8 +11966,16 @@ index eecda7e..8162671 100644
        if (!token) {
 -        throw new Error(`Token ${data.tokenId} not found in current scene`);
 +        throw new Error(`Token ${data.tokenId} not found in scene "${scene.name}"`);
-+      }
-+
+       }
+ 
+-      // Update token position
+-      await token.update(
+-        {
+-          x: data.x,
+-          y: data.y,
+-        },
+-        { animate: data.animate !== false }
+-      );
 +      if (data.units !== undefined && data.units !== 'pixels' && data.units !== 'squares') {
 +        throw new Error('units must be pixels or squares');
 +      }
@@ -11977,19 +11989,41 @@ index eecda7e..8162671 100644
 +        }
 +        target = squaresToPixels(geom, data.x, data.y);
 +        squares = { x: data.x, y: data.y };
-       }
++      }
++
++      if (data.mode !== undefined && data.mode !== 'walk' && data.mode !== 'teleport') {
++        throw new Error('mode must be walk or teleport');
++      }
++      // Walking is Foundry's own movement: it finds a path around walls, counts the cost (difficult
++      // terrain included), records the movement for the combat and is held to the creature's speed.
++      let walked: Record<string, any> | undefined;
++      let walkNote: string | undefined;
++      if (data.mode !== 'teleport') {
++        const placeable = (token as any).object;
++        if (placeable?.findMovementPath && typeof (token as any).move === 'function') {
++          walked = await this.walkToken(token, placeable, target, data);
++          if (walked.refused) {
++            this.auditLog('moveToken', data, 'success');
++            return { success: true, tokenId: token.id, tokenName: token.name, scene: { id: scene.id, name: scene.name }, moved: false, ...walked.report };
++          }
++        } else {
++          walkNote = 'The scene is not the one on screen, so the token was placed directly (no walls or speed checked). View the scene first to have it walk.';
++        }
++      }
++      if (!walked) {
++        // Update token position
++        await token.update(
++          {
++            x: target.x,
++            y: target.y,
++          },
++          { animate: data.animate !== false }
++        );
++      }
  
-       // Update token position
-       await token.update(
-         {
--          x: data.x,
--          y: data.y,
-+          x: target.x,
-+          y: target.y,
-         },
-         { animate: data.animate !== false }
-       );
-@@ -8514,7 +12921,9 @@ export class FoundryDataAccess {
+       this.auditLog('moveToken', data, 'success');
+ 
+@@ -8514,8 +12946,12 @@ export class FoundryDataAccess {
          success: true,
          tokenId: token.id,
          tokenName: token.name,
@@ -11998,9 +12032,55 @@ index eecda7e..8162671 100644
 +        newPosition: target,
 +        ...(squares ? { newSquares: squares } : {}),
          animated: data.animate !== false,
++        ...(walked ? { moved: true, ...walked.report } : {}),
++        ...(walkNote ? { note: walkNote } : {}),
        };
      } catch (error) {
-@@ -8533,7 +12942,13 @@ export class FoundryDataAccess {
+       this.auditLog(
+@@ -8530,10 +12966,56 @@ export class FoundryDataAccess {
+     }
+   }
+ 
++  /**
++   * Walk a token to a point with Foundry's own movement: pathfinding around walls, movement cost,
++   * and the creature's speed as the limit (dash doubles it; used is what it already moved this turn).
++   */
++  private async walkToken(token: any, placeable: any, target: { x: number; y: number }, data: { ignore_speed?: boolean; dash?: boolean; used?: number }): Promise<{ refused: boolean; report: Record<string, any> }> {
++    const constrainOptions = { ignoreWalls: false, ignoreCost: false };
++    const origin = { x: token.x, y: token.y };
++    const found = placeable.findMovementPath([target], { constrainOptions });
++    const path: any[] = await found.promise;
++    const measure = token.measureMovementPath([origin, ...path]);
++    const cost = Number(measure?.cost ?? 0);
++    const action = token.movementAction ?? 'walk';
++    const movement = token.actor?.system?.attributes?.movement ?? {};
++    const speed = Number(movement[action] ?? movement.walk ?? 0);
++    const allowed = data.ignore_speed || speed <= 0 ? Infinity : speed * (data.dash ? 2 : 1) - Number(data.used ?? 0);
++    const last = path[path.length - 1] ?? origin;
++    const reached = Math.abs(last.x - target.x) < 1 && Math.abs(last.y - target.y) < 1;
++    const units = token.parent?.grid?.units ?? 'ft';
++    const report: Record<string, any> = { cost: `${cost} ${units}`, ...(speed > 0 ? { speed: `${speed} ${units}` } : {}), ...(data.dash ? { dash: true } : {}) };
++    if (cost > allowed) {
++      return {
++        refused: true,
++        report: { ...report, reason: `Too far: the walk costs ${cost} ${units} and only ${Math.max(0, allowed)} are available. Pick a nearer square, pass dash:true, or ignore_speed:true.` },
++      };
++    }
++    if (path.length > 0) {
++      await token.move(path, { method: 'api', constrainOptions, autoRotate: true, showRuler: false });
++    }
++    if (!reached) {
++      report.blocked = true;
++      report.stoppedAt = { x: Math.round(last.x), y: Math.round(last.y) };
++      try {
++        report.stoppedAtSquares = pixelsToSquares(getGridGeometry(token.parent), last.x, last.y);
++      } catch {
++        // the pixel position is enough
++      }
++    }
++    return { refused: false, report };
++  }
++
    /**
     * Update token properties
     */
@@ -12015,7 +12095,7 @@ index eecda7e..8162671 100644
      this.validateFoundryState();
  
      // Use permission system
-@@ -8546,20 +12961,19 @@ export class FoundryDataAccess {
+@@ -8546,20 +13028,19 @@ export class FoundryDataAccess {
      }
  
      try {
@@ -12042,7 +12122,7 @@ index eecda7e..8162671 100644
  
        // Apply updates
        await token.update(cleanUpdates);
-@@ -8651,18 +13065,15 @@ export class FoundryDataAccess {
+@@ -8651,18 +13132,15 @@ export class FoundryDataAccess {
    /**
     * Get detailed information about a token
     */
@@ -12065,7 +12145,7 @@ index eecda7e..8162671 100644
        }
  
        // Return flat structure that matches MCP server expectations
-@@ -11274,7 +15685,10 @@ export class FoundryDataAccess {
+@@ -11274,7 +15752,10 @@ export class FoundryDataAccess {
        name: string;
        type: string;
        img?: string;
@@ -12076,7 +12156,7 @@ index eecda7e..8162671 100644
      }>;
      folder?: string;
    }): Promise<{ created: Array<{ id: string; name: string; type: string }>; total: number }> {
-@@ -11286,6 +15700,19 @@ export class FoundryDataAccess {
+@@ -11286,6 +15767,19 @@ export class FoundryDataAccess {
      const docs = params.actors.map(a => {
        const doc: Record<string, any> = { name: a.name, type: a.type };
        if (a.img) doc.img = a.img;
@@ -12096,7 +12176,7 @@ index eecda7e..8162671 100644
  
        // Merge system data, adding safe defaults for systems that require certain
        // fields to exist during data preparation (avoids non-fatal init errors).
-@@ -11471,7 +15898,16 @@ export class FoundryDataAccess {
+@@ -11471,7 +15965,16 @@ export class FoundryDataAccess {
     * Merges supplied fields into the actor (top-level keys overwrite).
     */
    async updateActors(
@@ -12114,7 +12194,7 @@ index eecda7e..8162671 100644
    ): Promise<{ updated: Array<{ id: string; name: string }>; total: number }> {
      const updatedActors: Array<{ id: string; name: string }> = [];
  
-@@ -11482,6 +15918,7 @@ export class FoundryDataAccess {
+@@ -11482,6 +15985,7 @@ export class FoundryDataAccess {
        const patch: Record<string, any> = {};
        if (u.name !== undefined) patch.name = u.name;
        if (u.img !== undefined) patch.img = u.img;
@@ -12122,7 +12202,7 @@ index eecda7e..8162671 100644
        if (u.system !== undefined) {
          // Build a single patch.system nested object so Foundry deep-merges everything
          // in one pass without flat-key vs nested-key conflicts.
-@@ -11504,6 +15941,19 @@ export class FoundryDataAccess {
+@@ -11504,6 +16008,19 @@ export class FoundryDataAccess {
          }
          patch.system = systemPatch;
        }
@@ -12392,6 +12472,95 @@ index 0000000..83a409c
 +        dataAccess.uploadFile({ filename: 'a.png', imageData: pngBase64() })
 +      ).rejects.toThrow('did not confirm the upload');
 +    });
++  });
++});
+diff --git a/packages/foundry-module/src/data-access.walk.test.ts b/packages/foundry-module/src/data-access.walk.test.ts
+new file mode 100644
+index 0000000..1d2b520
+--- /dev/null
++++ b/packages/foundry-module/src/data-access.walk.test.ts
+@@ -0,0 +1,83 @@
++/** move-token walks with Foundry's own movement: path around walls, cost, speed limit. Foundry is stubbed. */
++import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
++import { FoundryDataAccess } from './data-access.js';
++
++function setup(options: { cost?: number; speed?: number; pathEnd?: { x: number; y: number } } = {}) {
++  const end = options.pathEnd ?? { x: 320, y: 64 };
++  const move = vi.fn(async () => undefined);
++  const update = vi.fn(async () => undefined);
++  const findMovementPath = vi.fn(() => ({ promise: Promise.resolve([{ x: end.x, y: end.y, action: 'walk' }]) }));
++  const measureMovementPath = vi.fn(() => ({ cost: options.cost ?? 25 }));
++  const token: any = {
++    id: 't1',
++    name: 'Goblin 1',
++    x: 64,
++    y: 64,
++    movementAction: 'walk',
++    actor: { system: { attributes: { movement: { walk: options.speed ?? 30 } } } },
++    parent: { grid: { units: 'ft' } },
++    object: { findMovementPath },
++    move,
++    update,
++    measureMovementPath,
++  };
++  const scene: any = { id: 's1', name: 'Cave', grid: { size: 64 }, tokens: new Map([['t1', token]]) };
++  token.parent = { ...token.parent, ...scene };
++  vi.stubGlobal('Hooks', { on: vi.fn(), callAll: vi.fn() });
++  vi.stubGlobal('game', {
++    ready: true,
++    world: { id: 'w', getFlag: vi.fn(() => []), setFlag: vi.fn() },
++    user: { id: 'gm', name: 'GM' },
++    scenes: { contents: [scene], current: scene, viewed: scene },
++    settings: { get: (_m: string, key: string) => (key === 'allowWriteOperations' ? true : undefined) },
++  });
++  return { da: new FoundryDataAccess(), token, move, update, findMovementPath };
++}
++
++describe('moveToken walking', () => {
++  beforeEach(() => vi.unstubAllGlobals());
++  afterEach(() => vi.unstubAllGlobals());
++
++  it('walks with the system movement, constrained by walls and cost', async () => {
++    const { da, move, update, findMovementPath } = setup();
++    const r = await da.moveToken({ tokenId: 't1', x: 320, y: 64 });
++    expect(findMovementPath).toHaveBeenCalledWith([{ x: 320, y: 64 }], { constrainOptions: { ignoreWalls: false, ignoreCost: false } });
++    expect(move).toHaveBeenCalledWith([{ x: 320, y: 64, action: 'walk' }], expect.objectContaining({ method: 'api', constrainOptions: { ignoreWalls: false, ignoreCost: false } }));
++    expect(update).not.toHaveBeenCalled();
++    expect(r).toMatchObject({ success: true, moved: true, cost: '25 ft', speed: '30 ft' });
++    expect(r.blocked).toBeUndefined();
++  });
++  it('refuses a walk that costs more than the speed, unless dash or ignore_speed', async () => {
++    const { da, move } = setup({ cost: 40 });
++    const refused = await da.moveToken({ tokenId: 't1', x: 320, y: 64 });
++    expect(refused).toMatchObject({ moved: false, cost: '40 ft', speed: '30 ft' });
++    expect(refused.reason).toContain('Too far');
++    expect(move).not.toHaveBeenCalled();
++    expect((await da.moveToken({ tokenId: 't1', x: 320, y: 64, dash: true })).moved).toBe(true);
++    expect((await da.moveToken({ tokenId: 't1', x: 320, y: 64, ignore_speed: true })).moved).toBe(true);
++    const used = await da.moveToken({ tokenId: 't1', x: 320, y: 64, used: 10, cost: 25 } as any);
++    expect(used.moved).toBe(false); // 30 - 10 = 20 available, 40 needed
++  });
++  it('says when a wall stopped the walk short', async () => {
++    const { da, move } = setup({ cost: 10, pathEnd: { x: 128, y: 64 } });
++    const r = await da.moveToken({ tokenId: 't1', x: 320, y: 64 });
++    expect(move).toHaveBeenCalled();
++    expect(r).toMatchObject({ moved: true, blocked: true, stoppedAt: { x: 128, y: 64 } });
++  });
++  it('teleports on request, ignoring walls and speed', async () => {
++    const { da, update, move, findMovementPath } = setup({ cost: 500 });
++    const r = await da.moveToken({ tokenId: 't1', x: 320, y: 64, mode: 'teleport' });
++    expect(update).toHaveBeenCalledWith({ x: 320, y: 64 }, { animate: true });
++    expect(move).not.toHaveBeenCalled();
++    expect(findMovementPath).not.toHaveBeenCalled();
++    expect(r.moved).toBeUndefined();
++  });
++  it('places the token directly, with a note, when the scene is not on screen', async () => {
++    const { da, token, update } = setup();
++    delete token.object;
++    const r = await da.moveToken({ tokenId: 't1', x: 320, y: 64 });
++    expect(update).toHaveBeenCalled();
++    expect(r.note).toContain('not the one on screen');
++    await expect(da.moveToken({ tokenId: 't1', x: 1, y: 1, mode: 'fly' as any })).rejects.toThrow('mode must be');
 +  });
 +});
 diff --git a/packages/foundry-module/src/data-access.world.test.ts b/packages/foundry-module/src/data-access.world.test.ts
@@ -34619,7 +34788,7 @@ index 0000000..75481f8
 +  });
 +});
 diff --git a/packages/mcp-server/src/tools/token-manipulation.ts b/packages/mcp-server/src/tools/token-manipulation.ts
-index 6afedf1..00b0493 100644
+index 6afedf1..651001b 100644
 --- a/packages/mcp-server/src/tools/token-manipulation.ts
 +++ b/packages/mcp-server/src/tools/token-manipulation.ts
 @@ -24,7 +24,7 @@ export class TokenManipulationTools {
@@ -34627,11 +34796,11 @@ index 6afedf1..00b0493 100644
          name: 'move-token',
          description:
 -          'Move a token to a new position on the current scene. Can optionally animate the movement.',
-+          'Move a token to a new position, in pixels (default) or in grid squares with units:"squares" (x and y then count from the top-left corner of the map, like manage-scene-objects, padding handled for you; use x 11 y 11 for the square in column 11, row 11). The token is found on any scene (or pass scene). Moving a token into a teleport region teleports it. Can optionally animate the movement.',
++          'Move a token to a new position, in pixels (default) or in grid squares with units:"squares" (x and y then count from the top-left corner of the map, like manage-scene-objects, padding handled for you; use x 11 y 11 for the square in column 11, row 11). The token is found on any scene (or pass scene). Moving a token into a teleport region teleports it. By default the token WALKS with Foundry\'s own movement: it goes around walls (and stops at them), difficult terrain costs more, the movement is recorded for the combat, and the creature\'s speed is the limit: a move that costs more is refused with the cost and speed (dash:true doubles the speed, used is feet already moved this turn, ignore_speed:true lifts the limit). mode:"teleport" places the token directly, ignoring walls and speed. A walk needs the scene to be the one on screen.',
          inputSchema: {
            type: 'object',
            properties: {
-@@ -34,17 +34,19 @@ export class TokenManipulationTools {
+@@ -34,17 +34,23 @@ export class TokenManipulationTools {
              },
              x: {
                type: 'number',
@@ -34650,10 +34819,14 @@ index 6afedf1..00b0493 100644
              },
 +            scene: { type: 'string', description: 'Scene id or exact name (default: found automatically)' },
 +            units: { type: 'string', enum: ['pixels', 'squares'], description: 'What x and y are (default pixels)' },
++            mode: { type: 'string', enum: ['walk', 'teleport'], description: 'walk (default): Foundry movement with walls, cost and speed; teleport: place directly' },
++            dash: { type: 'boolean', description: 'walk: double the speed limit (the Dash action)' },
++            used: { type: 'number', description: 'walk: distance already moved this turn, in the scene units (feet)' },
++            ignore_speed: { type: 'boolean', description: 'walk: do not hold the move to the creature speed' },
            },
            required: ['tokenId', 'x', 'y'],
          },
-@@ -52,7 +54,7 @@ export class TokenManipulationTools {
+@@ -52,7 +58,7 @@ export class TokenManipulationTools {
        {
          name: 'update-token',
          description:
@@ -34662,7 +34835,7 @@ index 6afedf1..00b0493 100644
          inputSchema: {
            type: 'object',
            properties: {
-@@ -107,8 +109,14 @@ export class TokenManipulationTools {
+@@ -107,8 +113,14 @@ export class TokenManipulationTools {
                  },
                },
              },
@@ -34678,7 +34851,7 @@ index 6afedf1..00b0493 100644
          },
        },
        {
-@@ -140,6 +148,7 @@ export class TokenManipulationTools {
+@@ -140,6 +152,7 @@ export class TokenManipulationTools {
                type: 'string',
                description: 'The ID of the token to get details for',
              },
@@ -34686,29 +34859,37 @@ index 6afedf1..00b0493 100644
            },
            required: ['tokenId'],
          },
-@@ -187,9 +196,11 @@ export class TokenManipulationTools {
+@@ -187,9 +200,15 @@ export class TokenManipulationTools {
        x: z.number(),
        y: z.number(),
        animate: z.boolean().optional().default(false),
 +      scene: z.string().min(1).optional(),
 +      units: z.enum(['pixels', 'squares']).optional(),
++      mode: z.enum(['walk', 'teleport']).optional(),
++      dash: z.boolean().optional(),
++      used: z.number().min(0).optional(),
++      ignore_speed: z.boolean().optional(),
      });
  
 -    const { tokenId, x, y, animate } = schema.parse(args);
-+    const { tokenId, x, y, animate, scene, units } = schema.parse(args);
++    const { tokenId, x, y, animate, scene, units, mode, dash, used, ignore_speed } = schema.parse(args);
  
      this.logger.info('Moving token', { tokenId, x, y, animate });
  
-@@ -199,6 +210,8 @@ export class TokenManipulationTools {
+@@ -199,6 +218,12 @@ export class TokenManipulationTools {
          x,
          y,
          animate,
 +        ...(scene ? { scene } : {}),
 +        ...(units ? { units } : {}),
++        ...(mode ? { mode } : {}),
++        ...(dash ? { dash } : {}),
++        ...(used !== undefined ? { used } : {}),
++        ...(ignore_speed ? { ignore_speed } : {}),
        });
  
        this.logger.debug('Token moved successfully', { tokenId });
-@@ -206,7 +219,9 @@ export class TokenManipulationTools {
+@@ -206,8 +231,16 @@ export class TokenManipulationTools {
        return {
          success: true,
          tokenId,
@@ -34717,9 +34898,16 @@ index 6afedf1..00b0493 100644
 +        ...(result?.newSquares ? { newSquares: result.newSquares } : {}),
 +        ...(result?.scene ? { scene: result.scene } : {}),
          animated: animate,
++        ...(result?.moved === false ? { moved: false } : result?.moved ? { moved: true } : {}),
++        ...(result?.cost ? { cost: result.cost } : {}),
++        ...(result?.speed ? { speed: result.speed } : {}),
++        ...(result?.reason ? { reason: result.reason } : {}),
++        ...(result?.blocked ? { blocked: true, stoppedAt: result.stoppedAt, ...(result.stoppedAtSquares ? { stoppedAtSquares: result.stoppedAtSquares } : {}) } : {}),
++        ...(result?.note ? { note: result.note } : {}),
        };
      } catch (error) {
-@@ -220,6 +235,8 @@ export class TokenManipulationTools {
+       this.logger.error('Failed to move token', error);
+@@ -220,6 +253,8 @@ export class TokenManipulationTools {
    async handleUpdateToken(args: any): Promise<any> {
      const schema = z.object({
        tokenId: z.string(),
@@ -34728,7 +34916,7 @@ index 6afedf1..00b0493 100644
        updates: z.object({
          x: z.number().optional(),
          y: z.number().optional(),
-@@ -231,10 +248,11 @@ export class TokenManipulationTools {
+@@ -231,10 +266,11 @@ export class TokenManipulationTools {
          name: z.string().optional(),
          elevation: z.number().optional(),
          lockRotation: z.boolean().optional(),
@@ -34742,7 +34930,7 @@ index 6afedf1..00b0493 100644
  
      this.logger.info('Updating token', { tokenId, updates });
  
-@@ -242,6 +260,8 @@ export class TokenManipulationTools {
+@@ -242,6 +278,8 @@ export class TokenManipulationTools {
        const result = await this.foundryClient.query('foundry-mcp-bridge.update-token', {
          tokenId,
          updates,
@@ -34751,7 +34939,7 @@ index 6afedf1..00b0493 100644
        });
  
        this.logger.debug('Token updated successfully', { tokenId, result });
-@@ -296,15 +316,17 @@ export class TokenManipulationTools {
+@@ -296,15 +334,17 @@ export class TokenManipulationTools {
    async handleGetTokenDetails(args: any): Promise<any> {
      const schema = z.object({
        tokenId: z.string(),

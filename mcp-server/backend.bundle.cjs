@@ -116618,7 +116618,7 @@ var TokenManipulationTools = class {
     return [
       {
         name: "move-token",
-        description: 'Move a token to a new position, in pixels (default) or in grid squares with units:"squares" (x and y then count from the top-left corner of the map, like manage-scene-objects, padding handled for you; use x 11 y 11 for the square in column 11, row 11). The token is found on any scene (or pass scene). Moving a token into a teleport region teleports it. Can optionally animate the movement.',
+        description: `Move a token to a new position, in pixels (default) or in grid squares with units:"squares" (x and y then count from the top-left corner of the map, like manage-scene-objects, padding handled for you; use x 11 y 11 for the square in column 11, row 11). The token is found on any scene (or pass scene). Moving a token into a teleport region teleports it. By default the token WALKS with Foundry's own movement: it goes around walls (and stops at them), difficult terrain costs more, the movement is recorded for the combat, and the creature's speed is the limit: a move that costs more is refused with the cost and speed (dash:true doubles the speed, used is feet already moved this turn, ignore_speed:true lifts the limit). mode:"teleport" places the token directly, ignoring walls and speed. A walk needs the scene to be the one on screen.`,
         inputSchema: {
           type: "object",
           properties: {
@@ -116640,7 +116640,11 @@ var TokenManipulationTools = class {
               default: false
             },
             scene: { type: "string", description: "Scene id or exact name (default: found automatically)" },
-            units: { type: "string", enum: ["pixels", "squares"], description: "What x and y are (default pixels)" }
+            units: { type: "string", enum: ["pixels", "squares"], description: "What x and y are (default pixels)" },
+            mode: { type: "string", enum: ["walk", "teleport"], description: "walk (default): Foundry movement with walls, cost and speed; teleport: place directly" },
+            dash: { type: "boolean", description: "walk: double the speed limit (the Dash action)" },
+            used: { type: "number", description: "walk: distance already moved this turn, in the scene units (feet)" },
+            ignore_speed: { type: "boolean", description: "walk: do not hold the move to the creature speed" }
           },
           required: ["tokenId", "x", "y"]
         }
@@ -116784,9 +116788,13 @@ var TokenManipulationTools = class {
       y: external_exports.number(),
       animate: external_exports.boolean().optional().default(false),
       scene: external_exports.string().min(1).optional(),
-      units: external_exports.enum(["pixels", "squares"]).optional()
+      units: external_exports.enum(["pixels", "squares"]).optional(),
+      mode: external_exports.enum(["walk", "teleport"]).optional(),
+      dash: external_exports.boolean().optional(),
+      used: external_exports.number().min(0).optional(),
+      ignore_speed: external_exports.boolean().optional()
     });
-    const { tokenId, x, y, animate, scene, units } = schema15.parse(args);
+    const { tokenId, x, y, animate, scene, units, mode, dash, used, ignore_speed } = schema15.parse(args);
     this.logger.info("Moving token", { tokenId, x, y, animate });
     try {
       const result = await this.foundryClient.query("foundry-mcp-bridge.move-token", {
@@ -116795,7 +116803,11 @@ var TokenManipulationTools = class {
         y,
         animate,
         ...scene ? { scene } : {},
-        ...units ? { units } : {}
+        ...units ? { units } : {},
+        ...mode ? { mode } : {},
+        ...dash ? { dash } : {},
+        ...used !== void 0 ? { used } : {},
+        ...ignore_speed ? { ignore_speed } : {}
       });
       this.logger.debug("Token moved successfully", { tokenId });
       return {
@@ -116804,7 +116816,13 @@ var TokenManipulationTools = class {
         newPosition: result?.newPosition ?? { x, y },
         ...result?.newSquares ? { newSquares: result.newSquares } : {},
         ...result?.scene ? { scene: result.scene } : {},
-        animated: animate
+        animated: animate,
+        ...result?.moved === false ? { moved: false } : result?.moved ? { moved: true } : {},
+        ...result?.cost ? { cost: result.cost } : {},
+        ...result?.speed ? { speed: result.speed } : {},
+        ...result?.reason ? { reason: result.reason } : {},
+        ...result?.blocked ? { blocked: true, stoppedAt: result.stoppedAt, ...result.stoppedAtSquares ? { stoppedAtSquares: result.stoppedAtSquares } : {} } : {},
+        ...result?.note ? { note: result.note } : {}
       };
     } catch (error) {
       this.logger.error("Failed to move token", error);
