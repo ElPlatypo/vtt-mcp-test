@@ -10997,8 +10997,30 @@ index 0000000..3adf228
 +    <button type="submit" class="mgs-btn"><i class="fas fa-save"></i> Save Image Settings</button>
 +  </div>
 +</form>
+diff --git a/packages/mcp-server/package.json b/packages/mcp-server/package.json
+index 096f27b..903a94e 100644
+--- a/packages/mcp-server/package.json
++++ b/packages/mcp-server/package.json
+@@ -23,13 +23,16 @@
+     "@modelcontextprotocol/sdk": "^1.7.0",
+     "axios": "^1.6.0",
+     "dotenv": "^16.3.0",
+-    "ws": "^8.14.0",
++    "jpeg-js": "^0.4.4",
++    "pngjs": "^7.0.0",
+     "werift": "^0.17.0",
+     "winston": "^3.11.0",
++    "ws": "^8.14.0",
+     "zod": "^3.22.0"
+   },
+   "devDependencies": {
+     "@types/node": "^20.0.0",
++    "@types/pngjs": "^6.0.5",
+     "@types/ws": "^8.5.0",
+     "@vitest/coverage-v8": "^3.2.4",
+     "esbuild": "^0.19.0",
 diff --git a/packages/mcp-server/src/backend.ts b/packages/mcp-server/src/backend.ts
-index 8967e33..dc32d61 100644
+index 8967e33..b1492ed 100644
 --- a/packages/mcp-server/src/backend.ts
 +++ b/packages/mcp-server/src/backend.ts
 @@ -48,6 +48,23 @@ import { DnD5eAddFeatureTool } from './tools/dnd5e/add-feature.js';
@@ -11150,7 +11172,7 @@ index 8967e33..dc32d61 100644
 +  const journalTools = new JournalTools({ foundryClient, logger });
 +  const sceneObjectTools = new SceneObjectTools({ foundryClient, logger });
 +  const playTools = new PlayTools({ foundryClient, logger });
-+  const layoutTools = new LayoutTools({ logger });
++  const layoutTools = new LayoutTools({ logger, foundryClient });
 +  const inspectTools = new InspectTools({ foundryClient, logger });
    const playlistTools = new PlaylistTools({ foundryClient, logger });
  
@@ -11273,8 +11295,8 @@ index 8967e33..dc32d61 100644
 +                  result = await playTools.handleManageRollTables(args);
 +                  break;
 +
-+                case 'draw-layout':
-+                  result = await layoutTools.handleDrawLayout(args);
++                case 'layout':
++                  result = await layoutTools.handleLayout(args);
 +                  break;
 +
 +                case 'manage-macros':
@@ -14043,12 +14065,1001 @@ index 0000000..942a444
 +    }
 +  }
 +}
+diff --git a/packages/mcp-server/src/tools/layout-doc.ts b/packages/mcp-server/src/tools/layout-doc.ts
+new file mode 100644
+index 0000000..d3d9a54
+--- /dev/null
++++ b/packages/mcp-server/src/tools/layout-doc.ts
+@@ -0,0 +1,602 @@
++/**
++ * Layout documents: a map layout that is built up in steps. Shapes get ids, can be added,
++ * moved, changed and removed, and every change can be seen at once as a text map. Shapes
++ * snap to the grid by default; snap 0 gives freeform placement for outdoors and odd shapes.
++ */
++
++import { promises as fs } from 'fs';
++import os from 'os';
++import path from 'path';
++import {
++  FILLS,
++  colorFor,
++  normalizeShape,
++  renderLayout,
++  scanPolygon,
++  shapePolygons,
++  type LayoutShape,
++  type NormalizedLayout,
++} from './layout-utils.js';
++import { decodeImage } from './layout-image.js';
++
++export interface LayoutReference {
++  /** A PNG or JPEG on this computer, such as a page of the book. */
++  image: string;
++  /** Pixel in the image where square (0, 0) of the layout starts. */
++  origin: [number, number];
++  /** Pixels of the image that make up one square. */
++  cellPx: number;
++}
++
++export interface LayoutDoc {
++  id: string;
++  name: string;
++  columns: number;
++  rows: number;
++  size: number;
++  background: string;
++  snap: number;
++  wallFills: string[];
++  nextId: number;
++  shapes: LayoutShape[];
++  reference?: LayoutReference;
++  /** Earlier states, oldest first, for undo. */
++  undo?: HistoryEntry[];
++  /** States that undo stepped back from, most recent last, for redo. */
++  redo?: HistoryEntry[];
++}
++
++/** Everything undo restores: the shapes and the settings (not the history itself). */
++export interface LayoutState {
++  shapes: LayoutShape[];
++  nextId: number;
++  snap: number;
++  background: string;
++  wallFills: string[];
++  reference?: LayoutReference;
++}
++
++export interface HistoryEntry {
++  /** What the change was, e.g. "add 3 shapes". */
++  label: string;
++  state: LayoutState;
++}
++
++export const MAX_DOC_SHAPES = 600;
++export const MAX_HISTORY = 40;
++
++export function slug(name: string): string {
++  return (
++    name
++      .toLowerCase()
++      .replace(/[^a-z0-9]+/g, '-')
++      .replace(/^-+|-+$/g, '')
++      .slice(0, 50) || 'layout'
++  );
++}
++
++// ===== Storage =====
++
++export class LayoutStore {
++  private dir: string;
++  private cache = new Map<string, LayoutDoc>();
++
++  constructor(dir?: string) {
++    this.dir = dir ?? path.join(os.tmpdir(), 'foundry-mcp-layouts');
++  }
++
++  get folder(): string {
++    return this.dir;
++  }
++
++  private file(id: string): string {
++    return path.join(this.dir, `${id}.layout.json`);
++  }
++
++  async load(id: string): Promise<LayoutDoc> {
++    const key = slug(id);
++    const hit = this.cache.get(key);
++    if (hit) return hit;
++    try {
++      const doc = JSON.parse(await fs.readFile(this.file(key), 'utf8')) as LayoutDoc;
++      this.cache.set(key, doc);
++      return doc;
++    } catch {
++      throw new Error(`Layout "${id}" not found; use action list, or new to start one`);
++    }
++  }
++
++  async save(doc: LayoutDoc): Promise<void> {
++    await fs.mkdir(this.dir, { recursive: true });
++    this.cache.set(doc.id, doc);
++    await fs.writeFile(this.file(doc.id), JSON.stringify(doc));
++  }
++
++  async exists(id: string): Promise<boolean> {
++    try {
++      await fs.access(this.file(slug(id)));
++      return true;
++    } catch {
++      return false;
++    }
++  }
++
++  async list(): Promise<Array<{ id: string; name: string; columns: number; rows: number; shapes: number }>> {
++    try {
++      const files = (await fs.readdir(this.dir)).filter(f => f.endsWith('.layout.json'));
++      const out = [];
++      for (const f of files) {
++        const doc = await this.load(f.replace('.layout.json', ''));
++        out.push({ id: doc.id, name: doc.name, columns: doc.columns, rows: doc.rows, shapes: doc.shapes.length });
++      }
++      return out;
++    } catch {
++      return [];
++    }
++  }
++
++  async remove(id: string): Promise<void> {
++    const key = slug(id);
++    this.cache.delete(key);
++    await fs.rm(this.file(key), { force: true });
++  }
++}
++
++// ===== Editing =====
++
++export function layoutOf(doc: LayoutDoc): NormalizedLayout {
++  return {
++    columns: doc.columns,
++    rows: doc.rows,
++    size: doc.size,
++    background: doc.background,
++    shapes: doc.shapes,
++    wallFills: doc.wallFills,
++  };
++}
++
++export function createDoc(args: {
++  name: string;
++  columns: number;
++  rows: number;
++  grid_size?: number;
++  background?: string;
++  snap?: number;
++  wall_fills?: string[];
++}): LayoutDoc {
++  const int = (v: unknown, min: number, max: number, label: string): number => {
++    if (!Number.isInteger(v) || (v as number) < min || (v as number) > max) {
++      throw new Error(`${label} must be a whole number from ${min} to ${max}`);
++    }
++    return v as number;
++  };
++  const columns = int(args.columns, 4, 200, 'columns');
++  const rows = int(args.rows, 4, 200, 'rows');
++  const size = args.grid_size === undefined ? 64 : int(args.grid_size, 8, 256, 'grid_size');
++  if (columns * size * rows * size > 4096 * 4096) {
++    throw new Error('The picture would be larger than 4096 x 4096 pixels; lower grid_size or the map size');
++  }
++  const background = args.background ?? 'rock';
++  if (!FILLS[background]) throw new Error(`background must be one of ${Object.keys(FILLS).join(', ')}`);
++  const snap = args.snap === undefined ? 1 : args.snap;
++  if (typeof snap !== 'number' || snap < 0 || snap > 5) throw new Error('snap must be a number from 0 to 5');
++  const wallFills = args.wall_fills ?? ['floor'];
++  for (const f of wallFills) if (!FILLS[f]) throw new Error(`wall_fills: unknown fill "${f}"`);
++  return {
++    id: slug(args.name),
++    name: args.name.trim(),
++    columns,
++    rows,
++    size,
++    background,
++    snap,
++    wallFills,
++    nextId: 1,
++    shapes: [],
++  };
++}
++
++// ===== Undo and redo =====
++
++/** A copy of the current state, taken before a change. */
++export function captureState(doc: LayoutDoc): LayoutState {
++  return JSON.parse(
++    JSON.stringify({
++      shapes: doc.shapes,
++      nextId: doc.nextId,
++      snap: doc.snap,
++      background: doc.background,
++      wallFills: doc.wallFills,
++      ...(doc.reference ? { reference: doc.reference } : {}),
++    })
++  ) as LayoutState;
++}
++
++export function restoreState(doc: LayoutDoc, state: LayoutState): void {
++  const copy = JSON.parse(JSON.stringify(state)) as LayoutState;
++  doc.shapes = copy.shapes;
++  doc.nextId = copy.nextId;
++  doc.snap = copy.snap;
++  doc.background = copy.background;
++  doc.wallFills = copy.wallFills;
++  if (copy.reference) doc.reference = copy.reference;
++  else delete doc.reference;
++}
++
++/** Remember the state from before a change that went through, and drop anything that could be redone. */
++export function commitChange(doc: LayoutDoc, label: string, before: LayoutState): void {
++  const undo = doc.undo ?? [];
++  undo.push({ label, state: before });
++  if (undo.length > MAX_HISTORY) undo.splice(0, undo.length - MAX_HISTORY);
++  doc.undo = undo;
++  doc.redo = [];
++}
++
++/** Step back `steps` changes. Returns what was undone, most recent first. */
++export function undoChanges(doc: LayoutDoc, steps: number): string[] {
++  const undo = doc.undo ?? [];
++  if (undo.length === 0) throw new Error('Nothing to undo');
++  const done: string[] = [];
++  const redo = doc.redo ?? [];
++  for (let i = 0; i < steps && undo.length > 0; i++) {
++    const entry = undo.pop()!;
++    redo.push({ label: entry.label, state: captureState(doc) });
++    restoreState(doc, entry.state);
++    done.push(entry.label);
++  }
++  doc.undo = undo;
++  doc.redo = redo;
++  return done;
++}
++
++/** Step forward again after an undo. Returns what was redone. */
++export function redoChanges(doc: LayoutDoc, steps: number): string[] {
++  const redo = doc.redo ?? [];
++  if (redo.length === 0) throw new Error('Nothing to redo');
++  const done: string[] = [];
++  const undo = doc.undo ?? [];
++  for (let i = 0; i < steps && redo.length > 0; i++) {
++    const entry = redo.pop()!;
++    undo.push({ label: entry.label, state: captureState(doc) });
++    restoreState(doc, entry.state);
++    done.push(entry.label);
++  }
++  doc.undo = undo;
++  doc.redo = redo;
++  return done;
++}
++
++/** Add shapes on top (or after the shape `after`). Returns the new ids. */
++export function addShapes(doc: LayoutDoc, raws: unknown[], after?: number): number[] {
++  if (!Array.isArray(raws) || raws.length === 0) throw new Error('shapes must be a non-empty list');
++  if (doc.shapes.length + raws.length > MAX_DOC_SHAPES) {
++    throw new Error(`A layout holds at most ${MAX_DOC_SHAPES} shapes`);
++  }
++  let at = doc.shapes.length;
++  if (after !== undefined) {
++    const i = doc.shapes.findIndex(s => s.id === after);
++    if (i < 0) throw new Error(`after: shape ${after} not found`);
++    at = i + 1;
++  }
++  const made = raws.map((raw, i) => {
++    const shape = normalizeShape(raw, `shapes[${i}]`, doc.snap);
++    shape.id = doc.nextId++;
++    return shape;
++  });
++  doc.shapes.splice(at, 0, ...made);
++  return made.map(s => s.id!);
++}
++
++function translate(shape: LayoutShape, dx: number, dy: number): void {
++  if (shape.rect) shape.rect = [shape.rect[0]! + dx, shape.rect[1]! + dy, shape.rect[2]!, shape.rect[3]!];
++  if (shape.ellipse) shape.ellipse = [shape.ellipse[0]! + dx, shape.ellipse[1]! + dy, shape.ellipse[2]!, shape.ellipse[3]!];
++  if (shape.polygon) shape.polygon = shape.polygon.map(p => [p[0]! + dx, p[1]! + dy]);
++  if (shape.path) shape.path = shape.path.map(p => [p[0]! + dx, p[1]! + dy]);
++  if (shape.at) shape.at = [shape.at[0]! + dx, shape.at[1]! + dy];
++  if (shape.cells) {
++    if (!Number.isInteger(dx) || !Number.isInteger(dy)) throw new Error('cells can only move by whole squares');
++    shape.cells = shape.cells.map(c => [c[0]! + dx, c[1]! + dy, c[2]!, c[3]!]);
++  }
++}
++
++/**
++ * Change a shape. `set` replaces fields (null removes one, e.g. rotate), `move` shifts it by
++ * [columns, rows], `front`/`back` change its stacking, `after` puts it above another shape.
++ */
++export function updateShape(
++  doc: LayoutDoc,
++  id: number,
++  change: { set?: Record<string, unknown>; move?: number[]; front?: boolean; back?: boolean; after?: number }
++): void {
++  const index = doc.shapes.findIndex(s => s.id === id);
++  if (index < 0) throw new Error(`Shape ${id} not found`);
++  const current = doc.shapes[index]!;
++  const next: any = { ...current };
++
++  if (change.set) {
++    for (const [k, v] of Object.entries(change.set)) {
++      if (k === 'id' || k === 'shape') throw new Error(`${k} cannot be changed; remove the shape and add a new one`);
++      if (v === null) delete next[k];
++      else next[k] = v;
++    }
++  }
++  if (change.move) {
++    if (!Array.isArray(change.move) || change.move.length !== 2 || !change.move.every(n => typeof n === 'number' && Number.isFinite(n))) {
++      throw new Error('move must be [columns, rows]');
++    }
++    translate(next, change.move[0]!, change.move[1]!);
++  }
++  const fixed = normalizeShape(next, `shape ${id}`, doc.snap);
++  fixed.id = id;
++  doc.shapes[index] = fixed;
++
++  if (change.front || change.back || change.after !== undefined) {
++    doc.shapes.splice(index, 1);
++    if (change.front) doc.shapes.push(fixed);
++    else if (change.back) doc.shapes.unshift(fixed);
++    else {
++      const j = doc.shapes.findIndex(s => s.id === change.after);
++      if (j < 0) {
++        doc.shapes.splice(index, 0, fixed);
++        throw new Error(`after: shape ${change.after} not found`);
++      }
++      doc.shapes.splice(j + 1, 0, fixed);
++    }
++  }
++}
++
++export function removeShapes(doc: LayoutDoc, ids: number[]): number[] {
++  const gone = new Set(ids);
++  const removed = doc.shapes.filter(s => gone.has(s.id!)).map(s => s.id!);
++  const missing = ids.filter(i => !removed.includes(i));
++  if (missing.length > 0) throw new Error(`Shapes not found: ${missing.join(', ')}`);
++  doc.shapes = doc.shapes.filter(s => !gone.has(s.id!));
++  return removed;
++}
++
++/** One line per shape, so the document can be read back. */
++export function describeShapes(doc: LayoutDoc): Array<Record<string, unknown>> {
++  return doc.shapes.map(s => {
++    const geometry = s.rect ?? s.ellipse ?? s.polygon ?? s.path ?? s.cells ?? (s.at ? { at: s.at, dir: s.dir, size: s.size ?? 1 } : null);
++    return {
++      id: s.id,
++      shape: s.shape,
++      fill: s.fill,
++      ...(s.color ? { color: s.color } : {}),
++      ...(s.name ? { name: s.name } : {}),
++      ...(s.rotate ? { rotate: s.rotate } : {}),
++      ...(s.secret ? { secret: true } : {}),
++      geometry,
++    };
++  });
++}
++
++// ===== Text map =====
++
++const ASCII: Record<string, string> = {
++  rock: '#',
++  floor: '.',
++  grass: ',',
++  road: '=',
++  water: '~',
++  building: 'B',
++  stone: 'o',
++  sand: ':',
++  wood: 'w',
++  door: '+',
++};
++
++export interface Region {
++  x: number;
++  y: number;
++  width: number;
++  height: number;
++}
++
++/** The layout as text, one character per square, with column and row numbers. */
++export function asciiMap(doc: LayoutDoc, region?: Region): { text: string; legend: string } {
++  const S = 4; // samples per square
++  const names = Object.keys(FILLS);
++  const grid = new Uint8Array(doc.columns * S * doc.rows * S);
++  grid.fill(names.indexOf(doc.background));
++  const w = doc.columns * S;
++  const h = doc.rows * S;
++  for (const shape of doc.shapes) {
++    if (shape.shape === 'door') continue;
++    const value = names.indexOf(shape.fill ?? 'floor');
++    for (const poly of shapePolygons(shape, S)) {
++      scanPolygon(poly, w, h, (y, x0, x1) => grid.fill(value, y * w + x0, y * w + x1 + 1));
++    }
++  }
++  const x0 = region ? Math.max(0, Math.floor(region.x)) : 0;
++  const y0 = region ? Math.max(0, Math.floor(region.y)) : 0;
++  const x1 = region ? Math.min(doc.columns, Math.ceil(region.x + region.width)) : doc.columns;
++  const y1 = region ? Math.min(doc.rows, Math.ceil(region.y + region.height)) : doc.rows;
++
++  const lines: string[][] = [];
++  for (let r = y0; r < y1; r++) {
++    const row: string[] = [];
++    for (let c = x0; c < x1; c++) {
++      row.push(ASCII[names[grid[(r * S + S / 2) * w + c * S + S / 2]!]!] ?? '?');
++    }
++    lines.push(row);
++  }
++  // Doors mark the square their bar sits in.
++  for (const shape of doc.shapes) {
++    if (shape.shape !== 'door') continue;
++    const [dx, dy] = shape.at as [number, number];
++    const len = Math.max(1, Math.round(shape.size ?? 1));
++    for (let i = 0; i < len; i++) {
++      const c = shape.dir === 'v' ? Math.floor(dx) : Math.floor(dx) + i;
++      const r = shape.dir === 'v' ? Math.floor(dy) + i : Math.floor(dy);
++      if (c >= x0 && c < x1 && r >= y0 && r < y1) lines[r - y0]![c - x0] = shape.secret ? 'S' : '+';
++    }
++  }
++
++  const tens = ['   '];
++  const ones = ['   '];
++  for (let c = x0; c < x1; c++) {
++    tens.push(c % 10 === 0 ? String(Math.floor(c / 10) % 10) : ' ');
++    ones.push(String(c % 10));
++  }
++  const body = lines.map((row, i) => `${String(y0 + i).padStart(2)} ${row.join('')}`);
++  const used = new Set(lines.flat());
++  const legend = Object.entries(ASCII)
++    .filter(([, ch]) => used.has(ch))
++    .map(([fill, ch]) => `${ch} ${fill}`)
++    .concat(used.has('S') ? ['S secret door'] : [])
++    .join('   ');
++  return { text: [tens.join(''), ones.join(''), ...body].join('\n'), legend };
++}
++
++// ===== Preview picture =====
++
++const DIGITS: Record<string, string[]> = {
++  '0': ['111', '101', '101', '101', '111'],
++  '1': ['010', '110', '010', '010', '111'],
++  '2': ['111', '001', '111', '100', '111'],
++  '3': ['111', '001', '111', '001', '111'],
++  '4': ['101', '101', '111', '001', '001'],
++  '5': ['111', '100', '111', '001', '111'],
++  '6': ['111', '100', '111', '101', '111'],
++  '7': ['111', '001', '001', '001', '001'],
++  '8': ['111', '101', '111', '101', '111'],
++  '9': ['111', '101', '111', '001', '111'],
++};
++
++type Pixels = { width: number; height: number; rgb: Uint8Array };
++
++function setPixel(img: Pixels, x: number, y: number, c: [number, number, number], alpha = 1): void {
++  if (x < 0 || y < 0 || x >= img.width || y >= img.height) return;
++  const o = (y * img.width + x) * 3;
++  for (let i = 0; i < 3; i++) img.rgb[o + i] = Math.round(img.rgb[o + i]! * (1 - alpha) + c[i]! * alpha);
++}
++
++/** Draw a number on a dark box, with its top-left corner at (x, y). Returns the box width. */
++function drawNumber(img: Pixels, x: number, y: number, text: string, k: number, ink: [number, number, number]): number {
++  const boxW = text.length * 4 * k + k;
++  const boxH = 5 * k + 2 * k;
++  for (let j = 0; j < boxH; j++) for (let i = 0; i < boxW; i++) setPixel(img, x + i, y + j, [0, 0, 0], 0.7);
++  [...text].forEach((ch, n) => {
++    const glyph = DIGITS[ch];
++    if (!glyph) return;
++    glyph.forEach((row, gy) =>
++      [...row].forEach((bit, gx) => {
++        if (bit !== '1') return;
++        for (let a = 0; a < k; a++) {
++          for (let b = 0; b < k; b++) setPixel(img, x + k + n * 4 * k + gx * k + a, y + k + gy * k + b, ink);
++        }
++      })
++    );
++  });
++  return boxW;
++}
++
++export interface PreviewOptions {
++  grid?: boolean;
++  labels?: boolean;
++  reference?: boolean;
++  /** Show only the reference picture with the grid, without the shapes. */
++  hide_shapes?: boolean;
++  region?: Region;
++}
++
++/** The layout as a picture to look at: shapes over the book page, a numbered grid and shape ids. */
++export async function renderPreview(doc: LayoutDoc, opts: PreviewOptions = {}): Promise<Pixels & { region: Region }> {
++  const layout = layoutOf(doc);
++  const sketch = renderLayout(hideShapes(layout, !!opts.hide_shapes));
++  const { width, height } = sketch;
++  const img: Pixels = { width, height, rgb: sketch.rgb };
++  const bg = colorFor({ fill: doc.background });
++
++  if ((opts.reference ?? true) && doc.reference) {
++    const ref = await decodeImage(doc.reference.image);
++    const [ox, oy] = doc.reference.origin;
++    const per = doc.reference.cellPx / doc.size;
++    for (let y = 0; y < height; y++) {
++      const ry = Math.floor(oy + (y + 0.5) * per);
++      for (let x = 0; x < width; x++) {
++        const rx = Math.floor(ox + (x + 0.5) * per);
++        const o = (y * width + x) * 3;
++        const inside = rx >= 0 && ry >= 0 && rx < ref.width && ry < ref.height;
++        const r = inside ? ref.data[(ry * ref.width + rx) * 4]! : 255;
++        const g = inside ? ref.data[(ry * ref.width + rx) * 4 + 1]! : 255;
++        const b = inside ? ref.data[(ry * ref.width + rx) * 4 + 2]! : 255;
++        const isBg = img.rgb[o] === bg[0] && img.rgb[o + 1] === bg[1] && img.rgb[o + 2] === bg[2];
++        const a = isBg || opts.hide_shapes ? 0 : 0.5;
++        img.rgb[o] = Math.round(r * (1 - a) + img.rgb[o]! * a);
++        img.rgb[o + 1] = Math.round(g * (1 - a) + img.rgb[o + 1]! * a);
++        img.rgb[o + 2] = Math.round(b * (1 - a) + img.rgb[o + 2]! * a);
++      }
++    }
++  }
++
++  if (opts.grid ?? true) {
++    for (let c = 0; c <= doc.columns; c++) {
++      const strong = c % 5 === 0;
++      const x = Math.min(width - 1, c * doc.size);
++      for (let y = 0; y < height; y++) {
++        setPixel(img, x, y, strong ? [255, 220, 0] : [255, 255, 255], strong ? 0.7 : 0.3);
++        if (strong) setPixel(img, x + 1, y, [255, 220, 0], 0.5);
++      }
++    }
++    for (let r = 0; r <= doc.rows; r++) {
++      const strong = r % 5 === 0;
++      const y = Math.min(height - 1, r * doc.size);
++      for (let x = 0; x < width; x++) {
++        setPixel(img, x, y, strong ? [255, 220, 0] : [255, 255, 255], strong ? 0.7 : 0.3);
++        if (strong) setPixel(img, x, y + 1, [255, 220, 0], 0.5);
++      }
++    }
++    const k = doc.size >= 40 ? 3 : 2;
++    const every = doc.size >= 28 ? 1 : 5;
++    for (let c = 0; c < doc.columns; c += every) drawNumber(img, c * doc.size + 2, 2, String(c), k, [255, 255, 255]);
++    for (let r = 1; r < doc.rows; r += every) drawNumber(img, 2, r * doc.size + 2, String(r), k, [255, 255, 255]);
++  }
++
++  if ((opts.labels ?? true) && !opts.hide_shapes) {
++    const k = doc.size >= 40 ? 3 : 2;
++    for (const shape of doc.shapes) {
++      const polys = shapePolygons(shape, doc.size);
++      let sx = 0;
++      let sy = 0;
++      let n = 0;
++      for (const poly of polys) for (const [x, y] of poly) { sx += x; sy += y; n++; }
++      if (n === 0) continue;
++      const text = String(shape.label ?? shape.id);
++      const boxW = text.length * 4 * k + k;
++      drawNumber(img, Math.round(sx / n - boxW / 2), Math.round(sy / n - (7 * k) / 2), text, k, shape.shape === 'door' ? [255, 160, 40] : [120, 255, 120]);
++    }
++  }
++
++  const region = opts.region
++    ? {
++        x: Math.max(0, Math.floor(opts.region.x)),
++        y: Math.max(0, Math.floor(opts.region.y)),
++        width: Math.min(doc.columns, Math.ceil(opts.region.x + opts.region.width)) - Math.max(0, Math.floor(opts.region.x)),
++        height: Math.min(doc.rows, Math.ceil(opts.region.y + opts.region.height)) - Math.max(0, Math.floor(opts.region.y)),
++      }
++    : { x: 0, y: 0, width: doc.columns, height: doc.rows };
++  if (!opts.region) return { ...img, region };
++  if (region.width < 2 || region.height < 2) throw new Error('region must cover at least 2 by 2 squares');
++
++  // Crop, then enlarge by a whole factor so the picture is easier to read.
++  const cw = region.width * doc.size;
++  const ch = region.height * doc.size;
++  const f = Math.max(1, Math.min(4, Math.floor(1600 / Math.max(cw, ch))));
++  const out = new Uint8Array(cw * f * ch * f * 3);
++  for (let y = 0; y < ch * f; y++) {
++    for (let x = 0; x < cw * f; x++) {
++      const so = ((region.y * doc.size + Math.floor(y / f)) * width + region.x * doc.size + Math.floor(x / f)) * 3;
++      const o = (y * cw * f + x) * 3;
++      out[o] = img.rgb[so]!;
++      out[o + 1] = img.rgb[so + 1]!;
++      out[o + 2] = img.rgb[so + 2]!;
++    }
++  }
++  return { width: cw * f, height: ch * f, rgb: out, region };
++}
++
++function hideShapes(layout: NormalizedLayout, hide: boolean): NormalizedLayout {
++  return hide ? { ...layout, shapes: [] } : layout;
++}
+diff --git a/packages/mcp-server/src/tools/layout-image.ts b/packages/mcp-server/src/tools/layout-image.ts
+new file mode 100644
+index 0000000..5cc3d03
+--- /dev/null
++++ b/packages/mcp-server/src/tools/layout-image.ts
+@@ -0,0 +1,33 @@
++import { promises as fs } from 'fs';
++import jpeg from 'jpeg-js';
++import { PNG } from 'pngjs';
++
++export interface DecodedImage {
++  width: number;
++  height: number;
++  /** RGBA pixels */
++  data: Uint8Array;
++}
++
++let cached: { key: string; image: DecodedImage } | null = null;
++
++/** Read a PNG or JPEG file into pixels. The last image is kept, since previews reuse it. */
++export async function decodeImage(file: string): Promise<DecodedImage> {
++  const stat = await fs.stat(file);
++  const key = `${file}:${stat.mtimeMs}:${stat.size}`;
++  if (cached?.key === key) return cached.image;
++
++  const buf = await fs.readFile(file);
++  let image: DecodedImage;
++  if (buf[0] === 0x89 && buf[1] === 0x50) {
++    const png = PNG.sync.read(buf);
++    image = { width: png.width, height: png.height, data: png.data };
++  } else if (buf[0] === 0xff && buf[1] === 0xd8) {
++    const raw = jpeg.decode(buf, { useTArray: true, maxMemoryUsageInMB: 512 });
++    image = { width: raw.width, height: raw.height, data: raw.data };
++  } else {
++    throw new Error('The reference image must be a PNG or JPEG file');
++  }
++  cached = { key, image };
++  return image;
++}
+diff --git a/packages/mcp-server/src/tools/layout-tool.test.ts b/packages/mcp-server/src/tools/layout-tool.test.ts
+new file mode 100644
+index 0000000..0af03d8
+--- /dev/null
++++ b/packages/mcp-server/src/tools/layout-tool.test.ts
+@@ -0,0 +1,336 @@
++import { afterAll, describe, expect, it, vi } from 'vitest';
++import { promises as fs } from 'fs';
++import os from 'os';
++import path from 'path';
++import { LayoutTools } from './layout.js';
++import { encodePng, normalizeShape, shapePolygons } from './layout-utils.js';
++
++const folder = path.join(os.tmpdir(), `layout-tool-test-${Date.now()}`);
++afterAll(async () => {
++  await fs.rm(folder, { recursive: true, force: true });
++});
++
++function tools() {
++  const logger: any = { info: vi.fn(), debug: vi.fn(), error: vi.fn(), warn: vi.fn(), child: () => logger };
++  return new LayoutTools({ logger, folder });
++}
++
++describe('normalizeShape', () => {
++  it('snaps to the grid, accepts room and centre forms, and keeps free shapes free', () => {
++    expect(normalizeShape({ shape: 'room', at: [2.2, 3.4], size: [4.1, 2.9] }, 's', 1)).toMatchObject({
++      shape: 'rect',
++      rect: [2, 3, 4, 3],
++    });
++    expect(normalizeShape({ shape: 'ellipse', center: [5.3, 5.3], radius: [2.1, 3] }, 's', 1)).toMatchObject({
++      ellipse: [5, 5, 2, 3],
++    });
++    expect(normalizeShape({ shape: 'polygon', polygon: [[0.3, 0.3], [4.4, 0.6], [2.2, 3.9]] }, 's', 0)).toMatchObject({
++      polygon: [[0.3, 0.3], [4.4, 0.6], [2.2, 3.9]],
++    });
++    expect(normalizeShape({ shape: 'rect', rect: [1.3, 1.3, 2, 2], snap: 0 }, 's', 1)).toMatchObject({
++      rect: [1.3, 1.3, 2, 2],
++    });
++    expect(normalizeShape({ shape: 'door', at: [7.2, 3.4], dir: 'v' }, 's', 1)).toMatchObject({ at: [7.25, 3.5] });
++  });
++
++  it('never makes a room smaller than one square', () => {
++    expect(normalizeShape({ shape: 'room', at: [1, 1], size: [0.2, 0.2] }, 's', 1)).toMatchObject({ rect: [1, 1, 1, 1] });
++  });
++
++  it('turns cells into runs and rejects bad ones', () => {
++    expect(normalizeShape({ shape: 'cells', cells: [[1, 1], [2, 1, 3, 1]] }, 's', 1)).toMatchObject({
++      cells: [[1, 1, 1, 1], [2, 1, 3, 1]],
++    });
++    expect(() => normalizeShape({ shape: 'cells', cells: [[1.5, 1]] }, 's', 1)).toThrow();
++    expect(() => normalizeShape({ shape: 'cells', cells: [] }, 's', 1)).toThrow();
++  });
++
++  it('rotates about the centre', () => {
++    const rotated = shapePolygons({ shape: 'rect', rect: [0, 0, 4, 2], rotate: 90 }, 1)[0]!;
++    const xs = rotated.map(p => Math.round(p[0] * 100) / 100);
++    const ys = rotated.map(p => Math.round(p[1] * 100) / 100);
++    expect([Math.min(...xs), Math.max(...xs)]).toEqual([1, 3]);
++    expect([Math.min(...ys), Math.max(...ys)]).toEqual([-1, 3]);
++  });
++});
++
++function tools_noFoundry() {
++  return tools();
++}
++
++describe('layout tool', () => {
++  it('builds a layout in steps and shows the text map after each change', async () => {
++    const t = tools();
++    const made = await t.handleLayout({ action: 'new', name: 'Steps', columns: 12, rows: 8, grid_size: 32 });
++    expect(made.grid).toMatchObject({ columns: 12, rows: 8, snap: 1 });
++    expect(made.map).toContain('########');
++
++    const added = await t.handleLayout({
++      action: 'add',
++      layout: 'Steps',
++      shapes: [
++        { shape: 'room', at: [1, 1], size: [4, 3], name: 'hall' },
++        { shape: 'room', at: [7, 1], size: [4, 3] },
++      ],
++    });
++    expect(added.ids).toEqual([1, 2]);
++    expect(added.map.split('\n')[3]).toBe(' 1 #....##....#');
++    expect(added.legend).toContain('. floor');
++
++    const corridor = await t.handleLayout({
++      action: 'add',
++      layout: 'Steps',
++      shapes: [{ shape: 'path', path: [[5, 2.5], [7, 2.5]], width: 1 }, { shape: 'door', at: [5, 2], dir: 'v', size: 1 }],
++    });
++    expect(corridor.ids).toEqual([3, 4]);
++    const rowOf = (map: string, row: number) => map.split('\n')[row + 2];
++    expect(rowOf(corridor.map, 2)).toBe(' 2 #....+.....#');
++
++    const moved = await t.handleLayout({ action: 'update', layout: 'steps', id: 2, move: [0, 2] });
++    expect(rowOf(moved.map, 1)).toBe(' 1 #....#######');
++    expect(rowOf(moved.map, 4)).toBe(' 4 #######....#');
++
++    const removed = await t.handleLayout({ action: 'remove', layout: 'steps', ids: [2, 3] });
++    expect(removed.shapeCount).toBe(2);
++    expect(rowOf(removed.map, 4)).toBe(' 4 ############');
++  });
++
++  it('keeps layouts across tool instances (they are saved)', async () => {
++    const first = tools();
++    await first.handleLayout({ action: 'new', name: 'Saved one', columns: 8, rows: 8 });
++    await first.handleLayout({ action: 'add', layout: 'saved one', shapes: [{ shape: 'room', at: [1, 1], size: [3, 3] }] });
++    const second = tools();
++    const shown = await second.handleLayout({ action: 'show', layout: 'saved-one', shapes_list: true });
++    expect(shown.shapes).toHaveLength(1);
++    expect(shown.shapes[0].geometry).toEqual([1, 1, 3, 3]);
++    const listed = await second.handleLayout({ action: 'list' });
++    expect(listed.layouts.map((l: any) => l.id)).toContain('saved-one');
++  });
++
++  it('changes a shape with set, rotate and stacking, and rejects bad edits', async () => {
++    const t = tools();
++    await t.handleLayout({ action: 'new', name: 'Edit', columns: 10, rows: 10, snap: 0.5 });
++    await t.handleLayout({
++      action: 'add',
++      layout: 'edit',
++      shapes: [{ shape: 'room', at: [1, 1], size: [4, 4] }, { shape: 'room', at: [3, 3], size: [4, 4], fill: 'water' }],
++    });
++    await t.handleLayout({ action: 'update', layout: 'edit', id: 1, set: { fill: 'sand', rotate: 45 }, front: true });
++    const shown = await t.handleLayout({ action: 'show', layout: 'edit', shapes_list: true });
++    expect(shown.shapes.map((s: any) => s.id)).toEqual([2, 1]);
++    expect(shown.shapes[1]).toMatchObject({ fill: 'sand', rotate: 45 });
++    await expect(t.handleLayout({ action: 'update', layout: 'edit', id: 9, move: [1, 1] })).rejects.toThrow('not found');
++    await expect(t.handleLayout({ action: 'update', layout: 'edit', id: 1, set: { shape: 'ellipse' } })).rejects.toThrow();
++    await expect(t.handleLayout({ action: 'update', layout: 'edit', id: 1 })).rejects.toThrow('needs');
++    await expect(t.handleLayout({ action: 'show', layout: 'nope' })).rejects.toThrow('not found');
++  });
++
++  it('renders a clean sketch and a preview with the grid, and walls', async () => {
++    const t = tools();
++    await t.handleLayout({ action: 'new', name: 'Pics', columns: 16, rows: 8, grid_size: 32 });
++    await t.handleLayout({
++      action: 'add',
++      layout: 'pics',
++      shapes: [{ shape: 'room', at: [2, 2], size: [5, 4] }, { shape: 'door', at: [7, 3], dir: 'v' }],
++    });
++    const sketch = await t.handleLayout({ action: 'render', layout: 'pics' });
++    expect(sketch.width).toBe(512);
++    expect(sketch.legend).toContain('light grey = floor');
++    expect((await fs.readFile(sketch.file)).subarray(1, 4).toString()).toBe('PNG');
++    expect(sketch.hint).not.toContain('multiples of 32');
++
++    const preview = await t.handleLayout({ action: 'show', layout: 'pics', png: true });
++    expect(preview.file).toMatch(/pics-preview-\d+\.png$/);
++    expect(preview.width).toBe(512);
++    const zoom = await t.handleLayout({ action: 'show', layout: 'pics', png: true, region: { x: 1, y: 1, width: 8, height: 6 } });
++    expect(zoom.width).toBe(8 * 32 * 4);
++    expect(zoom.region).toEqual({ x: 1, y: 1, width: 8, height: 6 });
++
++    const walls = await t.handleLayout({ action: 'walls', layout: 'pics' });
++    expect(walls.walls.some((w: any) => w.preset === 'door')).toBe(true);
++    expect(walls.walls.some((w: any) => !w.preset && w.points.length >= 4)).toBe(true);
++  });
++
++  it('lays the shapes over a reference picture', async () => {
++    const t = tools();
++    const ref = path.join(folder, 'ref.png');
++    await fs.mkdir(folder, { recursive: true });
++    // A 40 x 40 red picture: 10 pixels per square.
++    const rgb = new Uint8Array(40 * 40 * 3);
++    for (let i = 0; i < 40 * 40; i++) rgb[i * 3] = 255;
++    await fs.writeFile(ref, encodePng(40, 40, rgb));
++
++    await t.handleLayout({
++      action: 'new',
++      name: 'Traced',
++      columns: 4,
++      rows: 4,
++      grid_size: 16,
++      reference: { image: ref, origin: [0, 0], cell_px: 10 },
++    });
++    await t.handleLayout({ action: 'add', layout: 'traced', shapes: [{ shape: 'room', at: [1, 1], size: [2, 2] }] });
++    const plain = await t.handleLayout({ action: 'show', layout: 'traced', png: true, grid: false, labels: false });
++    const png = await fs.readFile(plain.file);
++    expect(png.length).toBeGreaterThan(100);
++    const hidden = await t.handleLayout({ action: 'show', layout: 'traced', png: true, hide_shapes: true });
++    expect(hidden.file).not.toBe(plain.file);
++    const cleared = await t.handleLayout({ action: 'set', layout: 'traced', reference: null });
++    expect(cleared.reference).toBeUndefined();
++  });
++
++  it('rejects bad requests and duplicate names', async () => {
++    const t = tools();
++    await expect(t.handleLayout({ action: 'new', name: 'Bad', columns: 2, rows: 8 })).rejects.toThrow('columns');
++    await expect(t.handleLayout({ action: 'new', name: 'Bad2' })).rejects.toThrow('columns and rows');
++    await t.handleLayout({ action: 'new', name: 'Dup', columns: 8, rows: 8 });
++    await expect(t.handleLayout({ action: 'new', name: 'dup', columns: 8, rows: 8 })).rejects.toThrow('already exists');
++    await expect(t.handleLayout({ action: 'add', layout: 'dup', shapes: [{ shape: 'blob' }] })).rejects.toThrow();
++    await expect(t.handleLayout({ action: 'render', layout: 'dup' })).rejects.toThrow('no shapes');
++    await expect(t.handleLayout({ action: 'new', name: 'X', columns: 8, rows: 8, extra: 1 })).rejects.toThrow();
++    await t.handleLayout({ action: 'delete', layout: 'dup' });
++    await expect(t.handleLayout({ action: 'show', layout: 'dup' })).rejects.toThrow('not found');
++  });
++
++  it('undoes and redoes changes, including settings, and keeps ids steady', async () => {
++    const t = tools();
++    await t.handleLayout({ action: 'new', name: 'History', columns: 10, rows: 10 });
++    await t.handleLayout({ action: 'add', layout: 'history', shapes: [{ shape: 'room', at: [1, 1], size: [3, 3] }] });
++    await t.handleLayout({ action: 'add', layout: 'history', shapes: [{ shape: 'room', at: [5, 5], size: [3, 3] }] });
++    const moved = await t.handleLayout({ action: 'update', layout: 'history', id: 2, move: [1, 0] });
++    expect(moved.history).toEqual({ undo: 3, redo: 0 });
++    await t.handleLayout({ action: 'set', layout: 'history', background: 'grass' });
++
++    const back = await t.handleLayout({ action: 'undo', layout: 'history', steps: 2 });
++    expect(back.undone).toEqual(['change settings', 'update shape 2']);
++    expect(back.history).toEqual({ undo: 2, redo: 2 });
++    const shown = await t.handleLayout({ action: 'show', layout: 'history', shapes_list: true });
++    expect(shown.shapes.find((s: any) => s.id === 2).geometry).toEqual([5, 5, 3, 3]);
++    expect(back.map.split('\n')[2]).toMatch(/^ 0 #+$/);
++
++    const forward = await t.handleLayout({ action: 'redo', layout: 'history' });
++    expect(forward.redone).toEqual(['update shape 2']);
++    const again = await t.handleLayout({ action: 'show', layout: 'history', shapes_list: true });
++    expect(again.shapes.find((s: any) => s.id === 2).geometry).toEqual([6, 5, 3, 3]);
++
++    // a new change drops what could have been redone, and ids carry on from where they were
++    await t.handleLayout({ action: 'undo', layout: 'history' });
++    const next = await t.handleLayout({ action: 'add', layout: 'history', shapes: [{ shape: 'room', at: [8, 1], size: [1, 1] }] });
++    expect(next.ids).toEqual([3]);
++    expect(next.history.redo).toBe(0);
++    await expect(t.handleLayout({ action: 'redo', layout: 'history' })).rejects.toThrow('Nothing to redo');
++
++    // history is saved with the layout
++    const fresh = tools();
++    const undone = await fresh.handleLayout({ action: 'undo', layout: 'history' });
++    expect(undone.undone).toEqual(['add 1 shape (3)']);
++    expect(undone.shapeCount).toBe(2);
++
++    const empty = await t.handleLayout({ action: 'new', name: 'Fresh', columns: 8, rows: 8 });
++    expect(empty.history).toEqual({ undo: 0, redo: 0 });
++    await expect(t.handleLayout({ action: 'undo', layout: 'fresh' })).rejects.toThrow('Nothing to undo');
++  });
++
++  it('leaves the layout untouched when a change fails', async () => {
++    const t = tools();
++    await t.handleLayout({ action: 'new', name: 'Safe', columns: 8, rows: 8 });
++    await t.handleLayout({ action: 'add', layout: 'safe', shapes: [{ shape: 'room', at: [1, 1], size: [2, 2] }] });
++    await expect(
++      t.handleLayout({ action: 'add', layout: 'safe', shapes: [{ shape: 'room', at: [3, 3], size: [2, 2] }, { shape: 'blob' }] })
++    ).rejects.toThrow();
++    await expect(t.handleLayout({ action: 'set', layout: 'safe', snap: 0.5, background: 'lava' })).rejects.toThrow();
++    const shown = await t.handleLayout({ action: 'show', layout: 'safe', shapes_list: true });
++    expect(shown.shapes).toHaveLength(1);
++    expect(shown.grid.snap).toBe(1);
++    const next = await t.handleLayout({ action: 'add', layout: 'safe', shapes: [{ shape: 'room', at: [4, 4], size: [2, 2] }] });
++    expect(next.ids).toEqual([2]);
++    expect(next.history.undo).toBe(2);
++  });
++
++  describe('apply_walls', () => {
++    function withFoundry(grid = { columns: 20, rows: 12 }) {
++      const calls: any[] = [];
++      const query = vi.fn(async (method: string, data: any) => {
++        calls.push({ method, data });
++        if (data.action === 'describe') return { success: true, scene: { id: 's1', name: 'Cave' }, grid };
++        if (data.action === 'remove') return { success: true, removed: [{ kind: 'wall', id: 'old1' }, { kind: 'wall', id: 'old2' }] };
++        return { success: true, created: data.objects.map((_: any, i: number) => ({ kind: 'wall', id: `w${i}` })) };
++      });
++      const logger: any = { info: vi.fn(), debug: vi.fn(), error: vi.fn(), warn: vi.fn(), child: () => logger };
++      return { tools: new LayoutTools({ logger, folder, foundryClient: { query } as any }), calls };
++    }
++
++    async function make(t: LayoutTools, name: string) {
++      await t.handleLayout({ action: 'new', name, columns: 20, rows: 12 });
++      await t.handleLayout({
++        action: 'add',
++        layout: name,
++        shapes: [
++          { shape: 'room', at: [2, 2], size: [6, 5] },
++          { shape: 'room', at: [9, 2], size: [6, 5] },
++          { shape: 'door', at: [8.25, 3], dir: 'v', size: 1, state: 'locked' },
++          { shape: 'door', at: [8.25, 5], dir: 'v', size: 1, secret: true },
++        ],
++      });
++    }
++
++    it('places the walls and doors on the scene, replacing the old ones', async () => {
++      const { tools, calls } = withFoundry();
++      await make(tools, 'Apply one');
++      const result = await tools.handleLayout({ action: 'apply_walls', layout: 'apply one', scene: 'Cave' });
++
++      expect(calls.map(c => c.data.action)).toEqual(['describe', 'remove', 'place']);
++      expect(calls[0].data).toMatchObject({ scene: 'Cave', kind: 'wall' });
++      expect(calls[1].data).toMatchObject({ all_mine: true, kind: 'wall' });
++      const objects = calls[2].data.objects;
++      expect(objects.filter((o: any) => o.preset === 'door')[0]).toMatchObject({ door_state: 'locked', points: [[8.25, 3], [8.25, 4]] });
++      expect(objects.some((o: any) => o.preset === 'secret_door')).toBe(true);
++      expect(objects.every((o: any) => o.kind === 'wall')).toBe(true);
++      expect(result.doors).toBe(2);
++      expect(result.removedOldWalls).toBe(2);
++      expect(result.wallSegmentsCreated).toBe(objects.length);
++    });
++
++    it('can keep the old walls, shift everything, or only count', async () => {
++      const { tools, calls } = withFoundry();
++      await make(tools, 'Apply two');
++      await tools.handleLayout({ action: 'apply_walls', layout: 'apply two', replace: false, shift: [0.5, -1] });
++      expect(calls.map(c => c.data.action)).toEqual(['describe', 'place']);
++      const xs = calls[1].data.objects.flatMap((o: any) => o.points.map((p: number[]) => p[0]));
++      expect(Math.min(...xs)).toBe(2.5);
++      const ys = calls[1].data.objects.flatMap((o: any) => o.points.map((p: number[]) => p[1]));
++      expect(Math.min(...ys)).toBe(1);
++
++      const before = calls.length;
++      const dry = await tools.handleLayout({ action: 'apply_walls', layout: 'apply two', dry_run: true });
++      expect(dry.dryRun).toBe(true);
++      expect(dry.doors).toBe(2);
++      expect(calls.length).toBe(before);
++    });
++
++    it('refuses a scene whose squares do not match the layout, and works without a connection', async () => {
++      const { tools, calls } = withFoundry({ columns: 32, rows: 32 });
++      await make(tools, 'Apply three');
++      await expect(tools.handleLayout({ action: 'apply_walls', layout: 'apply three' })).rejects.toThrow('32 x 32 squares');
++      expect(calls.every(c => c.data.action === 'describe')).toBe(true);
++      await expect(tools_noFoundry().handleLayout({ action: 'apply_walls', layout: 'apply three' })).rejects.toThrow('connection');
++    });
++
++    it('sends big layouts in several calls within Foundry limits', async () => {
++      const { tools, calls } = withFoundry({ columns: 60, rows: 60 });
++      await tools.handleLayout({ action: 'new', name: 'Big', columns: 60, rows: 60 });
++      // 200 separate one-square rooms: far more wall objects than one call takes
++      const rooms = [];
++      for (let r = 0; r < 14; r++) for (let c = 0; c < 15; c++) rooms.push({ shape: 'room', at: [c * 4, r * 4], size: [2, 2] });
++      await tools.handleLayout({ action: 'add', layout: 'big', shapes: rooms.slice(0, 200) });
++      await tools.handleLayout({ action: 'apply_walls', layout: 'big', replace: false });
++      const places = calls.filter(c => c.data.action === 'place');
++      expect(places.length).toBeGreaterThan(1);
++      expect(places.every(p => p.data.objects.length <= 150)).toBe(true);
++      expect(places.reduce((n, p) => n + p.data.objects.length, 0)).toBe(200);
++    });
++  });
++
++  it('exposes one tool called layout', () => {
++    expect(tools().getToolDefinitions().map(d => d.name)).toEqual(['layout']);
++  });
++});
 diff --git a/packages/mcp-server/src/tools/layout-utils.ts b/packages/mcp-server/src/tools/layout-utils.ts
 new file mode 100644
-index 0000000..db20004
+index 0000000..ffd0a9f
 --- /dev/null
 +++ b/packages/mcp-server/src/tools/layout-utils.ts
-@@ -0,0 +1,467 @@
+@@ -0,0 +1,583 @@
 +/**
 + * Layout sketches for map generation: draw rooms, corridors, roads, rivers and doors as flat
 + * colour shapes in grid squares, write a PNG, and optionally derive wall lines from the floor.
@@ -14073,7 +15084,7 @@ index 0000000..db20004
 +  door: { color: [230, 120, 20], colorName: 'orange', meaning: 'door' },
 +};
 +
-+export const SHAPE_KINDS = ['rect', 'ellipse', 'polygon', 'path', 'door'] as const;
++export const SHAPE_KINDS = ['rect', 'ellipse', 'polygon', 'path', 'cells', 'door'] as const;
 +export const MAX_SHAPES = 300;
 +export const MAX_PIXELS = 4096 * 4096;
 +
@@ -14085,6 +15096,16 @@ index 0000000..db20004
 +  ellipse?: number[];
 +  polygon?: number[][];
 +  path?: number[][];
++  /** cells: squares to paint, each [column, row] or a run [column, row, width, height]. */
++  cells?: number[][];
++  /** Rotation in degrees (clockwise) about the shape's centre. Not for doors. */
++  rotate?: number;
++  /** Snap this shape's coordinates to a multiple of this many squares (0 = free). */
++  snap?: number;
++  /** Number shown on the preview picture (default the shape id). */
++  label?: number;
++  /** Id in a layout document. */
++  id?: number;
 +  /** path: width in squares (default 2). */
 +  width?: number;
 +  /** door: start point of the door on a wall line, in squares. */
@@ -14095,12 +15116,16 @@ index 0000000..db20004
 +  size?: number;
 +  /** door: secret door. */
 +  secret?: boolean;
++  /** door: closed (default), open or locked. */
++  state?: 'closed' | 'open' | 'locked';
 +  name?: string;
 +}
 +
 +export interface LayoutSpec {
 +  columns: number;
 +  rows: number;
++  /** Snap shape coordinates to this many squares (default 0 = free). */
++  snap?: number;
 +  grid_size?: number;
 +  background?: string;
 +  shapes: LayoutShape[];
@@ -14144,6 +15169,107 @@ index 0000000..db20004
 +  return FILLS[shape.fill ?? 'floor']!.color;
 +}
 +
++function snapTo(v: number, snap: number): number {
++  return snap > 0 ? Math.round(v / snap) * snap : v;
++}
++
++const round4 = (v: number) => Math.round(v * 10000) / 10000;
++
++/**
++ * Check one shape, accept the friendly forms (room/at+size, center+radius), snap its coordinates
++ * to the grid and return the canonical shape. Throws a readable error.
++ */
++export function normalizeShape(raw: any, label: string, layoutSnap: number): LayoutShape {
++  if (!raw || typeof raw !== 'object') throw new Error(`${label}: must be an object`);
++  const s: any = { ...raw };
++  if (s.shape === 'room') s.shape = 'rect';
++  if (!(SHAPE_KINDS as readonly string[]).includes(s.shape)) {
++    throw new Error(`${label}: shape must be one of room, ${SHAPE_KINDS.join(', ')}`);
++  }
++  if (s.color !== undefined && !HEX.test(s.color)) throw new Error(`${label}: color must look like #RRGGBB`);
++  if (s.fill !== undefined && !FILLS[s.fill]) {
++    throw new Error(`${label}: fill must be one of ${Object.keys(FILLS).join(', ')}`);
++  }
++  if (s.snap !== undefined && (!num(s.snap) || s.snap < 0 || s.snap > 5)) {
++    throw new Error(`${label}: snap must be a number from 0 to 5`);
++  }
++  if (s.rotate !== undefined && !num(s.rotate)) throw new Error(`${label}: rotate must be degrees`);
++  if (s.label !== undefined && !Number.isInteger(s.label)) throw new Error(`${label}: label must be a whole number`);
++  const snap = s.snap ?? layoutSnap;
++  const sn = (v: number) => round4(snapTo(v, snap));
++
++  if (s.shape === 'door') {
++    s.fill = 'door';
++    // accept at:[x,y] with dir and size
++    const at = nums(s.at, 2, label, 'at [x, y]');
++    if (s.dir !== 'h' && s.dir !== 'v') throw new Error(`${label}: dir must be "h" or "v"`);
++    if (s.size !== undefined && (!num(s.size) || s.size <= 0 || s.size > 20)) {
++      throw new Error(`${label}: size must be a number of squares from 0 to 20`);
++    }
++    if (s.state !== undefined && !['closed', 'open', 'locked'].includes(s.state)) {
++      throw new Error(`${label}: state must be closed, open or locked`);
++    }
++    s.at = [round4(snapTo(at[0]!, 0.25)), round4(snapTo(at[1]!, 0.25))];
++    delete s.rotate;
++    return s as LayoutShape;
++  }
++
++  s.fill = s.fill ?? 'floor';
++  if (s.shape === 'rect') {
++    if (s.at !== undefined || s.size !== undefined) {
++      const at = nums(s.at, 2, label, 'at [column, row]');
++      const size = nums(s.size, 2, label, 'size [width, height]');
++      s.rect = [at[0], at[1], size[0], size[1]];
++      delete s.at;
++      delete s.size;
++    }
++    const [x, y, w, h] = nums(s.rect, 4, label, 'rect [x, y, width, height]') as [number, number, number, number];
++    if (w <= 0 || h <= 0) throw new Error(`${label}: rect width and height must be above 0`);
++    const minSide = snap > 0 ? snap : 0;
++    s.rect = [sn(x), sn(y), Math.max(sn(w), minSide), Math.max(sn(h), minSide)];
++  } else if (s.shape === 'ellipse') {
++    if (s.center !== undefined || s.radius !== undefined) {
++      const c = nums(s.center, 2, label, 'center [x, y]');
++      const r = nums(s.radius, 2, label, 'radius [rx, ry]');
++      s.ellipse = [c[0], c[1], r[0], r[1]];
++      delete s.center;
++      delete s.radius;
++    }
++    const [cx, cy, rx, ry] = nums(s.ellipse, 4, label, 'ellipse [centreX, centreY, radiusX, radiusY]') as [
++      number,
++      number,
++      number,
++      number,
++    ];
++    if (rx <= 0 || ry <= 0) throw new Error(`${label}: ellipse radii must be above 0`);
++    const minR = snap > 0 ? snap / 2 : 0;
++    s.ellipse = [sn(cx), sn(cy), Math.max(round4(snapTo(rx, snap > 0 ? snap / 2 : 0)), minR), Math.max(round4(snapTo(ry, snap > 0 ? snap / 2 : 0)), minR)];
++  } else if (s.shape === 'polygon') {
++    s.polygon = points(s.polygon, 3, `${label} polygon`).map(p => [sn(p[0]!), sn(p[1]!)]);
++  } else if (s.shape === 'path') {
++    s.path = points(s.path, 2, `${label} path`).map(p => [sn(p[0]!), sn(p[1]!)]);
++    if (s.width !== undefined && (!num(s.width) || s.width <= 0 || s.width > 50)) {
++      throw new Error(`${label}: width must be a number of squares from 0 to 50`);
++    }
++  } else {
++    if (!Array.isArray(s.cells) || s.cells.length === 0 || s.cells.length > 2000) {
++      throw new Error(`${label}: cells must be a list of 1 to 2000 squares [column, row] or runs [column, row, width, height]`);
++    }
++    s.cells = s.cells.map((c: unknown, i: number) => {
++      if (!Array.isArray(c) || (c.length !== 2 && c.length !== 4) || !c.every(Number.isInteger)) {
++        throw new Error(`${label} cells[${i}]: needs whole numbers [column, row] or [column, row, width, height]`);
++      }
++      if (c.length === 4 && (c[2] < 1 || c[3] < 1)) throw new Error(`${label} cells[${i}]: width and height must be at least 1`);
++      return c.length === 2 ? [c[0], c[1], 1, 1] : c;
++    });
++  }
++  const given = ['rect', 'ellipse', 'polygon', 'path', 'cells'].filter(k => s[k] !== undefined);
++  if (given.length !== 1 || given[0] !== s.shape) {
++    throw new Error(`${label}: a ${s.shape} needs exactly its own ${s.shape} field`);
++  }
++  return s as LayoutShape;
++}
++
 +/** Check a layout request and fill in defaults. Throws a readable error. */
 +export function normalizeLayout(spec: LayoutSpec): NormalizedLayout {
 +  const intIn = (v: unknown, min: number, max: number, name: string): number => {
@@ -14168,52 +15294,9 @@ index 0000000..db20004
 +    throw new Error(`shapes must be a list of 1 to ${MAX_SHAPES}`);
 +  }
 +
-+  const shapes = spec.shapes.map((raw, i) => {
-+    const label = `shapes[${i}]`;
-+    if (!raw || typeof raw !== 'object') throw new Error(`${label}: must be an object`);
-+    const s = { ...raw } as LayoutShape;
-+    if (!(SHAPE_KINDS as readonly string[]).includes(s.shape)) {
-+      throw new Error(`${label}: shape must be one of ${SHAPE_KINDS.join(', ')}`);
-+    }
-+    if (s.color !== undefined && !HEX.test(s.color)) throw new Error(`${label}: color must look like #RRGGBB`);
-+    if (s.fill !== undefined && !FILLS[s.fill]) {
-+      throw new Error(`${label}: fill must be one of ${Object.keys(FILLS).join(', ')}`);
-+    }
-+    if (s.shape === 'door') {
-+      s.fill = 'door';
-+      s.at = nums(s.at, 2, label, 'at [x, y]');
-+      if (s.dir !== 'h' && s.dir !== 'v') throw new Error(`${label}: dir must be "h" or "v"`);
-+      if (s.size !== undefined && (!num(s.size) || s.size <= 0 || s.size > 20)) {
-+        throw new Error(`${label}: size must be a number of squares from 0 to 20`);
-+      }
-+      return s;
-+    }
-+    s.fill = s.fill ?? 'floor';
-+    const given = [s.rect, s.ellipse, s.polygon, s.path].filter(v => v !== undefined).length;
-+    if (given !== 1 || s[s.shape] === undefined) {
-+      throw new Error(`${label}: a ${s.shape} needs exactly its own ${s.shape} field`);
-+    }
-+    if (s.shape === 'rect') {
-+      const [, , w, h] = nums(s.rect, 4, label, 'rect [x, y, width, height]') as [number, number, number, number];
-+      if (w <= 0 || h <= 0) throw new Error(`${label}: rect width and height must be above 0`);
-+    } else if (s.shape === 'ellipse') {
-+      const [, , rx, ry] = nums(s.ellipse, 4, label, 'ellipse [centreX, centreY, radiusX, radiusY]') as [
-+        number,
-+        number,
-+        number,
-+        number,
-+      ];
-+      if (rx <= 0 || ry <= 0) throw new Error(`${label}: ellipse radii must be above 0`);
-+    } else if (s.shape === 'polygon') {
-+      s.polygon = points(s.polygon, 3, `${label} polygon`);
-+    } else {
-+      s.path = points(s.path, 2, `${label} path`);
-+      if (s.width !== undefined && (!num(s.width) || s.width <= 0 || s.width > 50)) {
-+        throw new Error(`${label}: width must be a number of squares from 0 to 50`);
-+      }
-+    }
-+    return s;
-+  });
++  const layoutSnap = spec.snap === undefined ? 0 : spec.snap;
++  if (!num(layoutSnap) || layoutSnap < 0 || layoutSnap > 5) throw new Error('snap must be a number from 0 to 5');
++  const shapes = spec.shapes.map((raw, i) => normalizeShape(raw, `shapes[${i}]`, layoutSnap));
 +
 +  return { columns, rows, size, background, shapes, wallFills };
 +}
@@ -14222,29 +15305,36 @@ index 0000000..db20004
 +
 +type Poly = Array<[number, number]>;
 +
-+/** The polygons (in pixels at `scale` pixels per square) that make up a drawn shape. */
-+export function shapePolygons(shape: LayoutShape, scale: number): Poly[] {
-+  const px = (v: number) => v * scale;
++/** The polygons, in squares, that make up a drawn shape (before rotation). */
++function basePolygons(shape: LayoutShape): Poly[] {
 +  if (shape.shape === 'rect') {
 +    const [x, y, w, h] = shape.rect!;
-+    return [[[px(x), px(y)], [px(x + w), px(y)], [px(x + w), px(y + h)], [px(x), px(y + h)]]];
++    return [[[x!, y!], [x! + w!, y!], [x! + w!, y! + h!], [x!, y! + h!]]];
++  }
++  if (shape.shape === 'cells') {
++    return shape.cells!.map(([c, r, w, h]) => [
++      [c!, r!],
++      [c! + w!, r!],
++      [c! + w!, r! + h!],
++      [c!, r! + h!],
++    ] as Poly);
 +  }
 +  if (shape.shape === 'ellipse') {
 +    const [cx, cy, rx, ry] = shape.ellipse!;
-+    const n = Math.max(48, Math.min(256, Math.ceil(Math.max(rx, ry) * scale)));
++    const n = Math.max(48, Math.min(256, Math.ceil(Math.max(rx!, ry!) * 8)));
 +    const poly: Poly = [];
 +    for (let i = 0; i < n; i++) {
 +      const a = (i / n) * Math.PI * 2;
-+      poly.push([px(cx + Math.cos(a) * rx), px(cy + Math.sin(a) * ry)]);
++      poly.push([cx! + Math.cos(a) * rx!, cy! + Math.sin(a) * ry!]);
 +    }
 +    return [poly];
 +  }
 +  if (shape.shape === 'polygon') {
-+    return [shape.polygon!.map(p => [px(p[0]!), px(p[1]!)] as [number, number])];
++    return [shape.polygon!.map(p => [p[0]!, p[1]!] as [number, number])];
 +  }
 +  if (shape.shape === 'path') {
-+    const half = ((shape.width ?? 2) * scale) / 2;
-+    const pts = shape.path!.map(p => [px(p[0]!), px(p[1]!)] as [number, number]);
++    const half = (shape.width ?? 2) / 2;
++    const pts = shape.path!.map(p => [p[0]!, p[1]!] as [number, number]);
 +    const polys: Poly[] = [];
 +    for (let i = 0; i + 1 < pts.length; i++) {
 +      const [x1, y1] = pts[i]!;
@@ -14257,7 +15347,7 @@ index 0000000..db20004
 +    }
 +    // Flat ends; round joins only where the path bends.
 +    for (const [x, y] of pts.slice(1, -1)) {
-+      const n = Math.max(16, Math.min(64, Math.ceil(half)));
++      const n = Math.max(16, Math.min(64, Math.ceil(half * 8)));
 +      const c: Poly = [];
 +      for (let i = 0; i < n; i++) {
 +        const a = (i / n) * Math.PI * 2;
@@ -14272,12 +15362,44 @@ index 0000000..db20004
 +  const len = shape.size ?? 1;
 +  const t = 0.2;
 +  return shape.dir === 'h'
-+    ? [[[px(x), px(y - t)], [px(x + len), px(y - t)], [px(x + len), px(y + t)], [px(x), px(y + t)]]]
-+    : [[[px(x - t), px(y)], [px(x + t), px(y)], [px(x + t), px(y + len)], [px(x - t), px(y + len)]]];
++    ? [[[x, y - t], [x + len, y - t], [x + len, y + t], [x, y + t]]]
++    : [[[x - t, y], [x + t, y], [x + t, y + len], [x - t, y + len]]];
++}
++
++/** The middle of a shape's bounding box, in squares (the point it rotates about). */
++export function shapeCentre(shape: LayoutShape): [number, number] {
++  let minX = Infinity;
++  let minY = Infinity;
++  let maxX = -Infinity;
++  let maxY = -Infinity;
++  for (const poly of basePolygons(shape)) {
++    for (const [x, y] of poly) {
++      minX = Math.min(minX, x);
++      maxX = Math.max(maxX, x);
++      minY = Math.min(minY, y);
++      maxY = Math.max(maxY, y);
++    }
++  }
++  return [(minX + maxX) / 2, (minY + maxY) / 2];
++}
++
++/** The polygons (in pixels at `scale` pixels per square) that make up a drawn shape. */
++export function shapePolygons(shape: LayoutShape, scale: number): Poly[] {
++  let polys = basePolygons(shape);
++  if (shape.rotate && shape.shape !== 'door') {
++    const [cx, cy] = shapeCentre(shape);
++    const a = (shape.rotate * Math.PI) / 180;
++    const cos = Math.cos(a);
++    const sin = Math.sin(a);
++    polys = polys.map(poly =>
++      poly.map(([x, y]) => [cx + (x - cx) * cos - (y - cy) * sin, cy + (x - cx) * sin + (y - cy) * cos] as [number, number])
++    );
++  }
++  return polys.map(poly => poly.map(([x, y]) => [x * scale, y * scale] as [number, number]));
 +}
 +
 +/** Call fill(y, xStart, xEnd) for every pixel span inside the polygon (even-odd, pixel centres). */
-+function scanPolygon(poly: Poly, width: number, height: number, fill: (y: number, x0: number, x1: number) => void) {
++export function scanPolygon(poly: Poly, width: number, height: number, fill: (y: number, x0: number, x1: number) => void) {
 +  let minY = Infinity;
 +  let maxY = -Infinity;
 +  for (const [, y] of poly) {
@@ -14386,7 +15508,7 @@ index 0000000..db20004
 +  points: number[][];
 +  closed?: boolean;
 +  preset?: 'door' | 'secret_door';
-+  door_state?: 'closed';
++  door_state?: 'closed' | 'open' | 'locked';
 +}
 +
 +const CELL = 2; // wall resolution: half a square
@@ -14430,15 +15552,20 @@ index 0000000..db20004
 +    const [x, y] = s.at as [number, number];
 +    const len = s.size ?? 1;
 +    const steps = Math.max(1, Math.round(len * CELL));
++    // Cut every wall face within half a square of the door line, so a door in a thin wall
++    // between two rooms opens both faces of it.
++    const line = (s.dir === 'h' ? y : x) * CELL;
 +    for (let i = 0; i < steps; i++) {
-+      if (s.dir === 'h') edges.delete(`h,${Math.round(x * CELL) + i},${Math.round(y * CELL)}`);
-+      else edges.delete(`v,${Math.round(x * CELL)},${Math.round(y * CELL) + i}`);
++      for (let l = Math.ceil(line - 1); l <= Math.floor(line + 1); l++) {
++        if (s.dir === 'h') edges.delete(`h,${Math.round(x * CELL) + i},${l}`);
++        else edges.delete(`v,${l},${Math.round(y * CELL) + i}`);
++      }
 +    }
 +    doors.push({
 +      kind: 'wall',
 +      points: s.dir === 'h' ? [[x, y], [x + len, y]] : [[x, y], [x, y + len]],
 +      preset: s.secret ? 'secret_door' : 'door',
-+      door_state: 'closed',
++      door_state: s.state ?? 'closed',
 +    });
 +  }
 +
@@ -14518,25 +15645,15 @@ index 0000000..db20004
 +}
 diff --git a/packages/mcp-server/src/tools/layout.test.ts b/packages/mcp-server/src/tools/layout.test.ts
 new file mode 100644
-index 0000000..0eb01e8
+index 0000000..5b5d028
 --- /dev/null
 +++ b/packages/mcp-server/src/tools/layout.test.ts
-@@ -0,0 +1,159 @@
-+import { afterAll, describe, expect, it, vi } from 'vitest';
-+import { promises as fs } from 'fs';
+@@ -0,0 +1,118 @@
++import { describe, expect, it } from 'vitest';
 +import zlib from 'zlib';
-+import { LayoutTools } from './layout.js';
++
 +import { encodePng, normalizeLayout, renderLayout, wallsFromLayout } from './layout-utils.js';
 +
-+const created: string[] = [];
-+afterAll(async () => {
-+  for (const f of created) await fs.rm(f, { force: true });
-+});
-+
-+function tools() {
-+  const logger: any = { info: vi.fn(), debug: vi.fn(), error: vi.fn(), warn: vi.fn(), child: () => logger };
-+  return new LayoutTools({ logger });
-+}
 +
 +const px = (img: { width: number; rgb: Uint8Array }, x: number, y: number) => {
 +  const o = (y * img.width + x) * 3;
@@ -14650,204 +15767,537 @@ index 0000000..0eb01e8
 +  });
 +});
 +
-+describe('draw-layout tool', () => {
-+  it('writes the PNG and returns the legend, and walls on request', async () => {
-+    const result = await tools().handleDrawLayout({
-+      columns: 8,
-+      rows: 8,
-+      grid_size: 16,
-+      name: 'unit test',
-+      walls: true,
-+      shapes: [
-+        { shape: 'rect', rect: [1, 1, 5, 4] },
-+        { shape: 'door', at: [3, 5], dir: 'h', size: 1 },
-+      ],
-+    });
-+    created.push(result.file);
-+    expect(result.file).toMatch(/foundry-mcp-layouts[\\/]unit_test-\d+\.png$/);
-+    expect(result.width).toBe(128);
-+    expect(result.legend).toContain('light grey = floor');
-+    expect(result.legend).toContain('near-black = solid rock');
-+    expect((await fs.readFile(result.file)).subarray(1, 4).toString()).toBe('PNG');
-+    expect(result.walls.some((w: any) => w.preset === 'door')).toBe(true);
-+  });
-+
-+  it('rejects a bad request before writing anything', async () => {
-+    await expect(tools().handleDrawLayout({ columns: 8, rows: 8, shapes: [] })).rejects.toThrow();
-+    await expect(tools().handleDrawLayout({ columns: 8, rows: 8, shapes: [{ shape: 'blob' }] })).rejects.toThrow();
-+  });
-+
-+  it('exposes one tool', () => {
-+    expect(tools().getToolDefinitions().map(d => d.name)).toEqual(['draw-layout']);
-+  });
-+});
 diff --git a/packages/mcp-server/src/tools/layout.ts b/packages/mcp-server/src/tools/layout.ts
 new file mode 100644
-index 0000000..919945d
+index 0000000..ca5e009
 --- /dev/null
 +++ b/packages/mcp-server/src/tools/layout.ts
-@@ -0,0 +1,167 @@
+@@ -0,0 +1,531 @@
 +import { promises as fs } from 'fs';
-+import os from 'os';
 +import path from 'path';
 +import { z } from 'zod';
++import { FoundryClient } from '../foundry-client.js';
 +import { Logger } from '../logger.js';
++import { FILLS, encodePng, legendFor, renderLayout, wallsFromLayout } from './layout-utils.js';
 +import {
-+  FILLS,
-+  encodePng,
-+  legendFor,
-+  normalizeLayout,
-+  renderLayout,
-+  wallsFromLayout,
-+  type LayoutSpec,
-+} from './layout-utils.js';
++  LayoutStore,
++  addShapes,
++  asciiMap,
++  captureState,
++  commitChange,
++  createDoc,
++  describeShapes,
++  layoutOf,
++  redoChanges,
++  removeShapes,
++  restoreState,
++  renderPreview,
++  slug,
++  undoChanges,
++  updateShape,
++  type LayoutDoc,
++} from './layout-doc.js';
 +
 +export interface LayoutToolsOptions {
 +  logger: Logger;
++  /** Needed for apply_walls, which places the walls on a scene. */
++  foundryClient?: FoundryClient;
++  /** Where layouts and pictures are kept (default: a folder in the temp directory). */
++  folder?: string;
 +}
 +
-+const KEEP_LAYOUTS = 30;
++const KEEP_PICTURES = 30;
 +const fillNames = Object.keys(FILLS);
++const MAX_TEXT_COLUMNS = 110;
++const MAX_TEXT_ROWS = 80;
 +
-+const shapeSchema = z
++const region = z
 +  .object({
-+    shape: z.enum(['rect', 'ellipse', 'polygon', 'path', 'door']),
-+    fill: z.string().optional(),
-+    color: z.string().optional(),
-+    rect: z.array(z.number()).optional(),
-+    ellipse: z.array(z.number()).optional(),
-+    polygon: z.array(z.array(z.number())).optional(),
-+    path: z.array(z.array(z.number())).optional(),
-+    width: z.number().optional(),
-+    at: z.array(z.number()).optional(),
-+    dir: z.enum(['h', 'v']).optional(),
-+    size: z.number().optional(),
-+    secret: z.boolean().optional(),
-+    name: z.string().optional(),
++    x: z.number().min(0),
++    y: z.number().min(0),
++    width: z.number().min(1),
++    height: z.number().min(1),
 +  })
 +  .strict();
 +
-+const layoutSchema = z
++const schema = z
 +  .object({
-+    columns: z.number(),
-+    rows: z.number(),
++    action: z.enum(['new', 'add', 'update', 'remove', 'show', 'render', 'walls', 'apply_walls', 'set', 'undo', 'redo', 'list', 'delete']),
++    layout: z.string().min(1).optional(),
++    name: z.string().min(1).max(60).optional(),
++    columns: z.number().optional(),
++    rows: z.number().optional(),
 +    grid_size: z.number().optional(),
 +    background: z.string().optional(),
-+    shapes: z.array(shapeSchema).min(1).max(300),
++    snap: z.number().optional(),
 +    wall_fills: z.array(z.string()).optional(),
-+    name: z.string().min(1).max(60).optional(),
-+    walls: z.boolean().optional(),
++    reference: z
++      .object({
++        image: z.string().min(1),
++        origin: z.tuple([z.number(), z.number()]),
++        cell_px: z.number().positive(),
++      })
++      .strict()
++      .nullable()
++      .optional(),
++    shapes: z.array(z.record(z.any())).min(1).max(300).optional(),
++    after: z.number().int().optional(),
++    id: z.number().int().optional(),
++    ids: z.array(z.number().int()).min(1).max(300).optional(),
++    set: z.record(z.any()).optional(),
++    move: z.tuple([z.number(), z.number()]).optional(),
++    front: z.boolean().optional(),
++    back: z.boolean().optional(),
++    region: region.optional(),
++    png: z.boolean().optional(),
++    grid: z.boolean().optional(),
++    labels: z.boolean().optional(),
++    show_reference: z.boolean().optional(),
++    hide_shapes: z.boolean().optional(),
++    shapes_list: z.boolean().optional(),
++    steps: z.number().int().min(1).max(20).optional(),
++    scene: z.string().min(1).optional(),
++    replace: z.boolean().optional(),
++    shift: z.tuple([z.number(), z.number()]).optional(),
++    dry_run: z.boolean().optional(),
 +  })
 +  .strict();
++
++type Args = z.infer<typeof schema>;
++
++const shapeHelp =
++  'Shapes are in GRID SQUARES from the top-left (column, row) and snap to the layout grid (default 1 square) so everything lines up; ' +
++  'set snap 0 on the layout or on a shape for freeform placement. ' +
++  'room {at:[col,row], size:[w,h]} (or rect:[x,y,w,h]); ellipse {center:[x,y], radius:[rx,ry]} (or ellipse:[cx,cy,rx,ry]); ' +
++  'polygon {polygon:[[x,y],...]} for any outline; path {path:[[x,y],...], width} for a corridor, road or river (default 2 wide); ' +
++  'cells {cells:[[col,row] or [col,row,w,h],...]} paints single squares or runs (caves, L-shapes); ' +
++  'door {at:[x,y], dir:"h"|"v", size?, secret?} a bar on a wall line (a thin 0.5 wall between rooms: put the door in its middle, e.g. x 7.25). ' +
++  'Every shape can have fill (' +
++  fillNames.join(', ') +
++  '; default floor), color #RRGGBB, rotate (degrees about its centre), snap, name (a note) and label (a number shown on previews).';
 +
 +export class LayoutTools {
 +  private logger: Logger;
++  private store: LayoutStore;
++  private foundryClient: FoundryClient | undefined;
 +
-+  constructor({ logger }: LayoutToolsOptions) {
++  constructor({ logger, folder, foundryClient }: LayoutToolsOptions) {
 +    this.logger = logger.child({ component: 'LayoutTools' });
++    this.store = new LayoutStore(folder);
++    this.foundryClient = foundryClient;
 +  }
 +
 +  getToolDefinitions() {
 +    return [
 +      {
-+        name: 'draw-layout',
++        name: 'layout',
 +        description:
-+          'Draw a flat colour sketch of a map layout (rooms, corridors, roads, rivers, buildings, doors) as a PNG, to use as the guide for map generation: pass the returned file in generate-image reference_images and mention <Picture 1> in the prompt, with the returned legend sentence. ' +
-+          'Shapes are in GRID SQUARES from the top-left of the map and are painted in order, so later shapes cover earlier ones (paint rooms first, then corridors, then doors; paint rock over floor to carve pillars or walls). The map is columns x rows squares at grid_size pixels per square (default 64, so 32 x 32 squares is the usual 2048 pixel map); use the same grid_size and size for the scene so squares line up. ' +
-+          'shape types: rect {rect:[x,y,width,height]}, ellipse {ellipse:[centreX,centreY,radiusX,radiusY]}, polygon {polygon:[[x,y],...]} for any freeform outline, path {path:[[x,y],...], width} for a corridor, road or river along a line (default width 2 squares, round joins), door {at:[x,y], dir:"h"|"v", size?, secret?} a bar on a wall line. ' +
-+          'fill is one of ' + fillNames.join(', ') + ' (default floor; door is always orange); color #RRGGBB overrides the colour. background is the fill under everything (default rock; use grass for outdoors). ' +
-+          'Keep the sketch simple: layout and flat colours only, no text, no furniture. The image model follows it closely for rooms and loosely for freeform outlines. ' +
-+          'With walls:true it also returns wall objects for manage-scene-objects: chains around everything drawn with the wall_fills (default floor) at half-square steps, and doors as door walls; place them with manage-scene-objects action place after the map is the scene background. Writes the PNG on this computer; Foundry is not needed.',
++          'Build a map layout step by step (rooms, corridors, roads, rivers, buildings, doors), see it at once as a text map, adjust it, then render a flat-colour sketch for generate-image (reference_images + <Picture 1>) and derive walls and doors for the scene. Layouts are saved, so you can come back to them. ' +
++          shapeHelp +
++          ' Painting order is the list order: later shapes cover earlier ones (rooms first, then corridors, then doors; paint rock to carve). ' +
++          'ACTIONS: new {name, columns, rows, grid_size?(64), background?(rock; grass outdoors), snap?(1), wall_fills?, reference?} starts a layout. add {layout, shapes, after?} adds shapes and returns their ids and the text map. update {layout, id, set?, move?:[cols,rows], front?, back?, after?} changes one shape (set null to clear a field). remove {layout, ids}. ' +
++          'show {layout} returns the text map (one character per square with column and row numbers; add region to zoom, shapes_list for every shape and its numbers) or, with png:true, a picture with the numbered grid, shape ids and the reference page showing through, for checking against a book map. ' +
++          'reference traces a picture: set {layout, reference:{image, origin:[px,py], cell_px}} where image is a PNG/JPEG on this computer, origin the pixel where square (0,0) starts and cell_px the pixels per square; show png:true then lays your shapes over it (show_reference:false hides it, hide_shapes:true shows only the picture and grid so you can calibrate origin and cell_px). ' +
++          'render {layout} writes the clean sketch PNG (no grid or labels) and returns its file path and a legend sentence for the prompt. walls {layout} returns wall and door objects (chains around everything drawn with the wall_fills, default floor, at half-square steps; doors become door walls, with secret and state closed/open/locked). apply_walls {layout, scene?, replace?, shift?, dry_run?} builds them and PLACES them on the scene in one step, once the generated map is the scene background: the scene must have the same number of columns and rows as the layout (the generated picture and the layout line up square for square); replace (default true) first removes the walls this tool placed before, so it can be run again after the layout changes; shift [dx, dy] moves everything by squares to match the picture; dry_run only counts. Then check with preview-scene and nudge anything that is off. set {layout, snap?, background?, wall_fills?, reference?} changes layout settings. undo {layout, steps?} and redo {layout, steps?} step back and forward through the changes (add, update, remove, set; the last 40 are kept and saved with the layout); every change reports how many undo and redo steps there are. list; delete {layout}. Works without Foundry.',
 +        inputSchema: {
 +          type: 'object',
 +          properties: {
-+            columns: { type: 'number', description: 'Map width in squares (4 to 200)' },
-+            rows: { type: 'number', description: 'Map height in squares (4 to 200)' },
-+            grid_size: { type: 'number', description: 'Pixels per square (default 64)' },
-+            background: { type: 'string', enum: fillNames, description: 'Fill under everything (default rock)' },
++            action: { type: 'string', enum: ['new', 'add', 'update', 'remove', 'show', 'render', 'walls', 'apply_walls', 'set', 'undo', 'redo', 'list', 'delete'] },
++            layout: { type: 'string', description: 'Layout name or id (new: use name)' },
++            name: { type: 'string', description: 'new: layout name' },
++            columns: { type: 'number', description: 'new: width in squares (4 to 200)' },
++            rows: { type: 'number', description: 'new: height in squares (4 to 200)' },
++            grid_size: { type: 'number', description: 'new: pixels per square (default 64)' },
++            background: { type: 'string', enum: fillNames, description: 'new/set: fill under everything' },
++            snap: { type: 'number', description: 'new/set: snap squares (1 = whole squares, 0.5, 0 = free)' },
++            wall_fills: { type: 'array', items: { type: 'string', enum: fillNames }, description: 'new/set: fills that get walls (default floor)' },
++            reference: {
++              type: ['object', 'null'],
++              description: 'new/set: a picture to trace; null clears it',
++              properties: {
++                image: { type: 'string', description: 'PNG or JPEG path on this computer' },
++                origin: { type: 'array', items: { type: 'number' }, minItems: 2, maxItems: 2, description: 'pixel where square (0, 0) starts' },
++                cell_px: { type: 'number', description: 'pixels per square in that picture' },
++              },
++              required: ['image', 'origin', 'cell_px'],
++              additionalProperties: false,
++            },
 +            shapes: {
 +              type: 'array',
 +              maxItems: 300,
++              description: 'add: shapes to add',
 +              items: {
 +                type: 'object',
 +                properties: {
-+                  shape: { type: 'string', enum: ['rect', 'ellipse', 'polygon', 'path', 'door'] },
++                  shape: { type: 'string', enum: ['room', 'rect', 'ellipse', 'polygon', 'path', 'cells', 'door'] },
++                  at: { type: 'array', items: { type: 'number' }, description: 'room: [col, row]; door: [x, y]' },
++                  size: { description: 'room: [width, height]; door: length in squares' },
++                  rect: { type: 'array', items: { type: 'number' }, description: '[x, y, width, height]' },
++                  center: { type: 'array', items: { type: 'number' }, description: 'ellipse: [x, y]' },
++                  radius: { type: 'array', items: { type: 'number' }, description: 'ellipse: [rx, ry]' },
++                  ellipse: { type: 'array', items: { type: 'number' }, description: '[cx, cy, rx, ry]' },
++                  polygon: { type: 'array', items: { type: 'array', items: { type: 'number' } } },
++                  path: { type: 'array', items: { type: 'array', items: { type: 'number' } } },
++                  width: { type: 'number', description: 'path: width in squares (default 2)' },
++                  cells: { type: 'array', items: { type: 'array', items: { type: 'number' } } },
++                  dir: { type: 'string', enum: ['h', 'v'], description: 'door: h runs along x, v along y' },
++                  secret: { type: 'boolean', description: 'door: secret door' },
++                  state: { type: 'string', enum: ['closed', 'open', 'locked'], description: 'door: starting state (default closed)' },
 +                  fill: { type: 'string', enum: fillNames },
 +                  color: { type: 'string', description: '#RRGGBB instead of the fill colour' },
-+                  rect: { type: 'array', items: { type: 'number' }, description: '[x, y, width, height]' },
-+                  ellipse: { type: 'array', items: { type: 'number' }, description: '[centreX, centreY, radiusX, radiusY]' },
-+                  polygon: { type: 'array', items: { type: 'array', items: { type: 'number' } }, description: '[[x, y], ...]' },
-+                  path: { type: 'array', items: { type: 'array', items: { type: 'number' } }, description: '[[x, y], ...]' },
-+                  width: { type: 'number', description: 'path: width in squares (default 2)' },
-+                  at: { type: 'array', items: { type: 'number' }, description: 'door: [x, y] start on a wall line' },
-+                  dir: { type: 'string', enum: ['h', 'v'], description: 'door: h runs along x, v along y' },
-+                  size: { type: 'number', description: 'door: length in squares (default 1)' },
-+                  secret: { type: 'boolean', description: 'door: secret door' },
-+                  name: { type: 'string', description: 'note for yourself (not drawn)' },
++                  rotate: { type: 'number', description: 'degrees clockwise about the centre' },
++                  snap: { type: 'number', description: 'snap squares for this shape (0 = free)' },
++                  name: { type: 'string', description: 'note for yourself' },
++                  label: { type: 'number', description: 'number shown on previews (default the id)' },
 +                },
 +                required: ['shape'],
-+                additionalProperties: false,
 +              },
 +            },
-+            wall_fills: {
-+              type: 'array',
-+              items: { type: 'string', enum: fillNames },
-+              description: 'walls:true builds walls around these fills (default floor)',
++            after: { type: 'number', description: 'add/update: stack above this shape id' },
++            id: { type: 'number', description: 'update: shape id' },
++            ids: { type: 'array', items: { type: 'number' }, description: 'remove: shape ids' },
++            set: { type: 'object', description: 'update: fields to change (null clears one)', additionalProperties: true },
++            move: { type: 'array', items: { type: 'number' }, minItems: 2, maxItems: 2, description: 'update: shift by [columns, rows]' },
++            front: { type: 'boolean', description: 'update: move to the top' },
++            back: { type: 'boolean', description: 'update: move to the bottom' },
++            region: {
++              type: 'object',
++              description: 'show: zoom to x, y, width, height in squares',
++              properties: { x: { type: 'number' }, y: { type: 'number' }, width: { type: 'number' }, height: { type: 'number' } },
++              required: ['x', 'y', 'width', 'height'],
++              additionalProperties: false,
 +            },
-+            name: { type: 'string', description: 'File name (default layout)' },
-+            walls: { type: 'boolean', description: 'Also return wall objects derived from the layout' },
++            png: { type: 'boolean', description: 'show: a picture instead of text' },
++            grid: { type: 'boolean', description: 'show png: draw the numbered grid (default true)' },
++            labels: { type: 'boolean', description: 'show png: draw shape ids (default true)' },
++            show_reference: { type: 'boolean', description: 'show png: show the reference picture (default true)' },
++            hide_shapes: { type: 'boolean', description: 'show png: show only the reference and grid' },
++            shapes_list: { type: 'boolean', description: 'show: also list every shape with its id' },
++            steps: { type: 'number', description: 'undo/redo: how many changes (default 1)' },
++            scene: { type: 'string', description: 'apply_walls: scene id or exact name (default the scene being viewed)' },
++            replace: { type: 'boolean', description: 'apply_walls: first remove walls this tool placed (default true)' },
++            shift: { type: 'array', items: { type: 'number' }, minItems: 2, maxItems: 2, description: 'apply_walls: shift every wall by [columns, rows]' },
++            dry_run: { type: 'boolean', description: 'apply_walls: only report what would be placed' },
 +          },
-+          required: ['columns', 'rows', 'shapes'],
++          required: ['action'],
 +          additionalProperties: false,
 +        },
 +      },
 +    ];
 +  }
 +
-+  async handleDrawLayout(args: any): Promise<any> {
-+    const parsed = layoutSchema.parse(args ?? {});
-+    const layout = normalizeLayout(parsed as LayoutSpec);
-+    const { width, height, rgb } = renderLayout(layout);
-+    const png = encodePng(width, height, rgb);
++  async handleLayout(args: any): Promise<any> {
++    const a: Args = schema.parse(args ?? {});
++    switch (a.action) {
++      case 'list':
++        return { success: true, layouts: await this.store.list(), folder: this.store.folder };
++      case 'new':
++        return this.handleNew(a);
++      case 'delete': {
++        const id = this.need(a);
++        await this.store.load(id);
++        await this.store.remove(id);
++        return { success: true, deleted: slug(id) };
++      }
++      default:
++        return this.handleExisting(a);
++    }
++  }
 +
-+    const dir = path.join(os.tmpdir(), 'foundry-mcp-layouts');
-+    await fs.mkdir(dir, { recursive: true });
-+    const base = (parsed.name ?? 'layout').replace(/[^A-Za-z0-9_-]+/g, '_').slice(0, 60) || 'layout';
-+    const file = path.join(dir, `${base}-${Date.now()}.png`);
-+    await fs.writeFile(file, png);
-+    await this.prune(dir);
++  private need(a: Args): string {
++    if (!a.layout) throw new Error('layout (name or id) is required');
++    return a.layout;
++  }
 +
-+    this.logger.info('Layout drawn', { file, width, height, shapes: layout.shapes.length });
++  private async handleNew(a: Args): Promise<any> {
++    if (!a.name) throw new Error('new needs name');
++    if (a.columns === undefined || a.rows === undefined) throw new Error('new needs columns and rows');
++    if (await this.store.exists(a.name)) {
++      throw new Error(`A layout named "${a.name}" already exists; use another name or delete it first`);
++    }
++    const doc = createDoc({
++      name: a.name,
++      columns: a.columns,
++      rows: a.rows,
++      ...(a.grid_size !== undefined ? { grid_size: a.grid_size } : {}),
++      ...(a.background !== undefined ? { background: a.background } : {}),
++      ...(a.snap !== undefined ? { snap: a.snap } : {}),
++      ...(a.wall_fills !== undefined ? { wall_fills: a.wall_fills } : {}),
++    });
++    if (a.reference) {
++      doc.reference = { image: a.reference.image, origin: a.reference.origin, cellPx: a.reference.cell_px };
++    }
++    await this.store.save(doc);
++    return this.summary(doc, 'new', []);
++  }
 +
-+    const result: Record<string, any> = {
++  private async handleExisting(a: Args): Promise<any> {
++    const doc = await this.store.load(this.need(a));
++    // A change that fails must leave the saved layout and the copy in memory as they were.
++    const backup = ['add', 'update', 'remove', 'set'].includes(a.action) ? captureState(doc) : null;
++    try {
++      return await this.runExisting(doc, a);
++    } catch (error) {
++      if (backup) restoreState(doc, backup);
++      throw error;
++    }
++  }
++
++  private async runExisting(doc: LayoutDoc, a: Args): Promise<any> {
++    switch (a.action) {
++      case 'add': {
++        if (!a.shapes) throw new Error('add needs shapes');
++        const before = captureState(doc);
++        const ids = addShapes(doc, a.shapes, a.after);
++        commitChange(doc, `add ${ids.length} shape${ids.length === 1 ? '' : 's'} (${ids.join(', ')})`, before);
++        await this.store.save(doc);
++        return this.summary(doc, 'add', ids);
++      }
++      case 'update': {
++        if (a.id === undefined) throw new Error('update needs id');
++        if (!a.set && !a.move && !a.front && !a.back && a.after === undefined) {
++          throw new Error('update needs set, move, front, back or after');
++        }
++        const before = captureState(doc);
++        updateShape(doc, a.id, {
++          ...(a.set ? { set: a.set } : {}),
++          ...(a.move ? { move: a.move } : {}),
++          ...(a.front ? { front: true } : {}),
++          ...(a.back ? { back: true } : {}),
++          ...(a.after !== undefined ? { after: a.after } : {}),
++        });
++        commitChange(doc, `update shape ${a.id}`, before);
++        await this.store.save(doc);
++        return this.summary(doc, 'update', [a.id]);
++      }
++      case 'remove': {
++        if (!a.ids) throw new Error('remove needs ids');
++        const before = captureState(doc);
++        const removed = removeShapes(doc, a.ids);
++        commitChange(doc, `remove shape${removed.length === 1 ? '' : 's'} ${removed.join(', ')}`, before);
++        await this.store.save(doc);
++        return this.summary(doc, 'remove', removed);
++      }
++      case 'set': {
++        const before = captureState(doc);
++        if (a.snap !== undefined) {
++          if (a.snap < 0 || a.snap > 5) throw new Error('snap must be a number from 0 to 5');
++          doc.snap = a.snap;
++        }
++        if (a.background !== undefined) {
++          if (!FILLS[a.background]) throw new Error(`background must be one of ${fillNames.join(', ')}`);
++          doc.background = a.background;
++        }
++        if (a.wall_fills !== undefined) {
++          for (const f of a.wall_fills) if (!FILLS[f]) throw new Error(`wall_fills: unknown fill "${f}"`);
++          doc.wallFills = a.wall_fills;
++        }
++        if (a.reference === null) delete doc.reference;
++        else if (a.reference) {
++          doc.reference = { image: a.reference.image, origin: a.reference.origin, cellPx: a.reference.cell_px };
++        }
++        commitChange(doc, 'change settings', before);
++        await this.store.save(doc);
++        return this.summary(doc, 'set', []);
++      }
++      case 'undo':
++      case 'redo': {
++        const steps = a.steps ?? 1;
++        const done = a.action === 'undo' ? undoChanges(doc, steps) : redoChanges(doc, steps);
++        await this.store.save(doc);
++        return { ...this.summary(doc, a.action, []), [a.action === 'undo' ? 'undone' : 'redone']: done };
++      }
++      case 'show':
++        return this.show(doc, a);
++      case 'render':
++        return this.render(doc);
++      case 'walls': {
++        const { walls, segments } = wallsFromLayout(layoutOf(doc));
++        return { success: true, layout: doc.id, walls, wallCount: walls.length, wallSegments: segments };
++      }
++      case 'apply_walls':
++        return this.applyWalls(doc, a);
++      default:
++        throw new Error(`Unknown action: ${a.action}`);
++    }
++  }
++
++  /** Build the walls and doors and place them on the scene, in chunks Foundry accepts. */
++  private async applyWalls(doc: LayoutDoc, a: Args): Promise<any> {
++    const { walls, segments } = wallsFromLayout(layoutOf(doc));
++    if (walls.length === 0) throw new Error('The layout has nothing to put walls around yet');
++    const [dx, dy] = a.shift ?? [0, 0];
++    const placed = walls.map(w => ({
++      ...w,
++      points: w.points.map(p => [Math.round((p[0]! + dx) * 100) / 100, Math.round((p[1]! + dy) * 100) / 100]),
++    }));
++    const doors = placed.filter(w => w.preset).length;
++    const plan = { walls: placed.length - doors, doors, segments };
++    if (a.dry_run) return { success: true, layout: doc.id, dryRun: true, ...plan };
++
++    const client = this.foundryClient;
++    if (!client) throw new Error('apply_walls needs the connection to Foundry, which is not available here');
++
++    const scene = a.scene;
++    const described = await client.query('foundry-mcp-bridge.manage-scene-objects', {
++      action: 'describe',
++      kind: 'wall',
++      ...(scene ? { scene } : {}),
++    });
++    if (described?.success === false) throw new Error(described.error || 'Could not read the scene');
++    const grid = described?.grid;
++    if (grid && (grid.columns !== doc.columns || grid.rows !== doc.rows)) {
++      throw new Error(
++        `The scene "${described.scene?.name}" is ${grid.columns} x ${grid.rows} squares but the layout is ${doc.columns} x ${doc.rows}. Set the scene grid so the generated map has the same squares (manage-scenes grid_size, width and height), or use another scene.`
++      );
++    }
++
++    let removed = 0;
++    if (a.replace !== false) {
++      const out = await client.query('foundry-mcp-bridge.manage-scene-objects', {
++        action: 'remove',
++        kind: 'wall',
++        all_mine: true,
++        ...(scene ? { scene } : {}),
++      });
++      if (out?.success === false) throw new Error(out.error || 'Could not remove the old walls');
++      removed = out?.removed?.length ?? 0;
++    }
++
++    // Foundry takes at most 200 objects and 1000 wall segments per call.
++    const chunks: Array<typeof placed> = [];
++    let current: typeof placed = [];
++    let count = 0;
++    for (const w of placed) {
++      const n = Math.max(1, w.points.length - 1 + (w.closed ? 1 : 0));
++      if (current.length >= 150 || count + n > 900) {
++        chunks.push(current);
++        current = [];
++        count = 0;
++      }
++      current.push(w);
++      count += n;
++    }
++    if (current.length > 0) chunks.push(current);
++
++    let created = 0;
++    for (const objects of chunks) {
++      const res = await client.query('foundry-mcp-bridge.manage-scene-objects', {
++        action: 'place',
++        ...(scene ? { scene } : {}),
++        objects,
++      });
++      if (res?.success === false) throw new Error(res.error || 'Could not place the walls');
++      created += res?.created?.length ?? 0;
++    }
++    this.logger.info('Layout walls placed', { layout: doc.id, ...plan, removed, created });
++    return {
 +      success: true,
++      layout: doc.id,
++      scene: described?.scene,
++      ...plan,
++      removedOldWalls: removed,
++      wallSegmentsCreated: created,
++      next: 'Open preview-scene to check where the walls fall on the picture; the generated art often draws its walls a little inside or outside the floor edge, so use shift or manage-scene-objects to adjust.',
++    };
++  }
++
++  /** What every change returns: ids touched and the whole layout as text, so it can be checked at a glance. */
++  private summary(doc: LayoutDoc, action: string, changed: number[]): Record<string, any> {
++    const out: Record<string, any> = {
++      success: true,
++      action,
++      layout: doc.id,
++      grid: { columns: doc.columns, rows: doc.rows, squarePixels: doc.size, snap: doc.snap },
++      shapeCount: doc.shapes.length,
++      history: { undo: doc.undo?.length ?? 0, redo: doc.redo?.length ?? 0 },
++      ...(changed.length > 0 ? { ids: changed } : {}),
++      ...(doc.reference ? { reference: doc.reference } : {}),
++    };
++    if (doc.columns <= MAX_TEXT_COLUMNS && doc.rows <= MAX_TEXT_ROWS) {
++      const { text, legend } = asciiMap(doc);
++      out.map = text;
++      out.legend = legend;
++    } else {
++      out.note = 'The layout is too large for a text map; use show with a region or png:true';
++    }
++    return out;
++  }
++
++  private async show(doc: LayoutDoc, a: Args): Promise<any> {
++    if (!a.png) {
++      const view = a.region;
++      if (!view && (doc.columns > MAX_TEXT_COLUMNS || doc.rows > MAX_TEXT_ROWS)) {
++        throw new Error('The layout is too large for one text map; pass a region or png:true');
++      }
++      const { text, legend } = asciiMap(doc, view);
++      return {
++        success: true,
++        layout: doc.id,
++        grid: { columns: doc.columns, rows: doc.rows, squarePixels: doc.size, snap: doc.snap },
++        map: text,
++        legend,
++        ...(a.shapes_list ? { shapes: describeShapes(doc) } : {}),
++      };
++    }
++    const img = await renderPreview(doc, {
++      ...(a.grid !== undefined ? { grid: a.grid } : {}),
++      ...(a.labels !== undefined ? { labels: a.labels } : {}),
++      ...(a.show_reference !== undefined ? { reference: a.show_reference } : {}),
++      ...(a.hide_shapes ? { hide_shapes: true } : {}),
++      ...(a.region ? { region: a.region } : {}),
++    });
++    const file = await this.writePicture(doc, 'preview', encodePng(img.width, img.height, img.rgb));
++    return {
++      success: true,
++      layout: doc.id,
++      file,
++      width: img.width,
++      height: img.height,
++      region: img.region,
++      ...(a.shapes_list ? { shapes: describeShapes(doc) } : {}),
++    };
++  }
++
++  private async render(doc: LayoutDoc): Promise<any> {
++    if (doc.shapes.length === 0) throw new Error('The layout has no shapes yet');
++    const layout = layoutOf(doc);
++    const { width, height, rgb } = renderLayout(layout);
++    const file = await this.writePicture(doc, 'sketch', encodePng(width, height, rgb));
++    this.logger.info('Layout rendered', { layout: doc.id, width, height });
++    const multiple = width % 32 === 0 && height % 32 === 0;
++    return {
++      success: true,
++      layout: doc.id,
 +      file,
 +      width,
 +      height,
-+      grid: { columns: layout.columns, rows: layout.rows, squarePixels: layout.size },
++      grid: { columns: doc.columns, rows: doc.rows, squarePixels: doc.size },
 +      legend: legendFor(layout),
 +      hint:
-+        'Pass file in generate-image reference_images and say that <Picture 1> is the exact floor plan to follow, then add the legend sentence. Remove numbers or text from the picture in the prompt if you added none. Use the same grid size for the scene.',
++        'Pass file in generate-image reference_images and say that <Picture 1> is the exact floor plan to follow, then add the legend sentence (and say what any custom colour means). Remove numbers or text in the prompt. Use the same grid size for the scene.' +
++        (multiple ? '' : ' The image model rounds sizes to multiples of 32; pick columns and rows so width and height are multiples of 32 to avoid a slight stretch.'),
 +    };
-+    if (parsed.walls) {
-+      const { walls, segments } = wallsFromLayout(layout);
-+      result.walls = walls;
-+      result.wallCount = walls.length;
-+      result.wallSegments = segments;
-+    }
-+    return result;
 +  }
 +
-+  private async prune(dir: string): Promise<void> {
++  private async writePicture(doc: LayoutDoc, kind: string, png: Buffer): Promise<string> {
++    await fs.mkdir(this.store.folder, { recursive: true });
++    const file = path.join(this.store.folder, `${doc.id}-${kind}-${Date.now()}.png`);
++    await fs.writeFile(file, png);
++    await this.prune();
++    return file;
++  }
++
++  private async prune(): Promise<void> {
 +    try {
-+      const files = (await fs.readdir(dir)).filter(f => f.endsWith('.png'));
-+      if (files.length <= KEEP_LAYOUTS) return;
++      const files = (await fs.readdir(this.store.folder)).filter(f => f.endsWith('.png'));
++      if (files.length <= KEEP_PICTURES) return;
 +      const stats = await Promise.all(
-+        files.map(async f => ({ f, t: (await fs.stat(path.join(dir, f))).mtimeMs }))
++        files.map(async f => ({ f, t: (await fs.stat(path.join(this.store.folder, f))).mtimeMs }))
 +      );
-+      stats.sort((a, b) => a.t - b.t);
-+      for (const { f } of stats.slice(0, files.length - KEEP_LAYOUTS)) {
-+        await fs.rm(path.join(dir, f), { force: true });
++      stats.sort((x, y) => x.t - y.t);
++      for (const { f } of stats.slice(0, files.length - KEEP_PICTURES)) {
++        await fs.rm(path.join(this.store.folder, f), { force: true });
 +      }
 +    } catch {
 +      // cleanup is best effort
