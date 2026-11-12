@@ -14278,10 +14278,10 @@ index 0000000..66661f2
 +}
 diff --git a/packages/foundry-module/src/preview-utils.layers.test.ts b/packages/foundry-module/src/preview-utils.layers.test.ts
 new file mode 100644
-index 0000000..ad7dc3d
+index 0000000..71ecf07
 --- /dev/null
 +++ b/packages/foundry-module/src/preview-utils.layers.test.ts
-@@ -0,0 +1,141 @@
+@@ -0,0 +1,142 @@
 +import { describe, expect, it, vi } from 'vitest';
 +import { drawPreview, regionColor, DEFAULT_LAYERS, type PreviewRegion } from './preview-utils.js';
 +import type { GridGeometry } from './scene-objects-utils.js';
@@ -14377,7 +14377,7 @@ index 0000000..ad7dc3d
 +    const dots = fakeContext();
 +    drawPreview(dots, { geom, scale: 1, labelEvery: 5, tokens: [], lights, layers: ['lights'] });
 +    expect(dots.arc).toHaveBeenCalledTimes(1);
-+    expect(dots.arc).toHaveBeenCalledWith(500, 200, 4, 0, Math.PI * 2);
++    expect(dots.arc).toHaveBeenCalledWith(500, 200, 7, 0, Math.PI * 2);
 +    const radii = fakeContext();
 +    drawPreview(radii, { geom, scale: 1, labelEvery: 5, tokens: [], lights, layers: ['lights', 'light_radii'] });
 +    expect(radii.arc).toHaveBeenCalledWith(500, 200, 400, 0, Math.PI * 2);
@@ -14387,7 +14387,7 @@ index 0000000..ad7dc3d
 +  it('shows hidden tokens dashed', () => {
 +    const ctx = fakeContext();
 +    drawPreview(ctx, { geom, scale: 1, labelEvery: 5, tokens, lights: [], layers: ['tokens'] });
-+    expect(ctx.dashes).toContainEqual([4, 3]);
++    expect(ctx.dashes).toContainEqual([8, 5]);
 +  });
 +
 +  it('dims the map image under the overlay', () => {
@@ -14404,7 +14404,8 @@ index 0000000..ad7dc3d
 +      { x1: 1, y1: 0, x2: 2, y2: 0, door: 1 },
 +    ];
 +    drawPreview(ctx, { geom, scale: 1, labelEvery: 5, tokens: [], lights: [], walls, layers: ['doors'] });
-+    expect(ctx.lineTo).toHaveBeenCalledTimes(1);
++    expect(ctx.lineTo.mock.calls.filter((c: number[]) => c[0] === 200 && c[1] === 0).length).toBeGreaterThan(0);
++    expect(ctx.lineTo).not.toHaveBeenCalledWith(100, 0);
 +    expect(ctx.lineTo).toHaveBeenCalledWith(200, 0);
 +  });
 +});
@@ -14425,7 +14426,7 @@ index 0000000..ad7dc3d
 +});
 diff --git a/packages/foundry-module/src/preview-utils.test.ts b/packages/foundry-module/src/preview-utils.test.ts
 new file mode 100644
-index 0000000..5d8be30
+index 0000000..f29564f
 --- /dev/null
 +++ b/packages/foundry-module/src/preview-utils.test.ts
 @@ -0,0 +1,195 @@
@@ -14589,7 +14590,7 @@ index 0000000..5d8be30
 +    expect(ctx.lines).toContainEqual([300, 0, 300, 200]);
 +    expect(strokes).toContain('#00e5ff');
 +    expect(strokes).toContain('#ff9500');
-+    expect(ctx.setLineDash).toHaveBeenCalledWith([5, 4]);
++    expect(ctx.setLineDash).toHaveBeenCalledWith([8, 5]);
 +    expect(ctx.texts.some((t: any) => t.text === '4. Armoury' && t.x === 500)).toBe(true);
 +  });
 +});
@@ -14620,13 +14621,13 @@ index 0000000..5d8be30
 +    expect(ctx.lines).toContainEqual([300, 0, 300, 200]);
 +    expect(strokes).toContain('#00e5ff');
 +    expect(strokes).toContain('#ff9500');
-+    expect(ctx.setLineDash).toHaveBeenCalledWith([5, 4]);
++    expect(ctx.setLineDash).toHaveBeenCalledWith([8, 5]);
 +    expect(ctx.texts.some((t: any) => t.text === '4. Armoury' && t.x === 500)).toBe(true);
 +  });
 +});
 diff --git a/packages/foundry-module/src/preview-utils.tiles.test.ts b/packages/foundry-module/src/preview-utils.tiles.test.ts
 new file mode 100644
-index 0000000..6e0b69d
+index 0000000..f5f8bdc
 --- /dev/null
 +++ b/packages/foundry-module/src/preview-utils.tiles.test.ts
 @@ -0,0 +1,77 @@
@@ -14690,7 +14691,7 @@ index 0000000..6e0b69d
 +  it('outlines a tile without a picture and numbers the tiles', () => {
 +    const ctx = stubDraw({ tiles, labelMode: 'numbers' });
 +    expect(ctx.drawImage).toHaveBeenCalledTimes(1);
-+    expect(ctx.strokeRect).toHaveBeenCalledTimes(2);
++    expect(ctx.strokeRect).toHaveBeenCalledTimes(4);
 +    expect(ctx.texts).toEqual(expect.arrayContaining(['T1', 'T2']));
 +  });
 +
@@ -14709,10 +14710,10 @@ index 0000000..6e0b69d
 +}
 diff --git a/packages/foundry-module/src/preview-utils.ts b/packages/foundry-module/src/preview-utils.ts
 new file mode 100644
-index 0000000..542d273
+index 0000000..557e34d
 --- /dev/null
 +++ b/packages/foundry-module/src/preview-utils.ts
-@@ -0,0 +1,399 @@
+@@ -0,0 +1,464 @@
 +/**
 + * Drawing for preview-scene: the scene image with a numbered grid and the scene's tokens
 + * and lights on top, so positions can be read in grid squares. Works on any 2D context, so
@@ -14923,15 +14924,23 @@ index 0000000..542d273
 +      ctx.globalAlpha = tile.hidden ? 0.5 : tile.alpha === undefined ? 1 : Math.max(0, Math.min(1, tile.alpha));
 +      if (tile.image) ctx.drawImage(tile.image, -w / 2, -h / 2, w, h);
 +      ctx.globalAlpha = 1;
-+      ctx.strokeStyle = '#34c759';
-+      ctx.lineWidth = 1.5;
-+      ctx.setLineDash(tile.hidden ? [4, 3] : [2, 3]);
++      ctx.setLineDash(tile.hidden ? [8, 5] : [])
++      ctx.strokeStyle = 'rgba(0,0,0,0.85)';
++      ctx.lineWidth = 6;
++      ctx.strokeRect(-w / 2, -h / 2, w, h);
++      ctx.strokeStyle = '#34ff6a';
++      ctx.lineWidth = 3;
 +      ctx.strokeRect(-w / 2, -h / 2, w, h);
 +      ctx.setLineDash([]);
 +      if (labelMode !== 'none') {
-+        ctx.fillStyle = '#34c759';
-+        ctx.font = '12px sans-serif';
-+        ctx.fillText('T' + (index + 1), -w / 2 + 3, -h / 2 + 13);
++        ctx.font = 'bold 14px sans-serif';
++        ctx.textAlign = 'left';
++        ctx.textBaseline = 'alphabetic';
++        ctx.lineWidth = 4;
++        ctx.strokeStyle = '#000000';
++        ctx.strokeText('T' + (index + 1), -w / 2 + 5, -h / 2 + 17);
++        ctx.fillStyle = '#34ff6a';
++        ctx.fillText('T' + (index + 1), -w / 2 + 5, -h / 2 + 17);
 +      }
 +      ctx.restore();
 +    });
@@ -14940,9 +14949,7 @@ index 0000000..542d273
 +  // Regions (under everything else): a tinted fill and an outline.
 +  for (const region of regions) {
 +    const color = regionColor(region);
-+    ctx.fillStyle = color + '40';
-+    ctx.strokeStyle = color;
-+    ctx.lineWidth = 2;
++    ctx.fillStyle = color + '55';
 +    for (const shape of region.shapes) {
 +      ctx.beginPath();
 +      if (shape.type === 'ellipse') {
@@ -14952,6 +14959,11 @@ index 0000000..542d273
 +        ctx.closePath();
 +      }
 +      ctx.fill();
++      ctx.strokeStyle = 'rgba(0,0,0,0.85)';
++      ctx.lineWidth = 6;
++      ctx.stroke();
++      ctx.strokeStyle = color;
++      ctx.lineWidth = 3;
 +      ctx.stroke();
 +    }
 +  }
@@ -14961,26 +14973,29 @@ index 0000000..542d273
 +    const cx = light.x * square;
 +    const cy = light.y * square;
 +    const color = light.color || '#ffcc33';
-+    ctx.lineWidth = 2;
-+    ctx.strokeStyle = color;
 +    const radii = layers.has('light_radii');
-+    if (radii && light.dim > 0) {
-+      ctx.setLineDash([6, 4]);
++    const ring = (radius: number, dash: number[]) => {
++      ctx.setLineDash(dash);
 +      ctx.beginPath();
-+      ctx.arc(cx, cy, light.dim * square, 0, Math.PI * 2);
++      ctx.arc(cx, cy, radius, 0, Math.PI * 2);
++      ctx.strokeStyle = 'rgba(0,0,0,0.85)';
++      ctx.lineWidth = 6;
 +      ctx.stroke();
-+    }
-+    ctx.setLineDash([]);
-+    if (radii && light.bright > 0) {
-+      ctx.beginPath();
-+      ctx.arc(cx, cy, light.bright * square, 0, Math.PI * 2);
++      ctx.strokeStyle = color;
++      ctx.lineWidth = 3;
 +      ctx.stroke();
-+    }
++      ctx.setLineDash([]);
++    };
++    if (radii && light.dim > 0) ring(light.dim * square, [10, 6]);
++    if (radii && light.bright > 0) ring(light.bright * square, []);
 +    if (layers.has('lights')) {
 +      ctx.fillStyle = color;
++      ctx.strokeStyle = '#000000';
++      ctx.lineWidth = 2.5;
 +      ctx.beginPath();
-+      ctx.arc(cx, cy, 4, 0, Math.PI * 2);
++      ctx.arc(cx, cy, 7, 0, Math.PI * 2);
 +      ctx.fill();
++      ctx.stroke();
 +    }
 +  }
 +
@@ -15004,18 +15019,65 @@ index 0000000..542d273
 +    ctx.stroke();
 +  }
 +
-+  // Walls: cyan; doors orange; secret doors dashed orange.
-+  for (const wall of options.walls ?? []) {
-+    if (wall.door ? !layers.has('doors') : !layers.has('walls')) continue;
-+    ctx.lineWidth = 3;
-+    ctx.strokeStyle = wall.door ? '#ff9500' : '#00e5ff';
-+    ctx.setLineDash(wall.door === 2 ? [5, 4] : []);
-+    ctx.beginPath();
-+    ctx.moveTo(wall.x1 * square, wall.y1 * square);
-+    ctx.lineTo(wall.x2 * square, wall.y2 * square);
-+    ctx.stroke();
++  // Walls: bright cyan; doors thick orange with end ticks; secret doors dashed magenta-orange.
++  // Every line has a dark outline so it stands out on light stone and dark rock alike, and every
++  // end has a dot, so a gap or a loose end is easy to see.
++  const shown = (options.walls ?? []).filter(wall => (wall.door ? layers.has('doors') : layers.has('walls')));
++  if (shown.length > 0) {
++    const thin = Math.max(3.5, Math.min(7, square * 0.07));
++    const thick = thin * 1.6;
++    const line = (wall: PreviewWall, width: number, color: string, dash: number[]) => {
++      ctx.lineWidth = width;
++      ctx.strokeStyle = color;
++      ctx.lineCap = 'butt';
++      ctx.setLineDash(dash);
++      ctx.beginPath();
++      ctx.moveTo(wall.x1 * square, wall.y1 * square);
++      ctx.lineTo(wall.x2 * square, wall.y2 * square);
++      ctx.stroke();
++    };
++    // pass 1: dark outlines under everything
++    for (const wall of shown) line(wall, (wall.door ? thick : thin) + 4, 'rgba(0,0,0,0.85)', []);
++    // pass 2: the colours
++    for (const wall of shown) {
++      const secret = wall.door === 2;
++      line(wall, wall.door ? thick : thin, wall.door ? (secret ? '#ff2d95' : '#ff9500') : '#00e5ff', secret ? [8, 5] : []);
++    }
++    ctx.setLineDash([]);
++    // end ticks across each door, so its length is visible
++    for (const wall of shown) {
++      if (!wall.door) continue;
++      const dx = wall.x2 - wall.x1;
++      const dy = wall.y2 - wall.y1;
++      const length = Math.hypot(dx, dy) || 1;
++      const nx = (-dy / length) * (thick * 1.1);
++      const ny = (dx / length) * (thick * 1.1);
++      ctx.lineWidth = 2.5;
++      ctx.strokeStyle = '#ffffff';
++      for (const [x, y] of [[wall.x1, wall.y1], [wall.x2, wall.y2]] as Array<[number, number]>) {
++        ctx.beginPath();
++        ctx.moveTo(x * square - nx, y * square - ny);
++        ctx.lineTo(x * square + nx, y * square + ny);
++        ctx.stroke();
++      }
++    }
++    // dots where walls start and end
++    const seen = new Set<string>();
++    for (const wall of shown) {
++      for (const [x, y] of [[wall.x1, wall.y1], [wall.x2, wall.y2]] as Array<[number, number]>) {
++        const key = `${Math.round(x * 100)},${Math.round(y * 100)}`;
++        if (seen.has(key)) continue;
++        seen.add(key);
++        ctx.beginPath();
++        ctx.arc(x * square, y * square, thin * 0.85, 0, Math.PI * 2);
++        ctx.fillStyle = '#ffffff';
++        ctx.fill();
++        ctx.lineWidth = 1.5;
++        ctx.strokeStyle = '#000000';
++        ctx.stroke();
++      }
++    }
 +  }
-+  ctx.setLineDash([]);
 +
 +  // Map pins: yellow diamonds.
 +  for (const note of layers.has('notes') ? options.notes ?? [] : []) {
@@ -15023,12 +15085,12 @@ index 0000000..542d273
 +    const cy = note.y * square;
 +    ctx.fillStyle = '#ffd60a';
 +    ctx.strokeStyle = '#000000';
-+    ctx.lineWidth = 1.5;
++    ctx.lineWidth = 2.5;
 +    ctx.beginPath();
-+    ctx.moveTo(cx, cy - 8);
-+    ctx.lineTo(cx + 8, cy);
-+    ctx.lineTo(cx, cy + 8);
-+    ctx.lineTo(cx - 8, cy);
++    ctx.moveTo(cx, cy - 12);
++    ctx.lineTo(cx + 12, cy);
++    ctx.lineTo(cx, cy + 12);
++    ctx.lineTo(cx - 12, cy);
 +    ctx.closePath();
 +    ctx.fill();
 +    ctx.stroke();
@@ -15040,24 +15102,28 @@ index 0000000..542d273
 +    const top = token.y * square;
 +    const w = token.width * square;
 +    const h = token.height * square;
-+    ctx.lineWidth = 2;
-+    ctx.strokeStyle = '#ff3b30';
-+    ctx.fillStyle = 'rgba(255,59,48,0.3)';
-+    ctx.setLineDash(token.hidden ? [4, 3] : []);
++    ctx.fillStyle = 'rgba(255,59,48,0.4)';
++    ctx.setLineDash(token.hidden ? [8, 5] : []);
 +    ctx.beginPath();
 +    ctx.arc(left + w / 2, top + h / 2, Math.min(w, h) / 2, 0, Math.PI * 2);
 +    ctx.fill();
++    ctx.strokeStyle = 'rgba(0,0,0,0.85)';
++    ctx.lineWidth = 6;
++    ctx.stroke();
++    ctx.strokeStyle = '#ff3b30';
++    ctx.lineWidth = 3;
 +    ctx.stroke();
 +    ctx.setLineDash([]);
 +  }
 +
 +  // Labels: outlined text so they read on any map.
-+  const fontSize = Math.max(9, Math.min(16, Math.round(square * 0.4)));
++  const fontSize = Math.max(11, Math.min(16, Math.round(square * 0.45)));
 +  ctx.font = `bold ${fontSize}px sans-serif`;
 +  ctx.textAlign = 'center';
 +  ctx.textBaseline = 'middle';
 +  const label = (text: string, x: number, y: number) => {
-+    ctx.lineWidth = 3;
++    ctx.lineWidth = 4;
++    ctx.lineJoin = 'round';
 +    ctx.strokeStyle = '#000000';
 +    ctx.strokeText(text, x, y);
 +    ctx.fillStyle = '#ffffff';
@@ -30766,11 +30832,12 @@ index 0000000..eb8f72a
 +});
 diff --git a/packages/mcp-server/src/tools/scene-objects.ts b/packages/mcp-server/src/tools/scene-objects.ts
 new file mode 100644
-index 0000000..ca5f723
+index 0000000..bb080c9
 --- /dev/null
 +++ b/packages/mcp-server/src/tools/scene-objects.ts
-@@ -0,0 +1,798 @@
+@@ -0,0 +1,835 @@
 +import { promises as fs } from 'fs';
++import { checkWalls, planFixes, type CheckWall } from './wall-check-utils.js';
 +import os from 'os';
 +import path from 'path';
 +import { z } from 'zod';
@@ -30922,7 +30989,9 @@ index 0000000..ca5f723
 +
 +const sceneObjectsSchema = z
 +  .object({
-+    action: z.enum(['place', 'describe', 'remove', 'update']),
++    action: z.enum(['place', 'describe', 'remove', 'update', 'check_walls']),
++    fix: z.boolean().optional(),
++    tolerance: z.number().min(0.05).max(1.5).optional(),
 +    scene: z.string().min(1).optional(),
 +    objects: z.array(objectSchema).min(1).max(200).optional(),
 +    updates: z.array(z.record(z.any())).min(1).max(200).optional(),
@@ -31066,11 +31135,13 @@ index 0000000..ca5f723
 +          'Use preview-scene first to see the numbered grid. describe returns the scene grid size so you know the valid range. ' +
 +          'place takes objects (up to 200): {kind:"token", actor, x, y} puts the actor\'s token with its top-left corner at that square (use whole numbers; actor is an id or exact name); {kind:"light", x, y, bright, dim} makes a light at that point with radii in squares (optional color, alpha, angle, rotation, animation, hidden); {kind:"wall", points:[[x1,y1],[x2,y2],...]} draws walls along a chain of points (add closed:true to join the ends) or {kind:"wall", rect:[x,y,width,height]} draws the four walls of a rectangle, with preset wall (default), door, secret_door, invisible (blocks movement only) or window (blocks movement, lets light and sight through), and for doors door_state closed, open or locked; {kind:"note", x, y, journal, page?, text?} puts a map pin (the label text defaults to the journal name) that opens that journal or page when clicked; pins are only seen by players who may read the journal unless global is true. {kind:"tile", x, y, width, height, src, rotation?, alpha?, hidden?, elevation?} lays an image (a path in the Foundry files, e.g. an uploaded prop) over the map with its top-left corner at x, y and the given size in squares; {kind:"sound", x, y, radius, path, volume?, repeat?, walls?, easing?, hidden?} places a looping ambient sound audible within radius squares (path is an audio file in the Foundry files); tokens also accept width and height in squares (e.g. 2 for a Large creature) to override the actor\'s size. Use whole or half squares for wall points and make wall ends meet exactly, otherwise light and sight leak through gaps. ' +
 +          'update takes updates (up to 200): [{id, ...fields}] to change objects this tool placed, without removing them: x and y move it (grid squares; give one to keep the other), and per kind: token name, width, height, hidden, disposition, elevation; light bright, dim, color, alpha, angle, rotation, animation (null stops it), hidden; note text, font_size, icon_size, icon, global; tile width, height, src, rotation, alpha, elevation, hidden; sound radius, path, volume, repeat, walls, easing, hidden; wall door_state (closed, open, locked; doors only, walls cannot be moved). ' +
-+          'remove needs ids or all_mine:true (optionally with kind) and only removes objects created by this tool. scene is an id or exact name; it defaults to the scene the GM is viewing.',
++          'check_walls {scene?, fix?, tolerance?} reads the scene walls and reports ends that stop just short of another wall (gaps; with the square they should join), loose ends, doors touching no wall, duplicates, tiny and diagonal walls; fix:true repairs the gaps and duplicates of walls this tool placed (moves ends so they join) and reports the rest. Run it after placing or changing walls, then look at preview-scene. remove needs ids or all_mine:true (optionally with kind) and only removes objects created by this tool. scene is an id or exact name; it defaults to the scene the GM is viewing.',
 +        inputSchema: {
 +          type: 'object',
 +          properties: {
-+            action: { type: 'string', enum: ['place', 'describe', 'remove', 'update'] },
++            action: { type: 'string', enum: ['place', 'describe', 'remove', 'update', 'check_walls'] },
++            fix: { type: 'boolean', description: 'check_walls: repair what can be repaired (walls this tool placed) by moving ends to join and removing duplicates' },
++            tolerance: { type: 'number', description: 'check_walls: how close (squares) an end must be to another wall to count as a gap (default 0.45)' },
 +            updates: {
 +              type: 'array',
 +              maxItems: 200,
@@ -31395,6 +31466,7 @@ index 0000000..ca5f723
 +    }
 +
 +    this.logger.info('Managing scene objects', { action: parsed.action, scene: parsed.scene });
++    if (parsed.action === 'check_walls') return this.checkSceneWalls(parsed);
 +    try {
 +      // The label of a light is only a note for the caller; do not send it.
 +      const payload = {
@@ -31425,6 +31497,37 @@ index 0000000..ca5f723
 +        `Failed to manage scene objects: ${error instanceof Error ? error.message : 'Unknown error'}`
 +      );
 +    }
++  }
++
++  private async checkSceneWalls(parsed: { scene?: string | undefined; fix?: boolean | undefined; tolerance?: number | undefined }): Promise<any> {
++    const q = (data: any) => this.foundryClient.query('foundry-mcp-bridge.manage-scene-objects', data);
++    const scene = parsed.scene ? { scene: parsed.scene } : {};
++    const described = await q({ action: 'describe', kind: 'wall', ...scene });
++    if (described?.success === false) throw new Error(described.error || 'Could not read the scene');
++    const walls: CheckWall[] = described?.walls ?? [];
++    const issues = checkWalls(walls, parsed.tolerance !== undefined ? { tolerance: parsed.tolerance } : {});
++    const result: any = {
++      success: true,
++      scene: described?.scene,
++      wallCount: walls.length,
++      issueCount: issues.length,
++      issues: issues.slice(0, 80),
++      ...(issues.length > 80 ? { note: `${issues.length - 80} more issues not shown` } : {}),
++    };
++    if (parsed.fix) {
++      const plan = planFixes(walls, issues);
++      if (plan.remove.length > 0) {
++        const out = await q({ action: 'remove', kind: 'wall', ids: plan.remove, ...scene });
++        if (out?.success === false) throw new Error(out.error || 'Could not remove the walls to repair');
++        if (plan.place.length > 0) {
++          const placed = await q({ action: 'place', ...scene, objects: plan.place.map(p => ({ kind: 'wall', ...p })) });
++          if (placed?.success === false) throw new Error(placed.error || 'Could not place the repaired walls');
++        }
++      }
++      result.fixed = { removed: plan.remove.length, replaced: plan.place.length };
++      result.remaining = issues.filter(i => !i.fixable).length;
++    }
++    return result;
 +  }
 +
 +  async handleManageWorld(args: any): Promise<any> {
@@ -33437,6 +33540,230 @@ index 0000000..724ee4c
 +      );
 +    }
 +  }
++}
+diff --git a/packages/mcp-server/src/tools/wall-check-utils.test.ts b/packages/mcp-server/src/tools/wall-check-utils.test.ts
+new file mode 100644
+index 0000000..883d173
+--- /dev/null
++++ b/packages/mcp-server/src/tools/wall-check-utils.test.ts
+@@ -0,0 +1,59 @@
++import { describe, expect, it } from 'vitest';
++import { checkWalls, closestOnSegment, planFixes, type CheckWall } from './wall-check-utils.js';
++
++const w = (id: string, from: [number, number], to: [number, number], extra: Partial<CheckWall> = {}): CheckWall => ({ id, from, to, door: null, createdByTool: true, ...extra });
++
++describe('checkWalls', () => {
++  it('accepts a closed room', () => {
++    const room = [w('a', [0, 0], [4, 0]), w('b', [4, 0], [4, 4]), w('c', [4, 4], [0, 4]), w('d', [0, 4], [0, 0])];
++    expect(checkWalls(room)).toEqual([]);
++  });
++  it('accepts a T junction where an end touches the middle of a wall', () => {
++    expect(checkWalls([w('a', [0, 0], [4, 0]), w('b', [2, 0], [2, 3]), w('c', [0, 3], [4, 3])]).some(i => i.kind === 'gap')).toBe(false);
++  });
++  it('finds an end that stops short and says where to join', () => {
++    const issues = checkWalls([w('a', [0, 0], [4, 0]), w('b', [4.3, 0], [4.3, 3]), w('c', [4, 0], [4, 1])]);
++    const gap = issues.find(i => i.kind === 'gap' && i.walls[0] === 'b')!;
++    expect(gap.snapTo).toEqual([4, 0]);
++    expect(gap.fixable).toBe(true);
++  });
++  it('reports loose ends, floating doors, duplicates, tiny and diagonal walls', () => {
++    const issues = checkWalls([
++      w('a', [0, 0], [4, 0]),
++      w('b', [10, 10], [12, 10]),
++      w('d', [20, 20], [21, 20], { door: 'door' }),
++      w('e', [0, 0], [4, 0]),
++      w('t', [30, 30], [30.1, 30]),
++      w('g', [40, 40], [41, 41], { door: 'door' }),
++    ]);
++    const kinds = issues.map(i => i.kind);
++    expect(kinds).toEqual(expect.arrayContaining(['loose_end', 'door_unattached', 'duplicate', 'tiny', 'diagonal_door']));
++  });
++  it('does not call far walls a gap', () => {
++    expect(checkWalls([w('a', [0, 0], [4, 0]), w('b', [0, 1], [4, 1])]).some(i => i.kind === 'gap')).toBe(false);
++  });
++});
++
++describe('planFixes', () => {
++  it('moves a short end to join, keeping door type, and drops duplicates', () => {
++    const walls = [
++      w('a', [0, 0], [4, 0]),
++      w('door', [4.3, 0], [4.3, 1], { door: 'door', doorState: 'locked' }),
++      w('x', [0, 0], [4, 0]),
++      w('c', [4, 0], [4, 5]),
++    ];
++    const plan = planFixes(walls, checkWalls(walls));
++    expect(plan.remove.sort()).toEqual(['door', 'x']);
++    expect(plan.place).toEqual([{ points: [[4, 0], [4, 1]], preset: 'door', door_state: 'locked' }]);
++  });
++  it('leaves walls the tool did not place alone', () => {
++    const walls = [w('a', [0, 0], [4, 0], { createdByTool: false }), w('b', [4.2, 0], [4.2, 3], { createdByTool: false })];
++    expect(planFixes(walls, checkWalls(walls)).remove).toEqual([]);
++  });
++});
++
++describe('closestOnSegment', () => {
++  it('clamps to the ends', () => {
++    expect(closestOnSegment([5, 1], [0, 0], [4, 0]).point).toEqual([4, 0]);
++  });
++});
+diff --git a/packages/mcp-server/src/tools/wall-check-utils.ts b/packages/mcp-server/src/tools/wall-check-utils.ts
+new file mode 100644
+index 0000000..38bc6dc
+--- /dev/null
++++ b/packages/mcp-server/src/tools/wall-check-utils.ts
+@@ -0,0 +1,153 @@
++/** Wall geometry check: finds walls and doors that do not meet, and plans fixes. Pure; units are grid squares. */
++
++export interface CheckWall {
++  id: string;
++  from: [number, number];
++  to: [number, number];
++  door?: string | null;
++  doorState?: string;
++  createdByTool?: boolean;
++}
++
++export type Pt = [number, number];
++
++export interface WallIssue {
++  kind: 'gap' | 'loose_end' | 'door_unattached' | 'duplicate' | 'tiny' | 'diagonal_door';
++  at: Pt;
++  walls: string[];
++  message: string;
++  /** Where a fix would move the end, when there is a safe fix. */
++  snapTo?: Pt;
++  fixable: boolean;
++}
++
++const EPS = 0.02;
++const same = (a: Pt, b: Pt) => Math.abs(a[0] - b[0]) < EPS && Math.abs(a[1] - b[1]) < EPS;
++const round = (n: number) => Math.round(n * 100) / 100;
++const fmt = (p: Pt) => `(${round(p[0])}, ${round(p[1])})`;
++
++/** Closest point on segment ab to p, and its distance. */
++export function closestOnSegment(p: Pt, a: Pt, b: Pt): { point: Pt; dist: number; t: number } {
++  const dx = b[0] - a[0];
++  const dy = b[1] - a[1];
++  const len2 = dx * dx + dy * dy;
++  const t = len2 === 0 ? 0 : Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / len2));
++  const point: Pt = [a[0] + t * dx, a[1] + t * dy];
++  return { point, dist: Math.hypot(p[0] - point[0], p[1] - point[1]), t };
++}
++
++export interface CheckOptions {
++  /** An end this close to another wall (but not touching) counts as a gap. Default 0.45 squares. */
++  tolerance?: number;
++  /** Walls shorter than this are reported. Default 0.2. */
++  minLength?: number;
++}
++
++export function checkWalls(walls: CheckWall[], options: CheckOptions = {}): WallIssue[] {
++  const tolerance = options.tolerance ?? 0.45;
++  const minLength = options.minLength ?? 0.2;
++  const issues: WallIssue[] = [];
++
++  // Duplicates: the same segment twice (either direction).
++  const seen = new Map<string, string>();
++  const dupIds = new Set<string>();
++  for (const w of walls) {
++    const a = `${round(w.from[0])},${round(w.from[1])}`;
++    const b = `${round(w.to[0])},${round(w.to[1])}`;
++    const key = a < b ? `${a}|${b}` : `${b}|${a}`;
++    const first = seen.get(key);
++    if (first) {
++      dupIds.add(w.id);
++      issues.push({ kind: 'duplicate', at: w.from, walls: [first, w.id], message: `Two walls on the same line from ${fmt(w.from)} to ${fmt(w.to)}`, fixable: !!w.createdByTool });
++    } else seen.set(key, w.id);
++  }
++
++  for (const w of walls) {
++    const length = Math.hypot(w.to[0] - w.from[0], w.to[1] - w.from[1]);
++    if (length < minLength) {
++      issues.push({ kind: 'tiny', at: w.from, walls: [w.id], message: `Wall of only ${round(length)} squares at ${fmt(w.from)}`, fixable: false });
++    }
++    if (w.door && Math.abs(w.to[0] - w.from[0]) > EPS && Math.abs(w.to[1] - w.from[1]) > EPS) {
++      issues.push({ kind: 'diagonal_door', at: w.from, walls: [w.id], message: `Door at ${fmt(w.from)}-${fmt(w.to)} is diagonal`, fixable: false });
++    }
++  }
++
++  // Ends: touching another wall's end or body, near-missing it, or loose.
++  const others = walls.filter(w => !dupIds.has(w.id));
++  const reported = new Set<string>();
++  for (const w of others) {
++    for (const end of [w.from, w.to] as Pt[]) {
++      let touching = false;
++      let best: { point: Pt; dist: number; id: string; viaEnd: boolean } | undefined;
++      for (const o of others) {
++        if (o.id === w.id) continue;
++        const c = closestOnSegment(end, o.from, o.to);
++        if (c.dist < EPS) {
++          touching = true;
++          break;
++        }
++        if (c.dist <= tolerance && (!best || c.dist < best.dist)) {
++          const toEnd = [o.from, o.to].find(p => Math.hypot(p[0] - end[0], p[1] - end[1]) <= c.dist + EPS) as Pt | undefined;
++          best = { point: toEnd ?? c.point, dist: c.dist, id: o.id, viaEnd: !!toEnd };
++        }
++      }
++      if (touching) continue;
++      const key = `${w.id}@${round(end[0])},${round(end[1])}`;
++      if (reported.has(key)) continue;
++      reported.add(key);
++      const what = w.door ? 'Door' : 'Wall';
++      if (best) {
++        const snap: Pt = [round(best.point[0]), round(best.point[1])];
++        issues.push({
++          kind: 'gap',
++          at: end,
++          walls: [w.id, best.id],
++          snapTo: snap,
++          message: `${what} end ${fmt(end)} stops ${round(best.dist)} squares short of another wall; moving it to ${fmt(snap)} joins them`,
++          fixable: !!w.createdByTool,
++        });
++      } else {
++        issues.push({
++          kind: w.door ? 'door_unattached' : 'loose_end',
++          at: end,
++          walls: [w.id],
++          message: w.door ? `Door end ${fmt(end)} touches no wall, so the door floats` : `Wall end ${fmt(end)} touches nothing (fine at a pillar or open edge, a leak otherwise)`,
++          fixable: false,
++        });
++      }
++    }
++  }
++  return issues;
++}
++
++/** Walls to replace to apply the fixable gap and duplicate fixes. */
++export function planFixes(walls: CheckWall[], issues: WallIssue[]): { remove: string[]; place: Array<{ points: Pt[]; preset: string; door_state?: string }> } {
++  const byId = new Map(walls.map(w => [w.id, w]));
++  const moved = new Map<string, { from: Pt; to: Pt }>();
++  const remove = new Set<string>();
++  for (const issue of issues) {
++    if (!issue.fixable) continue;
++    if (issue.kind === 'duplicate') {
++      remove.add(issue.walls[1]!);
++    } else if (issue.kind === 'gap' && issue.snapTo) {
++      const w = byId.get(issue.walls[0]!);
++      if (!w) continue;
++      const cur = moved.get(w.id) ?? { from: w.from, to: w.to };
++      if (same(cur.from, issue.at)) cur.from = issue.snapTo;
++      else if (same(cur.to, issue.at)) cur.to = issue.snapTo;
++      moved.set(w.id, cur);
++    }
++  }
++  const place: Array<{ points: Pt[]; preset: string; door_state?: string }> = [];
++  for (const [id, seg] of moved) {
++    if (remove.has(id)) continue;
++    const w = byId.get(id)!;
++    remove.add(id);
++    place.push({
++      points: [seg.from, seg.to],
++      preset: w.door === 'door' ? 'door' : w.door === 'secret_door' ? 'secret_door' : 'wall',
++      ...(w.door ? { door_state: w.doorState ?? 'closed' } : {}),
++    });
++  }
++  return { remove: [...remove], place };
 +}
 diff --git a/scripts/mcp-schema-smoke-test.mjs b/scripts/mcp-schema-smoke-test.mjs
 index c84dcd4..fcb7685 100644

@@ -5618,8 +5618,8 @@ var require_combine = __commonJS({
         return obj;
       };
     }
-    function isValidFormat(fmt) {
-      if (typeof fmt.transform !== "function") {
+    function isValidFormat(fmt2) {
+      if (typeof fmt2.transform !== "function") {
         throw new Error([
           "No transform function found on format. Did you create a format instance?",
           "const myFormat = format(formatFn);",
@@ -19519,11 +19519,11 @@ var require_jspack = __commonJS({
         for (var fxn = el.en, o = 0; o < n; fxn(a, p + o * s, v[i + o]), o++)
           ;
       };
-      m.Unpack = function(fmt, a, p) {
-        bBE = fmt.charAt(0) != "<";
+      m.Unpack = function(fmt2, a, p) {
+        bBE = fmt2.charAt(0) != "<";
         p = p ? p : 0;
         var re = new RegExp(this._sPattern, "g"), m2, n, s, rv = [];
-        while (m2 = re.exec(fmt)) {
+        while (m2 = re.exec(fmt2)) {
           n = m2[1] == void 0 || m2[1] == "" ? 1 : parseInt(m2[1]);
           s = this._lenLut[m2[2]];
           if (p + n * s > a.length) {
@@ -19555,10 +19555,10 @@ var require_jspack = __commonJS({
         }
         return Array.prototype.concat.apply([], rv);
       };
-      m.PackTo = function(fmt, a, p, values) {
-        bBE = fmt.charAt(0) != "<";
+      m.PackTo = function(fmt2, a, p, values) {
+        bBE = fmt2.charAt(0) != "<";
         var re = new RegExp(this._sPattern, "g"), m2, n, s, i = 0, j;
-        while (m2 = re.exec(fmt)) {
+        while (m2 = re.exec(fmt2)) {
           n = m2[1] == void 0 || m2[1] == "" ? 1 : parseInt(m2[1]);
           s = this._lenLut[m2[2]];
           if (p + n * s > a.length) {
@@ -19603,12 +19603,12 @@ var require_jspack = __commonJS({
         }
         return a;
       };
-      m.Pack = function(fmt, values) {
-        return this.PackTo(fmt, new Array(this.CalcLength(fmt)), 0, values);
+      m.Pack = function(fmt2, values) {
+        return this.PackTo(fmt2, new Array(this.CalcLength(fmt2)), 0, values);
       };
-      m.CalcLength = function(fmt) {
+      m.CalcLength = function(fmt2) {
         var re = new RegExp(this._sPattern, "g"), m2, sum = 0;
-        while (m2 = re.exec(fmt)) {
+        while (m2 = re.exec(fmt2)) {
           sum += (m2[1] == void 0 || m2[1] == "" ? 1 : parseInt(m2[1])) * this._lenLut[m2[2]];
         }
         return sum;
@@ -42525,8 +42525,8 @@ var require_utils2 = __commonJS({
     function nearestPowerOf2(length) {
       const base = Math.log(length) / log2;
       const floor = Math.floor(base);
-      const round = Math.round(base);
-      return floor === round ? floor : round;
+      const round2 = Math.round(base);
+      return floor === round2 ? floor : round2;
     }
     function clearProps(object, propsArray) {
       for (const prop of propsArray) {
@@ -62007,11 +62007,11 @@ var require_generate_function = __commonJS({
         }
         push(line2);
       };
-      var line = function(fmt) {
-        if (!fmt)
+      var line = function(fmt2) {
+        if (!fmt2)
           return line;
-        if (arguments.length === 1 && fmt.indexOf("\n") > -1) {
-          var lines2 = fmt.trim().split("\n");
+        if (arguments.length === 1 && fmt2.indexOf("\n") > -1) {
+          var lines2 = fmt2.trim().split("\n");
           for (var i2 = 0; i2 < lines2.length; i2++) {
             pushLine(lines2[i2].trim());
           }
@@ -83539,9 +83539,9 @@ var require_sdp = __commonJS({
             throw new Error("m line not found");
           }
           const kind = m[1];
-          const fmt = m[4].split(" ");
-          const fmtInt = ["audio", "video"].includes(kind) ? fmt.map((v) => Number(v)) : void 0;
-          const currentMedia = new MediaDescription(kind, parseInt(m[2]), m[3], fmtInt || fmt);
+          const fmt2 = m[4].split(" ");
+          const fmtInt = ["audio", "video"].includes(kind) ? fmt2.map((v) => Number(v)) : void 0;
+          const currentMedia = new MediaDescription(kind, parseInt(m[2]), m[3], fmtInt || fmt2);
           currentMedia.dtlsParams = new dtls_1.RTCDtlsParameters([...session.dtlsFingerprints], session.dtlsRole);
           currentMedia.iceParams = new ice_1.RTCIceParameters({
             iceLite: session.iceLite,
@@ -83749,7 +83749,7 @@ var require_sdp = __commonJS({
     };
     exports2.SessionDescription = SessionDescription;
     var MediaDescription = class {
-      constructor(kind, port, profile, fmt) {
+      constructor(kind, port, profile, fmt2) {
         Object.defineProperty(this, "kind", {
           enumerable: true,
           configurable: true,
@@ -83772,7 +83772,7 @@ var require_sdp = __commonJS({
           enumerable: true,
           configurable: true,
           writable: true,
-          value: fmt
+          value: fmt2
         });
         Object.defineProperty(this, "host", {
           enumerable: true,
@@ -103377,7 +103377,7 @@ var require_get_intrinsic = __commonJS({
     var max = require_max();
     var min = require_min();
     var pow = require_pow();
-    var round = require_round();
+    var round2 = require_round();
     var sign = require_sign();
     var $Function = Function;
     var getEvalledConstructor = function(expressionSyntax) {
@@ -103491,7 +103491,7 @@ var require_get_intrinsic = __commonJS({
       "%Math.max%": max,
       "%Math.min%": min,
       "%Math.pow%": pow,
-      "%Math.round%": round,
+      "%Math.round%": round2,
       "%Math.sign%": sign,
       "%Reflect.getPrototypeOf%": $ReflectGPO
     };
@@ -121282,6 +121282,132 @@ init_comfyui_target();
 
 // dist/tools/scene-objects.js
 var import_fs3 = require("fs");
+
+// dist/tools/wall-check-utils.js
+var EPS = 0.02;
+var same = (a, b) => Math.abs(a[0] - b[0]) < EPS && Math.abs(a[1] - b[1]) < EPS;
+var round = (n) => Math.round(n * 100) / 100;
+var fmt = (p) => `(${round(p[0])}, ${round(p[1])})`;
+function closestOnSegment(p, a, b) {
+  const dx = b[0] - a[0];
+  const dy = b[1] - a[1];
+  const len2 = dx * dx + dy * dy;
+  const t = len2 === 0 ? 0 : Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / len2));
+  const point2 = [a[0] + t * dx, a[1] + t * dy];
+  return { point: point2, dist: Math.hypot(p[0] - point2[0], p[1] - point2[1]), t };
+}
+function checkWalls(walls, options = {}) {
+  const tolerance = options.tolerance ?? 0.45;
+  const minLength = options.minLength ?? 0.2;
+  const issues = [];
+  const seen = /* @__PURE__ */ new Map();
+  const dupIds = /* @__PURE__ */ new Set();
+  for (const w of walls) {
+    const a = `${round(w.from[0])},${round(w.from[1])}`;
+    const b = `${round(w.to[0])},${round(w.to[1])}`;
+    const key = a < b ? `${a}|${b}` : `${b}|${a}`;
+    const first = seen.get(key);
+    if (first) {
+      dupIds.add(w.id);
+      issues.push({ kind: "duplicate", at: w.from, walls: [first, w.id], message: `Two walls on the same line from ${fmt(w.from)} to ${fmt(w.to)}`, fixable: !!w.createdByTool });
+    } else
+      seen.set(key, w.id);
+  }
+  for (const w of walls) {
+    const length = Math.hypot(w.to[0] - w.from[0], w.to[1] - w.from[1]);
+    if (length < minLength) {
+      issues.push({ kind: "tiny", at: w.from, walls: [w.id], message: `Wall of only ${round(length)} squares at ${fmt(w.from)}`, fixable: false });
+    }
+    if (w.door && Math.abs(w.to[0] - w.from[0]) > EPS && Math.abs(w.to[1] - w.from[1]) > EPS) {
+      issues.push({ kind: "diagonal_door", at: w.from, walls: [w.id], message: `Door at ${fmt(w.from)}-${fmt(w.to)} is diagonal`, fixable: false });
+    }
+  }
+  const others = walls.filter((w) => !dupIds.has(w.id));
+  const reported = /* @__PURE__ */ new Set();
+  for (const w of others) {
+    for (const end of [w.from, w.to]) {
+      let touching = false;
+      let best;
+      for (const o of others) {
+        if (o.id === w.id)
+          continue;
+        const c = closestOnSegment(end, o.from, o.to);
+        if (c.dist < EPS) {
+          touching = true;
+          break;
+        }
+        if (c.dist <= tolerance && (!best || c.dist < best.dist)) {
+          const toEnd = [o.from, o.to].find((p) => Math.hypot(p[0] - end[0], p[1] - end[1]) <= c.dist + EPS);
+          best = { point: toEnd ?? c.point, dist: c.dist, id: o.id, viaEnd: !!toEnd };
+        }
+      }
+      if (touching)
+        continue;
+      const key = `${w.id}@${round(end[0])},${round(end[1])}`;
+      if (reported.has(key))
+        continue;
+      reported.add(key);
+      const what = w.door ? "Door" : "Wall";
+      if (best) {
+        const snap = [round(best.point[0]), round(best.point[1])];
+        issues.push({
+          kind: "gap",
+          at: end,
+          walls: [w.id, best.id],
+          snapTo: snap,
+          message: `${what} end ${fmt(end)} stops ${round(best.dist)} squares short of another wall; moving it to ${fmt(snap)} joins them`,
+          fixable: !!w.createdByTool
+        });
+      } else {
+        issues.push({
+          kind: w.door ? "door_unattached" : "loose_end",
+          at: end,
+          walls: [w.id],
+          message: w.door ? `Door end ${fmt(end)} touches no wall, so the door floats` : `Wall end ${fmt(end)} touches nothing (fine at a pillar or open edge, a leak otherwise)`,
+          fixable: false
+        });
+      }
+    }
+  }
+  return issues;
+}
+function planFixes(walls, issues) {
+  const byId = new Map(walls.map((w) => [w.id, w]));
+  const moved = /* @__PURE__ */ new Map();
+  const remove = /* @__PURE__ */ new Set();
+  for (const issue of issues) {
+    if (!issue.fixable)
+      continue;
+    if (issue.kind === "duplicate") {
+      remove.add(issue.walls[1]);
+    } else if (issue.kind === "gap" && issue.snapTo) {
+      const w = byId.get(issue.walls[0]);
+      if (!w)
+        continue;
+      const cur = moved.get(w.id) ?? { from: w.from, to: w.to };
+      if (same(cur.from, issue.at))
+        cur.from = issue.snapTo;
+      else if (same(cur.to, issue.at))
+        cur.to = issue.snapTo;
+      moved.set(w.id, cur);
+    }
+  }
+  const place = [];
+  for (const [id2, seg] of moved) {
+    if (remove.has(id2))
+      continue;
+    const w = byId.get(id2);
+    remove.add(id2);
+    place.push({
+      points: [seg.from, seg.to],
+      preset: w.door === "door" ? "door" : w.door === "secret_door" ? "secret_door" : "wall",
+      ...w.door ? { door_state: w.doorState ?? "closed" } : {}
+    });
+  }
+  return { remove: [...remove], place };
+}
+
+// dist/tools/scene-objects.js
 var import_os2 = __toESM(require("os"), 1);
 var import_path3 = __toESM(require("path"), 1);
 init_zod();
@@ -121492,7 +121618,9 @@ var objectSchema = external_exports.union([
   soundSchema
 ]);
 var sceneObjectsSchema = external_exports.object({
-  action: external_exports.enum(["place", "describe", "remove", "update"]),
+  action: external_exports.enum(["place", "describe", "remove", "update", "check_walls"]),
+  fix: external_exports.boolean().optional(),
+  tolerance: external_exports.number().min(0.05).max(1.5).optional(),
   scene: external_exports.string().min(1).optional(),
   objects: external_exports.array(objectSchema).min(1).max(200).optional(),
   updates: external_exports.array(external_exports.record(external_exports.any())).min(1).max(200).optional(),
@@ -121599,11 +121727,13 @@ var SceneObjectTools = class {
     return [
       {
         name: "manage-scene-objects",
-        description: `Place tokens, lights, walls, map pins, tiles (pictures laid on the map: rugs, furniture, props) and ambient sounds on a scene by grid square, describe what is on a scene, or remove objects this tool created (it never removes anything else). Positions are in GRID SQUARES from the top-left corner of the map image: (0, 0) is the top-left corner of the first square, (2.5, 1.5) the centre of the square in column 2, row 1 (counting from 0). Use preview-scene first to see the numbered grid. describe returns the scene grid size so you know the valid range. place takes objects (up to 200): {kind:"token", actor, x, y} puts the actor's token with its top-left corner at that square (use whole numbers; actor is an id or exact name); {kind:"light", x, y, bright, dim} makes a light at that point with radii in squares (optional color, alpha, angle, rotation, animation, hidden); {kind:"wall", points:[[x1,y1],[x2,y2],...]} draws walls along a chain of points (add closed:true to join the ends) or {kind:"wall", rect:[x,y,width,height]} draws the four walls of a rectangle, with preset wall (default), door, secret_door, invisible (blocks movement only) or window (blocks movement, lets light and sight through), and for doors door_state closed, open or locked; {kind:"note", x, y, journal, page?, text?} puts a map pin (the label text defaults to the journal name) that opens that journal or page when clicked; pins are only seen by players who may read the journal unless global is true. {kind:"tile", x, y, width, height, src, rotation?, alpha?, hidden?, elevation?} lays an image (a path in the Foundry files, e.g. an uploaded prop) over the map with its top-left corner at x, y and the given size in squares; {kind:"sound", x, y, radius, path, volume?, repeat?, walls?, easing?, hidden?} places a looping ambient sound audible within radius squares (path is an audio file in the Foundry files); tokens also accept width and height in squares (e.g. 2 for a Large creature) to override the actor's size. Use whole or half squares for wall points and make wall ends meet exactly, otherwise light and sight leak through gaps. update takes updates (up to 200): [{id, ...fields}] to change objects this tool placed, without removing them: x and y move it (grid squares; give one to keep the other), and per kind: token name, width, height, hidden, disposition, elevation; light bright, dim, color, alpha, angle, rotation, animation (null stops it), hidden; note text, font_size, icon_size, icon, global; tile width, height, src, rotation, alpha, elevation, hidden; sound radius, path, volume, repeat, walls, easing, hidden; wall door_state (closed, open, locked; doors only, walls cannot be moved). remove needs ids or all_mine:true (optionally with kind) and only removes objects created by this tool. scene is an id or exact name; it defaults to the scene the GM is viewing.`,
+        description: `Place tokens, lights, walls, map pins, tiles (pictures laid on the map: rugs, furniture, props) and ambient sounds on a scene by grid square, describe what is on a scene, or remove objects this tool created (it never removes anything else). Positions are in GRID SQUARES from the top-left corner of the map image: (0, 0) is the top-left corner of the first square, (2.5, 1.5) the centre of the square in column 2, row 1 (counting from 0). Use preview-scene first to see the numbered grid. describe returns the scene grid size so you know the valid range. place takes objects (up to 200): {kind:"token", actor, x, y} puts the actor's token with its top-left corner at that square (use whole numbers; actor is an id or exact name); {kind:"light", x, y, bright, dim} makes a light at that point with radii in squares (optional color, alpha, angle, rotation, animation, hidden); {kind:"wall", points:[[x1,y1],[x2,y2],...]} draws walls along a chain of points (add closed:true to join the ends) or {kind:"wall", rect:[x,y,width,height]} draws the four walls of a rectangle, with preset wall (default), door, secret_door, invisible (blocks movement only) or window (blocks movement, lets light and sight through), and for doors door_state closed, open or locked; {kind:"note", x, y, journal, page?, text?} puts a map pin (the label text defaults to the journal name) that opens that journal or page when clicked; pins are only seen by players who may read the journal unless global is true. {kind:"tile", x, y, width, height, src, rotation?, alpha?, hidden?, elevation?} lays an image (a path in the Foundry files, e.g. an uploaded prop) over the map with its top-left corner at x, y and the given size in squares; {kind:"sound", x, y, radius, path, volume?, repeat?, walls?, easing?, hidden?} places a looping ambient sound audible within radius squares (path is an audio file in the Foundry files); tokens also accept width and height in squares (e.g. 2 for a Large creature) to override the actor's size. Use whole or half squares for wall points and make wall ends meet exactly, otherwise light and sight leak through gaps. update takes updates (up to 200): [{id, ...fields}] to change objects this tool placed, without removing them: x and y move it (grid squares; give one to keep the other), and per kind: token name, width, height, hidden, disposition, elevation; light bright, dim, color, alpha, angle, rotation, animation (null stops it), hidden; note text, font_size, icon_size, icon, global; tile width, height, src, rotation, alpha, elevation, hidden; sound radius, path, volume, repeat, walls, easing, hidden; wall door_state (closed, open, locked; doors only, walls cannot be moved). check_walls {scene?, fix?, tolerance?} reads the scene walls and reports ends that stop just short of another wall (gaps; with the square they should join), loose ends, doors touching no wall, duplicates, tiny and diagonal walls; fix:true repairs the gaps and duplicates of walls this tool placed (moves ends so they join) and reports the rest. Run it after placing or changing walls, then look at preview-scene. remove needs ids or all_mine:true (optionally with kind) and only removes objects created by this tool. scene is an id or exact name; it defaults to the scene the GM is viewing.`,
         inputSchema: {
           type: "object",
           properties: {
-            action: { type: "string", enum: ["place", "describe", "remove", "update"] },
+            action: { type: "string", enum: ["place", "describe", "remove", "update", "check_walls"] },
+            fix: { type: "boolean", description: "check_walls: repair what can be repaired (walls this tool placed) by moving ends to join and removing duplicates" },
+            tolerance: { type: "number", description: "check_walls: how close (squares) an end must be to another wall to count as a gap (default 0.45)" },
             updates: {
               type: "array",
               maxItems: 200,
@@ -121906,6 +122036,8 @@ var SceneObjectTools = class {
       throw new Error("remove needs ids or all_mine: true");
     }
     this.logger.info("Managing scene objects", { action: parsed.action, scene: parsed.scene });
+    if (parsed.action === "check_walls")
+      return this.checkSceneWalls(parsed);
     try {
       const payload = {
         ...parsed,
@@ -121928,6 +122060,39 @@ var SceneObjectTools = class {
       this.logger.error("Failed to manage scene objects", error);
       throw new Error(`Failed to manage scene objects: ${error instanceof Error ? error.message : "Unknown error"}`);
     }
+  }
+  async checkSceneWalls(parsed) {
+    const q = (data) => this.foundryClient.query("foundry-mcp-bridge.manage-scene-objects", data);
+    const scene = parsed.scene ? { scene: parsed.scene } : {};
+    const described = await q({ action: "describe", kind: "wall", ...scene });
+    if (described?.success === false)
+      throw new Error(described.error || "Could not read the scene");
+    const walls = described?.walls ?? [];
+    const issues = checkWalls(walls, parsed.tolerance !== void 0 ? { tolerance: parsed.tolerance } : {});
+    const result = {
+      success: true,
+      scene: described?.scene,
+      wallCount: walls.length,
+      issueCount: issues.length,
+      issues: issues.slice(0, 80),
+      ...issues.length > 80 ? { note: `${issues.length - 80} more issues not shown` } : {}
+    };
+    if (parsed.fix) {
+      const plan = planFixes(walls, issues);
+      if (plan.remove.length > 0) {
+        const out = await q({ action: "remove", kind: "wall", ids: plan.remove, ...scene });
+        if (out?.success === false)
+          throw new Error(out.error || "Could not remove the walls to repair");
+        if (plan.place.length > 0) {
+          const placed = await q({ action: "place", ...scene, objects: plan.place.map((p) => ({ kind: "wall", ...p })) });
+          if (placed?.success === false)
+            throw new Error(placed.error || "Could not place the repaired walls");
+        }
+      }
+      result.fixed = { removed: plan.remove.length, replaced: plan.place.length };
+      result.remaining = issues.filter((i) => !i.fixable).length;
+    }
+    return result;
   }
   async handleManageWorld(args) {
     const parsed = manageWorldSchema.parse(args ?? {});
@@ -125168,11 +125333,11 @@ function alignToImage(layout, image, maxShift = 1.5) {
         best = { sx, sy, score };
     }
   }
-  const round = (v) => Math.round(v * 1e3) / 1e3;
+  const round2 = (v) => Math.round(v * 1e3) / 1e3;
   return {
     shift: [best.sx / SAMPLES, best.sy / SAMPLES],
-    score: round(best.score),
-    scoreAtZero: round(scoreAtZero),
+    score: round2(best.score),
+    scoreAtZero: round2(scoreAtZero),
     quality: best.score >= 0.35 ? "good" : best.score >= 0.15 ? "weak" : "none"
   };
 }
@@ -126172,7 +126337,7 @@ var LayoutTools = class {
           for (let dx = 0; dx < Math.max(1, Math.round(width)); dx++)
             taken.add(`${spot.x + dx},${spot.y + dy}`);
         }
-        const round = (v) => Math.round(v * 100) / 100;
+        const round2 = (v) => Math.round(v * 100) / 100;
         if (kind === "token") {
           if (!item.actor)
             throw new Error(`${label}: a token needs actor`);
@@ -126180,8 +126345,8 @@ var LayoutTools = class {
           objects.push({
             kind: "token",
             actor: item.actor,
-            x: round(spot.x + sx),
-            y: round(spot.y + sy),
+            x: round2(spot.x + sx),
+            y: round2(spot.y + sy),
             ...name ? { name } : {},
             ...item.hidden !== void 0 ? { hidden: item.hidden } : {},
             ...item.width !== void 0 ? { width: item.width } : {},
@@ -126192,8 +126357,8 @@ var LayoutTools = class {
         } else if (kind === "light") {
           objects.push({
             kind: "light",
-            x: round(spot.x + 0.5 + sx),
-            y: round(spot.y + 0.5 + sy),
+            x: round2(spot.x + 0.5 + sx),
+            y: round2(spot.y + 0.5 + sy),
             bright: Number(item.bright ?? 3),
             dim: Number(item.dim ?? (item.bright ? Number(item.bright) * 2 : 7)),
             ...item.color ? { color: item.color } : {},
@@ -126206,8 +126371,8 @@ var LayoutTools = class {
             throw new Error(`${label}: a pin needs journal`);
           objects.push({
             kind: "note",
-            x: round(spot.x + 0.5 + sx),
-            y: round(spot.y + 0.5 + sy),
+            x: round2(spot.x + 0.5 + sx),
+            y: round2(spot.y + 0.5 + sy),
             journal: item.journal,
             ...item.page ? { page: item.page } : {},
             ...item.text ? { text: item.text } : {},
