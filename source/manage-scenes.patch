@@ -1,3 +1,30 @@
+diff --git a/.claude/settings.local.json b/.claude/settings.local.json
+index 73094be..ee383b5 100644
+--- a/.claude/settings.local.json
++++ b/.claude/settings.local.json
+@@ -101,7 +101,9 @@
+       "Bash(/Users/Adam/Projects/foundry-vtt-mcp/update-wrapper.sh:*)",
+       "Bash(/Applications/FoundryMCPServer.app/Contents/Resources/ComfyUI/venv/bin/python /Applications/FoundryMCPServer.app/Contents/Resources/ComfyUI/main.py --help)",
+       "Bash(./update-backend-now.sh:*)",
+-      "Bash(hdiutil detach:*)"
++      "Bash(hdiutil detach:*)",
++      "Bash(docker exec comfyui:*)",
++      "Bash(docker restart comfyui)"
+     ],
+     "deny": [],
+     "ask": [],
+diff --git a/README.md b/README.md
+index 86fdc42..0423500 100644
+--- a/README.md
++++ b/README.md
+@@ -13,6 +13,7 @@ The Foundry MCP Bridge enables natural AI conversations with your Foundry VTT ga
+ - **Scene Information**: Access current scene data and world details
+ - **Dice Coordination**: Interactive roll requests with player targeting
+ - **Campaign Management**: Multi-part quest and campaign tracking
++- **Narration**: the `speak` tool voices the story aloud for the whole table with your ComfyUI (Kokoro, Qwen3-TTS, or the streaming `qwen3-fast` engine from `tts-server/claude_tts`) and reveals the words in chat in time with the audio
+ - **Map Generation**: Create maps from prompts and automatically upload them into scenes in Foundry VTT using the optional ComfyUI component
+ 
+ ## Installation
 diff --git a/package-lock.json b/package-lock.json
 index 1b9aef4..fdbc3c1 100644
 --- a/package-lock.json
@@ -15770,10 +15797,14 @@ index 0000000..eab3007
 +  });
 +}
 diff --git a/packages/foundry-module/src/main.ts b/packages/foundry-module/src/main.ts
-index 9024ead..b077a66 100644
+index 9024ead..ce71970 100644
 --- a/packages/foundry-module/src/main.ts
 +++ b/packages/foundry-module/src/main.ts
-@@ -4,6 +4,7 @@ import { QueryHandlers } from './queries.js';
+@@ -1,9 +1,11 @@
+ import { MODULE_ID } from './constants.js';
++import { speechPlayer } from './speech-player.js';
+ import { SocketBridge } from './socket-bridge.js';
+ import { QueryHandlers } from './queries.js';
  import { ModuleSettings } from './settings.js';
  import { CampaignHooks } from './campaign-hooks.js';
  import { ComfyUIManager } from './comfyui-manager.js';
@@ -15781,7 +15812,7 @@ index 9024ead..b077a66 100644
  // Connection control now handled through settings menu
  
  /**
-@@ -414,6 +415,26 @@ class FoundryMCPBridge {
+@@ -414,6 +416,26 @@ class FoundryMCPBridge {
          return;
        }
  
@@ -15808,7 +15839,7 @@ index 9024ead..b077a66 100644
        console.log(`[${MODULE_ID}] Starting ComfyUI monitoring...`);
  
        // Show initial loading banner
-@@ -507,6 +528,13 @@ const foundryMCPBridge = new FoundryMCPBridge();
+@@ -507,6 +529,13 @@ const foundryMCPBridge = new FoundryMCPBridge();
  // Make it available globally for settings callbacks
  (window as any).foundryMCPBridge = foundryMCPBridge;
  
@@ -15822,7 +15853,11 @@ index 9024ead..b077a66 100644
  // Foundry VTT Hooks
  Hooks.once('init', async () => {
    try {
-@@ -522,7 +550,7 @@ Hooks.once('ready', async () => {
+@@ -519,10 +548,11 @@ Hooks.once('init', async () => {
+ Hooks.once('ready', async () => {
+   try {
+     await foundryMCPBridge.onReady();
++    speechPlayer.attach();
  
      // Register socket listener for roll state management (after game.user is available)
  
@@ -17867,12 +17902,13 @@ index 0000000..557e34d
 +  return view ? outSize : { width, height };
 +}
 diff --git a/packages/foundry-module/src/queries.ts b/packages/foundry-module/src/queries.ts
-index 9fe02ba..d72ace5 100644
+index 9fe02ba..15b9ed7 100644
 --- a/packages/foundry-module/src/queries.ts
 +++ b/packages/foundry-module/src/queries.ts
-@@ -1,7 +1,8 @@
+@@ -1,7 +1,9 @@
 -import { MODULE_ID } from './constants.js';
 +import { MODULE_ID, QUERY_NAMESPACE } from './constants.js';
++import { speechPlayer, speechSettingsFrom } from './speech-player.js';
  import { FoundryDataAccess } from './data-access.js';
  import { ComfyUIManager } from './comfyui-manager.js';
  import { guardQueryHandler } from './query-guard.js';
@@ -17880,7 +17916,7 @@ index 9fe02ba..d72ace5 100644
  
  export class QueryHandlers {
    public dataAccess: FoundryDataAccess;
-@@ -27,7 +28,7 @@ export class QueryHandlers {
+@@ -27,7 +29,7 @@ export class QueryHandlers {
     * Register all query handlers in CONFIG.queries
     */
    registerHandlers(): void {
@@ -17889,7 +17925,7 @@ index 9fe02ba..d72ace5 100644
  
      // Character/Actor queries
      CONFIG.queries[`${modulePrefix}.getCharacterInfo`] = this.handleGetCharacterInfo.bind(this);
-@@ -46,6 +47,37 @@ export class QueryHandlers {
+@@ -46,6 +48,39 @@ export class QueryHandlers {
      CONFIG.queries[`${modulePrefix}.list-scenes`] = this.handleListScenes.bind(this);
      CONFIG.queries[`${modulePrefix}.switch-scene`] = this.handleSwitchScene.bind(this);
      CONFIG.queries[`${modulePrefix}.update-scene-music`] = this.handleUpdateSceneMusic.bind(this);
@@ -17919,6 +17955,8 @@ index 9fe02ba..d72ace5 100644
 +    CONFIG.queries[`${modulePrefix}.rules`] = this.handleRules.bind(this);
 +    CONFIG.queries[`${modulePrefix}.chat`] = this.handleChat.bind(this);
 +    CONFIG.queries[`${modulePrefix}.pause`] = this.handlePause.bind(this);
++    CONFIG.queries[`${modulePrefix}.speak`] = this.handleSpeak.bind(this);
++    CONFIG.queries[`${modulePrefix}.get-speech-settings`] = this.handleGetSpeechSettings.bind(this);
 +    CONFIG.queries[`${modulePrefix}.plutonium`] = this.handlePlutonium.bind(this);
 +    CONFIG.queries[`${modulePrefix}.adventure`] = this.handleAdventure.bind(this);
 +    CONFIG.queries[`${modulePrefix}.annotations`] = this.handleAnnotations.bind(this);
@@ -17927,7 +17965,7 @@ index 9fe02ba..d72ace5 100644
      CONFIG.queries[`${modulePrefix}.manage-playlists`] = this.handleManagePlaylists.bind(this);
      CONFIG.queries[`${modulePrefix}.control-playlist`] = this.handleControlPlaylist.bind(this);
  
-@@ -184,7 +216,7 @@ export class QueryHandlers {
+@@ -184,7 +219,7 @@ export class QueryHandlers {
     * Unregister all query handlers
     */
    unregisterHandlers(): void {
@@ -17936,7 +17974,7 @@ index 9fe02ba..d72ace5 100644
      const keysToRemove = Object.keys(CONFIG.queries).filter(key => key.startsWith(modulePrefix));
  
      for (const key of keysToRemove) {
-@@ -477,7 +509,7 @@ export class QueryHandlers {
+@@ -477,7 +512,7 @@ export class QueryHandlers {
     * Get list of all registered query methods
     */
    getRegisteredMethods(): string[] {
@@ -17945,7 +17983,7 @@ index 9fe02ba..d72ace5 100644
      return Object.keys(CONFIG.queries)
        .filter(key => key.startsWith(modulePrefix))
        .map(key => key.replace(`${modulePrefix}.`, ''));
-@@ -487,7 +519,7 @@ export class QueryHandlers {
+@@ -487,7 +522,7 @@ export class QueryHandlers {
     * Test if a specific query handler is registered
     */
    isMethodRegistered(method: string): boolean {
@@ -17954,7 +17992,7 @@ index 9fe02ba..d72ace5 100644
      return queryKey in CONFIG.queries && typeof CONFIG.queries[queryKey] === 'function';
    }
  
-@@ -530,6 +562,9 @@ export class QueryHandlers {
+@@ -530,6 +565,9 @@ export class QueryHandlers {
        if (data.placement) {
          requestData.placement = data.placement;
        }
@@ -17964,7 +18002,7 @@ index 9fe02ba..d72ace5 100644
  
        return await this.dataAccess.createActorFromCompendiumEntry(requestData);
      } catch (error) {
-@@ -1218,6 +1253,307 @@ export class QueryHandlers {
+@@ -1218,6 +1256,332 @@ export class QueryHandlers {
      }
    }
  
@@ -18210,6 +18248,31 @@ index 9fe02ba..d72ace5 100644
 +    }
 +  }
 +
++  /** Narration: queue a piece of audio, end an utterance, or stop. The audio itself was uploaded with upload-file. */
++  private async handleSpeak(data: any): Promise<any> {
++    const gmCheck = this.validateGMAccess();
++    if (!gmCheck.allowed) return { error: 'Access denied', success: false };
++    try {
++      return await speechPlayer.handle(data ?? {});
++    } catch (error: any) {
++      return { error: error.message, success: false };
++    }
++  }
++
++  /** The ComfyUI to use and the narration voice settings the GM chose. */
++  private async handleGetSpeechSettings(_data: any): Promise<any> {
++    const gmCheck = this.validateGMAccess();
++    if (!gmCheck.allowed) return { error: 'Access denied', success: false };
++    const get = (key: string): unknown => {
++      try {
++        return game.settings.get(MODULE_ID, key as any);
++      } catch {
++        return undefined;
++      }
++    };
++    return { success: true, target: this.comfyuiManager.getTarget(), settings: speechSettingsFrom(get) };
++  }
++
 +  /**
 +   * The ComfyUI to use and the image generation profiles the GM chose. The MCP server asks for
 +   * these each time it generates an image, so changes in the dialog apply immediately.
@@ -18272,7 +18335,7 @@ index 9fe02ba..d72ace5 100644
    private async handleManagePlaylists(data: any): Promise<any> {
      try {
        const gmCheck = this.validateGMAccess();
-@@ -1241,8 +1577,11 @@ export class QueryHandlers {
+@@ -1241,8 +1605,11 @@ export class QueryHandlers {
        if (!gmCheck.allowed) {
          return { error: 'Access denied', success: false };
        }
@@ -18286,7 +18349,7 @@ index 9fe02ba..d72ace5 100644
        }
        return await this.dataAccess.controlPlaylist(data);
      } catch (error) {
-@@ -1547,7 +1886,9 @@ export class QueryHandlers {
+@@ -1547,7 +1914,9 @@ export class QueryHandlers {
     */
    private async handleUpdateToken(data: {
      tokenId: string;
@@ -18297,7 +18360,7 @@ index 9fe02ba..d72ace5 100644
    }): Promise<any> {
      try {
        // SECURITY: Silent GM validation
-@@ -1561,8 +1902,8 @@ export class QueryHandlers {
+@@ -1561,8 +1930,8 @@ export class QueryHandlers {
        if (!data.tokenId) {
          throw new Error('tokenId is required');
        }
@@ -20116,7 +20179,7 @@ index 0000000..cd16bb0
 +  return data;
 +}
 diff --git a/packages/foundry-module/src/settings.ts b/packages/foundry-module/src/settings.ts
-index d689724..2dca548 100644
+index d689724..29b47d7 100644
 --- a/packages/foundry-module/src/settings.ts
 +++ b/packages/foundry-module/src/settings.ts
 @@ -1,5 +1,12 @@
@@ -20236,7 +20299,7 @@ index d689724..2dca548 100644
          }
  
          getStatusText(status: string): string {
-@@ -179,14 +239,54 @@ export class ModuleSettings {
+@@ -179,14 +239,115 @@ export class ModuleSettings {
          }
  
          async _updateObject(_event: Event, formData: any) {
@@ -20281,6 +20344,67 @@ index d689724..2dca548 100644
 +      restricted: true,
 +    });
 +
++    // Narration (the speak tool): which voice, and how loud it is on this computer
++    game.settings.register(this.moduleId, 'ttsEngine', {
++      name: 'Narration engine',
++      hint: 'qwen3-fast streams the best voice and needs the claude_tts node in ComfyUI. kokoro is quick and light. qwen3-custom and qwen3-design run as ordinary ComfyUI nodes. It uses the ComfyUI chosen under Map Generation.',
++      scope: 'world',
++      config: true,
++      type: String,
++      choices: { 'qwen3-fast': 'qwen3-fast (streaming, best)', kokoro: 'kokoro (fast, light)', 'qwen3-custom': 'qwen3-custom (ComfyUI node)', 'qwen3-design': 'qwen3-design (described voice)' },
++      default: 'kokoro',
++    });
++    game.settings.register(this.moduleId, 'ttsVoice', {
++      name: 'Narration voice',
++      hint: 'kokoro: a voice id such as bm_fable or af_heart. qwen3: a preset such as Ryan, Serena, Aiden or Dylan. qwen3-design: a description such as "a gruff old dwarf".',
++      scope: 'world',
++      config: true,
++      type: String,
++      default: 'bm_fable',
++    });
++    game.settings.register(this.moduleId, 'ttsStyle', {
++      name: 'Narration style',
++      hint: 'How the qwen3 voices speak: a short description of the delivery.',
++      scope: 'world',
++      config: true,
++      type: String,
++      default: 'A deep, measured storyteller narrating a fantasy adventure, calm and a little ominous.',
++    });
++    game.settings.register(this.moduleId, 'ttsLanguage', {
++      name: 'Narration language',
++      hint: 'auto uses English (qwen3) or the language of the voice (kokoro). Otherwise a language name such as Italian or French.',
++      scope: 'world',
++      config: true,
++      type: String,
++      default: 'auto',
++    });
++    game.settings.register(this.moduleId, 'ttsSpeed', {
++      name: 'Narration speed',
++      hint: 'Kokoro only: 0.5 to 2, 1 is normal.',
++      scope: 'world',
++      config: true,
++      type: Number,
++      range: { min: 0.5, max: 2, step: 0.05 },
++      default: 1,
++    });
++    game.settings.register(this.moduleId, 'ttsSyncText', {
++      name: 'Show narration in chat',
++      hint: 'Write what is narrated in the chat, revealing the words in time with the audio.',
++      scope: 'world',
++      config: true,
++      type: Boolean,
++      default: true,
++    });
++    game.settings.register(this.moduleId, 'ttsVolume', {
++      name: 'Narration volume',
++      hint: 'How loud narration is for you, on this computer. 0 mutes it.',
++      scope: 'client',
++      config: true,
++      type: Number,
++      range: { min: 0, max: 1, step: 0.05 },
++      default: 1,
++    });
++
 +    game.settings.register(this.moduleId, 'imageProfiles', {
 +      name: 'Image generation profiles',
 +      scope: 'world',
@@ -20292,7 +20416,7 @@ index d689724..2dca548 100644
      // ============================================================================
      // SECTION 1: BASIC SETTINGS
      // ============================================================================
-@@ -295,6 +395,40 @@ export class ModuleSettings {
+@@ -295,6 +456,40 @@ export class ModuleSettings {
        default: true,
      });
  
@@ -20333,6 +20457,372 @@ index d689724..2dca548 100644
      game.settings.register(this.moduleId, 'mapGenQuality', {
        name: 'Generation Quality',
        hint: 'Higher quality = better detail but slower generation. Generation time depends on your hardware.',
+diff --git a/packages/foundry-module/src/speech-player.ts b/packages/foundry-module/src/speech-player.ts
+new file mode 100644
+index 0000000..2daf670
+--- /dev/null
++++ b/packages/foundry-module/src/speech-player.ts
+@@ -0,0 +1,209 @@
++import { MODULE_ID } from './constants.js';
++import { planSegment, segmentsHtml, segmentsText, speechSettingsFrom, type SpeechSegment } from './speech-utils.js';
++
++/**
++ * Narration at the table. The MCP server sends the audio in pieces; the GM's browser decides when each piece
++ * starts (in server time) and tells everyone through the module socket; every browser fetches the piece
++ * and plays it at that moment with Web Audio, so the pieces join without gaps and every player hears the
++ * same thing at the same time. The chat message is created with the first piece and grows with each one;
++ * each browser reveals its words in time with the audio.
++ */
++
++interface Session {
++  nextStart: number | undefined;
++  segments: SpeechSegment[];
++  sync: boolean;
++  speaker: string;
++  messageId?: string;
++  /** chat updates run in order */
++  chain: Promise<unknown>;
++}
++
++interface PlayOrder {
++  type: 'tts';
++  op: 'play';
++  id: string;
++  url: string;
++  start: number;
++  seconds: number;
++}
++
++const SOCKET = `module.${MODULE_ID}`;
++
++export class SpeechPlayer {
++  private sessions = new Map<string, Session>();
++  private sources = new Set<AudioBufferSourceNode>();
++  private buffers = new Map<string, Promise<AudioBuffer | null>>();
++  private gain: GainNode | null = null;
++
++  /** Listen for the GM's orders and reveal narrated chat messages. Call once, when the game is ready. */
++  attach(): void {
++    (game as any).socket?.on(SOCKET, (data: any) => {
++      if (data?.type !== 'tts') return;
++      if (data.op === 'play') void this.play(data as PlayOrder);
++      else if (data.op === 'stop') this.silence();
++    });
++    Hooks.on('renderChatMessageHTML', (message: any, html: HTMLElement) => this.reveal(message, html));
++  }
++
++  // ------------------------------------------------------------ GM side
++
++  /** The `speak` query from the MCP server. */
++  async handle(data: any): Promise<any> {
++    const action = data?.action;
++    if (action === 'stop') {
++      this.sessions.clear();
++      this.broadcast({ type: 'tts', op: 'stop' });
++      this.silence();
++      return { success: true, stopped: true };
++    }
++    if (action === 'end') {
++      const id = String(data.id ?? '');
++      const session = this.sessions.get(id);
++      if (session) {
++        const wait = Math.max(0, (session.nextStart ?? 0) - this.now()) + 5000;
++        setTimeout(() => this.sessions.delete(id), wait);
++      }
++      return { success: true };
++    }
++    if (action !== 'queue') return { success: false, error: `Unknown speak action: ${String(action)}` };
++
++    const id = String(data.id ?? '');
++    const path = String(data.path ?? '');
++    const seconds = Number(data.audioSeconds);
++    if (!id || !path || !Number.isFinite(seconds) || seconds <= 0) return { success: false, error: 'queue needs id, path and audioSeconds' };
++
++    let session = this.sessions.get(id);
++    if (!session) {
++      session = { nextStart: undefined, segments: [], sync: data.sync !== false, speaker: String(data.speaker || 'Narrator'), chain: Promise.resolve() };
++      this.sessions.set(id, session);
++    }
++    const plan = planSegment(session.nextStart, this.now(), seconds, Number(data.startDelayMs) || 0);
++    session.nextStart = plan.nextStart;
++    const url = path.startsWith('/') || /^https?:/.test(path) ? path : `/${path}`;
++    this.broadcast({ type: 'tts', op: 'play', id, url, start: plan.start, seconds });
++    void this.play({ type: 'tts', op: 'play', id, url, start: plan.start, seconds });
++
++    let messageId = session.messageId;
++    if (session.sync) {
++      session.segments.push({ text: String(data.text ?? ''), at: plan.start, seconds });
++      const first = session.messageId === undefined;
++      const work = session.chain.then(() => this.writeMessage(session!)).catch(error => console.error(`[${MODULE_ID}] narration chat message failed:`, error));
++      session.chain = work;
++      if (first) await work; // the first call reports the message id
++      messageId = session.messageId;
++    }
++    return { success: true, ...(messageId ? { messageId } : {}), start: plan.start };
++  }
++
++  private async writeMessage(session: Session): Promise<void> {
++    const snapshot = session.segments.map(s => ({ ...s }));
++    const content = segmentsText(snapshot);
++    const flags = { [MODULE_ID]: { tts: { segments: snapshot } } };
++    const ChatMessageClass = (globalThis as any).ChatMessage;
++    if (!session.messageId) {
++      const created = await ChatMessageClass.create({ content, speaker: { alias: session.speaker }, flags });
++      session.messageId = created?.id;
++      return;
++    }
++    const message = (game as any).messages?.get(session.messageId);
++    if (message) await message.update({ content, [`flags.${MODULE_ID}.tts`]: { segments: snapshot } });
++  }
++
++  private broadcast(payload: Record<string, unknown>): void {
++    (game as any).socket?.emit(SOCKET, payload);
++  }
++
++  // ------------------------------------------------------------ every browser
++
++  private now(): number {
++    return (game as any).time.serverTime as number;
++  }
++
++  private volume(): number {
++    try {
++      const v = Number(game.settings.get(MODULE_ID, 'ttsVolume' as any));
++      return Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : 1;
++    } catch {
++      return 1;
++    }
++  }
++
++  private context(): AudioContext | null {
++    const ctx = ((game as any).audio?.context as AudioContext | undefined) ?? null;
++    if (!ctx) return null;
++    if (!this.gain) {
++      this.gain = ctx.createGain();
++      this.gain.connect(ctx.destination);
++    }
++    return ctx;
++  }
++
++  private load(url: string): Promise<AudioBuffer | null> {
++    let loading = this.buffers.get(url);
++    if (!loading) {
++      loading = (async () => {
++        const ctx = this.context();
++        if (!ctx) return null;
++        const response = await fetch(url);
++        if (!response.ok) throw new Error(`HTTP ${response.status}`);
++        return ctx.decodeAudioData(await response.arrayBuffer());
++      })().catch(error => {
++        console.error(`[${MODULE_ID}] narration audio failed to load (${url}):`, error);
++        return null;
++      });
++      this.buffers.set(url, loading);
++      if (this.buffers.size > 40) this.buffers.delete(this.buffers.keys().next().value as string);
++    }
++    return loading;
++  }
++
++  private async play(order: PlayOrder): Promise<void> {
++    const volume = this.volume();
++    if (volume <= 0) return;
++    const buffer = await this.load(order.url);
++    const ctx = this.context();
++    if (!buffer || !ctx || !this.gain) return;
++    if (ctx.state === 'suspended') await ctx.resume().catch(() => undefined);
++    const wait = (order.start - this.now()) / 1000; // negative when the piece should already be playing
++    const offset = wait < 0 ? -wait : 0;
++    if (offset >= buffer.duration) return;
++    this.gain.gain.value = volume;
++    const source = ctx.createBufferSource();
++    source.buffer = buffer;
++    source.connect(this.gain);
++    source.onended = () => this.sources.delete(source);
++    this.sources.add(source);
++    source.start(ctx.currentTime + Math.max(0, wait), offset);
++  }
++
++  private silence(): void {
++    for (const source of this.sources) {
++      try {
++        source.stop();
++      } catch {
++        // already stopped
++      }
++    }
++    this.sources.clear();
++  }
++
++  /** Show the words of a narrated message when their time comes. */
++  private reveal(message: any, html: HTMLElement): void {
++    const tts = message?.getFlag?.(MODULE_ID, 'tts');
++    const segments = tts?.segments as SpeechSegment[] | undefined;
++    if (!segments?.length) return;
++    const body = html.querySelector('.message-content');
++    if (!body) return;
++    body.innerHTML = segmentsHtml(segments);
++    const now = this.now();
++    body.querySelectorAll<HTMLElement>('.mcp-tts-w').forEach(span => {
++      const wait = Number(span.dataset.at) - now;
++      if (wait <= 0) span.classList.add('on');
++      else setTimeout(() => span.classList.add('on'), wait);
++    });
++  }
++}
++
++export const speechPlayer = new SpeechPlayer();
++export { speechSettingsFrom };
+diff --git a/packages/foundry-module/src/speech-utils.test.ts b/packages/foundry-module/src/speech-utils.test.ts
+new file mode 100644
+index 0000000..8c05bc4
+--- /dev/null
++++ b/packages/foundry-module/src/speech-utils.test.ts
+@@ -0,0 +1,53 @@
++import { describe, expect, it } from 'vitest';
++import { LEAD_MS, planSegment, segmentsHtml, segmentsText, speechSettingsFrom, wordTimes } from './speech-utils.js';
++
++describe('planSegment', () => {
++  it('starts the first piece after the lead and any requested delay', () => {
++    expect(planSegment(undefined, 1000, 2)).toEqual({ start: 1000 + LEAD_MS, nextStart: 1000 + LEAD_MS + 2000 });
++    expect(planSegment(undefined, 1000, 2, 3000).start).toBe(1000 + LEAD_MS + 3000);
++  });
++  it('follows the previous piece without a gap, or restarts after the lead when late', () => {
++    expect(planSegment(5000, 2000, 1.5)).toEqual({ start: 5000, nextStart: 6500 });
++    expect(planSegment(5000, 9000, 1)).toEqual({ start: 9000 + LEAD_MS, nextStart: 9000 + LEAD_MS + 1000 });
++  });
++});
++
++describe('wordTimes', () => {
++  it('spreads the words over the audio, longer words and sentence ends taking longer', () => {
++    const t = wordTimes('A goblin attacks. Run now', 10000, 4);
++    expect(t.map(w => w.word)).toEqual(['A', 'goblin', 'attacks.', 'Run', 'now']);
++    expect(t[0]!.at).toBe(10000);
++    for (let i = 1; i < t.length; i++) expect(t[i]!.at).toBeGreaterThan(t[i - 1]!.at);
++    expect(t[4]!.at).toBeLessThan(14000);
++    // the pause after "attacks." makes "Run" later than an even split
++    expect(t[3]!.at - t[2]!.at).toBeGreaterThan(t[2]!.at - t[1]!.at);
++  });
++  it('handles empty text', () => {
++    expect(wordTimes('   ', 0, 1)).toEqual([]);
++  });
++});
++
++describe('segments to html and text', () => {
++  const segments = [
++    { text: 'You see <b>two</b> horses.', at: 1000, seconds: 2 },
++    { text: 'Both are dead.', at: 3000, seconds: 1 },
++  ];
++  it('escapes the words and stamps each with its time', () => {
++    const html = segmentsHtml(segments);
++    expect(html).toContain('<span class="mcp-tts-w" data-at="1000">You</span>');
++    expect(html).toContain('&lt;b&gt;two&lt;/b&gt;');
++    expect(html).not.toContain('<b>');
++    expect((html.match(/mcp-tts-w/g) ?? []).length).toBe(7);
++  });
++  it('joins the plain text', () => {
++    expect(segmentsText(segments)).toBe('You see <b>two</b> horses. Both are dead.');
++  });
++});
++
++describe('speechSettingsFrom', () => {
++  it('reads the settings with defaults and ignores odd values', () => {
++    const s = speechSettingsFrom(k => ({ ttsEngine: 'qwen3-fast', ttsVoice: ' Ryan ', ttsSpeed: 9, ttsSyncText: false })[k]);
++    expect(s).toMatchObject({ engine: 'qwen3-fast', voice: 'Ryan', speed: 1, syncText: false, language: 'auto' });
++    expect(speechSettingsFrom(() => undefined)).toMatchObject({ engine: 'kokoro', voice: 'bm_fable', syncText: true });
++  });
++});
+diff --git a/packages/foundry-module/src/speech-utils.ts b/packages/foundry-module/src/speech-utils.ts
+new file mode 100644
+index 0000000..65b3c60
+--- /dev/null
++++ b/packages/foundry-module/src/speech-utils.ts
+@@ -0,0 +1,86 @@
++/**
++ * Narration in the table's browsers: when each piece of audio starts, when each word of the chat text
++ * appears. No Foundry globals, so it can be tested. All times are server time in milliseconds
++ * (game.time.serverTime), which every connected browser shares.
++ */
++
++/** How long before the first audio starts, so every browser can fetch and decode it. */
++export const LEAD_MS = 500;
++
++export interface SpeechSegment {
++  text: string;
++  /** server time the audio of this piece starts */
++  at: number;
++  seconds: number;
++}
++
++export interface PlaybackPlan {
++  start: number;
++  nextStart: number;
++}
++
++/**
++ * When a piece of audio should start. The first piece waits `delayMs` (the server asks for a delay when it
++ * generates slower than speech) plus the lead; the next ones follow the previous piece without a gap, or start
++ * after the lead if they arrived late.
++ */
++export function planSegment(previousEnd: number | undefined, now: number, seconds: number, delayMs = 0): PlaybackPlan {
++  const start = previousEnd === undefined ? now + LEAD_MS + Math.max(0, delayMs) : Math.max(previousEnd, now + LEAD_MS);
++  return { start, nextStart: start + seconds * 1000 };
++}
++
++export interface TimedWord {
++  word: string;
++  at: number;
++}
++
++/**
++ * The time each word of a spoken text is reached, spread over its audio by word length, with a longer
++ * pause after a comma and a full stop. Close enough to follow along by eye.
++ */
++export function wordTimes(text: string, at: number, seconds: number): TimedWord[] {
++  const words = text.trim().split(/\s+/).filter(Boolean);
++  if (words.length === 0) return [];
++  const weight = (w: string) => w.replace(/[^\p{L}\p{N}]/gu, '').length + 2 + (/[.!?…]["')\]]*$/.test(w) ? 5 : /[,;:—–-]["')\]]*$/.test(w) ? 2.5 : 0);
++  const weights = words.map(weight);
++  const total = weights.reduce((a, b) => a + b, 0);
++  const out: TimedWord[] = [];
++  let used = 0;
++  for (let i = 0; i < words.length; i++) {
++    out.push({ word: words[i]!, at: Math.round(at + (used / total) * seconds * 1000) });
++    used += weights[i]!;
++  }
++  return out;
++}
++
++export function escapeHtml(text: string): string {
++  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
++}
++
++/** The chat message body: every word in a span that the browser reveals when its time comes. */
++export function segmentsHtml(segments: SpeechSegment[]): string {
++  const spans = segments.flatMap(s => wordTimes(s.text, s.at, s.seconds)).map(w => `<span class="mcp-tts-w" data-at="${w.at}">${escapeHtml(w.word)}</span>`);
++  return `<p class="mcp-tts">${spans.join(' ')}</p>`;
++}
++
++/** The plain text of the segments, for the message content (search, export, clients without the module). */
++export function segmentsText(segments: SpeechSegment[]): string {
++  return segments.map(s => s.text.trim()).filter(Boolean).join(' ');
++}
++
++/** Settings read from the module, in the shape the MCP server expects. */
++export function speechSettingsFrom(get: (key: string) => unknown) {
++  const text = (key: string, fallback: string) => {
++    const v = get(key);
++    return typeof v === 'string' && v.trim() ? v.trim() : fallback;
++  };
++  const speed = Number(get('ttsSpeed'));
++  return {
++    engine: text('ttsEngine', 'kokoro'),
++    voice: text('ttsVoice', 'bm_fable'),
++    language: text('ttsLanguage', 'auto'),
++    speed: Number.isFinite(speed) && speed >= 0.5 && speed <= 2 ? speed : 1,
++    style: text('ttsStyle', 'A deep, measured storyteller narrating a fantasy adventure, calm and a little ominous.'),
++    syncText: get('ttsSyncText') !== false,
++  };
++}
 diff --git a/packages/foundry-module/src/table-utils.ts b/packages/foundry-module/src/table-utils.ts
 new file mode 100644
 index 0000000..209e405
@@ -21469,6 +21959,21 @@ index 0000000..5228f12
 +.mgs-group {
 +  margin: 0;
 +}
+diff --git a/packages/foundry-module/styles/module.css b/packages/foundry-module/styles/module.css
+index 5085b45..738b2e2 100644
+--- a/packages/foundry-module/styles/module.css
++++ b/packages/foundry-module/styles/module.css
+@@ -429,4 +429,8 @@
+ 
+ [data-service-type].hidden {
+   display: none;
+-}
+\ No newline at end of file
++}
++/* Narration: words appear in time with the audio */
++.mcp-tts { margin: 0; }
++.mcp-tts-w { opacity: 0; transition: opacity 0.25s ease; }
++.mcp-tts-w.on { opacity: 1; }
 diff --git a/packages/foundry-module/templates/comfyui-settings.html b/packages/foundry-module/templates/comfyui-settings.html
 index 15d4166..de7aa2e 100644
 --- a/packages/foundry-module/templates/comfyui-settings.html
@@ -21753,16 +22258,17 @@ index 096f27b..903a94e 100644
      "@vitest/coverage-v8": "^3.2.4",
      "esbuild": "^0.19.0",
 diff --git a/packages/mcp-server/src/backend.ts b/packages/mcp-server/src/backend.ts
-index 8967e33..7b1691e 100644
+index 8967e33..2e7ba7a 100644
 --- a/packages/mcp-server/src/backend.ts
 +++ b/packages/mcp-server/src/backend.ts
-@@ -48,6 +48,42 @@ import { DnD5eAddFeatureTool } from './tools/dnd5e/add-feature.js';
+@@ -48,6 +48,43 @@ import { DnD5eAddFeatureTool } from './tools/dnd5e/add-feature.js';
  import { DnD5eNpcTools } from './tools/dnd5e/npc.js';
  import { DnD5eFeaturesFromCompendiumTools } from './tools/dnd5e/features.js';
  import { ChatTools } from './tools/chat.js';
 +import { ChatControlTools } from './tools/chat-control.js';
 +import { UploadTools } from './tools/upload.js';
 +import { ImageGenerationTools } from './tools/image-generation.js';
++import { SpeechTools } from './tools/speech-tools.js';
 +
 +/** Old map generation tools that are no longer offered (see generate-image). */
 +const DISABLED_LEGACY_MAP_TOOLS = ['generate-map', 'check-map-status', 'cancel-map-job'];
@@ -21799,7 +22305,7 @@ index 8967e33..7b1691e 100644
  
  const CONTROL_HOST = '127.0.0.1';
  
-@@ -174,6 +210,22 @@ let comfyuiProcess: ChildProcess | null = null;
+@@ -174,6 +211,22 @@ let comfyuiProcess: ChildProcess | null = null;
  
  let comfyuiStatus: 'stopped' | 'starting' | 'running' | 'error' = 'stopped';
  
@@ -21822,7 +22328,7 @@ index 8967e33..7b1691e 100644
  let lockFd: number | null = null;
  
  function acquireLock(): boolean {
-@@ -350,6 +402,18 @@ async function waitForComfyUIReady(timeoutMs: number = 60000): Promise<void> {
+@@ -350,6 +403,18 @@ async function waitForComfyUIReady(timeoutMs: number = 60000): Promise<void> {
  }
  
  async function startComfyUIService(logger: Logger): Promise<any> {
@@ -21841,7 +22347,7 @@ index 8967e33..7b1691e 100644
    if (comfyuiStatus === 'running') {
      return { status: 'already_running', message: 'ComfyUI service is already running' };
    }
-@@ -472,6 +536,14 @@ async function startComfyUIService(logger: Logger): Promise<any> {
+@@ -472,6 +537,14 @@ async function startComfyUIService(logger: Logger): Promise<any> {
  }
  
  async function stopComfyUIService(logger: Logger): Promise<any> {
@@ -21856,7 +22362,7 @@ index 8967e33..7b1691e 100644
    if (comfyuiStatus === 'stopped') {
      return { status: 'already_stopped', message: 'ComfyUI service is already stopped' };
    }
-@@ -510,7 +582,7 @@ async function checkComfyUIStatus(): Promise<any> {
+@@ -510,7 +583,7 @@ async function checkComfyUIStatus(): Promise<any> {
    // This handles both spawned processes and externally-started instances
  
    try {
@@ -21865,7 +22371,7 @@ index 8967e33..7b1691e 100644
        signal: AbortSignal.timeout(5000),
      });
  
-@@ -520,16 +592,23 @@ async function checkComfyUIStatus(): Promise<any> {
+@@ -520,16 +593,23 @@ async function checkComfyUIStatus(): Promise<any> {
        comfyuiStatus = 'error';
      }
    } catch (error) {
@@ -21891,7 +22397,7 @@ index 8967e33..7b1691e 100644
    };
  }
  
-@@ -1131,7 +1210,7 @@ async function processMapGenerationInBackend(
+@@ -1131,7 +1211,7 @@ async function processMapGenerationInBackend(
      );
  
      logger.error('Background map generation processing failed', { jobId, error });
@@ -21900,7 +22406,7 @@ index 8967e33..7b1691e 100644
  
      // Emit failure to Foundry module
      foundryClient.sendMessage({
-@@ -1195,6 +1274,66 @@ async function startBackend(): Promise<void> {
+@@ -1195,6 +1275,81 @@ async function startBackend(): Promise<void> {
    const compendiumTools = new CompendiumTools({ foundryClient, logger, systemRegistry });
  
    const sceneTools = new SceneTools({ foundryClient, logger });
@@ -21912,6 +22418,21 @@ index 8967e33..7b1691e 100644
 +    getClient: () => {
 +      if (!mapGenerationComfyUIClient) throw new Error('The ComfyUI client is not available');
 +      return mapGenerationComfyUIClient;
++    },
++    applyTarget: raw => {
++      try {
++        applyComfyTarget(raw, mapGenerationComfyUIClient, logger);
++      } catch (error: any) {
++        throw new Error(`Invalid ComfyUI settings: ${error.message}`);
++      }
++    },
++  });
++  const speechTools = new SpeechTools({
++    foundryClient,
++    logger,
++    getClient: () => {
++      if (!mapGenerationComfyUIClient) throw new Error('The ComfyUI client is not available');
++      return mapGenerationComfyUIClient as any;
 +    },
 +    applyTarget: raw => {
 +      try {
@@ -21967,7 +22488,7 @@ index 8967e33..7b1691e 100644
    const playlistTools = new PlaylistTools({ foundryClient, logger });
  
    const actorCreationTools = new ActorCreationTools({ foundryClient, logger });
-@@ -1214,6 +1353,7 @@ async function startBackend(): Promise<void> {
+@@ -1214,6 +1369,7 @@ async function startBackend(): Promise<void> {
    const questCreationTools = new QuestCreationTools({ foundryClient, logger });
  
    const chatTools = new ChatTools({ foundryClient, logger });
@@ -21975,7 +22496,7 @@ index 8967e33..7b1691e 100644
  
    const diceRollTools = new DiceRollTools({ foundryClient, logger });
  
-@@ -1301,6 +1441,13 @@ async function startBackend(): Promise<void> {
+@@ -1301,6 +1457,13 @@ async function startBackend(): Promise<void> {
  
          let result: any;
  
@@ -21989,7 +22510,7 @@ index 8967e33..7b1691e 100644
          switch (message.type) {
            case 'start-comfyui-service':
              result = await startComfyUIService(logger);
-@@ -1317,6 +1464,19 @@ async function startBackend(): Promise<void> {
+@@ -1317,6 +1480,19 @@ async function startBackend(): Promise<void> {
  
              break;
  
@@ -22009,7 +22530,7 @@ index 8967e33..7b1691e 100644
            // Map generation handlers (following existing tool pattern)
            case 'generate-map-request':
              await fs.appendFile(
-@@ -1429,6 +1589,32 @@ async function startBackend(): Promise<void> {
+@@ -1429,6 +1605,33 @@ async function startBackend(): Promise<void> {
  
      ...sceneTools.getToolDefinitions(),
  
@@ -22029,6 +22550,7 @@ index 8967e33..7b1691e 100644
 +    ...revealTools.getToolDefinitions(),
 +    ...combatTools.getToolDefinitions(),
 +    ...rulesTools.getToolDefinitions(),
++    ...speechTools.getToolDefinitions(),
 +    ...pauseTools.getToolDefinitions(),
 +    ...plutoniumTools.getToolDefinitions(),
 +    ...partyTools.getToolDefinitions(),
@@ -22042,7 +22564,7 @@ index 8967e33..7b1691e 100644
      ...actorCreationTools.getToolDefinitions(),
      ...actorManagementTools.getToolDefinitions(),
      ...effectManagementTools.getToolDefinitions(),
-@@ -1442,7 +1628,7 @@ async function startBackend(): Promise<void> {
+@@ -1442,7 +1645,7 @@ async function startBackend(): Promise<void> {
  
      ...questCreationTools.getToolDefinitions(),
  
@@ -22051,7 +22573,7 @@ index 8967e33..7b1691e 100644
  
      ...diceRollTools.getToolDefinitions(),
  
-@@ -1456,7 +1642,11 @@ async function startBackend(): Promise<void> {
+@@ -1456,7 +1659,11 @@ async function startBackend(): Promise<void> {
  
      ...tokenManipulationTools.getToolDefinitions(),
  
@@ -22064,7 +22586,7 @@ index 8967e33..7b1691e 100644
  
      ...playlistTools.getToolDefinitions(),
    ];
-@@ -1661,6 +1851,10 @@ async function startBackend(): Promise<void> {
+@@ -1661,6 +1868,10 @@ async function startBackend(): Promise<void> {
  
                  // Chat tools
  
@@ -22075,7 +22597,7 @@ index 8967e33..7b1691e 100644
                  case 'create-chat-message':
                    result = await chatTools.handleCreateChatMessage(args);
  
-@@ -1764,19 +1958,11 @@ async function startBackend(): Promise<void> {
+@@ -1764,19 +1975,11 @@ async function startBackend(): Promise<void> {
                  // Map generation tools
  
                  case 'generate-map':
@@ -22098,7 +22620,7 @@ index 8967e33..7b1691e 100644
  
                  case 'list-scenes':
                    result = await mapGenerationTools.listScenes(args);
-@@ -1805,6 +1991,148 @@ async function startBackend(): Promise<void> {
+@@ -1805,6 +2008,152 @@ async function startBackend(): Promise<void> {
  
                    break;
  
@@ -22183,6 +22705,10 @@ index 8967e33..7b1691e 100644
 +                  result = await pauseTools.handlePause(args);
 +                  break;
 +
++                case 'speak':
++                  result = await speechTools.handleSpeak(args);
++                  break;
++
 +                case 'rules':
 +                  result = await rulesTools.handleRules(args);
 +                  break;
@@ -22248,7 +22774,7 @@ index 8967e33..7b1691e 100644
                    throw new Error(`Unknown tool: ${name}`);
                }
 diff --git a/packages/mcp-server/src/comfyui-client.ts b/packages/mcp-server/src/comfyui-client.ts
-index 99ac020..f53904a 100644
+index 99ac020..39e087f 100644
 --- a/packages/mcp-server/src/comfyui-client.ts
 +++ b/packages/mcp-server/src/comfyui-client.ts
 @@ -6,6 +6,15 @@ import * as os from 'os';
@@ -22333,7 +22859,7 @@ index 99ac020..f53904a 100644
  
      try {
        this.ws = new WebSocket(wsUrl);
-@@ -387,9 +436,109 @@ export class ComfyUIClient {
+@@ -387,9 +436,170 @@ export class ComfyUIClient {
      throw new Error('ComfyUI service failed to become ready within timeout');
    }
  
@@ -22435,6 +22961,67 @@ index 99ac020..f53904a 100644
 +    throw new Error(`Image generation did not finish within ${Math.round(timeoutMs / 1000)} seconds`);
 +  }
 +
++  /** What ComfyUI says about one node class (its inputs and choices), or null when that node is not installed. */
++  async getNodeInfo(classType: string): Promise<any | null> {
++    try {
++      const response = await axios.get(`${this.baseUrl}/object_info/${encodeURIComponent(classType)}`, { timeout: 15000 });
++      return response.data?.[classType] ?? null;
++    } catch {
++      return null;
++    }
++  }
++
++  /**
++   * Run a workflow to the end and return its first audio file (speech from a text-to-speech node).
++   * Throws with ComfyUI's own words if the job is rejected or fails while running.
++   */
++  async runAudioWorkflow(
++    workflow: Record<string, any>,
++    options: { timeoutMs?: number } = {}
++  ): Promise<{ audio: Buffer; filename: string; promptId: string }> {
++    const timeoutMs = options.timeoutMs ?? 5 * 60 * 1000;
++    const { prompt_id: promptId } = await this.submitWorkflow(workflow);
++    const deadline = Date.now() + timeoutMs;
++
++    while (Date.now() < deadline) {
++      await new Promise(resolve => setTimeout(resolve, 500));
++
++      let entry: any;
++      try {
++        const history = (await axios.get(`${this.baseUrl}/history/${promptId}`, { timeout: 10000 })).data;
++        entry = history?.[promptId];
++      } catch {
++        continue; // a hiccup; the next poll decides
++      }
++      if (!entry) continue;
++
++      if (entry.status?.status_str === 'error') {
++        throw new Error(`ComfyUI failed while generating: ${describeExecutionError(entry)}`);
++      }
++
++      const audio = Object.values<any>(entry.outputs ?? {})
++        .flatMap(output => (Array.isArray(output?.audio) ? output.audio : []))
++        .find((file: any) => file?.filename);
++      if (!audio) {
++        throw new Error('ComfyUI finished but produced no audio');
++      }
++
++      const response = await axios.get(`${this.baseUrl}/view`, {
++        params: { filename: audio.filename, subfolder: audio.subfolder ?? '', type: audio.type ?? 'output' },
++        responseType: 'arraybuffer',
++        timeout: 60000,
++      });
++      return { audio: Buffer.from(response.data), filename: audio.filename, promptId };
++    }
++
++    try {
++      await axios.post(`${this.baseUrl}/interrupt`, {}, { timeout: 5000 });
++    } catch {
++      // Best effort.
++    }
++    throw new Error(`Speech generation did not finish within ${Math.round(timeoutMs / 1000)} seconds`);
++  }
++
    async submitJob(input: ComfyUIWorkflowInput): Promise<ComfyUIJobResponse> {
 -    const workflow = this.buildWorkflow(input);
 +    return this.submitWorkflow(this.buildWorkflow(input));
@@ -22444,7 +23031,7 @@ index 99ac020..f53904a 100644
      try {
        const response = await axios.post(
          `${this.baseUrl}/prompt`,
-@@ -416,7 +565,14 @@ export class ComfyUIClient {
+@@ -416,7 +626,14 @@ export class ComfyUIClient {
          status: responseStatus,
          response: responseData,
        });
@@ -23823,6 +24410,382 @@ index fe400d1..0bdee03 100644
    async markJobFailed(jobId: string, error: string): Promise<void> {
      const job = this.jobs.get(jobId);
      if (!job) {
+diff --git a/packages/mcp-server/src/speech.test.ts b/packages/mcp-server/src/speech.test.ts
+new file mode 100644
+index 0000000..3396c5d
+--- /dev/null
++++ b/packages/mcp-server/src/speech.test.ts
+@@ -0,0 +1,138 @@
++import { describe, expect, it } from 'vitest';
++import {
++  audioSeconds,
++  buildSpeechWorkflow,
++  DEFAULT_SPEECH_SETTINGS,
++  estimateSeconds,
++  kokoroLanguageFor,
++  nodeForEngine,
++  nodeInputDefaults,
++  normalizeSpeechSettings,
++  slugify,
++} from './speech.js';
++
++function flac(sampleRate: number, samples: number): Buffer {
++  const b = Buffer.alloc(60);
++  b.write('fLaC', 0, 'ascii');
++  const o = 18;
++  b[o] = (sampleRate >> 12) & 0xff;
++  b[o + 1] = (sampleRate >> 4) & 0xff;
++  b[o + 2] = ((sampleRate & 15) << 4) | 0; // channels/bits bits left at 0
++  b[o + 3] = (samples / 2 ** 32) & 15;
++  b.writeUInt32BE(samples >>> 0, o + 4);
++  return b;
++}
++
++describe('speech settings', () => {
++  it('fills defaults and rejects odd values', () => {
++    expect(normalizeSpeechSettings(undefined)).toEqual(DEFAULT_SPEECH_SETTINGS);
++    const s = normalizeSpeechSettings({ engine: 'nope', voice: '  Ryan ', speed: 9, syncText: 'x', style: '' });
++    expect(s).toMatchObject({ engine: 'kokoro', voice: 'Ryan', speed: 1, syncText: true });
++    expect(s.style).toBe(DEFAULT_SPEECH_SETTINGS.style);
++    expect(normalizeSpeechSettings({ engine: 'qwen3-design', speed: 1.25, syncText: false })).toMatchObject({ engine: 'qwen3-design', speed: 1.25, syncText: false });
++  });
++  it('picks the Kokoro language from the voice', () => {
++    expect(kokoroLanguageFor('bm_fable')).toBe('English (British)');
++    expect(kokoroLanguageFor('af_heart')).toBe('English');
++    expect(kokoroLanguageFor('ff_siwis')).toBe('French');
++    expect(kokoroLanguageFor('xx')).toBe('English');
++  });
++  it('reads node defaults from object_info', () => {
++    const info = {
++      input: {
++        required: { text: ['STRING', { default: 'hi' }], model_choice: [['0.6B', '1.7B']], speaker: ['KOKORO_SPEAKER'], speed: ['FLOAT', { default: 1 }], mode: [['a', 'b'], { default: 'b' }] },
++        optional: { instruct: ['STRING', { default: '' }] },
++      },
++    };
++    expect(nodeInputDefaults(info)).toEqual({ text: 'hi', model_choice: '0.6B', speed: 1, mode: 'b', instruct: '' });
++  });
++});
++
++describe('speech workflows', () => {
++  const base = { text: 'Hello there.', voice: 'bm_fable', language: 'auto', speed: 1.1, style: 'calm', seed: 7 };
++  it('builds the Kokoro workflow with the language from the voice', () => {
++    const w = buildSpeechWorkflow({ ...base, engine: 'kokoro' });
++    expect(w['1']).toEqual({ class_type: 'KokoroSpeaker', inputs: { speaker_name: 'bm_fable' } });
++    expect(w['2'].inputs).toEqual({ text: 'Hello there.', speaker: ['1', 0], speed: 1.1, lang: 'English (British)' });
++    expect(w['3']).toMatchObject({ class_type: 'SaveAudio', inputs: { audio: ['2', 0] } });
++    expect(buildSpeechWorkflow({ ...base, engine: 'kokoro', language: 'French' })['2'].inputs.lang).toBe('French');
++  });
++  it('builds the Qwen3 custom voice workflow on top of the node defaults', () => {
++    const w = buildSpeechWorkflow({ ...base, engine: 'qwen3-custom', voice: 'Ryan' }, { device: 'auto', top_p: 0.8 });
++    expect(w['1'].class_type).toBe('FB_Qwen3TTSCustomVoice');
++    expect(w['1'].inputs).toMatchObject({ device: 'auto', top_p: 0.8, text: 'Hello there.', speaker: 'Ryan', instruct: 'calm', model_choice: '1.7B', language: 'English', seed: 7, unload_model_after_generate: false });
++    expect(w['2']).toMatchObject({ class_type: 'SaveAudio', inputs: { audio: ['1', 0] } });
++  });
++  it('builds the Qwen3 voice design workflow from the voice description', () => {
++    const w = buildSpeechWorkflow({ ...base, engine: 'qwen3-design', voice: 'A gruff old dwarf' });
++    expect(w['1'].class_type).toBe('FB_Qwen3TTSVoiceDesign');
++    expect(w['1'].inputs.instruct).toBe('A gruff old dwarf');
++    expect(buildSpeechWorkflow({ ...base, engine: 'qwen3-design', voice: '' })['1'].inputs.instruct).toBe('calm');
++  });
++  it('names the node an engine needs', () => {
++    expect(nodeForEngine('kokoro')).toBe('KokoroGenerator');
++    expect(nodeForEngine('qwen3-design')).toBe('FB_Qwen3TTSVoiceDesign');
++    expect(nodeForEngine('qwen3-fast')).toBeNull();
++  });
++});
++
++describe('audio length', () => {
++  it('reads a FLAC header', () => {
++    expect(audioSeconds(flac(24000, 24000 * 13))).toBeCloseTo(13, 3);
++    expect(audioSeconds(flac(44100, 44100 * 2))).toBeCloseTo(2, 3);
++  });
++  it('reads a WAV header', () => {
++    const b = Buffer.alloc(44 + 4);
++    b.write('RIFF', 0, 'ascii');
++    b.write('WAVE', 8, 'ascii');
++    b.writeUInt32LE(48000, 28);
++    b.write('data', 36, 'ascii');
++    b.writeUInt32LE(96000, 40);
++    expect(audioSeconds(b)).toBe(2);
++  });
++  it('returns null for anything else, and estimates from words', () => {
++    expect(audioSeconds(Buffer.from('not audio at all, just some bytes here'.repeat(3)))).toBeNull();
++    expect(estimateSeconds('one two three four five six seven eight nine ten')).toBe(3.8);
++    expect(estimateSeconds('')).toBe(1);
++  });
++  it('makes safe file names', () => {
++    expect(slugify('The Goblin Ambush!')).toBe('the-goblin-ambush');
++    expect(slugify('???')).toBe('speech');
++  });
++});
++
++import { splitSpeechSegments, startDelayMs } from './speech.js';
++
++describe('splitting speech into pieces', () => {
++  it('splits at sentences and joins very short ones to the next', () => {
++    const t = 'You have been on the Triboar Trail for about half a day. As you come around a bend, you spot two dead horses. Roll. For initiative, now please.';
++    expect(splitSpeechSegments(t)).toEqual([
++      'You have been on the Triboar Trail for about half a day.',
++      'As you come around a bend, you spot two dead horses.',
++      'Roll. For initiative, now please.',
++    ]);
++    expect(splitSpeechSegments('  ')).toEqual([]);
++    expect(splitSpeechSegments('One short line.')).toEqual(['One short line.']);
++  });
++  it('cuts a very long sentence at commas', () => {
++    const long = 'The woods press close to the trail here, with a steep embankment and dense thickets on either side, and the wind carries the smell of old smoke and wet leaves through the pines, over the road and the bodies.';
++    const parts = splitSpeechSegments(long, 100);
++    expect(parts.length).toBeGreaterThan(1);
++    expect(parts.every(p => p.length <= 100)).toBe(true);
++    expect(parts.join(' ')).toBe(long);
++  });
++});
++
++describe('start delay', () => {
++  const pieces = ['A'.repeat(50), 'B'.repeat(50), 'C'.repeat(50), 'D'.repeat(50)];
++  it('is zero when generation is faster than speech', () => {
++    expect(startDelayMs(pieces, 4, 1200)).toBe(0); // 0.3 s of waiting per second of speech
++    expect(startDelayMs(['one piece'], 4, 9000)).toBe(0);
++  });
++  it('holds playback back when generation is slower than speech', () => {
++    // 1.7 s of waiting per second of speech, 4 s pieces: piece 4 is ready at 3 * 6.8 = 20.4 s but would play at 3 * 4.12
++    const d = startDelayMs(pieces, 4, 6800);
++    expect(d).toBeGreaterThan(7000);
++    expect(d).toBeLessThan(10000);
++  });
++});
+diff --git a/packages/mcp-server/src/speech.ts b/packages/mcp-server/src/speech.ts
+new file mode 100644
+index 0000000..4f45a00
+--- /dev/null
++++ b/packages/mcp-server/src/speech.ts
+@@ -0,0 +1,226 @@
++/**
++ * Narration: the settings for spoken text, the ComfyUI workflows that make speech from them, and the
++ * length of a finished audio file. Pure, so it can be tested without ComfyUI.
++ * The setting names and defaults are mirrored in the Foundry module (settings.ts); keep the two in step.
++ */
++
++export const SPEECH_ENGINES = ['kokoro', 'qwen3-custom', 'qwen3-design', 'qwen3-fast'] as const;
++export type SpeechEngine = (typeof SPEECH_ENGINES)[number];
++
++export interface SpeechSettings {
++  engine: SpeechEngine;
++  /** kokoro: a voice id such as bm_fable; qwen3-custom and qwen3-fast: a preset such as Ryan; qwen3-design: a description of the voice */
++  voice: string;
++  /** "auto" picks it from the voice (kokoro) or uses English (qwen3) */
++  language: string;
++  speed: number;
++  /** qwen3-custom: how to say it (1.7B model); qwen3-design: the voice description when no voice is given */
++  style: string;
++  /** reveal the words in chat in time with the audio */
++  syncText: boolean;
++}
++
++export const DEFAULT_STYLE = 'A deep, measured storyteller narrating a fantasy adventure, calm and a little ominous.';
++
++export const DEFAULT_SPEECH_SETTINGS: SpeechSettings = {
++  engine: 'kokoro',
++  voice: 'bm_fable',
++  language: 'auto',
++  speed: 1,
++  style: DEFAULT_STYLE,
++  syncText: true,
++};
++
++/** Settings from whatever the module sends, with defaults for anything missing or odd. */
++export function normalizeSpeechSettings(raw: unknown): SpeechSettings {
++  const r = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
++  const engine = SPEECH_ENGINES.includes(r.engine as SpeechEngine) ? (r.engine as SpeechEngine) : DEFAULT_SPEECH_SETTINGS.engine;
++  const text = (v: unknown, fallback: string) => (typeof v === 'string' && v.trim() ? v.trim() : fallback);
++  const speed = Number(r.speed);
++  return {
++    engine,
++    voice: text(r.voice, DEFAULT_SPEECH_SETTINGS.voice),
++    language: text(r.language, DEFAULT_SPEECH_SETTINGS.language),
++    speed: Number.isFinite(speed) && speed >= 0.5 && speed <= 2 ? speed : 1,
++    style: text(r.style, DEFAULT_STYLE),
++    syncText: typeof r.syncText === 'boolean' ? r.syncText : true,
++  };
++}
++
++const KOKORO_LANGUAGES: Record<string, string> = {
++  a: 'English',
++  b: 'English (British)',
++  j: 'Japanese',
++  z: 'Mandarin Chinese',
++  e: 'Spanish',
++  f: 'French',
++  h: 'Hindi',
++  i: 'Italian',
++  p: 'Brazilian Portuguese',
++};
++
++/** The Kokoro language for a voice id, from its first letter (af_heart is American English, bm_fable British). */
++export function kokoroLanguageFor(voice: string): string {
++  return KOKORO_LANGUAGES[voice.trim().charAt(0).toLowerCase()] ?? 'English';
++}
++
++export interface SpeechRequest {
++  engine: SpeechEngine;
++  text: string;
++  voice: string;
++  language: string;
++  speed: number;
++  style: string;
++  seed: number;
++}
++
++/** Defaults of a node's inputs, as ComfyUI's object_info lists them: the first choice of a list, or the declared default. */
++export function nodeInputDefaults(info: any): Record<string, unknown> {
++  const spec = { ...(info?.input?.required ?? {}), ...(info?.input?.optional ?? {}) } as Record<string, any[]>;
++  const out: Record<string, unknown> = {};
++  for (const [key, value] of Object.entries(spec)) {
++    const [type, options] = value;
++    if (Array.isArray(type)) out[key] = options?.default ?? type[0];
++    else if (options && typeof options === 'object' && 'default' in options) out[key] = options.default;
++  }
++  return out;
++}
++
++export const SPEECH_FILENAME_PREFIX = 'audio/claude-speech';
++
++/**
++ * The ComfyUI workflow that speaks the text. `defaults` are the Qwen3 node's own input defaults (read from
++ * ComfyUI), so the workflow stays valid when the node gains or loses options.
++ */
++export function buildSpeechWorkflow(request: SpeechRequest, defaults: Record<string, unknown> = {}): Record<string, any> {
++  if (request.engine === 'qwen3-fast') throw new Error('qwen3-fast streams from its own server and has no ComfyUI workflow');
++  const save = (from: string) => ({ class_type: 'SaveAudio', inputs: { audio: [from, 0], filename_prefix: SPEECH_FILENAME_PREFIX } });
++  const language = request.language === 'auto' ? undefined : request.language;
++
++  if (request.engine === 'kokoro') {
++    return {
++      '1': { class_type: 'KokoroSpeaker', inputs: { speaker_name: request.voice } },
++      '2': {
++        class_type: 'KokoroGenerator',
++        inputs: { text: request.text, speaker: ['1', 0], speed: request.speed, lang: language ?? kokoroLanguageFor(request.voice) },
++      },
++      '3': save('2'),
++    };
++  }
++
++  const common = { ...defaults, text: request.text, model_choice: '1.7B', language: language ?? 'English', seed: request.seed, unload_model_after_generate: false };
++  if (request.engine === 'qwen3-custom') {
++    return {
++      '1': { class_type: 'FB_Qwen3TTSCustomVoice', inputs: { ...common, speaker: request.voice, instruct: request.style } },
++      '2': save('1'),
++    };
++  }
++  return {
++    '1': { class_type: 'FB_Qwen3TTSVoiceDesign', inputs: { ...common, instruct: request.voice || request.style } },
++    '2': save('1'),
++  };
++}
++
++/** The ComfyUI node that must exist for an engine (none for qwen3-fast, which uses the streaming server). */
++export function nodeForEngine(engine: SpeechEngine): string | null {
++  if (engine === 'qwen3-fast') return null;
++  return engine === 'kokoro' ? 'KokoroGenerator' : engine === 'qwen3-custom' ? 'FB_Qwen3TTSCustomVoice' : 'FB_Qwen3TTSVoiceDesign';
++}
++
++/** Seconds of audio in a FLAC or WAV file, or null when it cannot be read. */
++export function audioSeconds(buf: Buffer): number | null {
++  try {
++    if (buf.length > 42 && buf.toString('ascii', 0, 4) === 'fLaC') {
++      const o = 18; // STREAMINFO: sample rate is 20 bits at byte 18, total samples 36 bits after it
++      const rate = (buf[o]! << 12) | (buf[o + 1]! << 4) | (buf[o + 2]! >> 4);
++      const total = (buf[o + 3]! & 15) * 2 ** 32 + buf.readUInt32BE(o + 4);
++      return rate > 0 && total > 0 ? total / rate : null;
++    }
++    if (buf.length > 44 && buf.toString('ascii', 0, 4) === 'RIFF' && buf.toString('ascii', 8, 12) === 'WAVE') {
++      const byteRate = buf.readUInt32LE(28);
++      let at = 12;
++      while (at + 8 <= buf.length) {
++        const id = buf.toString('ascii', at, at + 4);
++        const size = buf.readUInt32LE(at + 4);
++        if (id === 'data') return byteRate > 0 ? size / byteRate : null;
++        at += 8 + size + (size % 2);
++      }
++    }
++  } catch {
++    // Unreadable: the caller estimates from the text.
++  }
++  return null;
++}
++
++/** A rough speaking time from the words, for when the file length cannot be read. */
++export function estimateSeconds(text: string): number {
++  const words = text.trim().split(/\s+/).filter(Boolean).length;
++  return Math.max(1, Math.round(words * 0.38 * 10) / 10);
++}
++
++export function slugify(text: string, max = 40): string {
++  return (
++    text
++      .toLowerCase()
++      .replace(/[^a-z0-9]+/g, '-')
++      .replace(/^-+|-+$/g, '')
++      .slice(0, max)
++      .replace(/-+$/g, '') || 'speech'
++  );
++}
++
++/**
++ * Split text into pieces to speak one after the other, so the first one can start playing while the rest is
++ * still being generated: sentences, a long sentence cut at commas, very short sentences joined to the next.
++ */
++export function splitSpeechSegments(text: string, maxChars = 200): string[] {
++  const clean = text.replace(/\s+/g, ' ').trim();
++  if (!clean) return [];
++  const sentences = clean.split(/(?<=[.!?…])\s+(?=[^\s])/).map(s => s.trim()).filter(Boolean);
++
++  const pieces: string[] = [];
++  for (const sentence of sentences) {
++    if (sentence.length <= maxChars) {
++      pieces.push(sentence);
++      continue;
++    }
++    let rest = sentence;
++    while (rest.length > maxChars) {
++      const cut = Math.max(rest.lastIndexOf(', ', maxChars), rest.lastIndexOf('; ', maxChars), rest.lastIndexOf(' ', maxChars));
++      const at = cut > maxChars * 0.4 ? cut + 1 : maxChars;
++      pieces.push(rest.slice(0, at).trim());
++      rest = rest.slice(at).trim();
++    }
++    if (rest) pieces.push(rest);
++  }
++
++  // A very short piece ("Roll for initiative.") sounds abrupt alone and costs a whole generation: join it to the next.
++  const joined: string[] = [];
++  for (const piece of pieces) {
++    const last = joined[joined.length - 1];
++    if (last !== undefined && last.length < 28 && last.length + piece.length + 1 <= maxChars) joined[joined.length - 1] = `${last} ${piece}`;
++    else joined.push(piece);
++  }
++  return joined;
++}
++
++/**
++ * How long to hold the first piece back so playback never runs dry while the rest is generated.
++ * `firstReadyMs` is how long the first piece took to be ready to play, `firstSeconds` its audio length;
++ * later pieces are assumed to take as long per second of audio. Returns milliseconds (0 when generation is faster than speech).
++ */
++export function startDelayMs(pieces: string[], firstSeconds: number, firstReadyMs: number, gapMs = 120): number {
++  if (pieces.length < 2 || firstSeconds <= 0) return 0;
++  const perSecond = firstReadyMs / 1000 / firstSeconds; // seconds of waiting per second of speech
++  const first = pieces[0]!.length;
++  const seconds = pieces.map(p => (firstSeconds * p.length) / first); // estimated length of each piece
++  let ready = 0; // when piece k is ready, counted from when piece 1 was ready
++  let plays = 0; // when piece k would start playing if playback began at 0
++  let delay = 0;
++  for (let k = 1; k < pieces.length; k++) {
++    plays += seconds[k - 1]! + gapMs / 1000;
++    ready += seconds[k]! * perSecond;
++    delay = Math.max(delay, ready - plays);
++  }
++  return Math.max(0, Math.round((delay + (delay > 0 ? 0.4 : 0)) * 1000));
++}
 diff --git a/packages/mcp-server/src/tools/actor-art-tools.test.ts b/packages/mcp-server/src/tools/actor-art-tools.test.ts
 new file mode 100644
 index 0000000..771b1d1
@@ -36642,6 +37605,587 @@ index 0000000..1aafc44
 +    return result;
 +  }
 +}
+diff --git a/packages/mcp-server/src/tools/speech-tools.test.ts b/packages/mcp-server/src/tools/speech-tools.test.ts
+new file mode 100644
+index 0000000..72c9a65
+--- /dev/null
++++ b/packages/mcp-server/src/tools/speech-tools.test.ts
+@@ -0,0 +1,166 @@
++import { describe, expect, it, vi } from 'vitest';
++import { SpeechTools } from './speech-tools.js';
++
++function flac(seconds: number): Buffer {
++  const b = Buffer.alloc(60);
++  b.write('fLaC', 0, 'ascii');
++  const rate = 24000;
++  const samples = rate * seconds;
++  b[18] = (rate >> 12) & 0xff;
++  b[19] = (rate >> 4) & 0xff;
++  b[20] = (rate & 15) << 4;
++  b.writeUInt32BE(samples, 22);
++  return b;
++}
++
++const KOKORO_VOICES = ['af_heart', 'bm_fable', 'am_fenrir'];
++
++function make(settings: any = {}, opts: { nodes?: string[]; audio?: Buffer; uploadError?: string } = {}) {
++  const nodes = opts.nodes ?? ['KokoroGenerator', 'KokoroSpeaker', 'FB_Qwen3TTSCustomVoice', 'FB_Qwen3TTSVoiceDesign'];
++  const query = vi.fn(async (method: string, data: any) => {
++    if (method === 'foundry-mcp-bridge.get-speech-settings') return { success: true, target: { mode: 'builtin' }, settings };
++    if (method === 'foundry-mcp-bridge.upload-file') return opts.uploadError ? { success: false, error: opts.uploadError } : { success: true, path: `worlds/w/uploads/generated/speech/${data.filename}` };
++    if (method === 'foundry-mcp-bridge.speak') return { success: true, messageId: 'm1' };
++    return { success: true };
++  });
++  const runAudioWorkflow = vi.fn(async () => ({ audio: opts.audio ?? flac(12), filename: 'claude-speech_00001_.flac', promptId: 'p1' }));
++  const getNodeInfo = vi.fn(async (name: string) => {
++    if (!nodes.includes(name)) return null;
++    if (name === 'KokoroSpeaker') return { input: { required: { speaker_name: [KOKORO_VOICES] } } };
++    if (name === 'FB_Qwen3TTSCustomVoice') return { input: { required: { text: ['STRING', { default: '' }], speaker: [['Aiden', 'Ryan']], device: [['auto', 'cuda']] } } };
++    return { input: { required: { text: ['STRING', { default: '' }] } } };
++  });
++  const applyTarget = vi.fn();
++  const logger: any = { info: vi.fn(), debug: vi.fn(), error: vi.fn(), warn: vi.fn(), child: () => logger };
++  const tools = new SpeechTools({ foundryClient: { query } as any, logger, getClient: () => ({ runAudioWorkflow, getNodeInfo, getBaseUrl: () => 'http://comfy:8188' }), applyTarget });
++  return { tools, query, runAudioWorkflow, getNodeInfo, applyTarget };
++}
++
++describe('speak tool', () => {
++  it('is exposed', () => {
++    const def = make().tools.getToolDefinitions()[0]!;
++    expect(def.name).toBe('speak');
++    expect(def.description).toContain('not when it finishes playing');
++  });
++
++  it('generates with the default Kokoro setting, uploads the audio and plays it with the text', async () => {
++    const { tools, query, runAudioWorkflow, applyTarget } = make({ engine: 'kokoro', voice: 'bm_fable' });
++    const r = await tools.handleSpeak({ text: 'The woods press close.', speaker_name: 'Narrator' });
++    expect(applyTarget).toHaveBeenCalledWith({ mode: 'builtin' });
++    const wf = (runAudioWorkflow.mock.calls[0] as any[])[0];
++    expect(wf['1'].inputs.speaker_name).toBe('bm_fable');
++    expect(wf['2'].inputs).toMatchObject({ text: 'The woods press close.', lang: 'English (British)', speed: 1 });
++    const upload = query.mock.calls.find(c => c[0] === 'foundry-mcp-bridge.upload-file')![1] as any;
++    expect(upload.filename).toMatch(/^the-woods-press-close-[a-z0-9]+-0\.flac$/);
++    expect(upload.folder).toBe('generated/speech');
++    expect(typeof upload.imageData).toBe('string');
++    const queued = query.mock.calls.find(c => c[1]?.action === 'queue')![1] as any;
++    expect(queued).toMatchObject({
++      index: 0,
++      path: expect.stringContaining('generated/speech/the-woods-press-close-'),
++      text: 'The woods press close.',
++      audioSeconds: 12,
++      speaker: 'Narrator',
++      sync: true,
++      startDelayMs: 0,
++    });
++    expect(query).toHaveBeenLastCalledWith('foundry-mcp-bridge.speak', { action: 'end', id: queued.id });
++    expect(r).toMatchObject({ success: true, engine: 'kokoro', voice: 'bm_fable', audio_seconds: 12, message_id: 'm1' });
++  });
++
++  it('lets the call override the engine, voice and chat, and uses the Qwen3 node defaults', async () => {
++    const { tools, query, runAudioWorkflow } = make({ engine: 'kokoro', voice: 'bm_fable', syncText: true });
++    await tools.handleSpeak({ text: 'Hold!', engine: 'qwen3-custom', voice: 'ryan', style: 'Stern.', chat: false, seed: 5 });
++    const wf = (runAudioWorkflow.mock.calls[0] as any[])[0];
++    expect(wf['1'].class_type).toBe('FB_Qwen3TTSCustomVoice');
++    expect(wf['1'].inputs).toMatchObject({ speaker: 'Ryan', instruct: 'Stern.', device: 'auto', seed: 5 });
++    expect((query.mock.calls.find(c => c[1]?.action === 'queue')![1] as any).sync).toBe(false);
++  });
++
++  it('falls back to a voice that suits the engine when the setting is for another one', async () => {
++    const { tools, runAudioWorkflow } = make({ engine: 'qwen3-custom', voice: 'Ryan' });
++    await tools.handleSpeak({ text: 'Hi.', engine: 'kokoro' });
++    expect((runAudioWorkflow.mock.calls[0] as any[])[0]['1'].inputs.speaker_name).toBe('bm_fable');
++  });
++
++  it('explains a missing node, an unknown voice, an empty text and a failed upload', async () => {
++    await expect(make({}, { nodes: [] }).tools.handleSpeak({ text: 'Hi.' })).rejects.toThrow('KokoroGenerator');
++    await expect(make().tools.handleSpeak({ text: 'Hi.', voice: 'nobody' })).rejects.toThrow('af_heart, bm_fable, am_fenrir');
++    await expect(make().tools.handleSpeak({})).rejects.toThrow('needs text');
++    await expect(make({}, { uploadError: 'too big' }).tools.handleSpeak({ text: 'Hi.' })).rejects.toThrow('uploading part 1 to Foundry failed: too big');
++  });
++
++  it('estimates the length when the audio cannot be read', async () => {
++    const { tools } = make({}, { audio: Buffer.from('xx'.repeat(50)) });
++    const r = await tools.handleSpeak({ text: 'one two three four five six seven eight nine ten' });
++    expect(r).toMatchObject({ audio_seconds: 3.8, note: expect.stringContaining('estimated') });
++  });
++
++  it('describes engines and voices, and stops the narration', async () => {
++    vi.stubGlobal('fetch', vi.fn(async () => new Response('{}', { status: 404 })));
++    const { tools, query } = make({ engine: 'kokoro' }, { nodes: ['KokoroGenerator', 'KokoroSpeaker'] });
++    const d = await tools.handleSpeak({ action: 'describe' });
++    expect(d.engines.kokoro).toEqual({ available: true, voices: KOKORO_VOICES });
++    expect(d.engines['qwen3-custom']).toEqual({ available: false, needs: 'FB_Qwen3TTSCustomVoice' });
++    await tools.handleSpeak({ action: 'stop' });
++    expect(query).toHaveBeenLastCalledWith('foundry-mcp-bridge.speak', { action: 'stop' });
++    vi.unstubAllGlobals();
++  });
++
++  it('rejects bad arguments', async () => {
++    await expect(make().tools.handleSpeak({ text: 'x', speed: 5 })).rejects.toThrow();
++    await expect(make().tools.handleSpeak({ text: 'x'.repeat(2000) })).rejects.toThrow();
++    await expect(make().tools.handleSpeak({ engine: 'robot', text: 'x' })).rejects.toThrow();
++  });
++});
++
++describe('qwen3-fast engine', () => {
++  const RATE = 24000;
++  const half = () => Buffer.alloc(RATE); // 0.5 s of 16-bit mono
++  function stubServer(chunks: Buffer[], speakers = ['Ryan', 'Serena']) {
++    const calls: any[] = [];
++    vi.stubGlobal('fetch', vi.fn(async (url: string, init?: any) => {
++      calls.push({ url, body: init?.body ? JSON.parse(init.body) : undefined });
++      if (url.endsWith('/claude-tts/voices')) return new Response(JSON.stringify({ speakers, languages: ['English'] }), { status: 200 });
++      const body = new ReadableStream({ start(c) { for (const ch of chunks) c.enqueue(new Uint8Array(ch)); c.close(); } });
++      return new Response(body, { status: 200, headers: { 'x-sample-rate': String(RATE) } });
++    }));
++    return calls;
++  }
++
++  it('streams a sentence into growing pieces with the text shared out', async () => {
++    const calls = stubServer([half(), half(), half(), half(), half(), half()]);
++    const { tools, query, runAudioWorkflow } = make({ engine: 'qwen3-fast', voice: 'Ryan' });
++    const r = await tools.handleSpeak({ text: 'Four goblins wait in the woods today.', style: 'Grim.' });
++    expect(runAudioWorkflow).not.toHaveBeenCalled();
++    const speakCall = calls.find(c => c.url.endsWith('/claude-tts/speak'))!;
++    expect(speakCall.url).toBe('http://comfy:8188/claude-tts/speak');
++    expect(speakCall.body).toMatchObject({ text: 'Four goblins wait in the woods today.', speaker: 'Ryan', instruct: 'Grim.', language: 'English', mode: 'custom' });
++    const queued = query.mock.calls.filter(c => c[1]?.action === 'queue').map(c => c[1] as any);
++    expect(queued.map(q => q.audioSeconds)).toEqual([1, 1.5, 0.5]);
++    expect(queued.map(q => q.index)).toEqual([0, 1, 2]);
++    expect(queued.map(q => q.text).join(' ')).toBe('Four goblins wait in the woods today.');
++    expect(queued[0].path).toMatch(/.wav$/);
++    expect(query).toHaveBeenLastCalledWith('foundry-mcp-bridge.speak', { action: 'end', id: queued[0].id });
++    expect(r).toMatchObject({ success: true, engine: 'qwen3-fast', voice: 'Ryan', parts: 3, audio_seconds: 3 });
++    vi.unstubAllGlobals();
++  });
++
++  it('rejects an unknown voice and explains a missing server', async () => {
++    stubServer([half()]);
++    await expect(make({ engine: 'qwen3-fast' }).tools.handleSpeak({ text: 'Hi there.', voice: 'nobody' })).rejects.toThrow('Ryan, Serena');
++    vi.stubGlobal('fetch', vi.fn(async () => new Response('{}', { status: 404 })));
++    await expect(make({ engine: 'qwen3-fast' }).tools.handleSpeak({ text: 'Hi there.' })).rejects.toThrow('claude_tts');
++    vi.unstubAllGlobals();
++  });
++
++  it('is listed by describe, available or not', async () => {
++    stubServer([half()]);
++    const d = await make({ engine: 'qwen3-fast' }).tools.handleSpeak({ action: 'describe' });
++    expect(d.engines['qwen3-fast']).toMatchObject({ available: true, voices: ['Ryan', 'Serena'] });
++    vi.stubGlobal('fetch', vi.fn(async () => new Response('{}', { status: 503 })));
++    const e = await make({ engine: 'qwen3-fast' }).tools.handleSpeak({ action: 'describe' });
++    expect(e.engines['qwen3-fast']).toMatchObject({ available: false });
++    vi.unstubAllGlobals();
++  });
++});
+diff --git a/packages/mcp-server/src/tools/speech-tools.ts b/packages/mcp-server/src/tools/speech-tools.ts
+new file mode 100644
+index 0000000..2e9a203
+--- /dev/null
++++ b/packages/mcp-server/src/tools/speech-tools.ts
+@@ -0,0 +1,403 @@
++import { randomInt } from 'crypto';
++import { z } from 'zod';
++import { FoundryClient } from '../foundry-client.js';
++import { Logger } from '../logger.js';
++import {
++  audioSeconds,
++  buildSpeechWorkflow,
++  estimateSeconds,
++  nodeForEngine,
++  nodeInputDefaults,
++  normalizeSpeechSettings,
++  slugify,
++  SPEECH_ENGINES,
++  splitSpeechSegments,
++  startDelayMs,
++  type SpeechEngine,
++} from '../speech.js';
++import { getServerJson, pcmSeconds, pcmToWav, sliceWords, streamSpeech } from '../tts-stream.js';
++
++/** The part of the ComfyUI client that speech needs. */
++export interface SpeechComfyClient {
++  runAudioWorkflow(workflow: Record<string, any>, options?: { timeoutMs?: number }): Promise<{ audio: Buffer; filename: string; promptId: string }>;
++  getNodeInfo(classType: string): Promise<any | null>;
++  /** The address of the ComfyUI the client talks to, which also carries the streaming narration server. */
++  getBaseUrl(): string;
++}
++
++export interface SpeechToolsOptions {
++  foundryClient: FoundryClient;
++  logger: Logger;
++  /** The ComfyUI client, already pointed at the chosen ComfyUI by applyTarget. */
++  getClient: () => SpeechComfyClient;
++  /** Point the client at the ComfyUI the module's settings choose. */
++  applyTarget: (rawTarget: unknown) => void;
++}
++
++const UPLOAD_TIMEOUT_MS = 120000;
++const SPEECH_TIMEOUT_MS = 5 * 60 * 1000;
++
++/**
++ * Streamed audio is queued in growing pieces: the first one is small so playback starts at once, and each
++ * next one is at most about 1.4 times the last, so generating it (about 1.6 times faster than speech) is done before the previous one has played.
++ */
++const FIRST_SEGMENT_SECONDS = 0.9;
++const MAX_SEGMENT_SECONDS = 4;
++function nextSegmentSeconds(last: number): number {
++  return Math.min(MAX_SEGMENT_SECONDS, Math.round(last * 1.4 * 100) / 100);
++}
++
++const schema = z
++  .object({
++    action: z.enum(['say', 'describe', 'stop']).optional(),
++    text: z.string().min(1).max(1500).optional(),
++    voice: z.string().min(1).max(300).optional(),
++    style: z.string().min(1).max(300).optional(),
++    language: z.string().min(1).max(40).optional(),
++    speed: z.number().min(0.5).max(2).optional(),
++    engine: z.enum(SPEECH_ENGINES).optional(),
++    speaker_name: z.string().min(1).max(60).optional(),
++    chat: z.boolean().optional(),
++    seed: z.number().int().min(0).optional(),
++  })
++  .strict();
++
++export class SpeechTools {
++  private foundryClient: FoundryClient;
++  private logger: Logger;
++  private getClient: () => SpeechComfyClient;
++  private applyTarget: (raw: unknown) => void;
++
++  constructor(options: SpeechToolsOptions) {
++    this.foundryClient = options.foundryClient;
++    this.logger = options.logger.child({ component: 'SpeechTools' });
++    this.getClient = options.getClient;
++    this.applyTarget = options.applyTarget;
++  }
++
++  getToolDefinitions() {
++    return [
++      {
++        name: 'speak',
++        description:
++          'Narrate or voice a line aloud for the whole table. It makes the speech with the GM\'s ComfyUI (the same one used for images), uploads the audio to the Foundry world, plays it for every connected player, and shows the words in the chat revealed in time with the audio. ' +
++          'say {text, voice?, style?, language?, speed?, engine?, speaker_name?, chat?} speaks the text (up to 1500 characters, a paragraph or two): the engine, voice, style and speed default to what the GM set in the module settings (Narration). ' +
++          'Engines: qwen3-fast (the best voice, streams while it generates: starts within about a second; needs the claude_tts node in ComfyUI; presets such as Ryan, "style" says how to speak), kokoro (fast, a few seconds per paragraph; voice is an id like bm_fable or af_heart), qwen3-custom (slower, preset voices such as Ryan or Serena, "style" says how to speak), qwen3-design (slowest; "voice" is a description such as "a gruff old dwarf with a Scottish accent"). ' +
++          'speaker_name is the label in the chat (default Narrator, or the NPC\'s name); chat:false plays the audio without the chat text. ' +
++          'The text is spoken sentence by sentence: the first sentence starts playing as soon as it is ready (about a second with kokoro or qwen3-fast) while the rest is generated, and each sentence appears in the chat as it is spoken. The call returns when everything is queued, not when it finishes playing. Write text to be heard: no stage directions, no markup, and spell out what should be said. Do not speak secrets or GM notes. ' +
++          'describe shows the settings, which engines this ComfyUI can run and their voices; stop silences the narration now. Needs ComfyUI running with a text-to-speech node (Kokoro or Qwen3-TTS) and Allow Write Operations.',
++        inputSchema: {
++          type: 'object',
++          properties: {
++            action: { type: 'string', enum: ['say', 'describe', 'stop'], description: 'say (default), describe or stop' },
++            text: { type: 'string', description: 'say: what to speak (max 1500 characters)' },
++            voice: { type: 'string', description: 'say: the voice (kokoro id, qwen3 preset, or for qwen3-design a description). Default: the setting' },
++            style: { type: 'string', description: 'say: how to speak it (qwen3-custom), or the voice description for qwen3-design when voice is empty' },
++            language: { type: 'string', description: 'say: language, or auto (default)' },
++            speed: { type: 'number', description: 'say: kokoro speed, 0.5 to 2 (default 1)' },
++            engine: { type: 'string', enum: ['qwen3-fast', 'kokoro', 'qwen3-custom', 'qwen3-design'], description: 'say: override the engine' },
++            speaker_name: { type: 'string', description: 'say: the name shown in the chat (default Narrator)' },
++            chat: { type: 'boolean', description: 'say: show the words in chat in time with the audio (default: the setting)' },
++            seed: { type: 'number', description: 'say: a fixed seed for qwen3 engines, to repeat a take' },
++          },
++          additionalProperties: false,
++        },
++      },
++    ];
++  }
++
++  async handleSpeak(args: unknown): Promise<any> {
++    const a = schema.parse(args ?? {});
++    const action = a.action ?? 'say';
++    if (action === 'stop') return this.foundryClient.query('foundry-mcp-bridge.speak', { action: 'stop' });
++    if (action === 'describe') return this.describe();
++    return this.say(a);
++  }
++
++  private async readSettings(): Promise<{ target: unknown; settings: ReturnType<typeof normalizeSpeechSettings> }> {
++    const result = await this.foundryClient.query('foundry-mcp-bridge.get-speech-settings', {});
++    if (result?.success === false || result?.error) throw new Error(result.error || 'Could not read the narration settings');
++    return { target: result?.target, settings: normalizeSpeechSettings(result?.settings) };
++  }
++
++  private async say(a: z.infer<typeof schema>): Promise<any> {
++    if (!a.text?.trim()) throw new Error('say needs text');
++    const { target, settings } = await this.readSettings();
++    this.applyTarget(target);
++    const client = this.getClient();
++
++    const engine: SpeechEngine = a.engine ?? settings.engine;
++    if (engine === 'qwen3-fast') return this.sayFast(a, settings, client);
++    const node = nodeForEngine(engine)!;
++    const info = await client.getNodeInfo(node);
++    if (!info) {
++      throw new Error(
++        `The "${engine}" engine needs the ComfyUI node ${node}, which this ComfyUI does not have. ` +
++          (engine === 'kokoro' ? 'Install comfyui-kokoro, or' : 'Install ComfyUI-Qwen-TTS, or') +
++          ' pick another engine in the module settings (Narration) or with the engine argument.'
++      );
++    }
++
++    // A voice from another engine (the setting is for kokoro, the call asks for qwen3) falls back to what suits the engine.
++    const voice = a.voice ?? (engine === settings.engine ? settings.voice : engine === 'kokoro' ? 'bm_fable' : engine === 'qwen3-custom' ? 'Ryan' : '');
++    const checked = await this.checkVoice(engine, voice, client);
++    const defaults = engine === 'kokoro' ? {} : nodeInputDefaults(info);
++    const seed = a.seed ?? randomInt(0, 2 ** 31 - 1);
++    const text = a.text.trim();
++    const pieces = splitSpeechSegments(text);
++    const utterance = `${Date.now().toString(36)}${randomInt(0, 1679616).toString(36)}`;
++    const speaker = a.speaker_name ?? 'Narrator';
++    const sync = a.chat ?? settings.syncText;
++
++    this.logger.info('Generating speech', { engine, voice: checked, characters: text.length, pieces: pieces.length });
++    const started = Date.now();
++
++    // One piece at a time: each is uploaded and queued in Foundry as soon as it exists, so the first can start
++    // playing while the rest is still being made.
++    let firstAudioMs: number | undefined;
++    let bufferMs = 0;
++    let totalAudio = 0;
++    let lengthsKnown = true;
++    let lastPath: string | undefined;
++    let messageId: string | undefined;
++    for (let index = 0; index < pieces.length; index++) {
++      const piece = pieces[index]!;
++      const pieceStart = Date.now();
++      const request = { engine, text: piece, voice: checked, language: a.language ?? settings.language, speed: a.speed ?? settings.speed, style: a.style ?? settings.style, seed: seed + index };
++      let result;
++      try {
++        result = await client.runAudioWorkflow(buildSpeechWorkflow(request, defaults), { timeoutMs: SPEECH_TIMEOUT_MS });
++      } catch (error) {
++        await this.stopQuietly();
++        throw new Error(`Speech generation failed${index > 0 ? ` at part ${index + 1} of ${pieces.length}` : ''}: ${error instanceof Error ? error.message : String(error)}`);
++      }
++      const length = audioSeconds(result.audio);
++      if (length === null) lengthsKnown = false;
++      const seconds = length ?? estimateSeconds(piece);
++      totalAudio += seconds;
++
++      const ext = result.filename.split('.').pop()?.toLowerCase() || 'flac';
++      const filename = `${slugify(piece, 30)}-${utterance}-${index}.${ext}`;
++      let uploaded: any;
++      try {
++        uploaded = await this.foundryClient.query(
++          'foundry-mcp-bridge.upload-file',
++          { filename, imageData: result.audio.toString('base64'), folder: 'generated/speech' },
++          UPLOAD_TIMEOUT_MS
++        );
++        if (uploaded?.success === false) throw new Error(uploaded.error || 'Upload was refused');
++      } catch (error) {
++        await this.stopQuietly();
++        throw new Error(`The speech was generated but uploading part ${index + 1} to Foundry failed: ${error instanceof Error ? error.message : String(error)}`);
++      }
++      lastPath = uploaded?.path;
++
++      if (index === 0) {
++        firstAudioMs = Date.now() - started;
++        bufferMs = startDelayMs(pieces, seconds, Date.now() - pieceStart);
++      }
++      const queued = await this.foundryClient.query('foundry-mcp-bridge.speak', {
++        action: 'queue',
++        id: utterance,
++        index,
++        path: uploaded?.path,
++        text: piece,
++        audioSeconds: seconds,
++        speaker,
++        sync,
++        ...(index === 0 ? { startDelayMs: bufferMs } : {}),
++      });
++      if (queued?.success === false) {
++        await this.stopQuietly();
++        throw new Error(queued.error || 'Foundry could not play the speech');
++      }
++      if (queued?.messageId) messageId = queued.messageId;
++    }
++    await this.foundryClient.query('foundry-mcp-bridge.speak', { action: 'end', id: utterance });
++
++    return {
++      success: true,
++      engine,
++      voice: checked || undefined,
++      parts: pieces.length,
++      first_audio_ready_in_seconds: Math.round((firstAudioMs ?? 0) / 100) / 10,
++      generated_in_seconds: Math.round((Date.now() - started) / 100) / 10,
++      audio_seconds: Math.round(totalAudio * 10) / 10,
++      ...(bufferMs > 0 ? { buffered_seconds: Math.round(bufferMs / 100) / 10, note: 'This engine generates slower than speech, so the start was held back to avoid gaps' } : {}),
++      ...(lengthsKnown ? {} : { note: 'Some audio lengths were estimated from the words' }),
++      path: lastPath,
++      ...(messageId ? { message_id: messageId } : {}),
++      playing: 'The audio is queued in Foundry and plays on its own; this call returns when everything is queued, not when it finishes playing',
++    };
++  }
++
++  /** The streaming engine: sentence by sentence, each streamed from the narration server and queued in Foundry in growing pieces. */
++  private async sayFast(a: z.infer<typeof schema>, settings: ReturnType<typeof normalizeSpeechSettings>, client: SpeechComfyClient): Promise<any> {
++    const baseUrl = client.getBaseUrl();
++    let voices: any;
++    try {
++      voices = await getServerJson(baseUrl, '/voices');
++    } catch (error) {
++      throw new Error(`The qwen3-fast engine needs the claude_tts node in ComfyUI: ${error instanceof Error ? error.message : String(error)}`);
++    }
++    const speakers: string[] = voices?.speakers ?? [];
++    const wanted = a.voice ?? (settings.engine === 'qwen3-fast' ? settings.voice : 'Ryan');
++    const voice = speakers.find(v => v.toLowerCase() === wanted.toLowerCase());
++    if (!voice) throw new Error(`"${wanted}" is not a qwen3-fast voice. Available: ${speakers.join(', ')}`);
++
++    const language = (a.language ?? settings.language) === 'auto' ? 'English' : (a.language ?? settings.language);
++    const instruct = a.style ?? settings.style;
++    const text = a.text!.trim();
++    const pieces = splitSpeechSegments(text);
++    const utterance = `${Date.now().toString(36)}${randomInt(0, 1679616).toString(36)}`;
++    const speaker = a.speaker_name ?? 'Narrator';
++    const sync = a.chat ?? settings.syncText;
++    this.logger.info('Streaming speech', { voice, characters: text.length, pieces: pieces.length });
++
++    const started = Date.now();
++    let firstAudioMs: number | undefined;
++    let totalAudio = 0;
++    let totalWords = 0;
++    let secondsPerWord = 0.42; // refined from what has been spoken so far
++    let segmentIndex = 0;
++    let lastPath: string | undefined;
++    let messageId: string | undefined;
++
++    const queue = async (pcm: Buffer, rate: number, segmentText: string): Promise<void> => {
++      const seconds = pcmSeconds(pcm, rate);
++      const filename = `${slugify(text, 30)}-${utterance}-${segmentIndex}.wav`;
++      let uploaded: any;
++      try {
++        uploaded = await this.foundryClient.query('foundry-mcp-bridge.upload-file', { filename, imageData: pcmToWav(pcm, rate).toString('base64'), folder: 'generated/speech' }, UPLOAD_TIMEOUT_MS);
++        if (uploaded?.success === false) throw new Error(uploaded.error || 'Upload was refused');
++      } catch (error) {
++        throw new Error(`The speech was generated but uploading it to Foundry failed: ${error instanceof Error ? error.message : String(error)}`);
++      }
++      lastPath = uploaded?.path;
++      const queued = await this.foundryClient.query('foundry-mcp-bridge.speak', {
++        action: 'queue',
++        id: utterance,
++        index: segmentIndex++,
++        path: uploaded?.path,
++        text: segmentText,
++        audioSeconds: seconds,
++        speaker,
++        sync,
++      });
++      if (queued?.success === false) throw new Error(queued.error || 'Foundry could not play the speech');
++      if (queued?.messageId) messageId = queued.messageId;
++      if (firstAudioMs === undefined) firstAudioMs = Date.now() - started;
++      totalAudio += seconds;
++    };
++
++    try {
++      for (const piece of pieces) {
++        const words = piece.split(/\s+/).length;
++        const expected = Math.max(1, words * secondsPerWord);
++        const stream = await streamSpeech(baseUrl, { text: piece, mode: 'custom', speaker: voice, instruct, language, model: '1.7B', chunk_size: 6 });
++        let pending: Buffer[] = [];
++        let pendingBytes = 0;
++        let spoken = 0; // seconds of this sentence already queued
++        let target = segmentIndex === 0 ? FIRST_SEGMENT_SECONDS : nextSegmentSeconds(FIRST_SEGMENT_SECONDS);
++        const flush = async (final: boolean) => {
++          const pcm = Buffer.concat(pending);
++          pending = [];
++          pendingBytes = 0;
++          if (pcm.length === 0) return;
++          const seconds = pcmSeconds(pcm, stream.sampleRate);
++          const from = spoken / expected;
++          spoken += seconds;
++          await queue(pcm, stream.sampleRate, sliceWords(piece, from, final ? 1 : spoken / expected));
++          target = nextSegmentSeconds(target);
++        };
++        for await (const chunk of stream.chunks) {
++          pending.push(chunk);
++          pendingBytes += chunk.length;
++          if (pendingBytes / 2 / stream.sampleRate >= target) await flush(false);
++        }
++        await flush(true);
++        totalWords += words;
++        if (spoken > 0) secondsPerWord = Math.max(0.2, Math.min(0.9, (secondsPerWord * (totalWords - words) + spoken) / totalWords));
++      }
++    } catch (error) {
++      await this.stopQuietly();
++      throw new Error(`Speech generation failed: ${error instanceof Error ? error.message : String(error)}`);
++    }
++    await this.foundryClient.query('foundry-mcp-bridge.speak', { action: 'end', id: utterance });
++
++    return {
++      success: true,
++      engine: 'qwen3-fast',
++      voice,
++      parts: segmentIndex,
++      first_audio_ready_in_seconds: Math.round((firstAudioMs ?? 0) / 100) / 10,
++      generated_in_seconds: Math.round((Date.now() - started) / 100) / 10,
++      audio_seconds: Math.round(totalAudio * 10) / 10,
++      ...(firstAudioMs !== undefined && firstAudioMs > 15000 ? { note: 'The first narration after a start loads the model, which takes about half a minute; later ones start within a second' } : {}),
++      path: lastPath,
++      ...(messageId ? { message_id: messageId } : {}),
++      playing: 'The audio is queued in Foundry and plays on its own; this call returns when everything is queued, not when it finishes playing',
++    };
++  }
++
++  private async describeFast(client: SpeechComfyClient): Promise<any> {
++    try {
++      const voices = await getServerJson(client.getBaseUrl(), '/voices');
++      return { available: true, voices: voices.speakers, languages: voices.languages };
++    } catch (error) {
++      return { available: false, needs: 'the claude_tts custom node in ComfyUI', detail: error instanceof Error ? error.message : String(error) };
++    }
++  }
++
++  private async stopQuietly(): Promise<void> {
++    try {
++      await this.foundryClient.query('foundry-mcp-bridge.speak', { action: 'stop' });
++    } catch {
++      // Best effort: the error being reported matters more.
++    }
++  }
++
++  /** The voice to use, checked against what the node offers, case-insensitively. */
++  private async checkVoice(engine: SpeechEngine, voice: string, client: SpeechComfyClient): Promise<string> {
++    if (engine === 'qwen3-design') return voice;
++    const nodeName = engine === 'kokoro' ? 'KokoroSpeaker' : 'FB_Qwen3TTSCustomVoice';
++    const field = engine === 'kokoro' ? 'speaker_name' : 'speaker';
++    const info = await client.getNodeInfo(nodeName);
++    const choices = (info?.input?.required?.[field]?.[0] ?? []) as string[];
++    if (!Array.isArray(choices) || choices.length === 0) return voice;
++    const found = choices.find(c => c.toLowerCase() === voice.toLowerCase());
++    if (found) return found;
++    throw new Error(`"${voice}" is not a ${engine} voice. Available: ${choices.slice(0, 40).join(', ')}${choices.length > 40 ? ', ...' : ''}`);
++  }
++
++  private async describe(): Promise<any> {
++    const { target, settings } = await this.readSettings();
++    this.applyTarget(target);
++    const client = this.getClient();
++    const engines: Record<string, any> = {};
++    for (const engine of SPEECH_ENGINES) {
++      if (engine === 'qwen3-fast') {
++        engines[engine] = await this.describeFast(client);
++        continue;
++      }
++      const info = await client.getNodeInfo(nodeForEngine(engine)!);
++      if (!info) {
++        engines[engine] = { available: false, needs: nodeForEngine(engine) };
++        continue;
++      }
++      if (engine === 'qwen3-design') {
++        engines[engine] = { available: true, voices: 'any description, passed as voice' };
++        continue;
++      }
++      const voices = await this.checkVoiceList(engine, client);
++      engines[engine] = { available: true, voices };
++    }
++    return { success: true, settings, engines };
++  }
++
++  private async checkVoiceList(engine: SpeechEngine, client: SpeechComfyClient): Promise<string[]> {
++    const info = await client.getNodeInfo(engine === 'kokoro' ? 'KokoroSpeaker' : 'FB_Qwen3TTSCustomVoice');
++    const choices = info?.input?.required?.[engine === 'kokoro' ? 'speaker_name' : 'speaker']?.[0];
++    return Array.isArray(choices) ? choices : [];
++  }
++}
 diff --git a/packages/mcp-server/src/tools/table-tools.test.ts b/packages/mcp-server/src/tools/table-tools.test.ts
 new file mode 100644
 index 0000000..008d9ce
@@ -37641,6 +39185,153 @@ index 0000000..38bc6dc
 +  }
 +  return { remove: [...remove], place };
 +}
+diff --git a/packages/mcp-server/src/tts-stream.test.ts b/packages/mcp-server/src/tts-stream.test.ts
+new file mode 100644
+index 0000000..c063d12
+--- /dev/null
++++ b/packages/mcp-server/src/tts-stream.test.ts
+@@ -0,0 +1,22 @@
++import { describe, expect, it } from 'vitest';
++import { pcmSeconds, pcmToWav, serverUrl, sliceWords } from './tts-stream.js';
++import { audioSeconds } from './speech.js';
++
++describe('tts stream helpers', () => {
++  it('wraps PCM as a WAV whose length can be read back', () => {
++    const wav = pcmToWav(Buffer.alloc(48000), 24000);
++    expect(wav.length).toBe(48044);
++    expect(wav.toString('ascii', 0, 4)).toBe('RIFF');
++    expect(audioSeconds(wav)).toBe(1);
++    expect(pcmSeconds(Buffer.alloc(48000), 24000)).toBe(1);
++  });
++  it('shares the words of a text between pieces', () => {
++    const t = 'one two three four five six seven eight nine ten';
++    expect(sliceWords(t, 0, 0.3)).toBe('one two three');
++    expect(sliceWords(t, 0.3, 1)).toBe('four five six seven eight nine ten');
++    expect(sliceWords(t, 0.5, 0.5)).toBe('');
++  });
++  it('puts the narration server under ComfyUI', () => {
++    expect(serverUrl('http://127.0.0.1:8188/')).toBe('http://127.0.0.1:8188/claude-tts');
++  });
++});
+diff --git a/packages/mcp-server/src/tts-stream.ts b/packages/mcp-server/src/tts-stream.ts
+new file mode 100644
+index 0000000..db68633
+--- /dev/null
++++ b/packages/mcp-server/src/tts-stream.ts
+@@ -0,0 +1,113 @@
++/**
++ * Client of the streaming narration server (tts-server/claude_tts), reached through ComfyUI's own address
++ * under /claude-tts. The server streams raw 16-bit mono PCM while it generates.
++ */
++
++export interface StreamedPcm {
++  sampleRate: number;
++  chunks: AsyncGenerator<Buffer, void, void>;
++}
++
++export interface FastSpeechRequest {
++  text: string;
++  mode: 'custom' | 'design';
++  speaker?: string;
++  instruct?: string;
++  language: string;
++  model?: string;
++  chunk_size?: number;
++}
++
++export function serverUrl(comfyBaseUrl: string): string {
++  return `${comfyBaseUrl.replace(/\/+$/, '')}/claude-tts`;
++}
++
++async function failure(response: Response): Promise<Error> {
++  let detail = '';
++  try {
++    const body: any = await response.json();
++    detail = body?.error || body?.detail || '';
++  } catch {
++    // not JSON
++  }
++  if (response.status === 404) {
++    return new Error('This ComfyUI has no narration server. Install the claude_tts custom node from the bridge (tts-server/claude_tts) and restart ComfyUI.');
++  }
++  if (response.status === 503) {
++    return new Error(detail || 'The narration server is not running. Check the ComfyUI log for [claude_tts].');
++  }
++  return new Error(`Narration server error ${response.status}${detail ? `: ${detail}` : ''}`);
++}
++
++export async function getServerJson(baseUrl: string, path: string, timeoutMs = 8000): Promise<any> {
++  const response = await fetch(`${serverUrl(baseUrl)}${path}`, { signal: AbortSignal.timeout(timeoutMs) });
++  if (!response.ok) throw await failure(response);
++  return response.json();
++}
++
++/**
++ * Start a streamed speech. Resolves when the first audio is about to arrive (the server loads the model
++ * first, which takes about half a minute the first time), then yields the PCM as it is generated.
++ */
++export async function streamSpeech(baseUrl: string, request: FastSpeechRequest, options: { timeoutMs?: number } = {}): Promise<StreamedPcm> {
++    const response = await fetch(`${serverUrl(baseUrl)}/speak`, {
++    method: 'POST',
++    headers: { 'Content-Type': 'application/json' },
++    body: JSON.stringify(request),
++    signal: AbortSignal.timeout(options.timeoutMs ?? 240000),
++  });
++  if (!response.ok || !response.body) throw await failure(response);
++  const sampleRate = Number(response.headers.get('x-sample-rate')) || 24000;
++  const reader = response.body.getReader();
++
++  async function* read(): AsyncGenerator<Buffer, void, void> {
++    let carry = Buffer.alloc(0); // keep whole 16-bit samples
++    try {
++      for (;;) {
++        const { done, value } = await reader.read();
++        if (done) break;
++        const joined = carry.length ? Buffer.concat([carry, Buffer.from(value)]) : Buffer.from(value);
++        const usable = joined.length - (joined.length % 2);
++        carry = joined.subarray(usable);
++        if (usable > 0) yield joined.subarray(0, usable);
++      }
++    } finally {
++      reader.cancel().catch(() => undefined);
++    }
++  }
++  return { sampleRate, chunks: read() };
++}
++
++/** A mono 16-bit PCM buffer as a WAV file. */
++export function pcmToWav(pcm: Buffer, sampleRate: number): Buffer {
++  const header = Buffer.alloc(44);
++  header.write('RIFF', 0, 'ascii');
++  header.writeUInt32LE(36 + pcm.length, 4);
++  header.write('WAVE', 8, 'ascii');
++  header.write('fmt ', 12, 'ascii');
++  header.writeUInt32LE(16, 16);
++  header.writeUInt16LE(1, 20); // PCM
++  header.writeUInt16LE(1, 22); // mono
++  header.writeUInt32LE(sampleRate, 24);
++  header.writeUInt32LE(sampleRate * 2, 28);
++  header.writeUInt16LE(2, 32);
++  header.writeUInt16LE(16, 34);
++  header.write('data', 36, 'ascii');
++  header.writeUInt32LE(pcm.length, 40);
++  return Buffer.concat([header, pcm]);
++}
++
++export function pcmSeconds(pcm: Buffer, sampleRate: number): number {
++  return pcm.length / 2 / sampleRate;
++}
++
++/**
++ * The words of `text` from fraction `from` to `to` (0 to 1), so a sentence streamed in several audio pieces
++ * can show the right part of its text with each piece.
++ */
++export function sliceWords(text: string, from: number, to: number): string {
++  const words = text.trim().split(/\s+/).filter(Boolean);
++  const a = Math.round(Math.min(1, Math.max(0, from)) * words.length);
++  const b = to >= 1 ? words.length : Math.round(Math.min(1, Math.max(0, to)) * words.length);
++  return words.slice(a, Math.max(a, b)).join(' ');
++}
 diff --git a/scripts/mcp-schema-smoke-test.mjs b/scripts/mcp-schema-smoke-test.mjs
 index c84dcd4..fcb7685 100644
 --- a/scripts/mcp-schema-smoke-test.mjs
@@ -37678,3 +39369,320 @@ index c84dcd4..fcb7685 100644
  ];
  
  if (!tools.length) {
+diff --git a/tts-server/README.md b/tts-server/README.md
+new file mode 100644
+index 0000000..5690445
+--- /dev/null
++++ b/tts-server/README.md
+@@ -0,0 +1,44 @@
++# claude_tts: streaming narration for the `speak` tool
++
++A small ComfyUI custom node that runs [faster-qwen3-tts](https://github.com/andimarafioti/faster-qwen3-tts) (CUDA graphs) and **streams audio while it generates**. The `speak` tool's `qwen3-fast` engine uses it: the first words are heard in about a second, and the voice is Qwen3-TTS 1.7B.
++
++It adds no port and no setting of its own. The bridge reaches it through the ComfyUI you already chose (Settings, Map Generation), at `<your ComfyUI>/claude-tts/...`.
++
++## How it fits together
++
++```
++MCP server --HTTP--> ComfyUI :8188 /claude-tts/*  --> server.py on 127.0.0.1:8190 (inside the container)
++                                                         streams raw PCM while it generates
++```
++
++`__init__.py` starts `server.py` when ComfyUI starts and passes requests through. The model is loaded on the first narration (about 30 s, once) and stays in GPU memory (about 4 GB) until ComfyUI restarts or you call `POST /claude-tts/unload`.
++
++## Install
++
++1. Copy the `claude_tts` folder into ComfyUI's `custom_nodes` folder (for the Docker setup, the folder mounted at `/root/ComfyUI/custom_nodes`).
++2. Restart ComfyUI. The log shows `[claude_tts] narration server starting`.
++3. In Foundry: Module Settings, Narration engine: `qwen3-fast`, Narration voice: `Ryan` (or Serena, Aiden, Dylan, Eric, Sohee, Ono_anna, Uncle_fu).
++
++It needs a Python with `faster-qwen3-tts`, `fastapi` and `uvicorn` (default `/opt/fq/bin/python`) and the Qwen3-TTS model folders under `ComfyUI/models/qwen-tts/` (`Qwen3-TTS-12Hz-1.7B-CustomVoice`, optionally `0.6B-CustomVoice` and `1.7B-VoiceDesign`).
++
++## Settings (environment variables of the ComfyUI process, all optional)
++
++| Variable | Default | Meaning |
++|---|---|---|
++| `CLAUDE_TTS_PYTHON` | `/opt/fq/bin/python` | Python that has faster-qwen3-tts |
++| `CLAUDE_TTS_PORT` | `8190` | private port of the server (127.0.0.1 only) |
++| `CLAUDE_TTS_MODELS` | `/root/ComfyUI/models/qwen-tts` | folder with the model folders |
++| `CLAUDE_TTS_AUTOSTART` | `1` | `0` to start `server.py` yourself |
++
++## API
++
++- `GET  /claude-tts/health` and `GET /claude-tts/voices`
++- `POST /claude-tts/speak` with `{text, mode: "custom"|"design", speaker, instruct, language, model, chunk_size}` streams raw 16-bit mono PCM (`X-Sample-Rate` header, 24000 Hz).
++- `POST /claude-tts/unload` frees the GPU memory.
++
++Measured on an RTX 3060: first audio 0.35 s after the model is loaded, about 1.7 times faster than speech.
++
++## Notes
++
++- ComfyUI runs with the `cudaMallocAsync` allocator, which breaks CUDA graph capture, so `server.py` clears that setting for itself. Image generation is not affected.
++- The Python environment (`/opt/fq`) lives in the container, not in a mounted folder. If the container is recreated (`docker compose up` after changing the compose file), reinstall `faster-qwen3-tts` there.
+diff --git a/tts-server/claude_tts/__init__.py b/tts-server/claude_tts/__init__.py
+new file mode 100644
+index 0000000..c2a6edc
+--- /dev/null
++++ b/tts-server/claude_tts/__init__.py
+@@ -0,0 +1,75 @@
++"""
++claude_tts: lets the Foundry MCP bridge stream narration through your ComfyUI.
++
++It starts server.py (faster-qwen3-tts, streams audio while it generates) next to ComfyUI and passes
++requests to it under /claude-tts/..., so nothing new has to be published by Docker or opened in a firewall:
++the bridge talks to the same address and port as ComfyUI.
++
++Settings, as environment variables of the ComfyUI process (all optional):
++    CLAUDE_TTS_PYTHON   Python with faster-qwen3-tts installed (default /opt/fq/bin/python)
++    CLAUDE_TTS_PORT     port of the private server (default 8190, only 127.0.0.1)
++    CLAUDE_TTS_AUTOSTART  set to 0 to start it yourself
++"""
++import atexit
++import os
++import subprocess
++import sys
++
++NODE_CLASS_MAPPINGS = {}
++NODE_DISPLAY_NAME_MAPPINGS = {}
++
++HERE = os.path.dirname(os.path.abspath(__file__))
++PORT = int(os.environ.get("CLAUDE_TTS_PORT", "8190"))
++PYTHON = os.environ.get("CLAUDE_TTS_PYTHON", "/opt/fq/bin/python")
++_process = None
++
++
++def _start_server():
++    global _process
++    if os.environ.get("CLAUDE_TTS_AUTOSTART", "1") == "0":
++        return
++    if not os.path.exists(PYTHON):
++        print(f"[claude_tts] {PYTHON} not found, so the narration server was not started. Set CLAUDE_TTS_PYTHON.", file=sys.stderr)
++        return
++    try:
++        _process = subprocess.Popen([PYTHON, os.path.join(HERE, "server.py"), "--port", str(PORT)], cwd=HERE)
++        atexit.register(lambda: _process and _process.terminate())
++        print(f"[claude_tts] narration server starting on 127.0.0.1:{PORT} (the model loads on first use)")
++    except Exception as error:
++        print(f"[claude_tts] could not start the narration server: {error}", file=sys.stderr)
++
++
++def _register_routes():
++    try:
++        import aiohttp
++        from aiohttp import web
++        from server import PromptServer
++    except Exception as error:  # not running inside ComfyUI (for example when tests import this folder)
++        print(f"[claude_tts] routes not registered: {error}", file=sys.stderr)
++        return
++
++    routes = PromptServer.instance.routes
++    skip = {"connection", "keep-alive", "transfer-encoding", "content-length", "host", "content-encoding"}
++
++    @routes.route("*", "/claude-tts/{tail:.*}")
++    async def forward(request: web.Request):
++        url = f"http://127.0.0.1:{PORT}/{request.match_info['tail']}"
++        body = await request.read()
++        try:
++            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=None, sock_connect=3)) as session:
++                async with session.request(request.method, url, data=body or None, headers={"Content-Type": request.headers.get("Content-Type", "application/json")}) as upstream:
++                    response = web.StreamResponse(status=upstream.status)
++                    for key, value in upstream.headers.items():
++                        if key.lower() not in skip:
++                            response.headers[key] = value
++                    await response.prepare(request)
++                    async for chunk in upstream.content.iter_any():
++                        await response.write(chunk)
++                    await response.write_eof()
++                    return response
++        except aiohttp.ClientConnectorError:
++            return web.json_response({"ok": False, "error": "The narration server is not running. Check the ComfyUI log for [claude_tts]."}, status=503)
++
++
++_start_server()
++_register_routes()
+diff --git a/tts-server/claude_tts/server.py b/tts-server/claude_tts/server.py
+new file mode 100644
+index 0000000..0237df7
+--- /dev/null
++++ b/tts-server/claude_tts/server.py
+@@ -0,0 +1,180 @@
++"""
++Streaming narration server for the Foundry MCP bridge.
++
++Runs faster-qwen3-tts (CUDA graphs) and streams raw 16-bit mono PCM while it generates, so the first
++audio arrives in about half a second. It loads a model on first use and keeps it until /unload.
++
++Start it with the Python of the venv that has faster-qwen3-tts, for example:
++    /opt/fq/bin/python server.py --port 8190
++
++Normally the claude_tts ComfyUI node starts it and exposes it through ComfyUI's own port.
++
++API
++    GET  /health          {"ok": true, "loaded": ["1.7B"], "busy": false}
++    GET  /voices          {"speakers": [...], "languages": [...]}
++    POST /speak           JSON {text, mode, speaker, instruct, language, model, chunk_size}
++                          -> body: raw PCM s16le mono, streamed. Headers: X-Sample-Rate, X-Channels
++    POST /unload          frees the GPU memory
++"""
++import argparse
++import asyncio
++import os
++
++# ComfyUI sets the cudaMallocAsync allocator for its own process, and a server it starts inherits that. CUDA graphs
++# (what makes this server fast) cannot be captured with it, so start from the default allocator.
++for _name in ("PYTORCH_CUDA_ALLOC_CONF", "PYTORCH_ALLOC_CONF"):
++    os.environ.pop(_name, None)
++
++import threading
++import time
++from typing import Optional
++
++import numpy as np
++import uvicorn
++from fastapi import FastAPI, HTTPException
++from fastapi.responses import JSONResponse, StreamingResponse
++from pydantic import BaseModel, Field
++
++MODELS_DIR = os.environ.get("CLAUDE_TTS_MODELS", "/root/ComfyUI/models/qwen-tts")
++MODEL_NAMES = {
++    ("custom", "1.7B"): "Qwen3-TTS-12Hz-1.7B-CustomVoice",
++    ("custom", "0.6B"): "Qwen3-TTS-12Hz-0.6B-CustomVoice",
++    ("design", "1.7B"): "Qwen3-TTS-12Hz-1.7B-VoiceDesign",
++}
++SPEAKERS = ["Aiden", "Dylan", "Eric", "Ono_anna", "Ryan", "Serena", "Sohee", "Uncle_fu", "Vivian"]
++LANGUAGES = ["Auto", "English", "Chinese", "Japanese", "Korean", "German", "French", "Russian", "Portuguese", "Spanish", "Italian"]
++
++app = FastAPI(title="claude-tts")
++_models = {}  # (mode, size) -> FasterQwen3TTS
++_lock = threading.Lock()  # one generation at a time on the GPU
++_busy = False
++
++
++class SpeakRequest(BaseModel):
++    text: str = Field(min_length=1, max_length=2000)
++    mode: str = "custom"  # custom: a preset speaker with a style; design: a described voice
++    speaker: str = "Ryan"
++    instruct: Optional[str] = None
++    language: str = "English"
++    model: str = "1.7B"
++    chunk_size: int = Field(default=6, ge=2, le=24)  # codec steps per chunk, 12 per second of audio
++
++
++def load(mode: str, size: str):
++    key = (mode, size)
++    if key in _models:
++        return _models[key]
++    name = MODEL_NAMES.get(key)
++    if name is None:
++        raise HTTPException(400, f"No model for mode={mode} model={size}. Available: {sorted(set(f'{m}/{s}' for m, s in MODEL_NAMES))}")
++    import torch
++    from faster_qwen3_tts import FasterQwen3TTS
++
++    path = os.path.join(MODELS_DIR, name)
++    started = time.time()
++    tts = FasterQwen3TTS.from_pretrained(path, device="cuda", dtype=torch.bfloat16, attn_implementation="sdpa", max_seq_len=2048, local_files_only=True)
++    tts.warmup(prefill_len=100)
++    print(f"[claude-tts] loaded {name} in {time.time() - started:.1f}s", flush=True)
++    _models[key] = tts
++    return tts
++
++
++@app.get("/health")
++def health():
++    return {"ok": True, "loaded": [f"{m}/{s}" for m, s in _models], "busy": _busy}
++
++
++@app.get("/voices")
++def voices():
++    return {"speakers": SPEAKERS, "languages": LANGUAGES, "models": sorted(set(f"{m}/{s}" for m, s in MODEL_NAMES))}
++
++
++@app.post("/unload")
++def unload():
++    if _busy:
++        return JSONResponse({"ok": False, "error": "Busy generating"}, status_code=409)
++    _models.clear()
++    import gc
++    import torch
++
++    gc.collect()
++    torch.cuda.empty_cache()
++    return {"ok": True}
++
++
++def pcm16(audio) -> bytes:
++    a = np.asarray(audio, dtype=np.float32).reshape(-1)
++    return (np.clip(a, -1.0, 1.0) * 32767.0).astype("<i2").tobytes()
++
++
++@app.post("/speak")
++async def speak(req: SpeakRequest):
++    global _busy
++    if req.mode not in ("custom", "design"):
++        raise HTTPException(400, "mode must be custom or design")
++    loop = asyncio.get_running_loop()
++    # Load before answering, so a bad model name is a clean error and not a broken stream.
++    tts = await loop.run_in_executor(None, load, req.mode, req.model)
++
++    queue: asyncio.Queue = asyncio.Queue(maxsize=8)
++    cancelled = threading.Event()
++    rate_holder = {}
++
++    def produce():
++        global _busy
++        with _lock:
++            _busy = True
++            try:
++                if req.mode == "custom":
++                    gen = tts.generate_custom_voice_streaming(
++                        text=req.text, speaker=req.speaker, language=req.language, instruct=req.instruct, chunk_size=req.chunk_size
++                    )
++                else:
++                    gen = tts.generate_voice_design_streaming(
++                        text=req.text, instruct=req.instruct or "A calm narrator.", language=req.language, chunk_size=req.chunk_size
++                    )
++                for audio, rate, _timing in gen:
++                    if cancelled.is_set():
++                        break
++                    rate_holder["rate"] = rate
++                    asyncio.run_coroutine_threadsafe(queue.put(pcm16(audio)), loop).result()
++            except Exception as error:  # surfaced to the client as a short error chunk marker below
++                print(f"[claude-tts] generation failed: {error}", flush=True)
++                rate_holder["error"] = str(error)
++            finally:
++                _busy = False
++                asyncio.run_coroutine_threadsafe(queue.put(None), loop).result()
++
++    thread = threading.Thread(target=produce, daemon=True)
++    thread.start()
++
++    first = await queue.get()
++    if first is None:
++        raise HTTPException(500, rate_holder.get("error", "No audio was produced"))
++
++    async def body():
++        try:
++            yield first
++            while True:
++                chunk = await queue.get()
++                if chunk is None:
++                    break
++                yield chunk
++        finally:
++            cancelled.set()  # the client went away: stop generating
++            while not queue.empty():
++                queue.get_nowait()
++
++    return StreamingResponse(
++        body(),
++        media_type="application/octet-stream",
++        headers={"X-Sample-Rate": str(rate_holder.get("rate", 24000)), "X-Channels": "1", "Cache-Control": "no-store"},
++    )
++
++
++if __name__ == "__main__":
++    parser = argparse.ArgumentParser()
++    parser.add_argument("--host", default="127.0.0.1")
++    parser.add_argument("--port", type=int, default=8190)
++    args = parser.parse_args()
++    uvicorn.run(app, host=args.host, port=args.port, log_level="warning")
