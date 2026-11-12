@@ -301,10 +301,10 @@ index 0000000..95958dd
 +});
 diff --git a/packages/foundry-module/src/actor-overrides-utils.ts b/packages/foundry-module/src/actor-overrides-utils.ts
 new file mode 100644
-index 0000000..bf655f9
+index 0000000..ef9485f
 --- /dev/null
 +++ b/packages/foundry-module/src/actor-overrides-utils.ts
-@@ -0,0 +1,267 @@
+@@ -0,0 +1,268 @@
 +/**
 + * Pure helpers for the actor options of manage-actors and create-actor-from-compendium:
 + * token size and behaviour, and a hit point shorthand. No Foundry globals, so they can be tested.
@@ -332,7 +332,7 @@ index 0000000..bf655f9
 +  sight?: Record<string, unknown>;
 +  /** Light the token gives off: preset (torch, lantern, candle, none) and/or bright, dim (distance units), color, alpha, angle, coloration, luminosity, attenuation, saturation, contrast, shadows, negative, priority, animation {type, speed, intensity, reverse}. */
 +  light?: Record<string, unknown>;
-+  /** Extra detection modes: [{id, range, enabled?}] (e.g. seeAll, feelTremor, senseInvisibility). Replaces the list. */
++  /** Extra detection modes: [{id, range, enabled?}] (e.g. seeAll, feelTremor, senseInvisibility). Adds or changes these modes. */
 +  detection_modes?: Array<{ id: string; range?: number; enabled?: boolean }>;
 +  lock_rotation?: boolean;
 +  /** Token opacity 0 to 1. */
@@ -506,12 +506,13 @@ index 0000000..bf655f9
 +  if (t.light !== undefined) Object.assign(patch, lightPatch(t.light, `${label}: token`));
 +  if (t.detection_modes !== undefined) {
 +    if (!Array.isArray(t.detection_modes) || t.detection_modes.length > 20) throw new Error(`${label}: token detection_modes must be a list of at most 20`);
-+    patch.detectionModes = t.detection_modes.map((m: any, i: number) => {
++    // Foundry keeps detection modes as an object keyed by mode id; these are added or changed.
++    t.detection_modes.forEach((m: any, i: number) => {
 +      if (!m || typeof m !== 'object' || typeof m.id !== 'string' || !/^[A-Za-z][A-Za-z0-9]{0,40}$/.test(m.id)) {
 +        throw new Error(`${label}: token detection_modes[${i}] needs an id such as basicSight or seeAll`);
 +      }
 +      onlyKeys(m, ['id', 'range', 'enabled'], `${label}: token detection_modes[${i}]`);
-+      return { id: m.id, enabled: m.enabled === undefined ? true : !!m.enabled, range: m.range === undefined ? null : num(m.range, 0, 100000, `${label}: detection range`) };
++      patch[`detectionModes.${m.id}`] = { enabled: m.enabled === undefined ? true : !!m.enabled, range: m.range === undefined ? null : num(m.range, 0, 100000, `${label}: detection range`) };
 +    });
 +  }
 +  if (t.lock_rotation !== undefined) patch.lockRotation = !!t.lock_rotation;
@@ -574,10 +575,10 @@ index 0000000..bf655f9
 +}
 diff --git a/packages/foundry-module/src/actor-token-vision.test.ts b/packages/foundry-module/src/actor-token-vision.test.ts
 new file mode 100644
-index 0000000..2576301
+index 0000000..0ffbb55
 --- /dev/null
 +++ b/packages/foundry-module/src/actor-token-vision.test.ts
-@@ -0,0 +1,114 @@
+@@ -0,0 +1,112 @@
 +import { describe, expect, it } from 'vitest';
 +import { buildPrototypeTokenPatch, flattenPatch, prototypeTokenUpdate } from './actor-overrides-utils.js';
 +
@@ -607,10 +608,8 @@ index 0000000..2576301
 +  });
 +  it('sets detection modes, enabled by default', () => {
 +    expect(patch({ detection_modes: [{ id: 'feelTremor', range: 30 }, { id: 'basicSight', enabled: false }] })).toEqual({
-+      detectionModes: [
-+        { id: 'feelTremor', enabled: true, range: 30 },
-+        { id: 'basicSight', enabled: false, range: null },
-+      ],
++      'detectionModes.feelTremor': { enabled: true, range: 30 },
++      'detectionModes.basicSight': { enabled: false, range: null },
 +    });
 +    expect(() => patch({ detection_modes: [{ range: 5 }] })).toThrow('needs an id');
 +    expect(() => patch({ detection_modes: 'x' })).toThrow('list');
@@ -1243,6 +1242,248 @@ index bcaadda..11b9dcc 100644
        },
        updateExisting: true,
        existingActorIdentifier: 'Nayeli',
+diff --git a/packages/foundry-module/src/data-access.files-backups.test.ts b/packages/foundry-module/src/data-access.files-backups.test.ts
+new file mode 100644
+index 0000000..d2b064e
+--- /dev/null
++++ b/packages/foundry-module/src/data-access.files-backups.test.ts
+@@ -0,0 +1,236 @@
++/** browse-files and scene backups with Foundry stubbed. */
++import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
++import { FoundryDataAccess } from './data-access.js';
++
++const MODULE = 'foundry-mcp-bridge-scenes';
++
++// ---------- browse-files ----------
++
++const TREE: Record<string, { dirs: string[]; files: string[] }> = {
++  '': { dirs: ['worlds', 'modules'], files: [] },
++  worlds: { dirs: ['worlds/w1', 'worlds/w2'], files: [] },
++  'worlds/w1': { dirs: ['worlds/w1/uploads'], files: ['worlds/w1/world.json'] },
++  'worlds/w1/uploads': { dirs: [], files: ['worlds/w1/uploads/cave%20drip.mp3', 'worlds/w1/uploads/map.png', 'worlds/w1/uploads/notes.txt'] },
++  'worlds/w2': { dirs: [], files: ['worlds/w2/theme.ogg'] },
++  modules: { dirs: [], files: [] },
++};
++
++function setupBrowse() {
++  const browse = vi.fn(async (_source: string, dir: string) => {
++    const entry = TREE[dir];
++    if (!entry) throw new Error('directory does not exist');
++    return entry;
++  });
++  vi.stubGlobal('Hooks', { on: vi.fn(), callAll: vi.fn() });
++  vi.stubGlobal('FilePicker', { browse });
++  vi.stubGlobal('game', { ready: true, world: { id: 'w1', getFlag: vi.fn(() => []), setFlag: vi.fn() }, user: { id: 'gm', name: 'GM' }, settings: { get: () => true } });
++  return { da: new FoundryDataAccess(), browse };
++}
++
++describe('browseFiles', () => {
++  beforeEach(() => vi.unstubAllGlobals());
++  afterEach(() => vi.unstubAllGlobals());
++
++  it('lists one folder', async () => {
++    const { da, browse } = setupBrowse();
++    const r = await da.browseFiles({});
++    expect(browse).toHaveBeenCalledWith('data', '', {});
++    expect(r.folders.map((f: any) => f.path)).toEqual(['modules', 'worlds']);
++    expect(r.path).toBe('/');
++    expect(r.files).toEqual([]);
++  });
++
++  it('looks into subfolders and filters audio, decoding the names', async () => {
++    const { da } = setupBrowse();
++    const r = await da.browseFiles({ path: 'worlds', depth: 2, kind: 'audio' });
++    expect(r.files.map((f: any) => f.path)).toEqual(['worlds/w1/uploads/cave drip.mp3', 'worlds/w2/theme.ogg']);
++    expect(r.counts).toEqual({ audio: 2, image: 0, video: 0, other: 0 });
++    expect(r.folders.map((f: any) => f.name)).toContain('uploads');
++  });
++
++  it('searches and limits, saying when there is more', async () => {
++    const { da } = setupBrowse();
++    const found = await da.browseFiles({ path: 'worlds/w1/uploads', search: 'MAP' });
++    expect(found.files.map((f: any) => f.name)).toEqual(['map.png']);
++    const limited = await da.browseFiles({ path: 'worlds/w1/uploads', limit: 2 });
++    expect(limited.files).toHaveLength(2);
++    expect(limited.truncated).toBe(true);
++  });
++
++  it('refuses bad input and says when a folder is missing', async () => {
++    const { da } = setupBrowse();
++    await expect(da.browseFiles({ path: '../x' })).rejects.toThrow('.. parts');
++    await expect(da.browseFiles({ depth: 9 })).rejects.toThrow('depth');
++    await expect(da.browseFiles({ limit: 0 })).rejects.toThrow('limit');
++    await expect(da.browseFiles({ kind: 'text' as any })).rejects.toThrow('kind');
++    await expect(da.browseFiles({ source: 's3' as any })).rejects.toThrow('source');
++    await expect(da.browseFiles({ path: 'nope' })).rejects.toThrow('Cannot read folder "nope"');
++  });
++});
++
++// ---------- scene backups ----------
++
++function makeScene(id: string, name: string, extra: Record<string, any> = {}) {
++  const docs = (n: number, prefix: string) => ({ contents: Array.from({ length: n }, (_, i) => ({ id: `${prefix}${i}` })), size: n });
++  const scene: any = {
++    id,
++    name,
++    flags: {},
++    tokens: docs(2, 't'),
++    walls: docs(3, 'w'),
++    lights: docs(1, 'l'),
++    sounds: docs(0, 's'),
++    notes: docs(0, 'n'),
++    tiles: docs(0, 'ti'),
++    drawings: docs(0, 'd'),
++    regions: docs(1, 'r'),
++    levels: { contents: [{ id: 'defaultLevel0000' }] },
++    update: vi.fn(async () => undefined),
++    delete: vi.fn(async () => undefined),
++    deleteEmbeddedDocuments: vi.fn(async () => []),
++    createEmbeddedDocuments: vi.fn(async () => []),
++    updateEmbeddedDocuments: vi.fn(async () => []),
++    toObject: () => ({
++      _id: id,
++      name,
++      width: 2000,
++      height: 1000,
++      tokens: [{ _id: 'bt1', name: 'Wolf', level: 'defaultLevel0000' }, { _id: 'bt2', name: 'Lost', level: 'gone' }],
++      walls: [{ _id: 'bw1', c: [0, 0, 1, 1] }],
++      lights: [],
++      regions: [],
++      levels: [{ _id: 'bl', background: { src: 'old.png' } }],
++    }),
++    ...extra,
++  };
++  return scene;
++}
++
++function setupScenes(allow = true) {
++  const cave = makeScene('s1', 'Cave');
++  cave.clone = vi.fn(async (data: any) => {
++    const copy = makeScene('copy-' + cave.clone.mock.calls.length, data.name, { flags: data.flags });
++    scenesList.push(copy);
++    return copy;
++  });
++  const scenesList: any[] = [cave];
++  const created: any[] = [];
++  const folderCreate = vi.fn(async (data: any) => {
++    const f = { id: 'folder1', ...data };
++    created.push(f);
++    return f;
++  });
++  vi.stubGlobal('Hooks', { on: vi.fn(), callAll: vi.fn() });
++  vi.stubGlobal('Folder', { create: folderCreate });
++  vi.stubGlobal('game', {
++    ready: true,
++    world: { id: 'w1', getFlag: vi.fn(() => []), setFlag: vi.fn() },
++    user: { id: 'gm', name: 'GM' },
++    scenes: { contents: scenesList, viewed: cave, current: cave },
++    folders: { contents: created },
++    settings: { get: (_m: string, key: string) => (key === 'allowWriteOperations' ? allow : undefined) },
++  });
++  return { da: new FoundryDataAccess(), cave, scenesList, folderCreate };
++}
++
++describe('manageSceneBackups', () => {
++  beforeEach(() => vi.unstubAllGlobals());
++  afterEach(() => vi.unstubAllGlobals());
++
++  it('makes a copy in a Backups folder, flagged, inactive and out of navigation', async () => {
++    const { da, cave, folderCreate } = setupScenes();
++    const r = await da.manageSceneBackups({ action: 'backup', scene: 'Cave', label: 'before rebuild' });
++    expect(folderCreate).toHaveBeenCalledWith({ name: 'Backups', type: 'Scene' });
++    const [data, opts] = cave.clone.mock.calls[0];
++    expect(data).toMatchObject({ folder: 'folder1', active: false, navigation: false });
++    expect(data.name).toMatch(/^Cave \(old \d{4}-\d\d-\d\d \d\d:\d\d before rebuild\)$/);
++    expect(data.flags[MODULE].sceneBackup).toMatchObject({ of: 's1', name: 'Cave', label: 'before rebuild' });
++    expect(opts).toEqual({ save: true });
++    expect(r.backup).toMatchObject({ of: 's1', originalName: 'Cave', counts: { tokens: 2, walls: 3, lights: 1 } });
++  });
++
++  it('reuses the Backups folder and refuses to back up a backup', async () => {
++    const { da, folderCreate } = setupScenes();
++    await da.manageSceneBackups({ action: 'backup', scene: 'Cave' });
++    await da.manageSceneBackups({ action: 'backup', scene: 'Cave' });
++    expect(folderCreate).toHaveBeenCalledTimes(1);
++    const listed = await da.manageSceneBackups({ action: 'list' });
++    await expect(da.manageSceneBackups({ action: 'backup', scene: listed.backups[0].id })).rejects.toThrow('itself a backup');
++  });
++
++  it('lists the backups of one scene, newest first', async () => {
++    const { da } = setupScenes();
++    vi.useFakeTimers();
++    vi.setSystemTime(new Date(2026, 10, 12, 10, 0));
++    await da.manageSceneBackups({ action: 'backup', scene: 'Cave', label: 'one' });
++    vi.setSystemTime(new Date(2026, 10, 12, 11, 0));
++    await da.manageSceneBackups({ action: 'backup', scene: 'Cave', label: 'two' });
++    vi.useRealTimers();
++    const all = await da.manageSceneBackups({ action: 'list' });
++    expect(all.total).toBe(2);
++    expect(all.backups[0].label).toBe('two');
++    expect((await da.manageSceneBackups({ action: 'list', scene: 'Cave' })).total).toBe(2);
++    expect((await da.manageSceneBackups({ action: 'list', scene: 'nothing' }).catch(() => ({ failed: true }))) as any).toMatchObject({ failed: true });
++  });
++
++  it('restore shows what it would do unless confirmed', async () => {
++    const { da, cave } = setupScenes();
++    const made = await da.manageSceneBackups({ action: 'backup', scene: 'Cave' });
++    const dry = await da.manageSceneBackups({ action: 'restore', backup: made.backup.id });
++    expect(dry).toMatchObject({ dryRun: true, restoreInto: { id: 's1' } });
++    expect(dry.changes.find((c: any) => c.collection === 'walls')).toEqual({ collection: 'walls', remove: 3, add: 1 });
++    expect(cave.update).not.toHaveBeenCalled();
++    expect(cave.deleteEmbeddedDocuments).not.toHaveBeenCalled();
++  });
++
++  it('restore backs up first, replaces the contents and keeps the scene', async () => {
++    const { da, cave } = setupScenes();
++    const made = await da.manageSceneBackups({ action: 'backup', scene: 'Cave' });
++    const backupScene = (game as any).scenes.contents.find((s: any) => s.id === made.backup.id);
++    backupScene.toObject = () => ({
++      _id: backupScene.id,
++      width: 3000,
++      tokens: [{ _id: 'bt1', name: 'Wolf', level: 'defaultLevel0000' }, { _id: 'bt2', name: 'Lost', level: 'gone' }],
++      walls: [{ _id: 'bw1', c: [0, 0, 1, 1] }],
++      levels: [{ _id: 'bl', background: { src: 'old.png' } }],
++    });
++    const r = await da.manageSceneBackups({ action: 'restore', backup: made.backup.id, confirm: true });
++    expect(r.safetyBackup.label).toBe('before restore');
++    expect(cave.clone).toHaveBeenCalledTimes(2);
++    expect(cave.update).toHaveBeenCalledWith({ width: 3000 });
++    expect(cave.deleteEmbeddedDocuments).toHaveBeenCalledWith('Token', ['t0', 't1']);
++    expect(cave.deleteEmbeddedDocuments).toHaveBeenCalledWith('Wall', ['w0', 'w1', 'w2']);
++    expect(cave.createEmbeddedDocuments).toHaveBeenCalledWith('Token', [
++      { name: 'Wolf', level: 'defaultLevel0000' },
++      { name: 'Lost' },
++    ]);
++    expect(cave.createEmbeddedDocuments).toHaveBeenCalledWith('Wall', [{ c: [0, 0, 1, 1] }]);
++    expect(cave.updateEmbeddedDocuments).toHaveBeenCalledWith('Level', [{ background: { src: 'old.png' }, _id: 'defaultLevel0000' }]);
++    expect(r.restoredInto).toMatchObject({ id: 's1' });
++  });
++
++  it('deletes only backups, and only when confirmed', async () => {
++    const { da, cave } = setupScenes();
++    const made = await da.manageSceneBackups({ action: 'backup', scene: 'Cave' });
++    const backupScene = (game as any).scenes.contents.find((s: any) => s.id === made.backup.id);
++    const dry = await da.manageSceneBackups({ action: 'delete', backup: made.backup.id });
++    expect(dry.dryRun).toBe(true);
++    expect(backupScene.delete).not.toHaveBeenCalled();
++    await da.manageSceneBackups({ action: 'delete', backup: made.backup.id, confirm: true });
++    expect(backupScene.delete).toHaveBeenCalled();
++    await expect(da.manageSceneBackups({ action: 'delete', backup: 'Cave', confirm: true })).rejects.toThrow('exact name');
++    expect(cave.delete).not.toHaveBeenCalled();
++  });
++
++  it('needs the original, knows its actions and respects the write gate', async () => {
++    const { da, scenesList } = setupScenes();
++    const made = await da.manageSceneBackups({ action: 'backup', scene: 'Cave' });
++    scenesList.splice(0, 1);
++    await expect(da.manageSceneBackups({ action: 'restore', backup: made.backup.id })).rejects.toThrow('no longer exists');
++    await expect(da.manageSceneBackups({ action: 'restore' })).rejects.toThrow('backup');
++    await expect(da.manageSceneBackups({ action: 'explode' as any })).rejects.toThrow('Unknown action');
++    const off = setupScenes(false);
++    await expect(off.da.manageSceneBackups({ action: 'backup', scene: 'Cave' })).rejects.toThrow();
++    expect((await off.da.manageSceneBackups({ action: 'list' })).success).toBe(true);
++  });
++});
 diff --git a/packages/foundry-module/src/data-access.inspect.test.ts b/packages/foundry-module/src/data-access.inspect.test.ts
 new file mode 100644
 index 0000000..f442fc4
@@ -4172,10 +4413,10 @@ index 0000000..3539e49
 +  });
 +});
 diff --git a/packages/foundry-module/src/data-access.ts b/packages/foundry-module/src/data-access.ts
-index eecda7e..e46da12 100644
+index eecda7e..b53e85c 100644
 --- a/packages/foundry-module/src/data-access.ts
 +++ b/packages/foundry-module/src/data-access.ts
-@@ -1,5 +1,103 @@
+@@ -1,5 +1,126 @@
  import { MODULE_ID, ERROR_MESSAGES, TOKEN_DISPOSITIONS } from './constants.js';
  import { permissionManager } from './permissions.js';
 +import {
@@ -4253,6 +4494,29 @@ index eecda7e..e46da12 100644
 +  'now-playing',
 +  'stop-all',
 +] as const;
++import {
++  DEFAULT_BROWSE_LIMIT,
++  MAX_BROWSE_DEPTH,
++  MAX_BROWSE_FOLDERS,
++  MAX_BROWSE_LIMIT,
++  countByKind,
++  decodePath,
++  matchesFilter,
++  sanitizeBrowsePath,
++  toBrowseFile,
++  type BrowseFile,
++  type KindFilter,
++} from './file-browse-utils.js';
++import {
++  cleanLabel as backupLabel,
++  BACKUP_FOLDER_NAME,
++  RESTORE_COLLECTIONS,
++  backupName,
++  buildRestorePlan,
++  readBackupFlag,
++  stripForCreate,
++  summarisePlan,
++} from './scene-backup-utils.js';
 +import { buildTeleportBehavior, linkEndSpec, teleportDestinations, type LinkEnd, type LinkOptions } from './link-utils.js';
 +import { measureGrid as measureGridInPicture } from './grid-measure-utils.js';
 +import {
@@ -4279,7 +4543,7 @@ index eecda7e..e46da12 100644
  import { transactionManager } from './transaction-manager.js';
  
  // The same five characters foundry.utils.escapeHTML replaces in v14, kept local because
-@@ -4681,12 +4779,28 @@ export class FoundryDataAccess {
+@@ -4681,12 +4802,28 @@ export class FoundryDataAccess {
        type: 'random' | 'grid' | 'center' | 'coordinates';
        coordinates?: { x: number; y: number }[];
      };
@@ -4308,7 +4572,7 @@ index eecda7e..e46da12 100644
        // Validate inputs
        if (!packId || !itemId) {
          throw new Error('Both packId and itemId are required');
-@@ -4753,10 +4867,33 @@ export class FoundryDataAccess {
+@@ -4753,10 +4890,33 @@ export class FoundryDataAccess {
            }
  
            // Organize created actors in a folder - use "Foundry MCP Creatures" for generic monsters
@@ -4343,7 +4607,7 @@ index eecda7e..e46da12 100644
  
            // Create the actor
            const newActor = await Actor.create(actorData);
-@@ -6714,7 +6851,7 @@ export class FoundryDataAccess {
+@@ -6714,7 +6874,7 @@ export class FoundryDataAccess {
  
          // Send socket request to GM
          if (game.socket) {
@@ -4352,7 +4616,7 @@ index eecda7e..e46da12 100644
              type: 'requestMessageUpdate',
              buttonId,
              userId,
-@@ -8101,198 +8238,2955 @@ export class FoundryDataAccess {
+@@ -8101,198 +8261,3247 @@ export class FoundryDataAccess {
      }
    }
  
@@ -5314,6 +5578,298 @@ index eecda7e..e46da12 100644
 +      throw new Error(
 +        `Failed to ${options?.action ?? 'manage'} macro: ${error instanceof Error ? error.message : 'Unknown error'}`
 +      );
++    }
++  }
++
++  // ===== FILE BROWSING =====
++
++  /**
++   * List folders and files on the Foundry server (read only): worlds, modules, uploads, music...
++   * Filter by kind (audio, image, video), extension or text, and look a few levels down.
++   */
++  async browseFiles(options: {
++    path?: string;
++    source?: 'data' | 'public';
++    kind?: KindFilter;
++    extensions?: string[];
++    search?: string;
++    depth?: number;
++    limit?: number;
++  }): Promise<any> {
++    this.validateFoundryState();
++
++    try {
++      const source = options.source ?? 'data';
++      if (source !== 'data' && source !== 'public') throw new Error('source must be "data" or "public"');
++      const root = sanitizeBrowsePath(options.path);
++      const depth = options.depth ?? 0;
++      if (!Number.isInteger(depth) || depth < 0 || depth > MAX_BROWSE_DEPTH) {
++        throw new Error(`depth must be a whole number from 0 to ${MAX_BROWSE_DEPTH}`);
++      }
++      const limit = options.limit ?? DEFAULT_BROWSE_LIMIT;
++      if (!Number.isInteger(limit) || limit < 1 || limit > MAX_BROWSE_LIMIT) {
++        throw new Error(`limit must be a whole number from 1 to ${MAX_BROWSE_LIMIT}`);
++      }
++      if (options.kind !== undefined && !['audio', 'image', 'video', 'all'].includes(options.kind)) {
++        throw new Error('kind must be audio, image, video or all');
++      }
++      if (options.extensions !== undefined && (!Array.isArray(options.extensions) || options.extensions.length > 20)) {
++        throw new Error('extensions must be a list of at most 20 file extensions');
++      }
++      const FilePickerAPI =
++        (globalThis as any).foundry?.applications?.apps?.FilePicker?.implementation ||
++        (globalThis as any).FilePicker;
++      if (!FilePickerAPI) throw new Error('Foundry file picker is not available');
++
++      const filter = {
++        ...(options.kind ? { kind: options.kind } : {}),
++        ...(options.extensions ? { extensions: options.extensions } : {}),
++        ...(options.search ? { search: String(options.search) } : {}),
++      };
++      const folders: Array<{ name: string; path: string }> = [];
++      const files: BrowseFile[] = [];
++      let visited = 0;
++      let truncated = false;
++
++      const walk = async (dir: string, level: number): Promise<void> => {
++        if (visited >= MAX_BROWSE_FOLDERS) {
++          truncated = true;
++          return;
++        }
++        visited++;
++        let listing: any;
++        try {
++          listing = await FilePickerAPI.browse(source, dir, {});
++        } catch (error) {
++          if (level === 0) {
++            throw new Error(`Cannot read folder "${dir || '/'}": ${error instanceof Error ? error.message : 'not found'}`);
++          }
++          return;
++        }
++        for (const d of (listing?.dirs ?? []) as string[]) {
++          const path = decodePath(d);
++          if (folders.length < limit) folders.push({ name: path.split('/').pop() ?? path, path });
++          else truncated = true;
++          if (level < depth) await walk(path, level + 1);
++        }
++        for (const f of (listing?.files ?? []) as string[]) {
++          const file = toBrowseFile(f);
++          if (!matchesFilter(file, filter)) continue;
++          if (files.length >= limit) {
++            truncated = true;
++            continue;
++          }
++          files.push(file);
++        }
++      };
++      await walk(root, 0);
++
++      folders.sort((a, b) => a.path.localeCompare(b.path));
++      files.sort((a, b) => a.path.localeCompare(b.path));
++      return {
++        success: true,
++        source,
++        path: root || '/',
++        depth,
++        folders,
++        files,
++        counts: countByKind(files),
++        ...(truncated ? { truncated: true, note: 'More exists than shown; narrow the path, use search or kind, or raise limit' } : {}),
++      };
++    } catch (error) {
++      throw new Error(`Failed to browse files: ${error instanceof Error ? error.message : 'Unknown error'}`);
++    }
++  }
++
++  // ===== SCENE BACKUPS =====
++
++  private sceneCounts(scene: any): Record<string, number> {
++    const counts: Record<string, number> = {};
++    for (const [collection] of RESTORE_COLLECTIONS) {
++      const c = scene?.[collection];
++      counts[collection] = c?.size ?? c?.contents?.length ?? 0;
++    }
++    return counts;
++  }
++
++  private backupFolder(): any {
++    return ((game as any).folders?.contents || []).find((f: any) => f.type === 'Scene' && f.name === BACKUP_FOLDER_NAME);
++  }
++
++  private async ensureBackupFolder(): Promise<any> {
++    const existing = this.backupFolder();
++    if (existing) return existing;
++    return await (globalThis as any).Folder.create({ name: BACKUP_FOLDER_NAME, type: 'Scene' });
++  }
++
++  private backupInfo(scene: any): Record<string, any> {
++    const flag = readBackupFlag(scene.flags, this.moduleId);
++    return {
++      id: scene.id,
++      name: scene.name,
++      ...(flag ? { of: flag.of, originalName: flag.name, at: flag.at, ...(flag.label ? { label: flag.label } : {}) } : {}),
++      counts: this.sceneCounts(scene),
++    };
++  }
++
++  private findBackupScene(identifier: string | undefined, exactOnly = false): any {
++    if (!identifier) throw new Error('backup (id or exact name of a backup scene) is required');
++    const all = (((game as any).scenes?.contents || []) as any[]).filter(s => readBackupFlag(s.flags, this.moduleId));
++    const exact = all.filter(s => s.id === identifier || s.name === identifier);
++    if (exact.length === 1) return exact[0];
++    if (exact.length > 1) throw new Error(`Several backups are named "${identifier}"; use the id`);
++    if (exactOnly) throw new Error(`No backup has the id or exact name "${identifier}" (list shows them; delete needs an exact match)`);
++    const partial = all.filter(s => s.name.toLowerCase().includes(identifier.toLowerCase()));
++    if (partial.length === 1) return partial[0];
++    throw new Error(
++      partial.length > 1
++        ? `"${identifier}" matches ${partial.length} backups; use the id (list shows them)`
++        : `No backup matches "${identifier}" (list shows the backups; only scenes this tool made as backups count)`
++    );
++  }
++
++  /**
++   * Copies of scenes kept in a Backups folder: backup (a full copy with everything on it), list,
++   * restore (put a backup's contents back into the original scene, keeping its id so links
++   * still work; makes a safety copy first) and delete (backups only).
++   */
++  async manageSceneBackups(options: {
++    action: 'backup' | 'list' | 'restore' | 'delete';
++    scene?: string;
++    backup?: string;
++    label?: string;
++    confirm?: boolean;
++  }): Promise<any> {
++    this.validateFoundryState();
++
++    try {
++      const action = options.action;
++      if (!['backup', 'list', 'restore', 'delete'].includes(action)) {
++        throw new Error(`Unknown action: ${String(action)} (backup | list | restore | delete)`);
++      }
++      const scenes = (((game as any).scenes?.contents || []) as any[]);
++
++      if (action === 'list') {
++        let backups = scenes.filter(s => readBackupFlag(s.flags, this.moduleId));
++        if (options.scene) {
++          const original = this.findSceneByIdentifier(options.scene);
++          backups = backups.filter(s => {
++            const flag = readBackupFlag(s.flags, this.moduleId)!;
++            return flag.of === original.id;
++          });
++        }
++        const items = backups.map(s => this.backupInfo(s)).sort((a, b) => String(b.at).localeCompare(String(a.at)));
++        return { success: true, total: items.length, backups: items };
++      }
++
++      const gate = permissionManager.checkWritePermission('modifyScene', {});
++      if (!gate.allowed) throw new Error(`${ERROR_MESSAGES.ACCESS_DENIED}: ${gate.reason}`);
++
++      const makeBackup = async (scene: any, label?: string): Promise<any> => {
++        if (readBackupFlag(scene.flags, this.moduleId)) throw new Error('That scene is itself a backup; back up the original');
++        const now = new Date();
++        const folder = await this.ensureBackupFolder();
++        const name = backupName(scene.name, now, label);
++        const flag = { of: scene.id, name: scene.name, at: now.toISOString(), ...(label ? { label } : {}) };
++        const copy = await scene.clone(
++          {
++            name,
++            folder: folder.id,
++            active: false,
++            navigation: false,
++            flags: { ...(scene.flags ?? {}), [this.moduleId]: { ...(scene.flags?.[this.moduleId] ?? {}), sceneBackup: flag } },
++          },
++          { save: true }
++        );
++        if (!copy) throw new Error('Foundry did not create the copy');
++        this.auditLog('manageSceneBackups:backup', { scene: scene.id, backup: copy.id }, 'success');
++        return copy;
++      };
++
++      if (action === 'backup') {
++        const scene = this.resolveSceneForObjects(options.scene);
++        const copy = await makeBackup(scene, options.label ? backupLabel(options.label) : undefined);
++        return {
++          success: true,
++          action,
++          scene: { id: scene.id, name: scene.name },
++          backup: this.backupInfo(copy),
++          note: 'A full copy was made in the Backups folder. Layout files are kept apart (layout list shows them).',
++        };
++      }
++
++      if (action === 'delete') {
++        const backup = this.findBackupScene(options.backup, true);
++        if (options.confirm !== true) {
++          return { success: true, dryRun: true, wouldDelete: this.backupInfo(backup), note: 'Pass confirm: true to delete this backup.' };
++        }
++        const info = this.backupInfo(backup);
++        await backup.delete();
++        this.auditLog('manageSceneBackups:delete', { backup: info.id }, 'success');
++        return { success: true, action, deleted: info };
++      }
++
++      // restore
++      const backup = this.findBackupScene(options.backup);
++      const flag = readBackupFlag(backup.flags, this.moduleId)!;
++      const target = options.scene ? this.findSceneByIdentifier(options.scene) : scenes.find(s => s.id === flag.of);
++      if (!target) {
++        throw new Error(`The original scene of this backup no longer exists; pass scene (the scene to restore into)`);
++      }
++      if (readBackupFlag(target.flags, this.moduleId)) throw new Error('Cannot restore into another backup');
++      const source = backup.toObject();
++      const plan = buildRestorePlan(source, this.sceneCounts(target));
++      if (options.confirm !== true) {
++        return {
++          success: true,
++          dryRun: true,
++          restoreInto: { id: target.id, name: target.name },
++          from: this.backupInfo(backup),
++          changes: summarisePlan(plan),
++          note: 'Nothing was changed. Pass confirm: true to restore; the current state is backed up first so this can be undone.',
++        };
++      }
++
++      const safety = await makeBackup(target, 'before restore');
++      const levelIds = new Set<string>(((target.levels?.contents || []) as any[]).map(l => l.id));
++      const warnings: string[] = [];
++      await target.update(plan.fields);
++      for (const entry of plan.embedded) {
++        const existing = ((target[entry.collection]?.contents || []) as any[]).map(d => d.id);
++        if (existing.length > 0) await target.deleteEmbeddedDocuments(entry.documentName, existing);
++        const data = entry.add.map(d => {
++          if (typeof d.level === 'string' && levelIds.size > 0 && !levelIds.has(d.level)) {
++            const { level, ...rest } = d;
++            void level;
++            return rest;
++          }
++          return d;
++        });
++        if (data.length > 0) await target.createEmbeddedDocuments(entry.documentName, data);
++      }
++      // Levels hold the picture and their own settings: update them in place, by position.
++      const backupLevels = (Array.isArray(source.levels) ? source.levels : []) as any[];
++      const targetLevels = ((target.levels?.contents || []) as any[]);
++      if (backupLevels.length === targetLevels.length && backupLevels.length > 0) {
++        await target.updateEmbeddedDocuments(
++          'Level',
++          backupLevels.map((l, i) => ({ ...stripForCreate(l), _id: targetLevels[i].id }))
++        );
++      } else if (backupLevels.length !== targetLevels.length) {
++        warnings.push(`The backup has ${backupLevels.length} level(s) and the scene ${targetLevels.length}; levels were left as they are`);
++      }
++      this.auditLog('manageSceneBackups:restore', { backup: backup.id, scene: target.id }, 'success');
++      return {
++        success: true,
++        action,
++        restoredInto: { id: target.id, name: target.name },
++        from: this.backupInfo(backup),
++        safetyBackup: this.backupInfo(safety),
++        changes: summarisePlan(plan),
++        ...(warnings.length ? { warnings } : {}),
++      };
++    } catch (error) {
++      throw new Error(`Failed to manage scene backups: ${error instanceof Error ? error.message : 'Unknown error'}`);
 +    }
 +  }
 +
@@ -7466,7 +8022,7 @@ index eecda7e..e46da12 100644
          case 'play':
            await pl.playAll();
            return { success: true, action: 'play', playlist: info };
-@@ -8304,20 +11198,48 @@ export class FoundryDataAccess {
+@@ -8304,20 +11513,48 @@ export class FoundryDataAccess {
            return { success: true, action: 'cycle-mode', playlist: info, mode: pl.mode as number };
          case 'play-sound':
          case 'stop-sound': {
@@ -7521,7 +8077,7 @@ index eecda7e..e46da12 100644
        }
      } catch (error) {
        throw new Error(
-@@ -8468,6 +11390,21 @@ export class FoundryDataAccess {
+@@ -8468,6 +11705,21 @@ export class FoundryDataAccess {
      }
    }
  
@@ -7543,7 +8099,7 @@ index eecda7e..e46da12 100644
    /**
     * Move a token to a new position on the scene
     */
-@@ -8476,6 +11413,7 @@ export class FoundryDataAccess {
+@@ -8476,6 +11728,7 @@ export class FoundryDataAccess {
      x: number;
      y: number;
      animate?: boolean;
@@ -7551,7 +8107,7 @@ index eecda7e..e46da12 100644
    }): Promise<any> {
      this.validateFoundryState();
  
-@@ -8489,14 +11427,11 @@ export class FoundryDataAccess {
+@@ -8489,14 +11742,11 @@ export class FoundryDataAccess {
      }
  
      try {
@@ -7568,7 +8124,7 @@ index eecda7e..e46da12 100644
        }
  
        // Update token position
-@@ -8533,7 +11468,13 @@ export class FoundryDataAccess {
+@@ -8533,7 +11783,13 @@ export class FoundryDataAccess {
    /**
     * Update token properties
     */
@@ -7583,7 +8139,7 @@ index eecda7e..e46da12 100644
      this.validateFoundryState();
  
      // Use permission system
-@@ -8546,20 +11487,19 @@ export class FoundryDataAccess {
+@@ -8546,20 +11802,19 @@ export class FoundryDataAccess {
      }
  
      try {
@@ -7610,7 +8166,7 @@ index eecda7e..e46da12 100644
  
        // Apply updates
        await token.update(cleanUpdates);
-@@ -11274,7 +14214,10 @@ export class FoundryDataAccess {
+@@ -11274,7 +14529,10 @@ export class FoundryDataAccess {
        name: string;
        type: string;
        img?: string;
@@ -7621,7 +8177,7 @@ index eecda7e..e46da12 100644
      }>;
      folder?: string;
    }): Promise<{ created: Array<{ id: string; name: string; type: string }>; total: number }> {
-@@ -11286,6 +14229,19 @@ export class FoundryDataAccess {
+@@ -11286,6 +14544,19 @@ export class FoundryDataAccess {
      const docs = params.actors.map(a => {
        const doc: Record<string, any> = { name: a.name, type: a.type };
        if (a.img) doc.img = a.img;
@@ -7641,7 +8197,7 @@ index eecda7e..e46da12 100644
  
        // Merge system data, adding safe defaults for systems that require certain
        // fields to exist during data preparation (avoids non-fatal init errors).
-@@ -11471,7 +14427,16 @@ export class FoundryDataAccess {
+@@ -11471,7 +14742,16 @@ export class FoundryDataAccess {
     * Merges supplied fields into the actor (top-level keys overwrite).
     */
    async updateActors(
@@ -7659,7 +8215,7 @@ index eecda7e..e46da12 100644
    ): Promise<{ updated: Array<{ id: string; name: string }>; total: number }> {
      const updatedActors: Array<{ id: string; name: string }> = [];
  
-@@ -11482,6 +14447,7 @@ export class FoundryDataAccess {
+@@ -11482,6 +14762,7 @@ export class FoundryDataAccess {
        const patch: Record<string, any> = {};
        if (u.name !== undefined) patch.name = u.name;
        if (u.img !== undefined) patch.img = u.img;
@@ -7667,7 +8223,7 @@ index eecda7e..e46da12 100644
        if (u.system !== undefined) {
          // Build a single patch.system nested object so Foundry deep-merges everything
          // in one pass without flat-key vs nested-key conflicts.
-@@ -11504,6 +14470,19 @@ export class FoundryDataAccess {
+@@ -11504,6 +14785,19 @@ export class FoundryDataAccess {
          }
          patch.system = systemPatch;
        }
@@ -8045,6 +8601,186 @@ index 0000000..55aec33
 +    await expect(da.manageWorld({ action: 'list_folders' })).resolves.toMatchObject({ success: true });
 +  });
 +});
+diff --git a/packages/foundry-module/src/file-browse-utils.test.ts b/packages/foundry-module/src/file-browse-utils.test.ts
+new file mode 100644
+index 0000000..d74f26b
+--- /dev/null
++++ b/packages/foundry-module/src/file-browse-utils.test.ts
+@@ -0,0 +1,63 @@
++import { describe, expect, it } from 'vitest';
++import {
++  countByKind,
++  decodePath,
++  extensionOf,
++  fileKind,
++  matchesFilter,
++  sanitizeBrowsePath,
++  toBrowseFile,
++} from './file-browse-utils.js';
++
++describe('sanitizeBrowsePath', () => {
++  it('cleans slashes and accepts normal folders', () => {
++    expect(sanitizeBrowsePath(undefined)).toBe('');
++    expect(sanitizeBrowsePath('')).toBe('');
++    expect(sanitizeBrowsePath('/worlds//my-world/uploads/')).toBe('worlds/my-world/uploads');
++    expect(sanitizeBrowsePath('music/Dungeon Ambience')).toBe('music/Dungeon Ambience');
++  });
++  it('refuses anything that could leave the data folder', () => {
++    for (const bad of ['../secrets', 'a/../b', 'a/./b', 'C:/Windows', 'a\\b', 'a\u0000b']) {
++      expect(() => sanitizeBrowsePath(bad)).toThrow();
++    }
++    expect(() => sanitizeBrowsePath(5)).toThrow('string');
++    expect(() => sanitizeBrowsePath('a'.repeat(400))).toThrow('too long');
++  });
++});
++
++describe('fileKind', () => {
++  it('sorts files by extension', () => {
++    expect(fileKind('cave.MP3')).toBe('audio');
++    expect(fileKind('a.ogg')).toBe('audio');
++    expect(fileKind('map.webp')).toBe('image');
++    expect(fileKind('clip.mp4')).toBe('video');
++    expect(fileKind('notes.txt')).toBe('other');
++    expect(fileKind('noext')).toBe('other');
++    expect(extensionOf('a.b.C')).toBe('c');
++  });
++});
++
++describe('toBrowseFile and filters', () => {
++  const rain = toBrowseFile('worlds/w/uploads/audio/Heavy%20Rain.mp3');
++  const map = toBrowseFile('worlds/w/maps/cave.png');
++  const text = toBrowseFile('worlds/w/readme.txt');
++
++  it('decodes the path and names the file', () => {
++    expect(rain).toEqual({ name: 'Heavy Rain.mp3', path: 'worlds/w/uploads/audio/Heavy Rain.mp3', kind: 'audio', ext: 'mp3' });
++    expect(decodePath('100%')).toBe('100%');
++  });
++  it('filters by kind, extension and text', () => {
++    expect(matchesFilter(rain, {})).toBe(true);
++    expect(matchesFilter(rain, { kind: 'audio' })).toBe(true);
++    expect(matchesFilter(map, { kind: 'audio' })).toBe(false);
++    expect(matchesFilter(map, { kind: 'all' })).toBe(true);
++    expect(matchesFilter(map, { extensions: ['.PNG', 'jpg'] })).toBe(true);
++    expect(matchesFilter(rain, { extensions: ['wav'] })).toBe(false);
++    expect(matchesFilter(rain, { search: 'rain' })).toBe(true);
++    expect(matchesFilter(rain, { search: 'cave' })).toBe(false);
++    expect(matchesFilter(toBrowseFile('a/clip.mp4'), { kind: 'video' })).toBe(true);
++  });
++  it('counts by kind', () => {
++    expect(countByKind([rain, map, text, map])).toEqual({ audio: 1, image: 2, video: 0, other: 1 });
++  });
++});
+diff --git a/packages/foundry-module/src/file-browse-utils.ts b/packages/foundry-module/src/file-browse-utils.ts
+new file mode 100644
+index 0000000..d025cac
+--- /dev/null
++++ b/packages/foundry-module/src/file-browse-utils.ts
+@@ -0,0 +1,105 @@
++/**
++ * Pure helpers for browse-files: checking a folder path, naming file kinds, and filtering and
++ * shaping what Foundry's file picker returns. No Foundry globals, so they can be tested.
++ */
++
++export const AUDIO_EXTENSIONS = ['mp3', 'ogg', 'oga', 'opus', 'wav', 'flac', 'm4a', 'aac', 'webm'];
++export const IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'webp', 'gif', 'svg', 'avif'];
++export const VIDEO_EXTENSIONS = ['webm', 'mp4', 'm4v', 'ogv'];
++
++export type FileKind = 'audio' | 'image' | 'video' | 'other';
++export type KindFilter = 'audio' | 'image' | 'video' | 'all';
++
++export const MAX_BROWSE_DEPTH = 3;
++export const MAX_BROWSE_FOLDERS = 80;
++export const DEFAULT_BROWSE_LIMIT = 200;
++export const MAX_BROWSE_LIMIT = 1000;
++
++/** A folder path inside the Foundry data folder: no "..", no drive letters, no backslashes. */
++export function sanitizeBrowsePath(raw: unknown): string {
++  if (raw === undefined || raw === null) return '';
++  if (typeof raw !== 'string') throw new Error('path must be a string');
++  const trimmed = raw.trim().replace(/^\/+|\/+$/g, '');
++  if (trimmed.length > 300) throw new Error('path is too long');
++  if (/[\\\u0000-\u001f]/.test(trimmed) || /^[A-Za-z]:/.test(trimmed)) {
++    throw new Error('path must be a Foundry folder path such as worlds/my-world/uploads');
++  }
++  const parts = trimmed.split('/').filter(Boolean);
++  for (const part of parts) {
++    if (part === '.' || part === '..') throw new Error('path may not contain . or .. parts');
++  }
++  return parts.join('/');
++}
++
++export function extensionOf(name: string): string {
++  const dot = name.lastIndexOf('.');
++  return dot < 0 ? '' : name.slice(dot + 1).toLowerCase();
++}
++
++/** What a file is, by its extension (webm counts as audio unless the video filter asks for it). */
++export function fileKind(name: string): FileKind {
++  const ext = extensionOf(name);
++  if (ext === 'webm') return 'audio';
++  if (AUDIO_EXTENSIONS.includes(ext)) return 'audio';
++  if (IMAGE_EXTENSIONS.includes(ext)) return 'image';
++  if (VIDEO_EXTENSIONS.includes(ext)) return 'video';
++  return 'other';
++}
++
++export function decodePath(raw: string): string {
++  try {
++    return decodeURIComponent(String(raw));
++  } catch {
++    return String(raw);
++  }
++}
++
++export interface BrowseFile {
++  name: string;
++  path: string;
++  kind: FileKind;
++  ext: string;
++}
++
++export interface BrowseFilter {
++  kind?: KindFilter;
++  extensions?: string[];
++  search?: string;
++}
++
++/** Does a file pass the kind, extension and text filters? */
++export function matchesFilter(file: BrowseFile, filter: BrowseFilter): boolean {
++  if (filter.kind && filter.kind !== 'all') {
++    const ok = filter.kind === 'video' ? VIDEO_EXTENSIONS.includes(file.ext) : file.kind === filter.kind;
++    if (!ok) return false;
++  }
++  if (filter.extensions && filter.extensions.length > 0) {
++    const wanted = filter.extensions.map(e => e.toLowerCase().replace(/^\./, ''));
++    if (!wanted.includes(file.ext)) return false;
++  }
++  if (filter.search) {
++    const s = filter.search.toLowerCase();
++    if (!file.path.toLowerCase().includes(s)) return false;
++  }
++  return true;
++}
++
++export function toBrowseFile(rawPath: string): BrowseFile {
++  const path = decodePath(rawPath);
++  const name = path.split('/').pop() ?? path;
++  return { name, path, kind: fileKind(name), ext: extensionOf(name) };
++}
++
++export interface BrowseResult {
++  /** Folder that was listed. */
++  path: string;
++  folders: Array<{ name: string; path: string }>;
++  files: BrowseFile[];
++}
++
++/** Count files by kind. */
++export function countByKind(files: BrowseFile[]): Record<FileKind, number> {
++  const counts: Record<FileKind, number> = { audio: 0, image: 0, video: 0, other: 0 };
++  for (const f of files) counts[f.kind]++;
++  return counts;
++}
 diff --git a/packages/foundry-module/src/grid-measure-utils.test.ts b/packages/foundry-module/src/grid-measure-utils.test.ts
 new file mode 100644
 index 0000000..c7214c2
@@ -11205,7 +11941,7 @@ index 0000000..542d273
 +  return view ? outSize : { width, height };
 +}
 diff --git a/packages/foundry-module/src/queries.ts b/packages/foundry-module/src/queries.ts
-index 9fe02ba..07265a9 100644
+index 9fe02ba..22a0fe7 100644
 --- a/packages/foundry-module/src/queries.ts
 +++ b/packages/foundry-module/src/queries.ts
 @@ -1,7 +1,8 @@
@@ -11227,7 +11963,7 @@ index 9fe02ba..07265a9 100644
  
      // Character/Actor queries
      CONFIG.queries[`${modulePrefix}.getCharacterInfo`] = this.handleGetCharacterInfo.bind(this);
-@@ -46,6 +47,19 @@ export class QueryHandlers {
+@@ -46,6 +47,21 @@ export class QueryHandlers {
      CONFIG.queries[`${modulePrefix}.list-scenes`] = this.handleListScenes.bind(this);
      CONFIG.queries[`${modulePrefix}.switch-scene`] = this.handleSwitchScene.bind(this);
      CONFIG.queries[`${modulePrefix}.update-scene-music`] = this.handleUpdateSceneMusic.bind(this);
@@ -11243,11 +11979,13 @@ index 9fe02ba..07265a9 100644
 +    CONFIG.queries[`${modulePrefix}.manage-roll-tables`] = this.handleManageRollTables.bind(this);
 +    CONFIG.queries[`${modulePrefix}.manage-macros`] = this.handleManageMacros.bind(this);
 +    CONFIG.queries[`${modulePrefix}.manage-modules`] = this.handleManageModules.bind(this);
++    CONFIG.queries[`${modulePrefix}.browse-files`] = this.handleBrowseFiles.bind(this);
++    CONFIG.queries[`${modulePrefix}.manage-scene-backups`] = this.handleManageSceneBackups.bind(this);
 +    CONFIG.queries[`${modulePrefix}.inspect-document`] = this.handleInspectDocument.bind(this);
      CONFIG.queries[`${modulePrefix}.manage-playlists`] = this.handleManagePlaylists.bind(this);
      CONFIG.queries[`${modulePrefix}.control-playlist`] = this.handleControlPlaylist.bind(this);
  
-@@ -184,7 +198,7 @@ export class QueryHandlers {
+@@ -184,7 +200,7 @@ export class QueryHandlers {
     * Unregister all query handlers
     */
    unregisterHandlers(): void {
@@ -11256,7 +11994,7 @@ index 9fe02ba..07265a9 100644
      const keysToRemove = Object.keys(CONFIG.queries).filter(key => key.startsWith(modulePrefix));
  
      for (const key of keysToRemove) {
-@@ -477,7 +491,7 @@ export class QueryHandlers {
+@@ -477,7 +493,7 @@ export class QueryHandlers {
     * Get list of all registered query methods
     */
    getRegisteredMethods(): string[] {
@@ -11265,7 +12003,7 @@ index 9fe02ba..07265a9 100644
      return Object.keys(CONFIG.queries)
        .filter(key => key.startsWith(modulePrefix))
        .map(key => key.replace(`${modulePrefix}.`, ''));
-@@ -487,7 +501,7 @@ export class QueryHandlers {
+@@ -487,7 +503,7 @@ export class QueryHandlers {
     * Test if a specific query handler is registered
     */
    isMethodRegistered(method: string): boolean {
@@ -11274,7 +12012,7 @@ index 9fe02ba..07265a9 100644
      return queryKey in CONFIG.queries && typeof CONFIG.queries[queryKey] === 'function';
    }
  
-@@ -530,6 +544,9 @@ export class QueryHandlers {
+@@ -530,6 +546,9 @@ export class QueryHandlers {
        if (data.placement) {
          requestData.placement = data.placement;
        }
@@ -11284,7 +12022,7 @@ index 9fe02ba..07265a9 100644
  
        return await this.dataAccess.createActorFromCompendiumEntry(requestData);
      } catch (error) {
-@@ -1218,6 +1235,159 @@ export class QueryHandlers {
+@@ -1218,6 +1237,175 @@ export class QueryHandlers {
      }
    }
  
@@ -11340,6 +12078,22 @@ index 9fe02ba..07265a9 100644
 +      return { error: 'Access denied', success: false };
 +    }
 +    return await this.dataAccess.manageMacros(data ?? {});
++  }
++
++  private async handleBrowseFiles(data: any): Promise<any> {
++    const gmCheck = this.validateGMAccess();
++    if (!gmCheck.allowed) {
++      return { error: 'Access denied', success: false };
++    }
++    return await this.dataAccess.browseFiles(data ?? {});
++  }
++
++  private async handleManageSceneBackups(data: any): Promise<any> {
++    const gmCheck = this.validateGMAccess();
++    if (!gmCheck.allowed) {
++      return { error: 'Access denied', success: false };
++    }
++    return await this.dataAccess.manageSceneBackups(data ?? {});
 +  }
 +
 +  private async handleManageModules(data: any): Promise<any> {
@@ -11444,7 +12198,7 @@ index 9fe02ba..07265a9 100644
    private async handleManagePlaylists(data: any): Promise<any> {
      try {
        const gmCheck = this.validateGMAccess();
-@@ -1241,8 +1411,11 @@ export class QueryHandlers {
+@@ -1241,8 +1429,11 @@ export class QueryHandlers {
        if (!gmCheck.allowed) {
          return { error: 'Access denied', success: false };
        }
@@ -11458,7 +12212,7 @@ index 9fe02ba..07265a9 100644
        }
        return await this.dataAccess.controlPlaylist(data);
      } catch (error) {
-@@ -1547,7 +1720,9 @@ export class QueryHandlers {
+@@ -1547,7 +1738,9 @@ export class QueryHandlers {
     */
    private async handleUpdateToken(data: {
      tokenId: string;
@@ -11469,7 +12223,7 @@ index 9fe02ba..07265a9 100644
    }): Promise<any> {
      try {
        // SECURITY: Silent GM validation
-@@ -1561,8 +1736,8 @@ export class QueryHandlers {
+@@ -1561,8 +1754,8 @@ export class QueryHandlers {
        if (!data.tokenId) {
          throw new Error('tokenId is required');
        }
@@ -11947,6 +12701,204 @@ index 0000000..4f4d681
 +    out[name] = entry;
 +  }
 +  return out;
++}
+diff --git a/packages/foundry-module/src/scene-backup-utils.test.ts b/packages/foundry-module/src/scene-backup-utils.test.ts
+new file mode 100644
+index 0000000..7619d30
+--- /dev/null
++++ b/packages/foundry-module/src/scene-backup-utils.test.ts
+@@ -0,0 +1,74 @@
++import { describe, expect, it } from 'vitest';
++import {
++  backupName,
++  backupStamp,
++  buildRestorePlan,
++  cleanLabel,
++  readBackupFlag,
++  stripForCreate,
++  summarisePlan,
++} from './scene-backup-utils.js';
++
++const MODULE = 'foundry-mcp-bridge-scenes';
++
++describe('naming', () => {
++  const date = new Date(2026, 10, 12, 9, 5);
++  it('stamps the date and time', () => {
++    expect(backupStamp(date)).toBe('2026-11-12 09:05');
++    expect(backupName('Redbrand Hideout', date)).toBe('Redbrand Hideout (old 2026-11-12 09:05)');
++    expect(backupName('Redbrand Hideout', date, 'before rebuild')).toBe('Redbrand Hideout (old 2026-11-12 09:05 before rebuild)');
++  });
++  it('cleans and limits labels', () => {
++    expect(cleanLabel(undefined)).toBe('');
++    expect(cleanLabel(' a (b) ')).toBe('a b');
++    expect(() => cleanLabel('x'.repeat(41))).toThrow('at most');
++    expect(() => cleanLabel(5)).toThrow('string');
++  });
++});
++
++describe('readBackupFlag', () => {
++  it('reads the flag this module sets, and nothing else', () => {
++    const flags = { [MODULE]: { sceneBackup: { of: 's1', name: 'Cave', at: '2026-11-12T10:00:00Z', label: 'x' } } };
++    expect(readBackupFlag(flags, MODULE)).toEqual({ of: 's1', name: 'Cave', at: '2026-11-12T10:00:00Z', label: 'x' });
++    expect(readBackupFlag({}, MODULE)).toBeNull();
++    expect(readBackupFlag(undefined, MODULE)).toBeNull();
++    expect(readBackupFlag({ other: { sceneBackup: { of: 's1' } } }, MODULE)).toBeNull();
++    expect(readBackupFlag({ [MODULE]: { sceneBackup: { name: 'no id' } } }, MODULE)).toBeNull();
++  });
++});
++
++describe('restore plan', () => {
++  const backup = {
++    _id: 'b1',
++    name: 'Cave (old)',
++    folder: 'f1',
++    width: 2000,
++    height: 1500,
++    grid: { size: 64 },
++    tokenVision: true,
++    tokens: [{ _id: 't1', name: 'Wolf', _stats: { x: 1 }, level: 'defaultLevel0000' }],
++    walls: [{ _id: 'w1', c: [0, 0, 1, 1] }, { _id: 'w2', c: [1, 1, 2, 2] }],
++    regions: [{ _id: 'r1', name: 'Trap', behaviors: [{ _id: 'bh', type: 'pauseGame' }] }],
++  };
++
++  it('copies the scene fields and not ids, names or folders', () => {
++    const plan = buildRestorePlan(backup, {});
++    expect(plan.fields).toEqual({ width: 2000, height: 1500, grid: { size: 64 }, tokenVision: true });
++    expect(plan.fields).not.toHaveProperty('name');
++    expect(plan.fields).not.toHaveProperty('folder');
++  });
++  it('removes what is there and adds the backup documents without ids', () => {
++    const plan = buildRestorePlan(backup, { tokens: 20, walls: 364, lights: 9 });
++    const byName = Object.fromEntries(plan.embedded.map(e => [e.collection, e]));
++    expect(byName.tokens).toMatchObject({ documentName: 'Token', remove: 20 });
++    expect(byName.tokens!.add).toEqual([{ name: 'Wolf', level: 'defaultLevel0000' }]);
++    expect(byName.walls!.add).toEqual([{ c: [0, 0, 1, 1] }, { c: [1, 1, 2, 2] }]);
++    expect(byName.lights).toMatchObject({ remove: 9, add: [] });
++    expect(byName.regions!.add[0]).toMatchObject({ name: 'Trap' });
++    expect(summarisePlan(plan).find(s => s.collection === 'walls')).toEqual({ collection: 'walls', remove: 364, add: 2 });
++  });
++  it('stripForCreate tolerates empty input', () => {
++    expect(stripForCreate({ _id: 'x', a: 1 })).toEqual({ a: 1 });
++    expect(stripForCreate(undefined as any)).toEqual({});
++  });
++});
+diff --git a/packages/foundry-module/src/scene-backup-utils.ts b/packages/foundry-module/src/scene-backup-utils.ts
+new file mode 100644
+index 0000000..ca7d8a6
+--- /dev/null
++++ b/packages/foundry-module/src/scene-backup-utils.ts
+@@ -0,0 +1,112 @@
++/**
++ * Pure helpers for scene backups: naming, recognising backups, and working out what a restore
++ * writes back. No Foundry globals, so they can be tested.
++ */
++
++/** Embedded collections a restore replaces: [scene collection name, document name]. Levels are updated in place. */
++export const RESTORE_COLLECTIONS: ReadonlyArray<readonly [string, string]> = [
++  ['tokens', 'Token'],
++  ['walls', 'Wall'],
++  ['lights', 'AmbientLight'],
++  ['sounds', 'AmbientSound'],
++  ['notes', 'Note'],
++  ['tiles', 'Tile'],
++  ['drawings', 'Drawing'],
++  ['regions', 'Region'],
++];
++
++/** Scene fields a restore copies back (everything that is not an id, a name, a folder or embedded). */
++export const RESTORE_FIELDS = [
++  'width',
++  'height',
++  'padding',
++  'grid',
++  'fog',
++  'tokenVision',
++  'environment',
++  'shiftX',
++  'shiftY',
++  'initial',
++  'initialLevel',
++  'transition',
++  'weather',
++  'playlist',
++  'playlistSound',
++  'journal',
++  'journalEntryPage',
++] as const;
++
++export const BACKUP_FOLDER_NAME = 'Backups';
++export const MAX_LABEL_LENGTH = 40;
++
++const pad = (n: number) => String(n).padStart(2, '0');
++
++/** 2026-11-12 14:05 */
++export function backupStamp(date: Date): string {
++  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
++}
++
++export function cleanLabel(label: unknown): string {
++  if (label === undefined || label === null || label === '') return '';
++  if (typeof label !== 'string') throw new Error('label must be a string');
++  const cleaned = label.replace(/[\u0000-\u001f]/g, ' ').replace(/[()]/g, '').trim();
++  if (cleaned.length > MAX_LABEL_LENGTH) throw new Error(`label may have at most ${MAX_LABEL_LENGTH} characters`);
++  return cleaned;
++}
++
++/** "Redbrand Hideout (old 2026-11-12 14:05 before rebuild)" */
++export function backupName(sceneName: string, date: Date, label?: unknown): string {
++  const extra = cleanLabel(label);
++  return `${sceneName} (old ${backupStamp(date)}${extra ? ` ${extra}` : ''})`;
++}
++
++export interface BackupFlag {
++  /** Id of the scene this is a copy of. */
++  of: string;
++  /** Name that scene had. */
++  name: string;
++  at: string;
++  label?: string;
++}
++
++export function readBackupFlag(flags: unknown, moduleId: string): BackupFlag | null {
++  const f = (flags as any)?.[moduleId]?.sceneBackup;
++  if (!f || typeof f !== 'object' || typeof f.of !== 'string') return null;
++  return { of: f.of, name: String(f.name ?? ''), at: String(f.at ?? ''), ...(f.label ? { label: String(f.label) } : {}) };
++}
++
++/** A copy of embedded document data without its id and statistics, ready to create again. */
++export function stripForCreate(data: Record<string, any>): Record<string, any> {
++  const { _id, _stats, ...rest } = data ?? {};
++  void _id;
++  void _stats;
++  return rest;
++}
++
++export interface RestorePlan {
++  fields: Record<string, any>;
++  embedded: Array<{ collection: string; documentName: string; remove: number; add: Array<Record<string, any>> }>;
++}
++
++/**
++ * What a restore does: the scene fields to write and, per collection, how many documents to
++ * remove from the scene and which to create from the backup.
++ */
++export function buildRestorePlan(backup: Record<string, any>, currentCounts: Record<string, number>): RestorePlan {
++  const fields: Record<string, any> = {};
++  for (const key of RESTORE_FIELDS) {
++    if (key in backup) fields[key] = backup[key];
++  }
++  const embedded = RESTORE_COLLECTIONS.map(([collection, documentName]) => ({
++    collection,
++    documentName,
++    remove: currentCounts[collection] ?? 0,
++    add: (Array.isArray(backup[collection]) ? backup[collection] : []).map((d: any) => stripForCreate(d)),
++  }));
++  return { fields, embedded };
++}
++
++/** A plain-language summary of a plan, for the dry run. */
++export function summarisePlan(plan: RestorePlan): Array<{ collection: string; remove: number; add: number }> {
++  return plan.embedded.map(e => ({ collection: e.collection, remove: e.remove, add: e.add.length }));
 +}
 diff --git a/packages/foundry-module/src/scene-objects-utils.test.ts b/packages/foundry-module/src/scene-objects-utils.test.ts
 new file mode 100644
@@ -14036,10 +14988,10 @@ index 096f27b..903a94e 100644
      "@vitest/coverage-v8": "^3.2.4",
      "esbuild": "^0.19.0",
 diff --git a/packages/mcp-server/src/backend.ts b/packages/mcp-server/src/backend.ts
-index 8967e33..f3c636f 100644
+index 8967e33..18a1461 100644
 --- a/packages/mcp-server/src/backend.ts
 +++ b/packages/mcp-server/src/backend.ts
-@@ -48,6 +48,25 @@ import { DnD5eAddFeatureTool } from './tools/dnd5e/add-feature.js';
+@@ -48,6 +48,27 @@ import { DnD5eAddFeatureTool } from './tools/dnd5e/add-feature.js';
  import { DnD5eNpcTools } from './tools/dnd5e/npc.js';
  import { DnD5eFeaturesFromCompendiumTools } from './tools/dnd5e/features.js';
  import { ChatTools } from './tools/chat.js';
@@ -14060,12 +15012,14 @@ index 8967e33..f3c636f 100644
 +import { PlayTools } from './tools/play-tools.js';
 +import { ModuleTools } from './tools/module-tools.js';
 +import { PropTools } from './tools/prop-tools.js';
++import { FileBackupTools } from './tools/file-backup-tools.js';
++import { SceneSoundTools } from './tools/scene-sound-tools.js';
 +import { LayoutTools } from './tools/layout.js';
 +import { InspectTools } from './tools/inspect.js';
  
  const CONTROL_HOST = '127.0.0.1';
  
-@@ -174,6 +193,22 @@ let comfyuiProcess: ChildProcess | null = null;
+@@ -174,6 +195,22 @@ let comfyuiProcess: ChildProcess | null = null;
  
  let comfyuiStatus: 'stopped' | 'starting' | 'running' | 'error' = 'stopped';
  
@@ -14088,7 +15042,7 @@ index 8967e33..f3c636f 100644
  let lockFd: number | null = null;
  
  function acquireLock(): boolean {
-@@ -350,6 +385,18 @@ async function waitForComfyUIReady(timeoutMs: number = 60000): Promise<void> {
+@@ -350,6 +387,18 @@ async function waitForComfyUIReady(timeoutMs: number = 60000): Promise<void> {
  }
  
  async function startComfyUIService(logger: Logger): Promise<any> {
@@ -14107,7 +15061,7 @@ index 8967e33..f3c636f 100644
    if (comfyuiStatus === 'running') {
      return { status: 'already_running', message: 'ComfyUI service is already running' };
    }
-@@ -472,6 +519,14 @@ async function startComfyUIService(logger: Logger): Promise<any> {
+@@ -472,6 +521,14 @@ async function startComfyUIService(logger: Logger): Promise<any> {
  }
  
  async function stopComfyUIService(logger: Logger): Promise<any> {
@@ -14122,7 +15076,7 @@ index 8967e33..f3c636f 100644
    if (comfyuiStatus === 'stopped') {
      return { status: 'already_stopped', message: 'ComfyUI service is already stopped' };
    }
-@@ -510,7 +565,7 @@ async function checkComfyUIStatus(): Promise<any> {
+@@ -510,7 +567,7 @@ async function checkComfyUIStatus(): Promise<any> {
    // This handles both spawned processes and externally-started instances
  
    try {
@@ -14131,7 +15085,7 @@ index 8967e33..f3c636f 100644
        signal: AbortSignal.timeout(5000),
      });
  
-@@ -520,16 +575,23 @@ async function checkComfyUIStatus(): Promise<any> {
+@@ -520,16 +577,23 @@ async function checkComfyUIStatus(): Promise<any> {
        comfyuiStatus = 'error';
      }
    } catch (error) {
@@ -14157,7 +15111,7 @@ index 8967e33..f3c636f 100644
    };
  }
  
-@@ -1131,7 +1193,7 @@ async function processMapGenerationInBackend(
+@@ -1131,7 +1195,7 @@ async function processMapGenerationInBackend(
      );
  
      logger.error('Background map generation processing failed', { jobId, error });
@@ -14166,7 +15120,7 @@ index 8967e33..f3c636f 100644
  
      // Emit failure to Foundry module
      foundryClient.sendMessage({
-@@ -1195,6 +1257,40 @@ async function startBackend(): Promise<void> {
+@@ -1195,6 +1259,42 @@ async function startBackend(): Promise<void> {
    const compendiumTools = new CompendiumTools({ foundryClient, logger, systemRegistry });
  
    const sceneTools = new SceneTools({ foundryClient, logger });
@@ -14203,11 +15157,13 @@ index 8967e33..f3c636f 100644
 +    generate: args => imageGenerationTools.handleGenerateImage(args),
 +    upload: args => uploadTools.handleUploadFile(args),
 +  });
++  const fileBackupTools = new FileBackupTools({ foundryClient, logger });
++  const sceneSoundTools = new SceneSoundTools({ foundryClient, logger });
 +  const inspectTools = new InspectTools({ foundryClient, logger });
    const playlistTools = new PlaylistTools({ foundryClient, logger });
  
    const actorCreationTools = new ActorCreationTools({ foundryClient, logger });
-@@ -1301,6 +1397,13 @@ async function startBackend(): Promise<void> {
+@@ -1301,6 +1401,13 @@ async function startBackend(): Promise<void> {
  
          let result: any;
  
@@ -14221,7 +15177,7 @@ index 8967e33..f3c636f 100644
          switch (message.type) {
            case 'start-comfyui-service':
              result = await startComfyUIService(logger);
-@@ -1317,6 +1420,19 @@ async function startBackend(): Promise<void> {
+@@ -1317,6 +1424,19 @@ async function startBackend(): Promise<void> {
  
              break;
  
@@ -14241,7 +15197,7 @@ index 8967e33..f3c636f 100644
            // Map generation handlers (following existing tool pattern)
            case 'generate-map-request':
              await fs.appendFile(
-@@ -1429,6 +1545,16 @@ async function startBackend(): Promise<void> {
+@@ -1429,6 +1549,18 @@ async function startBackend(): Promise<void> {
  
      ...sceneTools.getToolDefinitions(),
  
@@ -14252,13 +15208,15 @@ index 8967e33..f3c636f 100644
 +    ...playTools.getToolDefinitions(),
 +    ...moduleTools.getToolDefinitions(),
 +    ...propTools.getToolDefinitions(),
++    ...fileBackupTools.getToolDefinitions(),
++    ...sceneSoundTools.getToolDefinitions(),
 +    ...layoutTools.getToolDefinitions(),
 +    ...inspectTools.getToolDefinitions(),
 +
      ...actorCreationTools.getToolDefinitions(),
      ...actorManagementTools.getToolDefinitions(),
      ...effectManagementTools.getToolDefinitions(),
-@@ -1456,7 +1582,11 @@ async function startBackend(): Promise<void> {
+@@ -1456,7 +1588,11 @@ async function startBackend(): Promise<void> {
  
      ...tokenManipulationTools.getToolDefinitions(),
  
@@ -14271,7 +15229,7 @@ index 8967e33..f3c636f 100644
  
      ...playlistTools.getToolDefinitions(),
    ];
-@@ -1764,19 +1894,11 @@ async function startBackend(): Promise<void> {
+@@ -1764,19 +1900,11 @@ async function startBackend(): Promise<void> {
                  // Map generation tools
  
                  case 'generate-map':
@@ -14294,7 +15252,7 @@ index 8967e33..f3c636f 100644
  
                  case 'list-scenes':
                    result = await mapGenerationTools.listScenes(args);
-@@ -1805,6 +1927,72 @@ async function startBackend(): Promise<void> {
+@@ -1805,6 +1933,84 @@ async function startBackend(): Promise<void> {
  
                    break;
  
@@ -14341,6 +15299,18 @@ index 8967e33..f3c636f 100644
 +
 +                case 'make-prop':
 +                  result = await propTools.handleMakeProp(args);
++                  break;
++
++                case 'browse-files':
++                  result = await fileBackupTools.handleBrowseFiles(args);
++                  break;
++
++                case 'manage-scene-backups':
++                  result = await fileBackupTools.handleManageSceneBackups(args);
++                  break;
++
++                case 'setup-scene-sound':
++                  result = await sceneSoundTools.handleSetupSceneSound(args);
 +                  break;
 +
 +                case 'manage-world':
@@ -15996,6 +16966,186 @@ index 8709ffc..1319987 100644
            })
          )
          .min(1),
+diff --git a/packages/mcp-server/src/tools/file-backup-tools.test.ts b/packages/mcp-server/src/tools/file-backup-tools.test.ts
+new file mode 100644
+index 0000000..e96bd2f
+--- /dev/null
++++ b/packages/mcp-server/src/tools/file-backup-tools.test.ts
+@@ -0,0 +1,60 @@
++import { describe, expect, it, vi } from 'vitest';
++import { FileBackupTools } from './file-backup-tools.js';
++
++function makeTools(impl?: (method: string, data: any) => unknown) {
++  const query = vi.fn(impl ?? (async () => ({ success: true })));
++  const logger: any = { info: vi.fn(), debug: vi.fn(), error: vi.fn(), warn: vi.fn(), child: () => logger };
++  return { tools: new FileBackupTools({ foundryClient: { query } as any, logger }), query };
++}
++
++describe('definitions', () => {
++  it('offers browse-files and manage-scene-backups', () => {
++    const defs = makeTools().tools.getToolDefinitions();
++    expect(defs.map(d => d.name)).toEqual(['browse-files', 'manage-scene-backups']);
++    expect(defs[1]!.inputSchema.required).toEqual(['action']);
++  });
++});
++
++describe('browse-files', () => {
++  it('sends a valid request and returns the result', async () => {
++    const { tools, query } = makeTools(async () => ({ success: true, files: [] }));
++    const r = await tools.handleBrowseFiles({ path: 'worlds', kind: 'audio', depth: 2 });
++    expect(r.success).toBe(true);
++    expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.browse-files', { path: 'worlds', kind: 'audio', depth: 2 });
++    await tools.handleBrowseFiles(undefined);
++    expect(query).toHaveBeenLastCalledWith('foundry-mcp-bridge.browse-files', {});
++  });
++  it('refuses bad input and reports failures', async () => {
++    const { tools, query } = makeTools(async () => {
++      throw new Error('timeout');
++    });
++    await expect(tools.handleBrowseFiles({ depth: 4 })).rejects.toThrow();
++    await expect(tools.handleBrowseFiles({ kind: 'text' })).rejects.toThrow();
++    await expect(tools.handleBrowseFiles({ bogus: 1 })).rejects.toThrow();
++    expect(query).not.toHaveBeenCalled();
++    await expect(tools.handleBrowseFiles({})).rejects.toThrow('Failed to browse files: timeout');
++  });
++});
++
++describe('manage-scene-backups', () => {
++  it('sends each action', async () => {
++    const { tools, query } = makeTools();
++    await tools.handleManageSceneBackups({ action: 'backup', scene: 'Cave', label: 'before rebuild' });
++    await tools.handleManageSceneBackups({ action: 'list' });
++    await tools.handleManageSceneBackups({ action: 'restore', backup: 'b1', confirm: true });
++    expect(query).toHaveBeenNthCalledWith(1, 'foundry-mcp-bridge.manage-scene-backups', { action: 'backup', scene: 'Cave', label: 'before rebuild' });
++    expect(query).toHaveBeenNthCalledWith(3, 'foundry-mcp-bridge.manage-scene-backups', { action: 'restore', backup: 'b1', confirm: true });
++  });
++  it('checks what restore and delete need', async () => {
++    const { tools, query } = makeTools();
++    await expect(tools.handleManageSceneBackups({ action: 'restore' })).rejects.toThrow('needs backup');
++    await expect(tools.handleManageSceneBackups({ action: 'delete' })).rejects.toThrow('needs backup');
++    await expect(tools.handleManageSceneBackups({ action: 'explode' })).rejects.toThrow();
++    await expect(tools.handleManageSceneBackups({ action: 'backup', label: 'x'.repeat(41) })).rejects.toThrow();
++    expect(query).not.toHaveBeenCalled();
++  });
++  it('turns a refusal into an error', async () => {
++    const { tools } = makeTools(async () => ({ success: false, error: 'no backup matches' }));
++    await expect(tools.handleManageSceneBackups({ action: 'list' })).rejects.toThrow('Failed to manage scene backups: no backup matches');
++  });
++});
+diff --git a/packages/mcp-server/src/tools/file-backup-tools.ts b/packages/mcp-server/src/tools/file-backup-tools.ts
+new file mode 100644
+index 0000000..1eb5384
+--- /dev/null
++++ b/packages/mcp-server/src/tools/file-backup-tools.ts
+@@ -0,0 +1,108 @@
++import { z } from 'zod';
++import { FoundryClient } from '../foundry-client.js';
++import { Logger } from '../logger.js';
++
++export interface FileBackupToolsOptions {
++  foundryClient: FoundryClient;
++  logger: Logger;
++}
++
++const browseSchema = z
++  .object({
++    path: z.string().max(300).optional(),
++    source: z.enum(['data', 'public']).optional(),
++    kind: z.enum(['audio', 'image', 'video', 'all']).optional(),
++    extensions: z.array(z.string().min(1).max(10)).max(20).optional(),
++    search: z.string().min(1).max(100).optional(),
++    depth: z.number().int().min(0).max(3).optional(),
++    limit: z.number().int().min(1).max(1000).optional(),
++  })
++  .strict();
++
++const backupSchema = z
++  .object({
++    action: z.enum(['backup', 'list', 'restore', 'delete']),
++    scene: z.string().min(1).optional(),
++    backup: z.string().min(1).optional(),
++    label: z.string().min(1).max(40).optional(),
++    confirm: z.boolean().optional(),
++  })
++  .strict();
++
++export class FileBackupTools {
++  private foundryClient: FoundryClient;
++  private logger: Logger;
++
++  constructor({ foundryClient, logger }: FileBackupToolsOptions) {
++    this.foundryClient = foundryClient;
++    this.logger = logger.child({ component: 'FileBackupTools' });
++  }
++
++  getToolDefinitions() {
++    return [
++      {
++        name: 'browse-files',
++        description:
++          'Look at the files on the Foundry server (read only): list the folders and files of a folder, optionally a few levels down, filtered by kind (audio, image, video), extension or text in the path. Uploaded files live on the server, not in a world, so music, maps and tokens put there for another world can be found here and used by their path without uploading them again (playlist sounds, scene backgrounds, token images, tiles). ' +
++          'path is a folder such as "worlds", "worlds/my-world/uploads" or "modules" (empty = the top of the data folder); source data (default) or public (Foundry\'s own files, e.g. sounds and icons); depth 0 to 3 lists subfolders\' contents too (at most 80 folders are read); limit (default 200, up to 1000). Results give each file\'s full path, kind and extension. Needs the Foundry tab open in a browser.',
++        inputSchema: {
++          type: 'object',
++          properties: {
++            path: { type: 'string', description: 'Folder to list (default: the top of the data folder)' },
++            source: { type: 'string', enum: ['data', 'public'], description: 'data (default) or public' },
++            kind: { type: 'string', enum: ['audio', 'image', 'video', 'all'], description: 'Only files of this kind' },
++            extensions: { type: 'array', items: { type: 'string' }, description: 'Only these extensions, e.g. ["mp3","ogg"]' },
++            search: { type: 'string', description: 'Only files whose path contains this text' },
++            depth: { type: 'number', description: 'Subfolder levels to look into (0 to 3, default 0)' },
++            limit: { type: 'number', description: 'Most files and folders to return (default 200)' },
++          },
++          additionalProperties: false,
++        },
++      },
++      {
++        name: 'manage-scene-backups',
++        description:
++          'Keep copies of scenes so a rebuild can be undone. backup {scene?, label?} makes a full copy (map, walls, lights, tokens, regions, tiles, pins, sounds, settings) named "<scene> (old <date time> <label>)" in a Backups folder; the copy is not active and not in navigation. list {scene?} shows the backups (all, or of one scene). restore {backup, scene?, confirm} puts a backup\'s contents back into the original scene (or the scene you name), KEEPING the scene\'s id so teleports and links still work; without confirm: true it only shows what would change; with it, a safety copy of the current state ("before restore") is made first, so a restore can itself be undone. delete {backup, confirm} removes a backup (only scenes this tool made as backups can be deleted). Layout files (the layout tool) are not part of a backup. Needs the Foundry tab open in a browser.',
++        inputSchema: {
++          type: 'object',
++          properties: {
++            action: { type: 'string', enum: ['backup', 'list', 'restore', 'delete'] },
++            scene: { type: 'string', description: 'backup: scene id or name (default: the scene being viewed); list: only backups of this scene; restore: scene to restore into (default: the backup\'s original)' },
++            backup: { type: 'string', description: 'restore / delete: id or name of the backup scene' },
++            label: { type: 'string', description: 'backup: a few words added to the name, e.g. "before rebuild"' },
++            confirm: { type: 'boolean', description: 'restore / delete: must be true to do it' },
++          },
++          required: ['action'],
++          additionalProperties: false,
++        },
++      },
++    ];
++  }
++
++  async handleBrowseFiles(args: any): Promise<any> {
++    const parsed = browseSchema.parse(args ?? {});
++    try {
++      const result = await this.foundryClient.query('foundry-mcp-bridge.browse-files', parsed);
++      if (result?.success === false) throw new Error(result.error || 'Request was refused');
++      return result;
++    } catch (error) {
++      this.logger.error('Failed to browse files', error);
++      throw new Error(`Failed to browse files: ${error instanceof Error ? error.message : 'Unknown error'}`);
++    }
++  }
++
++  async handleManageSceneBackups(args: any): Promise<any> {
++    const parsed = backupSchema.parse(args ?? {});
++    if ((parsed.action === 'restore' || parsed.action === 'delete') && !parsed.backup) {
++      throw new Error(`${parsed.action} needs backup (list shows them)`);
++    }
++    try {
++      const result = await this.foundryClient.query('foundry-mcp-bridge.manage-scene-backups', parsed);
++      if (result?.success === false) throw new Error(result.error || 'Request was refused');
++      return result;
++    } catch (error) {
++      this.logger.error('Failed to manage scene backups', error);
++      throw new Error(`Failed to manage scene backups: ${error instanceof Error ? error.message : 'Unknown error'}`);
++    }
++  }
++}
 diff --git a/packages/mcp-server/src/tools/image-generation.test.ts b/packages/mcp-server/src/tools/image-generation.test.ts
 new file mode 100644
 index 0000000..4b2190f
@@ -23213,6 +24363,404 @@ index 0000000..b29e804
 +    } catch {
 +      // Cleaning up is best effort.
 +    }
++  }
++}
+diff --git a/packages/mcp-server/src/tools/scene-sound-tools.test.ts b/packages/mcp-server/src/tools/scene-sound-tools.test.ts
+new file mode 100644
+index 0000000..eedbd84
+--- /dev/null
++++ b/packages/mcp-server/src/tools/scene-sound-tools.test.ts
+@@ -0,0 +1,147 @@
++import { describe, expect, it, vi } from 'vitest';
++import { SceneSoundTools, soundNameFromPath } from './scene-sound-tools.js';
++
++type Call = [string, any];
++
++function makeTools(overrides: Record<string, (data: any) => any> = {}) {
++  const calls: Call[] = [];
++  const state = {
++    playlists: [{ id: 'p1', name: 'Existing mix', soundCount: 1 }] as any[],
++    playlistSounds: [{ path: 'a/old.mp3' }] as any[],
++  };
++  const query = vi.fn(async (method: string, data: any) => {
++    const name = method.replace('foundry-mcp-bridge.', '');
++    calls.push([name, data]);
++    if (overrides[name]) return overrides[name](data);
++    switch (name) {
++      case 'manage-scenes':
++        return { success: true, scene: { id: 's1', name: 'Cave', music: { playlist: null, playlistSound: null } } };
++      case 'manage-playlists':
++        if (data.action === 'describe' && !data.playlist) return { success: true, playlists: state.playlists };
++        if (data.action === 'describe') return { success: true, playlist: { id: data.playlist, name: 'Existing mix', sounds: state.playlistSounds } };
++        if (data.action === 'create') return { success: true, playlist: { id: 'new1', name: data.name } };
++        return { success: true };
++      case 'manage-scene-objects':
++        if (data.action === 'remove') return { success: true, removed: [{ id: 'x' }, { id: 'y' }] };
++        if (data.action === 'place') return { success: true, created: data.objects.map((_: any, i: number) => ({ id: `n${i}` })) };
++        return { success: true, scene: { id: 's1', name: 'Cave' }, sounds: [{ id: 'z' }] };
++      default:
++        return { success: true };
++    }
++  });
++  const logger: any = { info: vi.fn(), debug: vi.fn(), error: vi.fn(), warn: vi.fn(), child: () => logger };
++  return { tools: new SceneSoundTools({ foundryClient: { query } as any, logger }), calls, state };
++}
++
++const names = (calls: Call[]) => calls.map(c => `${c[0]}${c[1].action ? ':' + c[1].action : ''}${c[1].command ? ':' + c[1].command : ''}`);
++
++describe('soundNameFromPath', () => {
++  it('turns a file path into a track name', () => {
++    expect(soundNameFromPath('worlds/w/uploads/audio/Cave-drip_01.mp3')).toBe('Cave drip 01');
++    expect(soundNameFromPath('x.ogg')).toBe('x');
++    expect(soundNameFromPath('.mp3')).toBe('Sound');
++  });
++});
++
++describe('definition', () => {
++  it('is exposed with scene required', () => {
++    const def = makeTools().tools.getToolDefinitions()[0]!;
++    expect(def.name).toBe('setup-scene-sound');
++    expect(def.inputSchema.required).toEqual(['scene']);
++  });
++});
++
++describe('music', () => {
++  it('creates a playlist from files, binds it to the scene and starts it', async () => {
++    const { tools, calls } = makeTools();
++    const r = await tools.handleSetupSceneSound({
++      scene: 'Cave',
++      music: { files: ['worlds/w/uploads/audio/cave-theme.mp3'], volume: 0.5, play: true },
++    });
++    expect(names(calls)).toEqual([
++      'manage-playlists:describe',
++      'manage-scenes:describe',
++      'manage-playlists:create',
++      'update-scene-music',
++      'control-playlist:play-sound',
++    ]);
++    const create = calls.find(c => c[0] === 'manage-playlists' && c[1].action === 'create')![1];
++    expect(create).toMatchObject({ name: 'Cave music', sounds: [{ path: 'worlds/w/uploads/audio/cave-theme.mp3', name: 'cave theme', repeat: true, volume: 0.5 }] });
++    expect(calls.find(c => c[0] === 'update-scene-music')![1]).toEqual({ scene_identifier: 'Cave', playlist: 'new1', playlist_sound: 'cave theme' });
++    expect(r.steps.join(' ')).toContain('created with 1 track');
++  });
++
++  it('adds only the missing files to an existing playlist', async () => {
++    const { tools, calls } = makeTools();
++    const r = await tools.handleSetupSceneSound({ scene: 'Cave', music: { playlist: 'Existing mix', files: ['a/old.mp3', 'a/new.mp3', 'a/newer.ogg'] } });
++    const update = calls.find(c => c[0] === 'manage-playlists' && c[1].action === 'update')![1];
++    expect(update.add_sounds.map((s: any) => s.path)).toEqual(['a/new.mp3', 'a/newer.ogg']);
++    expect(update.add_sounds[0].repeat).toBe(false);
++    expect(r.steps.join(' ')).toContain('2 track(s) added, 1 already there');
++    expect(calls.find(c => c[0] === 'update-scene-music')![1]).toEqual({ scene_identifier: 'Cave', playlist: 'p1' });
++  });
++
++  it('uses an existing playlist as it is, and says when it is missing', async () => {
++    const { tools, calls } = makeTools();
++    await tools.handleSetupSceneSound({ scene: 'Cave', music: { playlist: 'existing mix', sound: 'Drums', play: true } });
++    expect(calls.find(c => c[0] === 'update-scene-music')![1]).toEqual({ scene_identifier: 'Cave', playlist: 'p1', playlist_sound: 'Drums' });
++    expect(names(calls)).toContain('control-playlist:play-sound');
++    await expect(tools.handleSetupSceneSound({ scene: 'Cave', music: { playlist: 'Nope' } })).rejects.toThrow('not found');
++  });
++
++  it('clears the music', async () => {
++    const { tools, calls } = makeTools();
++    await tools.handleSetupSceneSound({ scene: 'Cave', music: { clear: true } });
++    expect(calls[0]).toEqual(['update-scene-music', { scene_identifier: 'Cave', playlist: null, playlist_sound: null }]);
++  });
++});
++
++describe('ambient sounds', () => {
++  it('replaces the earlier ones and places the new ones', async () => {
++    const { tools, calls } = makeTools();
++    const r = await tools.handleSetupSceneSound({
++      scene: 'Cave',
++      ambient: [{ path: 'a/drip.mp3', x: 10, y: 8, radius: 6, volume: 0.4 }, { path: 'a/wind.ogg', x: 20, y: 5, radius: 10, walls: false }],
++    });
++    expect(calls[0]).toEqual(['manage-scene-objects', { action: 'remove', scene: 'Cave', kind: 'sound', all_mine: true }]);
++    expect(calls[1]![1].objects).toEqual([
++      { kind: 'sound', path: 'a/drip.mp3', x: 10, y: 8, radius: 6, volume: 0.4 },
++      { kind: 'sound', path: 'a/wind.ogg', x: 20, y: 5, radius: 10, walls: false },
++    ]);
++    expect(r.steps).toEqual(['2 earlier ambient sound(s) removed', '2 ambient sound(s) placed']);
++  });
++  it('keeps the earlier ones when asked, and can clear them', async () => {
++    const { tools, calls } = makeTools();
++    await tools.handleSetupSceneSound({ scene: 'Cave', replace_ambient: false, ambient: [{ path: 'a/x.mp3', x: 1, y: 1, radius: 2 }] });
++    expect(names(calls)).toEqual(['manage-scene-objects:place']);
++    const second = makeTools();
++    await second.tools.handleSetupSceneSound({ scene: 'Cave', clear_ambient: true });
++    expect(names(second.calls)).toEqual(['manage-scene-objects:remove']);
++  });
++});
++
++describe('describe and checks', () => {
++  it('describes music and ambient sounds', async () => {
++    const { tools } = makeTools();
++    const r = await tools.handleSetupSceneSound({ scene: 'Cave', action: 'describe' });
++    expect(r).toMatchObject({ success: true, scene: { id: 's1', name: 'Cave' }, ambient: [{ id: 'z' }] });
++  });
++  it('refuses bad combinations', async () => {
++    const { tools, calls } = makeTools();
++    await expect(tools.handleSetupSceneSound({ scene: 'Cave' })).rejects.toThrow('Give music');
++    await expect(tools.handleSetupSceneSound({ scene: 'Cave', music: {} })).rejects.toThrow('music needs');
++    await expect(tools.handleSetupSceneSound({ scene: 'Cave', music: { clear: true, files: ['a.mp3'] } })).rejects.toThrow('cannot be combined');
++    await expect(tools.handleSetupSceneSound({ scene: 'Cave', clear_ambient: true, ambient: [{ path: 'a.mp3', x: 1, y: 1, radius: 1 }] })).rejects.toThrow('not both');
++    await expect(tools.handleSetupSceneSound({ scene: 'Cave', ambient: [{ path: 'http://x/a.mp3', x: 1, y: 1, radius: 1 }] })).rejects.toThrow('Foundry files');
++    await expect(tools.handleSetupSceneSound({ scene: 'Cave', ambient: [{ path: 'a.mp3', x: 1, y: 1 }] })).rejects.toThrow();
++    expect(calls).toHaveLength(0);
++  });
++  it('says what was done when a step fails', async () => {
++    const { tools } = makeTools({
++      'manage-scene-objects': (d: any) => (d.action === 'place' ? { success: false, error: 'outside the scene' } : { success: true, removed: [] }),
++    });
++    await expect(
++      tools.handleSetupSceneSound({ scene: 'Cave', ambient: [{ path: 'a.mp3', x: 1, y: 1, radius: 1 }] })
++    ).rejects.toThrow('outside the scene (done so far: 0 earlier ambient sound(s) removed)');
++  });
++});
+diff --git a/packages/mcp-server/src/tools/scene-sound-tools.ts b/packages/mcp-server/src/tools/scene-sound-tools.ts
+new file mode 100644
+index 0000000..ef1049e
+--- /dev/null
++++ b/packages/mcp-server/src/tools/scene-sound-tools.ts
+@@ -0,0 +1,239 @@
++import { z } from 'zod';
++import { FoundryClient } from '../foundry-client.js';
++import { Logger } from '../logger.js';
++
++export interface SceneSoundToolsOptions {
++  foundryClient: FoundryClient;
++  logger: Logger;
++}
++
++const audioPath = z.string().min(1).max(400).refine(p => !/^[a-z]+:\/\//i.test(p), {
++  message: 'give a path in the Foundry files (for example worlds/my-world/uploads/audio/cave.mp3), not a web address',
++});
++
++const ambientSchema = z
++  .object({
++    path: audioPath,
++    x: z.number().min(0),
++    y: z.number().min(0),
++    radius: z.number().positive().max(400),
++    volume: z.number().min(0).max(1).optional(),
++    repeat: z.boolean().optional(),
++    walls: z.boolean().optional(),
++    easing: z.boolean().optional(),
++    hidden: z.boolean().optional(),
++  })
++  .strict();
++
++const musicSchema = z
++  .object({
++    playlist: z.string().min(1).max(200).optional(),
++    files: z.array(audioPath).min(1).max(50).optional(),
++    sound: z.string().min(1).max(200).optional(),
++    volume: z.number().min(0).max(1).optional(),
++    repeat: z.boolean().optional(),
++    clear: z.boolean().optional(),
++    play: z.boolean().optional(),
++  })
++  .strict();
++
++const schema = z
++  .object({
++    scene: z.string().min(1),
++    action: z.enum(['apply', 'describe']).optional(),
++    music: musicSchema.optional(),
++    ambient: z.array(ambientSchema).min(1).max(50).optional(),
++    replace_ambient: z.boolean().optional(),
++    clear_ambient: z.boolean().optional(),
++  })
++  .strict();
++
++/** A sound name from a file path: "worlds/w/uploads/audio/Cave-drip_01.mp3" -> "Cave drip 01". */
++export function soundNameFromPath(path: string): string {
++  const file = path.split('/').pop() ?? path;
++  const base = file.replace(/\.[^.]+$/, '');
++  const name = base.replace(/[-_]+/g, ' ').replace(/\s+/g, ' ').trim();
++  return name || 'Sound';
++}
++
++export class SceneSoundTools {
++  private foundryClient: FoundryClient;
++  private logger: Logger;
++
++  constructor({ foundryClient, logger }: SceneSoundToolsOptions) {
++    this.foundryClient = foundryClient;
++    this.logger = logger.child({ component: 'SceneSoundTools' });
++  }
++
++  getToolDefinitions() {
++    return [
++      {
++        name: 'setup-scene-sound',
++        description:
++          'Give a scene its sound in one call: the music that plays when the scene is shown and the ambient sounds placed on the map. ' +
++          'music: {playlist?, files?, sound?, volume?, repeat?, clear?, play?}. Give files (paths in the Foundry files, e.g. from upload-file or browse-files) to put them in a playlist named playlist (default "<scene name> music"; made if missing, new files added if it exists), or give just playlist to use an existing one; sound picks one track to start with; repeat defaults to true for a single file; clear:true takes the music off the scene; play:true also starts it now. ' +
++          'ambient: [{path, x, y, radius, volume?, repeat?, walls?, easing?, hidden?}] places looping sounds at a point in GRID SQUARES (radius in squares, heard within it; walls block them by default); replace_ambient (default true when ambient is given) first removes the ambient sounds this tool placed before; clear_ambient:true removes them without adding any. ' +
++          'action describe shows the scene\'s music and ambient sounds. Needs the Foundry tab open in a browser.',
++        inputSchema: {
++          type: 'object',
++          properties: {
++            scene: { type: 'string', description: 'Scene id or exact name' },
++            action: { type: 'string', enum: ['apply', 'describe'], description: 'apply (default) or describe' },
++            music: {
++              type: 'object',
++              properties: {
++                playlist: { type: 'string', description: 'Playlist id or name (existing, or the name to create with files)' },
++                files: { type: 'array', items: { type: 'string' }, description: 'Audio files to put in the playlist' },
++                sound: { type: 'string', description: 'Track (name or id) that the scene starts with' },
++                volume: { type: 'number', description: 'Volume 0-1 for the tracks added' },
++                repeat: { type: 'boolean', description: 'Loop the tracks added (default true for one file)' },
++                clear: { type: 'boolean', description: 'Remove the music from the scene' },
++                play: { type: 'boolean', description: 'Start the music now' },
++              },
++              additionalProperties: false,
++            },
++            ambient: {
++              type: 'array',
++              items: {
++                type: 'object',
++                properties: {
++                  path: { type: 'string' },
++                  x: { type: 'number' },
++                  y: { type: 'number' },
++                  radius: { type: 'number' },
++                  volume: { type: 'number' },
++                  repeat: { type: 'boolean' },
++                  walls: { type: 'boolean' },
++                  easing: { type: 'boolean' },
++                  hidden: { type: 'boolean' },
++                },
++                required: ['path', 'x', 'y', 'radius'],
++                additionalProperties: false,
++              },
++            },
++            replace_ambient: { type: 'boolean', description: 'Remove the ambient sounds this tool placed before adding (default true)' },
++            clear_ambient: { type: 'boolean', description: 'Remove the ambient sounds this tool placed' },
++          },
++          required: ['scene'],
++          additionalProperties: false,
++        },
++      },
++    ];
++  }
++
++  private async q(method: string, data: any): Promise<any> {
++    const result = await this.foundryClient.query(`foundry-mcp-bridge.${method}`, data);
++    if (result?.success === false) throw new Error(result.error || `${method} was refused`);
++    return result;
++  }
++
++  private async sceneName(scene: string): Promise<string> {
++    const info = await this.q('manage-scenes', { action: 'describe', scene_identifier: scene });
++    return String(info?.scene?.name ?? info?.name ?? scene);
++  }
++
++  private async describeScene(scene: string): Promise<any> {
++    const info = await this.q('manage-scenes', { action: 'describe', scene_identifier: scene });
++    const sounds = await this.q('manage-scene-objects', { action: 'describe', scene, kind: 'sound' });
++    const sceneInfo = info?.scene ?? info;
++    return {
++      scene: { id: sceneInfo?.id ?? sounds?.scene?.id, name: sceneInfo?.name ?? sounds?.scene?.name },
++      music: sceneInfo?.music ?? { playlist: sceneInfo?.playlist ?? null, playlistSound: sceneInfo?.playlistSound ?? null },
++      ambient: sounds?.sounds ?? [],
++    };
++  }
++
++  async handleSetupSceneSound(args: any): Promise<any> {
++    const a = schema.parse(args ?? {});
++    const action = a.action ?? 'apply';
++    if (action === 'describe') {
++      try {
++        return { success: true, ...(await this.describeScene(a.scene)) };
++      } catch (error) {
++        throw new Error(`Failed to describe scene sound: ${error instanceof Error ? error.message : 'Unknown error'}`);
++      }
++    }
++    if (!a.music && !a.ambient && !a.clear_ambient) {
++      throw new Error('Give music, ambient or clear_ambient (or action describe)');
++    }
++    if (a.music?.clear && (a.music.files || a.music.playlist)) throw new Error('music.clear cannot be combined with files or playlist');
++    if (a.music && !a.music.clear && !a.music.files && !a.music.playlist) {
++      throw new Error('music needs files, a playlist, or clear:true');
++    }
++    if (a.clear_ambient && a.ambient) throw new Error('Give ambient or clear_ambient, not both (ambient replaces by default)');
++
++    const steps: string[] = [];
++    try {
++      const music = a.music;
++      if (music?.clear) {
++        await this.q('update-scene-music', { scene_identifier: a.scene, playlist: null, playlist_sound: null });
++        steps.push('music removed from the scene');
++      } else if (music) {
++        const all = await this.q('manage-playlists', { action: 'describe', playlist: null });
++        const wanted = music.playlist ?? `${await this.sceneName(a.scene)} music`;
++        const existing = ((all?.playlists ?? []) as any[]).find(p => p.id === wanted || String(p.name).toLowerCase() === wanted.toLowerCase());
++
++        let playlistId: string;
++        let playlistName: string;
++        let soundToStart: string | undefined = music.sound;
++        if (music.files) {
++          const repeat = music.repeat ?? music.files.length === 1;
++          const entry = (path: string) => ({
++            path,
++            name: soundNameFromPath(path),
++            repeat,
++            ...(music.volume !== undefined ? { volume: music.volume } : {}),
++          });
++          if (existing) {
++            const detail = await this.q('manage-playlists', { action: 'describe', playlist: existing.id });
++            const have = new Set(((detail?.playlist?.sounds ?? []) as any[]).map(s => s.path));
++            const fresh = music.files.filter(p => !have.has(p));
++            if (fresh.length > 0) {
++              await this.q('manage-playlists', { action: 'update', playlist: existing.id, add_sounds: fresh.map(entry) });
++            }
++            steps.push(`playlist "${existing.name}": ${fresh.length} track(s) added, ${music.files.length - fresh.length} already there`);
++            playlistId = existing.id;
++            playlistName = existing.name;
++          } else {
++            const created = await this.q('manage-playlists', { action: 'create', name: wanted, sounds: music.files.map(entry) });
++            playlistId = created?.playlist?.id ?? wanted;
++            playlistName = created?.playlist?.name ?? wanted;
++            steps.push(`playlist "${playlistName}" created with ${music.files.length} track(s)`);
++          }
++          if (!soundToStart && music.files.length === 1) soundToStart = soundNameFromPath(music.files[0]!);
++        } else {
++          if (!existing) throw new Error(`Playlist "${wanted}" not found; give files to create it`);
++          playlistId = existing.id;
++          playlistName = existing.name;
++        }
++        await this.q('update-scene-music', {
++          scene_identifier: a.scene,
++          playlist: playlistId,
++          ...(soundToStart ? { playlist_sound: soundToStart } : {}),
++        });
++        steps.push(`scene music set to "${playlistName}"${soundToStart ? ` (track "${soundToStart}")` : ''}`);
++        if (music.play) {
++          await this.q('control-playlist', soundToStart ? { playlist: playlistId, command: 'play-sound', sound: soundToStart } : { playlist: playlistId, command: 'play' });
++          steps.push('music started');
++        }
++      }
++
++      if (a.clear_ambient || (a.ambient && a.replace_ambient !== false)) {
++        const removed = await this.q('manage-scene-objects', { action: 'remove', scene: a.scene, kind: 'sound', all_mine: true });
++        steps.push(`${(removed?.removed ?? []).length} earlier ambient sound(s) removed`);
++      }
++      if (a.ambient) {
++        const placed = await this.q('manage-scene-objects', {
++          action: 'place',
++          scene: a.scene,
++          objects: a.ambient.map(s => ({ kind: 'sound', ...s })),
++        });
++        steps.push(`${(placed?.created ?? []).length} ambient sound(s) placed`);
++      }
++    } catch (error) {
++      this.logger.error('Failed to set up scene sound', error);
++      throw new Error(`Failed to set up scene sound: ${error instanceof Error ? error.message : 'Unknown error'}${steps.length ? ` (done so far: ${steps.join('; ')})` : ''}`);
++    }
++    return { success: true, scene: a.scene, steps };
 +  }
 +}
 diff --git a/packages/mcp-server/src/tools/scene-text-map.test.ts b/packages/mcp-server/src/tools/scene-text-map.test.ts
