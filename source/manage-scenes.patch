@@ -8542,7 +8542,7 @@ index 0000000..07712cf
 +  });
 +});
 diff --git a/packages/foundry-module/src/data-access.ts b/packages/foundry-module/src/data-access.ts
-index eecda7e..a6bc475 100644
+index eecda7e..cd9e5f8 100644
 --- a/packages/foundry-module/src/data-access.ts
 +++ b/packages/foundry-module/src/data-access.ts
 @@ -1,6 +1,148 @@
@@ -14522,7 +14522,7 @@ index eecda7e..a6bc475 100644
  
        await actor.update(patch);
        updatedActors.push({ id: actor.id, name: u.name ?? actor.name });
-@@ -11706,6 +16864,60 @@ export class FoundryDataAccess {
+@@ -11706,6 +16864,199 @@ export class FoundryDataAccess {
      return { deleted: existing, total: existing.length };
    }
  
@@ -14578,6 +14578,145 @@ index eecda7e..a6bc475 100644
 +    }
 +    this.auditLog('transferActorItems', { from: source.name, to: target.name, moved, coins }, 'success');
 +    return { success: true, from: source.name, to: target.name, moved, ...(coins ? { coins } : {}), ...(notFound.length ? { notFound } : {}) };
++  }
++
++  /**
++   * Quartermaster (shared party inventory module): read the vault, put loot in it, hand loot out of it.
++   * Whole stacks of items go through the module's own ingress/egress (which write its transaction log);
++   * partial stacks and coins are moved with transferActorItems.
++   */
++  async controlQuartermaster(data: {
++    action: 'status' | 'deposit' | 'take' | 'add_currency';
++    actor?: string;
++    item_ids?: string[];
++    item_names?: string[];
++    quantity?: number;
++    currency?: Record<string, number>;
++  }): Promise<any> {
++    const gate = permissionManager.checkWritePermission('modifyScene', {});
++    if (!gate.allowed) throw new Error(`${ERROR_MESSAGES.ACCESS_DENIED}: ${gate.reason}`);
++    const mod: any = (game as any).modules?.get?.('quartermaster');
++    const api = mod?.active ? mod.api : null;
++    if (!api) return { success: false, error: 'Quartermaster is not active in this world' };
++    const vaultId = String((game as any).settings.get('quartermaster', 'backingActorId') ?? '');
++    const vault: any = (game as any).actors.get(vaultId);
++    if (!vault) return { success: false, error: 'The Quartermaster vault actor was not found' };
++
++    const failed = (r: any): string | null => {
++      if (r && (r.status === 'failed' || r.success === false || r.ok === false)) return String(r.error ?? r.message ?? 'failed');
++      return null;
++    };
++    const hiddenIds = (): Set<string> => {
++      try {
++        const rows = api.hiddenItems.getHiddenItems?.() ?? [];
++        return new Set((Array.isArray(rows) ? rows : []).map((i: any) => String(i?.id ?? i?._id ?? '')));
++      } catch {
++        return new Set();
++      }
++    };
++    const status = async (): Promise<any> => {
++      const hidden = hiddenIds();
++      const currencies = ((await api.currencies.getCurrencies()) as any[]).map(c => ({ id: c.id, name: c.name, value: c.value, ...(c.hidden ? { hidden: true } : {}), ...(c.isCustom ? { custom: true } : {}) }));
++      let counters: any[] = [];
++      try {
++        counters = ((await api.resources.getResources()) as any[]).map(r => ({ id: r.id, name: r.name, value: r.value, ...(r.max !== undefined && r.max !== null ? { max: r.max } : {}) }));
++      } catch {
++        counters = [];
++      }
++      const items = ((vault.items?.contents ?? []) as any[])
++        .filter(i => !hidden.has(i.id))
++        .map(i => ({ id: i.id, name: i.name, type: i.type, quantity: Number(i.system?.quantity ?? 1), weight: Number(i.system?.weight?.value ?? i.system?.weight ?? 0) || 0 }));
++      let weight: any;
++      try {
++        weight = api.weightCache.peek(vault.id);
++      } catch {
++        weight = undefined;
++      }
++      const enforced = !!(game as any).settings.get('quartermaster', 'enforceCapacity');
++      return {
++        vault: vault.name,
++        currencies,
++        counters,
++        items,
++        stagedHidden: hidden.size,
++        weight: { items: weight?.itemWeight ?? null, coins: weight?.coinSum ?? null, capacity: enforced ? Number((game as any).settings.get('quartermaster', 'capacityLimit')) : null },
++      };
++    };
++
++    if (data.action === 'status') return { success: true, ...(await status()) };
++
++    const requestId = (): string => `mcp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
++    const standard = new Set(['pp', 'gp', 'ep', 'sp', 'cp']);
++    const coins = data.currency ?? {};
++
++    if (data.action === 'add_currency' || (data.action === 'deposit' && !data.actor)) {
++      if (Object.keys(coins).length === 0) throw new Error('currency is required');
++      if (data.item_ids?.length || data.item_names?.length) throw new Error('Name the actor the items come from (actor), or use add-compendium-items with the vault as the target');
++      const applied: Array<Record<string, any>> = [];
++      for (const [id, amount] of Object.entries(coins)) {
++        const r = await api.currencies.applyCurrencyDelta(id, Number(amount));
++        const err = failed(r);
++        applied.push(err ? { currency: id, error: err } : { currency: id, from: r.previousValue, to: r.newValue });
++      }
++      return { success: true, applied };
++    }
++
++    if (!data.actor) throw new Error(`${data.action} needs actor`);
++    const find = (key: string): any => {
++      const k = String(key).trim().toLowerCase();
++      return (game as any).actors.get(key) ?? (game as any).actors.find((a: any) => String(a.name).toLowerCase() === k) ?? (game as any).actors.find((a: any) => String(a.name).toLowerCase().includes(k));
++    };
++    const other = find(data.actor);
++    if (!other) throw new Error(`Actor not found: ${data.actor}`);
++    if (other.id === vault.id) throw new Error('actor is the vault itself');
++    const nonStandard = Object.keys(coins).filter(k => !standard.has(k));
++    if (nonStandard.length) throw new Error(`Only add_currency handles ${nonStandard.join(', ')}; deposit and take move standard coins (pp, gp, ep, sp, cp)`);
++
++    const depositing = data.action === 'deposit';
++    const from = depositing ? other : vault;
++    const to = depositing ? vault : other;
++    const hidden = hiddenIds();
++    const pool = ((from.items?.contents ?? []) as any[]).filter(i => !hidden.has(i.id));
++    const { picked, notFound } = pickItems(pool, data.item_ids ?? [], data.item_names ?? []);
++
++    const logged: Array<{ item: string; quantity: number }> = [];
++    const errors: string[] = [];
++    const rest: string[] = [];
++    for (const item of picked) {
++      const have = Number(item.system?.quantity ?? 1);
++      const { whole } = quantityToMove(have, data.quantity);
++      const twin = ((to.items?.contents ?? []) as any[]).find(i => i.name === item.name && i.type === item.type && i.type !== 'container');
++      if (whole && !twin && item.type !== 'container') {
++        const r = depositing
++          ? await api.claimCommit.performIngress({ sourceItem: item, destActor: vault, requestId: requestId() })
++          : await api.claimCommit.performEgress({ sourceItem: item, destActor: to, requestId: requestId() });
++        const err = failed(r);
++        if (err) errors.push(`${item.name}: ${err}`);
++        else logged.push({ item: item.name, quantity: have });
++      } else {
++        rest.push(item.id);
++      }
++    }
++
++    let direct: any;
++    if (rest.length > 0 || Object.keys(coins).length > 0) {
++      direct = await this.transferActorItems({
++        from: from.id,
++        to: to.id,
++        itemIds: rest,
++        ...(data.quantity !== undefined ? { quantity: data.quantity } : {}),
++        ...(Object.keys(coins).length ? { currency: coins } : {}),
++      });
++    }
++    this.auditLog('controlQuartermaster', { action: data.action, actor: other.name, logged, direct: direct?.moved, coins: direct?.coins }, errors.length ? 'failure' : 'success');
++    return {
++      success: errors.length === 0,
++      ...(errors.length ? { error: errors.join('; ') } : {}),
++      direction: depositing ? `${other.name} -> ${vault.name}` : `${vault.name} -> ${other.name}`,
++      moved: [...logged, ...((direct?.moved as any[]) ?? [])],
++      ...(direct?.coins ? { coins: direct.coins } : {}),
++      ...(notFound.length ? { notFound } : {}),
++    };
 +  }
 +
    /**
@@ -19584,7 +19723,7 @@ index 0000000..557e34d
 +  return view ? outSize : { width, height };
 +}
 diff --git a/packages/foundry-module/src/queries.ts b/packages/foundry-module/src/queries.ts
-index 9fe02ba..82b9fbb 100644
+index 9fe02ba..7610dcd 100644
 --- a/packages/foundry-module/src/queries.ts
 +++ b/packages/foundry-module/src/queries.ts
 @@ -1,7 +1,12 @@
@@ -19610,7 +19749,7 @@ index 9fe02ba..82b9fbb 100644
  
      // Character/Actor queries
      CONFIG.queries[`${modulePrefix}.getCharacterInfo`] = this.handleGetCharacterInfo.bind(this);
-@@ -46,6 +51,42 @@ export class QueryHandlers {
+@@ -46,6 +51,43 @@ export class QueryHandlers {
      CONFIG.queries[`${modulePrefix}.list-scenes`] = this.handleListScenes.bind(this);
      CONFIG.queries[`${modulePrefix}.switch-scene`] = this.handleSwitchScene.bind(this);
      CONFIG.queries[`${modulePrefix}.update-scene-music`] = this.handleUpdateSceneMusic.bind(this);
@@ -19638,6 +19777,7 @@ index 9fe02ba..82b9fbb 100644
 +    CONFIG.queries[`${modulePrefix}.reveal`] = this.handleReveal.bind(this);
 +    CONFIG.queries[`${modulePrefix}.combat`] = this.handleCombat.bind(this);
 +    CONFIG.queries[`${modulePrefix}.party`] = this.handleParty.bind(this);
++    CONFIG.queries[`${modulePrefix}.quartermaster`] = this.handleQuartermaster.bind(this);
 +    CONFIG.queries[`${modulePrefix}.rules`] = this.handleRules.bind(this);
 +    CONFIG.queries[`${modulePrefix}.chat`] = this.handleChat.bind(this);
 +    CONFIG.queries[`${modulePrefix}.pause`] = this.handlePause.bind(this);
@@ -19653,7 +19793,7 @@ index 9fe02ba..82b9fbb 100644
      CONFIG.queries[`${modulePrefix}.manage-playlists`] = this.handleManagePlaylists.bind(this);
      CONFIG.queries[`${modulePrefix}.control-playlist`] = this.handleControlPlaylist.bind(this);
  
-@@ -143,6 +184,7 @@ export class QueryHandlers {
+@@ -143,6 +185,7 @@ export class QueryHandlers {
      CONFIG.queries[`${modulePrefix}.deleteActors`] = this.handleDeleteActors.bind(this);
      CONFIG.queries[`${modulePrefix}.updateActorItems`] = this.handleUpdateActorItems.bind(this);
      CONFIG.queries[`${modulePrefix}.deleteActorItems`] = this.handleDeleteActorItems.bind(this);
@@ -19661,7 +19801,7 @@ index 9fe02ba..82b9fbb 100644
      CONFIG.queries[`${modulePrefix}.manageEffects`] = this.handleManageEffects.bind(this);
  
      // Phase 7: Token manipulation queries
-@@ -184,7 +226,7 @@ export class QueryHandlers {
+@@ -184,7 +227,7 @@ export class QueryHandlers {
     * Unregister all query handlers
     */
    unregisterHandlers(): void {
@@ -19670,7 +19810,7 @@ index 9fe02ba..82b9fbb 100644
      const keysToRemove = Object.keys(CONFIG.queries).filter(key => key.startsWith(modulePrefix));
  
      for (const key of keysToRemove) {
-@@ -477,7 +519,7 @@ export class QueryHandlers {
+@@ -477,7 +520,7 @@ export class QueryHandlers {
     * Get list of all registered query methods
     */
    getRegisteredMethods(): string[] {
@@ -19679,7 +19819,7 @@ index 9fe02ba..82b9fbb 100644
      return Object.keys(CONFIG.queries)
        .filter(key => key.startsWith(modulePrefix))
        .map(key => key.replace(`${modulePrefix}.`, ''));
-@@ -487,7 +529,7 @@ export class QueryHandlers {
+@@ -487,7 +530,7 @@ export class QueryHandlers {
     * Test if a specific query handler is registered
     */
    isMethodRegistered(method: string): boolean {
@@ -19688,7 +19828,7 @@ index 9fe02ba..82b9fbb 100644
      return queryKey in CONFIG.queries && typeof CONFIG.queries[queryKey] === 'function';
    }
  
-@@ -530,6 +572,9 @@ export class QueryHandlers {
+@@ -530,6 +573,9 @@ export class QueryHandlers {
        if (data.placement) {
          requestData.placement = data.placement;
        }
@@ -19698,7 +19838,7 @@ index 9fe02ba..82b9fbb 100644
  
        return await this.dataAccess.createActorFromCompendiumEntry(requestData);
      } catch (error) {
-@@ -1218,6 +1263,373 @@ export class QueryHandlers {
+@@ -1218,6 +1264,381 @@ export class QueryHandlers {
      }
    }
  
@@ -19870,6 +20010,14 @@ index 9fe02ba..82b9fbb 100644
 +      return { error: 'Access denied', success: false };
 +    }
 +    return await this.dataAccess.controlParty(data ?? {});
++  }
++
++  private async handleQuartermaster(data: any): Promise<any> {
++    const gmCheck = this.validateGMAccess();
++    if (!gmCheck.allowed) {
++      return { error: 'Access denied', success: false };
++    }
++    return await this.dataAccess.controlQuartermaster(data ?? {});
 +  }
 +
 +  private async handleCombat(data: any): Promise<any> {
@@ -20072,7 +20220,7 @@ index 9fe02ba..82b9fbb 100644
    private async handleManagePlaylists(data: any): Promise<any> {
      try {
        const gmCheck = this.validateGMAccess();
-@@ -1241,8 +1653,11 @@ export class QueryHandlers {
+@@ -1241,8 +1662,11 @@ export class QueryHandlers {
        if (!gmCheck.allowed) {
          return { error: 'Access denied', success: false };
        }
@@ -20086,7 +20234,7 @@ index 9fe02ba..82b9fbb 100644
        }
        return await this.dataAccess.controlPlaylist(data);
      } catch (error) {
-@@ -1547,7 +1962,12 @@ export class QueryHandlers {
+@@ -1547,7 +1971,12 @@ export class QueryHandlers {
     */
    private async handleUpdateToken(data: {
      tokenId: string;
@@ -20100,7 +20248,7 @@ index 9fe02ba..82b9fbb 100644
    }): Promise<any> {
      try {
        // SECURITY: Silent GM validation
-@@ -1558,11 +1978,19 @@ export class QueryHandlers {
+@@ -1558,11 +1987,19 @@ export class QueryHandlers {
  
        this.dataAccess.validateFoundryState();
  
@@ -20122,7 +20270,7 @@ index 9fe02ba..82b9fbb 100644
        }
  
        return await this.dataAccess.updateToken(data);
-@@ -2290,6 +2718,13 @@ export class QueryHandlers {
+@@ -2290,6 +2727,13 @@ export class QueryHandlers {
      return this.dataAccess.deleteActorItems(data.actorIdentifier, data.itemIds);
    }
  
@@ -25765,10 +25913,10 @@ index 096f27b..903a94e 100644
      "@vitest/coverage-v8": "^3.2.4",
      "esbuild": "^0.19.0",
 diff --git a/packages/mcp-server/src/backend.ts b/packages/mcp-server/src/backend.ts
-index 8967e33..bdb7ae4 100644
+index 8967e33..9b437d7 100644
 --- a/packages/mcp-server/src/backend.ts
 +++ b/packages/mcp-server/src/backend.ts
-@@ -48,6 +48,49 @@ import { DnD5eAddFeatureTool } from './tools/dnd5e/add-feature.js';
+@@ -48,6 +48,50 @@ import { DnD5eAddFeatureTool } from './tools/dnd5e/add-feature.js';
  import { DnD5eNpcTools } from './tools/dnd5e/npc.js';
  import { DnD5eFeaturesFromCompendiumTools } from './tools/dnd5e/features.js';
  import { ChatTools } from './tools/chat.js';
@@ -25809,6 +25957,7 @@ index 8967e33..bdb7ae4 100644
 +import { PauseTools } from './tools/pause-tools.js';
 +import { PlutoniumTools } from './tools/plutonium-tools.js';
 +import { PartyTools } from './tools/party-tools.js';
++import { QuartermasterTools } from './tools/quartermaster-tools.js';
 +import { AnnotationTools } from './tools/annotation-tools.js';
 +import { ImageEditTools } from './tools/image-edit-tools.js';
 +import { ActorArtTools } from './tools/actor-art-tools.js';
@@ -25818,7 +25967,7 @@ index 8967e33..bdb7ae4 100644
  
  const CONTROL_HOST = '127.0.0.1';
  
-@@ -174,6 +217,22 @@ let comfyuiProcess: ChildProcess | null = null;
+@@ -174,6 +218,22 @@ let comfyuiProcess: ChildProcess | null = null;
  
  let comfyuiStatus: 'stopped' | 'starting' | 'running' | 'error' = 'stopped';
  
@@ -25841,7 +25990,7 @@ index 8967e33..bdb7ae4 100644
  let lockFd: number | null = null;
  
  function acquireLock(): boolean {
-@@ -350,6 +409,18 @@ async function waitForComfyUIReady(timeoutMs: number = 60000): Promise<void> {
+@@ -350,6 +410,18 @@ async function waitForComfyUIReady(timeoutMs: number = 60000): Promise<void> {
  }
  
  async function startComfyUIService(logger: Logger): Promise<any> {
@@ -25860,7 +26009,7 @@ index 8967e33..bdb7ae4 100644
    if (comfyuiStatus === 'running') {
      return { status: 'already_running', message: 'ComfyUI service is already running' };
    }
-@@ -472,6 +543,14 @@ async function startComfyUIService(logger: Logger): Promise<any> {
+@@ -472,6 +544,14 @@ async function startComfyUIService(logger: Logger): Promise<any> {
  }
  
  async function stopComfyUIService(logger: Logger): Promise<any> {
@@ -25875,7 +26024,7 @@ index 8967e33..bdb7ae4 100644
    if (comfyuiStatus === 'stopped') {
      return { status: 'already_stopped', message: 'ComfyUI service is already stopped' };
    }
-@@ -510,7 +589,7 @@ async function checkComfyUIStatus(): Promise<any> {
+@@ -510,7 +590,7 @@ async function checkComfyUIStatus(): Promise<any> {
    // This handles both spawned processes and externally-started instances
  
    try {
@@ -25884,7 +26033,7 @@ index 8967e33..bdb7ae4 100644
        signal: AbortSignal.timeout(5000),
      });
  
-@@ -520,16 +599,23 @@ async function checkComfyUIStatus(): Promise<any> {
+@@ -520,16 +600,23 @@ async function checkComfyUIStatus(): Promise<any> {
        comfyuiStatus = 'error';
      }
    } catch (error) {
@@ -25910,7 +26059,7 @@ index 8967e33..bdb7ae4 100644
    };
  }
  
-@@ -1131,7 +1217,7 @@ async function processMapGenerationInBackend(
+@@ -1131,7 +1218,7 @@ async function processMapGenerationInBackend(
      );
  
      logger.error('Background map generation processing failed', { jobId, error });
@@ -25919,7 +26068,7 @@ index 8967e33..bdb7ae4 100644
  
      // Emit failure to Foundry module
      foundryClient.sendMessage({
-@@ -1195,6 +1281,105 @@ async function startBackend(): Promise<void> {
+@@ -1195,6 +1282,106 @@ async function startBackend(): Promise<void> {
    const compendiumTools = new CompendiumTools({ foundryClient, logger, systemRegistry });
  
    const sceneTools = new SceneTools({ foundryClient, logger });
@@ -26007,6 +26156,7 @@ index 8967e33..bdb7ae4 100644
 +  const pauseTools = new PauseTools({ foundryClient, logger });
 +  const plutoniumTools = new PlutoniumTools({ foundryClient, logger });
 +  const partyTools = new PartyTools({ foundryClient, logger });
++  const quartermasterTools = new QuartermasterTools({ foundryClient, logger });
 +  const annotationTools = new AnnotationTools({ foundryClient, logger });
 +  const imageEditTools = new ImageEditTools({
 +    foundryClient,
@@ -26025,7 +26175,7 @@ index 8967e33..bdb7ae4 100644
    const playlistTools = new PlaylistTools({ foundryClient, logger });
  
    const actorCreationTools = new ActorCreationTools({ foundryClient, logger });
-@@ -1214,6 +1399,7 @@ async function startBackend(): Promise<void> {
+@@ -1214,6 +1401,7 @@ async function startBackend(): Promise<void> {
    const questCreationTools = new QuestCreationTools({ foundryClient, logger });
  
    const chatTools = new ChatTools({ foundryClient, logger });
@@ -26033,7 +26183,7 @@ index 8967e33..bdb7ae4 100644
  
    const diceRollTools = new DiceRollTools({ foundryClient, logger });
  
-@@ -1301,6 +1487,13 @@ async function startBackend(): Promise<void> {
+@@ -1301,6 +1489,13 @@ async function startBackend(): Promise<void> {
  
          let result: any;
  
@@ -26047,7 +26197,7 @@ index 8967e33..bdb7ae4 100644
          switch (message.type) {
            case 'start-comfyui-service':
              result = await startComfyUIService(logger);
-@@ -1317,6 +1510,19 @@ async function startBackend(): Promise<void> {
+@@ -1317,6 +1512,19 @@ async function startBackend(): Promise<void> {
  
              break;
  
@@ -26067,7 +26217,7 @@ index 8967e33..bdb7ae4 100644
            // Map generation handlers (following existing tool pattern)
            case 'generate-map-request':
              await fs.appendFile(
-@@ -1429,6 +1635,36 @@ async function startBackend(): Promise<void> {
+@@ -1429,6 +1637,37 @@ async function startBackend(): Promise<void> {
  
      ...sceneTools.getToolDefinitions(),
  
@@ -26094,6 +26244,7 @@ index 8967e33..bdb7ae4 100644
 +    ...pauseTools.getToolDefinitions(),
 +    ...plutoniumTools.getToolDefinitions(),
 +    ...partyTools.getToolDefinitions(),
++    ...quartermasterTools.getToolDefinitions(),
 +    ...annotationTools.getToolDefinitions(),
 +    ...imageEditTools.getToolDefinitions(),
 +    ...actorArtTools.getToolDefinitions(),
@@ -26104,7 +26255,7 @@ index 8967e33..bdb7ae4 100644
      ...actorCreationTools.getToolDefinitions(),
      ...actorManagementTools.getToolDefinitions(),
      ...effectManagementTools.getToolDefinitions(),
-@@ -1442,7 +1678,7 @@ async function startBackend(): Promise<void> {
+@@ -1442,7 +1681,7 @@ async function startBackend(): Promise<void> {
  
      ...questCreationTools.getToolDefinitions(),
  
@@ -26113,7 +26264,7 @@ index 8967e33..bdb7ae4 100644
  
      ...diceRollTools.getToolDefinitions(),
  
-@@ -1456,17 +1692,44 @@ async function startBackend(): Promise<void> {
+@@ -1456,17 +1695,44 @@ async function startBackend(): Promise<void> {
  
      ...tokenManipulationTools.getToolDefinitions(),
  
@@ -26159,7 +26310,7 @@ index 8967e33..bdb7ae4 100644
    const autoStartComfyUI = async () => {
      try {
        logger.info('Auto-starting ComfyUI service...');
-@@ -1521,6 +1784,7 @@ async function startBackend(): Promise<void> {
+@@ -1521,6 +1787,7 @@ async function startBackend(): Promise<void> {
              const { name, args } = (msg.params || {}) as { name: string; args?: any };
  
              try {
@@ -26167,7 +26318,7 @@ index 8967e33..bdb7ae4 100644
                let result: any;
  
                switch (name) {
-@@ -1661,6 +1925,17 @@ async function startBackend(): Promise<void> {
+@@ -1661,6 +1928,17 @@ async function startBackend(): Promise<void> {
  
                  // Chat tools
  
@@ -26185,7 +26336,7 @@ index 8967e33..bdb7ae4 100644
                  case 'create-chat-message':
                    result = await chatTools.handleCreateChatMessage(args);
  
-@@ -1701,7 +1976,22 @@ async function startBackend(): Promise<void> {
+@@ -1701,7 +1979,22 @@ async function startBackend(): Promise<void> {
                  // Dice roll tools
  
                  case 'request-player-rolls':
@@ -26209,7 +26360,7 @@ index 8967e33..bdb7ae4 100644
  
                    break;
  
-@@ -1764,19 +2054,11 @@ async function startBackend(): Promise<void> {
+@@ -1764,19 +2057,11 @@ async function startBackend(): Promise<void> {
                  // Map generation tools
  
                  case 'generate-map':
@@ -26232,7 +26383,7 @@ index 8967e33..bdb7ae4 100644
  
                  case 'list-scenes':
                    result = await mapGenerationTools.listScenes(args);
-@@ -1805,9 +2087,178 @@ async function startBackend(): Promise<void> {
+@@ -1805,9 +2090,182 @@ async function startBackend(): Promise<void> {
  
                    break;
  
@@ -26303,6 +26454,10 @@ index 8967e33..bdb7ae4 100644
 +
 +                case 'party':
 +                  result = await partyTools.handleParty(args);
++                  break;
++
++                case 'quartermaster':
++                  result = await quartermasterTools.handleQuartermaster(args);
 +                  break;
 +
 +                case 'plutonium':
@@ -26411,7 +26566,7 @@ index 8967e33..bdb7ae4 100644
  
                const payload = {
                  content: [
-@@ -1880,6 +2331,9 @@ async function startBackend(): Promise<void> {
+@@ -1880,6 +2338,9 @@ async function startBackend(): Promise<void> {
  // Check lock BEFORE any async operations
  // If another instance is running, wait forever silently (don't exit)
  // This prevents Claude Desktop from seeing a "server closed" error
@@ -40124,6 +40279,112 @@ index 0000000..12988d7
 +    }
 +    result.steps = steps;
 +    this.logger.info('Prop made', { name: a.name, placed: a.x !== undefined });
++    return result;
++  }
++}
+diff --git a/packages/mcp-server/src/tools/quartermaster-tools.test.ts b/packages/mcp-server/src/tools/quartermaster-tools.test.ts
+new file mode 100644
+index 0000000..ec0641b
+--- /dev/null
++++ b/packages/mcp-server/src/tools/quartermaster-tools.test.ts
+@@ -0,0 +1,28 @@
++import { describe, expect, it, vi } from 'vitest';
++import { QuartermasterTools } from './quartermaster-tools.js';
++
++function make(response: any = { success: true }) {
++  const query = vi.fn(async () => response);
++  const logger: any = { info: vi.fn(), debug: vi.fn(), error: vi.fn(), warn: vi.fn(), child: () => logger };
++  return { tools: new QuartermasterTools({ foundryClient: { query } as any, logger }), query };
++}
++
++describe('quartermaster tool', () => {
++  it('is exposed with action required', () => {
++    const def = make().tools.getToolDefinitions()[0]!;
++    expect(def.name).toBe('quartermaster');
++    expect(def.inputSchema.required).toEqual(['action']);
++  });
++  it('sends the request to Foundry', async () => {
++    const { tools, query } = make();
++    await tools.handleQuartermaster({ action: 'deposit', actor: 'Goblin', currency: { gp: 5 } });
++    expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.quartermaster', { action: 'deposit', actor: 'Goblin', currency: { gp: 5 } });
++  });
++  it('rejects bad input and refused requests', async () => {
++    const { tools } = make();
++    await expect(tools.handleQuartermaster({ action: 'steal' })).rejects.toThrow();
++    await expect(tools.handleQuartermaster({ action: 'take', quantity: 0 })).rejects.toThrow();
++    const refused = make({ success: false, error: 'Quartermaster is not active' });
++    await expect(refused.tools.handleQuartermaster({ action: 'status' })).rejects.toThrow('not active');
++  });
++});
+diff --git a/packages/mcp-server/src/tools/quartermaster-tools.ts b/packages/mcp-server/src/tools/quartermaster-tools.ts
+new file mode 100644
+index 0000000..2576b5a
+--- /dev/null
++++ b/packages/mcp-server/src/tools/quartermaster-tools.ts
+@@ -0,0 +1,66 @@
++import { z } from 'zod';
++import { FoundryClient } from '../foundry-client.js';
++import { Logger } from '../logger.js';
++
++export interface QuartermasterToolsOptions {
++  foundryClient: FoundryClient;
++  logger: Logger;
++}
++
++const ACTIONS = ['status', 'deposit', 'take', 'add_currency'] as const;
++
++const schema = z
++  .object({
++    action: z.enum(ACTIONS),
++    actor: z.string().min(1).optional(),
++    item_ids: z.array(z.string().min(1)).max(100).optional(),
++    item_names: z.array(z.string().min(1)).max(100).optional(),
++    quantity: z.number().int().min(1).optional(),
++    currency: z.record(z.number()).optional(),
++  })
++  .strict();
++
++export class QuartermasterTools {
++  private foundryClient: FoundryClient;
++  private logger: Logger;
++
++  constructor({ foundryClient, logger }: QuartermasterToolsOptions) {
++    this.foundryClient = foundryClient;
++    this.logger = logger.child({ component: 'QuartermasterTools' });
++  }
++
++  getToolDefinitions() {
++    return [
++      {
++        name: 'quartermaster',
++        description:
++          'The shared party inventory (Quartermaster module): the place for party gold, shared items and loot the players divide among themselves. Players open it with its own button and take things out; you read it and fill it. ' +
++          'ACTIONS: status shows the coins (every currency, custom ones too), counters, the items (name, quantity, weight), staged hidden loot, and the weight against the capacity limit. ' +
++          'deposit {actor?, item_names? | item_ids?, quantity?, currency?} puts loot in the vault: items and/or coins moved from a character, NPC or chest (actor); a whole stack moves with Quartermaster\'s own log entry, a quantity or coins are moved straight; without actor, currency adds coins found out of nowhere (currency: {gp: 50, sp: 20}). ' +
++          'take {actor, item_names? | item_ids?, quantity?, currency?} gives items and/or coins from the vault to a character (normally the players do this themselves in the inventory window; use it when you hand something out). ' +
++          'add_currency {currency:{gp:50}} adds coins to the vault from nowhere (negative removes them; custom currency ids work here). To put a compendium item in the vault, use add-compendium-items with the vault actor (named in status) as the target. Needs the Quartermaster module active and the Foundry tab open.',
++        inputSchema: {
++          type: 'object',
++          properties: {
++            action: { type: 'string', enum: [...ACTIONS] },
++            actor: { type: 'string', description: 'deposit: where the loot comes from (name or id); take: who receives it' },
++            item_names: { type: 'array', items: { type: 'string' }, description: 'deposit, take: names of the items (exact, else part of a name)' },
++            item_ids: { type: 'array', items: { type: 'string' }, description: 'deposit, take: ids of the items' },
++            quantity: { type: 'number', description: 'deposit, take: how many of a stack to move (default the whole stack)' },
++            currency: { type: 'object', description: 'deposit, take, add_currency: coins, e.g. {"gp": 50, "sp": 20}; custom currency ids work with add_currency' },
++          },
++          required: ['action'],
++          additionalProperties: false,
++        },
++      },
++    ];
++  }
++
++  async handleQuartermaster(args: unknown): Promise<any> {
++    const a = schema.parse(args ?? {});
++    this.logger.info('Quartermaster', { action: a.action });
++    const result = await this.foundryClient.query('foundry-mcp-bridge.quartermaster', a);
++    if (result?.success === false) throw new Error(result.error || 'Request was refused');
 +    return result;
 +  }
 +}
