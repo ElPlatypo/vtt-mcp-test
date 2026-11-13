@@ -18706,10 +18706,10 @@ index 0000000..557e34d
 +  return view ? outSize : { width, height };
 +}
 diff --git a/packages/foundry-module/src/queries.ts b/packages/foundry-module/src/queries.ts
-index 9fe02ba..1c7354d 100644
+index 9fe02ba..f81545d 100644
 --- a/packages/foundry-module/src/queries.ts
 +++ b/packages/foundry-module/src/queries.ts
-@@ -1,7 +1,10 @@
+@@ -1,7 +1,12 @@
 -import { MODULE_ID } from './constants.js';
 +import { MODULE_ID, QUERY_NAMESPACE } from './constants.js';
 +import { speechPlayer, speechSettingsFrom } from './speech-player.js';
@@ -18717,11 +18717,13 @@ index 9fe02ba..1c7354d 100644
  import { ComfyUIManager } from './comfyui-manager.js';
  import { guardQueryHandler } from './query-guard.js';
 +import { tableWatcher, TABLE_WATCH_MUTED, TABLE_WATCH_DOORS } from './table-watcher.js';
++import { worldTime } from './world-time.js';
++import { tactical } from './tactical.js';
 +import { profilesFromSetting } from './image-profiles-utils.js';
  
  export class QueryHandlers {
    public dataAccess: FoundryDataAccess;
-@@ -27,7 +30,7 @@ export class QueryHandlers {
+@@ -27,7 +32,7 @@ export class QueryHandlers {
     * Register all query handlers in CONFIG.queries
     */
    registerHandlers(): void {
@@ -18730,7 +18732,7 @@ index 9fe02ba..1c7354d 100644
  
      // Character/Actor queries
      CONFIG.queries[`${modulePrefix}.getCharacterInfo`] = this.handleGetCharacterInfo.bind(this);
-@@ -46,6 +49,40 @@ export class QueryHandlers {
+@@ -46,6 +51,42 @@ export class QueryHandlers {
      CONFIG.queries[`${modulePrefix}.list-scenes`] = this.handleListScenes.bind(this);
      CONFIG.queries[`${modulePrefix}.switch-scene`] = this.handleSwitchScene.bind(this);
      CONFIG.queries[`${modulePrefix}.update-scene-music`] = this.handleUpdateSceneMusic.bind(this);
@@ -18761,6 +18763,8 @@ index 9fe02ba..1c7354d 100644
 +    CONFIG.queries[`${modulePrefix}.rules`] = this.handleRules.bind(this);
 +    CONFIG.queries[`${modulePrefix}.chat`] = this.handleChat.bind(this);
 +    CONFIG.queries[`${modulePrefix}.pause`] = this.handlePause.bind(this);
++    CONFIG.queries[`${modulePrefix}.world-time`] = this.handleWorldTime.bind(this);
++    CONFIG.queries[`${modulePrefix}.tactical`] = this.handleTactical.bind(this);
 +    CONFIG.queries[`${modulePrefix}.speak`] = this.handleSpeak.bind(this);
 +    CONFIG.queries[`${modulePrefix}.get-speech-settings`] = this.handleGetSpeechSettings.bind(this);
 +    CONFIG.queries[`${modulePrefix}.plutonium`] = this.handlePlutonium.bind(this);
@@ -18771,7 +18775,7 @@ index 9fe02ba..1c7354d 100644
      CONFIG.queries[`${modulePrefix}.manage-playlists`] = this.handleManagePlaylists.bind(this);
      CONFIG.queries[`${modulePrefix}.control-playlist`] = this.handleControlPlaylist.bind(this);
  
-@@ -184,7 +221,7 @@ export class QueryHandlers {
+@@ -184,7 +225,7 @@ export class QueryHandlers {
     * Unregister all query handlers
     */
    unregisterHandlers(): void {
@@ -18780,7 +18784,7 @@ index 9fe02ba..1c7354d 100644
      const keysToRemove = Object.keys(CONFIG.queries).filter(key => key.startsWith(modulePrefix));
  
      for (const key of keysToRemove) {
-@@ -477,7 +514,7 @@ export class QueryHandlers {
+@@ -477,7 +518,7 @@ export class QueryHandlers {
     * Get list of all registered query methods
     */
    getRegisteredMethods(): string[] {
@@ -18789,7 +18793,7 @@ index 9fe02ba..1c7354d 100644
      return Object.keys(CONFIG.queries)
        .filter(key => key.startsWith(modulePrefix))
        .map(key => key.replace(`${modulePrefix}.`, ''));
-@@ -487,7 +524,7 @@ export class QueryHandlers {
+@@ -487,7 +528,7 @@ export class QueryHandlers {
     * Test if a specific query handler is registered
     */
    isMethodRegistered(method: string): boolean {
@@ -18798,7 +18802,7 @@ index 9fe02ba..1c7354d 100644
      return queryKey in CONFIG.queries && typeof CONFIG.queries[queryKey] === 'function';
    }
  
-@@ -530,6 +567,9 @@ export class QueryHandlers {
+@@ -530,6 +571,9 @@ export class QueryHandlers {
        if (data.placement) {
          requestData.placement = data.placement;
        }
@@ -18808,7 +18812,7 @@ index 9fe02ba..1c7354d 100644
  
        return await this.dataAccess.createActorFromCompendiumEntry(requestData);
      } catch (error) {
-@@ -1218,6 +1258,357 @@ export class QueryHandlers {
+@@ -1218,6 +1262,373 @@ export class QueryHandlers {
      }
    }
  
@@ -18932,6 +18936,22 @@ index 9fe02ba..1c7354d 100644
 +      return { error: 'Access denied', success: false };
 +    }
 +    return await this.dataAccess.readAdventure(data ?? {});
++  }
++
++  private async handleTactical(data: any): Promise<any> {
++    const gmCheck = this.validateGMAccess();
++    if (!gmCheck.allowed) {
++      return { error: 'Access denied', success: false };
++    }
++    return await tactical(data ?? {});
++  }
++
++  private async handleWorldTime(data: any): Promise<any> {
++    const gmCheck = this.validateGMAccess();
++    if (!gmCheck.allowed) {
++      return { error: 'Access denied', success: false };
++    }
++    return await worldTime(data ?? {});
 +  }
 +
 +  private async handlePause(data: any): Promise<any> {
@@ -19166,7 +19186,7 @@ index 9fe02ba..1c7354d 100644
    private async handleManagePlaylists(data: any): Promise<any> {
      try {
        const gmCheck = this.validateGMAccess();
-@@ -1241,8 +1632,11 @@ export class QueryHandlers {
+@@ -1241,8 +1652,11 @@ export class QueryHandlers {
        if (!gmCheck.allowed) {
          return { error: 'Access denied', success: false };
        }
@@ -19180,7 +19200,7 @@ index 9fe02ba..1c7354d 100644
        }
        return await this.dataAccess.controlPlaylist(data);
      } catch (error) {
-@@ -1547,7 +1941,9 @@ export class QueryHandlers {
+@@ -1547,7 +1961,9 @@ export class QueryHandlers {
     */
    private async handleUpdateToken(data: {
      tokenId: string;
@@ -19191,7 +19211,7 @@ index 9fe02ba..1c7354d 100644
    }): Promise<any> {
      try {
        // SECURITY: Silent GM validation
-@@ -1561,8 +1957,8 @@ export class QueryHandlers {
+@@ -1561,8 +1977,8 @@ export class QueryHandlers {
        if (!data.tokenId) {
          throw new Error('tokenId is required');
        }
@@ -21934,10 +21954,10 @@ index 0000000..209e405
 +}
 diff --git a/packages/foundry-module/src/table-watch-utils.test.ts b/packages/foundry-module/src/table-watch-utils.test.ts
 new file mode 100644
-index 0000000..f1172e0
+index 0000000..f74d99d
 --- /dev/null
 +++ b/packages/foundry-module/src/table-watch-utils.test.ts
-@@ -0,0 +1,80 @@
+@@ -0,0 +1,102 @@
 +import { describe, expect, it } from 'vitest';
 +import { STYLE, TableEventBuffer, chatEvent, doorEvent, moveEvent, turnEvent } from './table-watch-utils.js';
 +
@@ -22018,12 +22038,34 @@ index 0000000..f1172e0
 +    expect(buf.session).toBe('abc');
 +  });
 +});
++
++describe('rolls aimed at someone', () => {
++  it('names the targets of an attack and says hit or miss against their AC', () => {
++    const attack = msg({
++      type: 'attack',
++      rolls: [{ total: 18, formula: '1d20 + 5' }],
++      flavor: 'Longsword - Attack Roll',
++      content: '',
++      system: { targets: [{ name: 'Goblin 2', ac: 15 }, { name: 'Goblin 3', ac: 19 }] },
++    });
++    expect(chatEvent(attack, ctx)?.text).toBe('Randal (Claudio) rolled Longsword - Attack Roll: 18 (1d20 + 5) vs Goblin 2 (AC 15): hit; Goblin 3 (AC 19): miss');
++    const crit = msg({ type: 'attack', rolls: [{ total: 9, formula: '1d20', isCritical: true }], flavor: 'Attack', content: '', system: { targets: [{ name: 'Ogre', ac: 11 }] } });
++    expect(chatEvent(crit, ctx)?.text).toMatch(/vs Ogre \(AC 11\): critical hit$/);
++  });
++  it('names the targets of damage without judging it', () => {
++    const damage = msg({ type: 'damage', rolls: [{ total: 9, formula: '1d8 + 3' }], flavor: 'Longsword - Damage Roll', content: '', flags: { dnd5e: { targets: [{ name: 'Goblin 2', ac: 15 }] } } });
++    expect(chatEvent(damage, ctx)?.text).toBe('Randal (Claudio) rolled Longsword - Damage Roll: 9 (1d8 + 3) vs Goblin 2');
++  });
++  it('treats the v14 emote flag as an emote', () => {
++    expect(chatEvent(msg({ style: STYLE.OTHER, emote: true, content: 'waves' }), ctx)).toMatchObject({ kind: 'emote', wake: true });
++  });
++});
 diff --git a/packages/foundry-module/src/table-watch-utils.ts b/packages/foundry-module/src/table-watch-utils.ts
 new file mode 100644
-index 0000000..023b07e
+index 0000000..ee5436e
 --- /dev/null
 +++ b/packages/foundry-module/src/table-watch-utils.ts
-@@ -0,0 +1,169 @@
+@@ -0,0 +1,192 @@
 +/**
 + * Table watch: turning what happens at the table (chat, rolls, combat turns, token moves, doors,
 + * hit points, players joining) into short events, each marked as one that should wake the AI GM
@@ -22059,6 +22101,28 @@ index 0000000..023b07e
 +const MAX_TEXT = 300;
 +const cut = (s: string, max = MAX_TEXT): string => (s.length > max ? `${s.slice(0, max - 3)}...` : s);
 +const oneLine = (html: unknown): string => htmlToText(String(html ?? '')).replace(/\s+/g, ' ').trim();
++
++/**
++ * Who a dnd5e roll was aimed at (dnd5e 4+ keeps them in system.targets, older versions in
++ * flags.dnd5e.targets), and for an attack whether it hit each target's AC: " vs Goblin 2 (AC 15): hit".
++ */
++export function rollTargets(message: any, rolls: any[]): string {
++  const targets: any[] = message?.system?.targets ?? message?.flags?.dnd5e?.targets ?? [];
++  if (!Array.isArray(targets) || targets.length === 0) return '';
++  const kind = String(message?.type ?? rolls[0]?.options?.rollType ?? '');
++  const roll = rolls[0];
++  const total = Number(roll?.total);
++  const crit = roll?.isCritical === true;
++  const fumble = roll?.isFumble === true;
++  const parts = targets.map(t => {
++    const name = String(t?.name ?? 'someone');
++    const ac = Number(t?.ac);
++    if (kind !== 'attack' || !Number.isFinite(ac) || !Number.isFinite(total)) return name;
++    const hit = crit || (!fumble && total >= ac);
++    return `${name} (AC ${ac}): ${crit ? 'critical hit' : fumble ? 'miss (natural 1)' : hit ? 'hit' : 'miss'}`;
++  });
++  return ` vs ${parts.join('; ')}`;
++}
 +
 +/** Foundry's chat message styles (CONST.CHAT_MESSAGE_STYLES): OTHER 0, OOC 1, IC 2, EMOTE 3. */
 +export const STYLE = { OTHER: 0, OOC: 1, IC: 2, EMOTE: 3 } as const;
@@ -22102,7 +22166,7 @@ index 0000000..023b07e
 +    const formula = String(rolls[0]?.formula ?? '');
 +    const label = flavor || formula || 'a roll';
 +    const vis = blind ? ' [blind]' : whisper.length ? ' [private]' : '';
-+    return { kind: 'roll', wake: false, text: cut(`${who} rolled ${label}: ${totals.join(', ')}${formula && flavor ? ` (${formula})` : ''}${vis}`, 160), ...base };
++    return { kind: 'roll', wake: false, text: cut(`${who} rolled ${label}: ${totals.join(', ')}${formula && flavor ? ` (${formula})` : ''}${rollTargets(message, rolls)}${vis}`, 220), ...base };
 +  }
 +  if (systemCard) {
 +    const flavor = oneLine(message.flavor);
@@ -22118,7 +22182,8 @@ index 0000000..023b07e
 +    return { kind: 'whisper', wake: true, text: `${who} to the GM, privately: "${text}"`, ...base };
 +  }
 +  const style = Number(message.style ?? (typeof message.type === 'number' ? message.type : STYLE.OTHER));
-+  if (style === STYLE.EMOTE) return { kind: 'emote', wake: true, text: `*${alias ?? user} ${text}*${alias && alias !== user ? ` (${user})` : ''}`, ...base };
++  // Foundry v14 marks an emote with its own emote flag; older versions use the EMOTE style.
++  if (style === STYLE.EMOTE || message.emote === true) return { kind: 'emote', wake: true, text: `*${alias ?? user} ${text}*${alias && alias !== user ? ` (${user})` : ''}`, ...base };
 +  if (style === STYLE.IC || (style === STYLE.OTHER && asActor)) return { kind: 'say', wake: true, text: `${who}: "${text}"`, ...base };
 +  // Public, as the user (out of character): table talk, not for the AI GM.
 +  return null;
@@ -22370,6 +22435,651 @@ index 0000000..0d21064
 +}
 +
 +export const tableWatcher = new TableWatcher();
+diff --git a/packages/foundry-module/src/tactical-utils.test.ts b/packages/foundry-module/src/tactical-utils.test.ts
+new file mode 100644
+index 0000000..5e5877d
+--- /dev/null
++++ b/packages/foundry-module/src/tactical-utils.test.ts
+@@ -0,0 +1,71 @@
++import { describe, expect, it } from 'vitest';
++import { boxDistance, boxInArea, directionOf, inArea, pointDistance, segmentCrossesBox, wallCover, type Box, type Pt } from './tactical-utils.js';
++
++const G = 100;
++const at = (col: number, row: number, size = 1): Box => ({ x: col * G, y: row * G, width: size, height: size });
++const centreOf = (col: number, row: number): Pt => ({ x: (col + 0.5) * G, y: (row + 0.5) * G });
++
++describe('distances', () => {
++  it('counts squares the D&D way', () => {
++    expect(boxDistance(at(0, 0), at(1, 1), G, 5)).toBe(5);
++    expect(boxDistance(at(0, 0), at(6, 3), G, 5)).toBe(30);
++    expect(boxDistance(at(0, 0), at(3, 0, 2), G, 5)).toBe(15);
++    expect(pointDistance({ x: 0, y: 0 }, at(2, 0), G, 5)).toBe(10);
++  });
++});
++
++describe('areas', () => {
++  it('a 20 ft radius around a point takes in squares whose centre is within it', () => {
++    const fireball = { shape: 'circle' as const, origin: { x: 5 * G, y: 5 * G }, size: 4 * G };
++    expect(boxInArea(at(7, 7), fireball, G)).toBe(true); // centre ~2.1 squares diagonal... 2.5,2.5 -> 3.5
++    expect(boxInArea(at(8, 8), fireball, G)).toBe(false);
++    expect(boxInArea(at(1, 5), fireball, G)).toBe(true);
++    expect(boxInArea(at(0, 5), fireball, G)).toBe(false);
++  });
++  it('a 15 ft cone is as wide as it is long', () => {
++    const cone = { shape: 'cone' as const, origin: { x: 1 * G, y: 5.5 * G }, size: 3 * G, direction: 0 };
++    expect(boxInArea(at(1, 5), cone, G)).toBe(true);
++    expect(boxInArea(at(3, 5), cone, G)).toBe(true);
++    expect(boxInArea(at(3, 6), cone, G)).toBe(true); // 1 square off axis at 2.5 out
++    expect(boxInArea(at(1, 7), cone, G)).toBe(false);
++    expect(boxInArea(at(4, 5), cone, G)).toBe(false); // beyond 15 ft
++    expect(boxInArea(at(0, 5), cone, G)).toBe(false); // behind
++  });
++  it('a 30 ft line 5 ft wide', () => {
++    const line = { shape: 'line' as const, origin: { x: 0, y: 2.5 * G }, size: 6 * G, width: G, direction: 0 };
++    expect(boxInArea(at(5, 2), line, G)).toBe(true);
++    expect(boxInArea(at(6, 2), line, G)).toBe(false);
++    expect(boxInArea(at(3, 3), line, G)).toBe(false);
++    expect(inArea(centreOf(2, 2), { shape: 'square', origin: centreOf(2, 2), size: G })).toBe(true);
++  });
++  it('reads directions as compass words or degrees', () => {
++    expect(directionOf('south')).toBeCloseTo(Math.PI / 2);
++    expect(directionOf(180)).toBeCloseTo(Math.PI);
++    expect(directionOf('up')).toBeUndefined();
++  });
++});
++
++describe('cover', () => {
++  // A wall along x = 300 from y = 0 to y = 150 (half of the target's row is behind it).
++  const wall = (a: Pt, b: Pt) => {
++    const x = 300;
++    if ((a.x - x) * (b.x - x) >= 0) return false;
++    const t = (x - a.x) / (b.x - a.x);
++    const y = a.y + t * (b.y - a.y);
++    return y >= 0 && y <= 150;
++  };
++  it('gives none in the open, half or more behind a partial wall, total behind a full one', () => {
++    expect(wallCover(at(0, 5), at(5, 5), G, () => false).cover).toBe('none');
++    expect(wallCover(at(0, 0), at(5, 0), G, wall).cover).not.toBe('none');
++    expect(wallCover(at(0, 0), at(5, 0), G, () => true)).toEqual({ cover: 'total', blockedLines: 4, lines: 4 });
++  });
++  it('lets the attacker pick its best corner', () => {
++    // From row 1 and below the wall (y <= 150) no longer blocks the lower corners.
++    const r = wallCover(at(0, 3), at(5, 1), G, wall);
++    expect(['none', 'half']).toContain(r.cover);
++  });
++  it('sees creatures standing in the way', () => {
++    expect(segmentCrossesBox(centreOf(0, 0), centreOf(4, 0), at(2, 0), G)).toBe(true);
++    expect(segmentCrossesBox(centreOf(0, 0), centreOf(4, 0), at(2, 2), G)).toBe(false);
++  });
++});
+diff --git a/packages/foundry-module/src/tactical-utils.ts b/packages/foundry-module/src/tactical-utils.ts
+new file mode 100644
+index 0000000..533d24f
+--- /dev/null
++++ b/packages/foundry-module/src/tactical-utils.ts
+@@ -0,0 +1,181 @@
++/**
++ * Tactical geometry on a square grid, the D&D way: distances (diagonals count as one square),
++ * which creatures an area of effect touches (a square is in the area when its centre is, as
++ * Foundry's templates do), and cover by the DMG corner method. Pure: pixels in, wall tests
++ * passed in as a function.
++ */
++
++export interface Pt {
++  x: number;
++  y: number;
++}
++
++export interface Box {
++  /** top-left corner, pixels */
++  x: number;
++  y: number;
++  /** size in squares */
++  width: number;
++  height: number;
++}
++
++/** Centres of the squares a token covers (a Small or Tiny token still counts its own square). */
++export function squareCentres(box: Box, grid: number): Pt[] {
++  const w = Math.max(1, Math.round(box.width || 1));
++  const h = Math.max(1, Math.round(box.height || 1));
++  const out: Pt[] = [];
++  for (let i = 0; i < w; i++) for (let j = 0; j < h; j++) out.push({ x: box.x + (i + 0.5) * grid, y: box.y + (j + 0.5) * grid });
++  return out;
++}
++
++export function centre(box: Box, grid: number): Pt {
++  return { x: box.x + ((box.width || 1) * grid) / 2, y: box.y + ((box.height || 1) * grid) / 2 };
++}
++
++/** Squares between two tokens' nearest edges plus one, times the grid distance (adjacent = 5 ft). */
++export function boxDistance(a: Box, b: Box, grid: number, gridDistance: number): number {
++  const sq = (v: number) => v / grid;
++  const gapX = Math.max(0, sq(b.x) - (sq(a.x) + (a.width || 1)), sq(a.x) - (sq(b.x) + (b.width || 1)));
++  const gapY = Math.max(0, sq(b.y) - (sq(a.y) + (a.height || 1)), sq(a.y) - (sq(b.y) + (b.height || 1)));
++  return (Math.round(Math.max(gapX, gapY)) + 1) * gridDistance;
++}
++
++/** Distance from a point to the nearest part of a token, in squares rounded up, times the grid distance. */
++export function pointDistance(p: Pt, b: Box, grid: number, gridDistance: number): number {
++  const dx = Math.max(0, b.x - p.x, p.x - (b.x + (b.width || 1) * grid));
++  const dy = Math.max(0, b.y - p.y, p.y - (b.y + (b.height || 1) * grid));
++  return Math.ceil(Math.max(dx, dy) / grid - 1e-9) * gridDistance;
++}
++
++export type AreaShape = 'circle' | 'cone' | 'line' | 'square';
++
++export interface Area {
++  shape: AreaShape;
++  origin: Pt;
++  /** radius (circle), length (cone, line) or side (square), in pixels */
++  size: number;
++  /** line width in pixels */
++  width?: number;
++  /** direction in radians (0 = east, pi/2 = south) for cone and line */
++  direction?: number;
++}
++
++/** The D&D cone: as wide as it is long, so its half angle is atan(1/2), about 26.6 degrees. */
++export const CONE_HALF_ANGLE = Math.atan(0.5);
++
++const angleDiff = (a: number, b: number) => {
++  let d = Math.abs(a - b) % (2 * Math.PI);
++  if (d > Math.PI) d = 2 * Math.PI - d;
++  return d;
++};
++
++/** Whether a point (a square centre) is inside the area. */
++export function inArea(p: Pt, area: Area): boolean {
++  const dx = p.x - area.origin.x;
++  const dy = p.y - area.origin.y;
++  const dist = Math.hypot(dx, dy);
++  const eps = 1e-6;
++  switch (area.shape) {
++    case 'circle':
++      return dist <= area.size + eps;
++    case 'square':
++      return Math.abs(dx) <= area.size / 2 + eps && Math.abs(dy) <= area.size / 2 + eps;
++    case 'cone': {
++      if (dist < eps) return false;
++      if (dist > area.size + eps) return false;
++      return angleDiff(Math.atan2(dy, dx), area.direction ?? 0) <= CONE_HALF_ANGLE + eps;
++    }
++    case 'line': {
++      const dir = area.direction ?? 0;
++      const along = dx * Math.cos(dir) + dy * Math.sin(dir);
++      const across = -dx * Math.sin(dir) + dy * Math.cos(dir);
++      return along >= -eps && along <= area.size + eps && Math.abs(across) <= (area.width ?? 0) / 2 + eps;
++    }
++  }
++}
++
++/** Whether any square of a token is inside the area. */
++export function boxInArea(box: Box, area: Area, grid: number): boolean {
++  return squareCentres(box, grid).some(p => inArea(p, area));
++}
++
++/** Corners of a token's space, pulled in a little so lines along a wall it touches do not graze it. */
++export function corners(box: Box, grid: number, inset = 2): Pt[] {
++  const x0 = box.x + inset;
++  const y0 = box.y + inset;
++  const x1 = box.x + (box.width || 1) * grid - inset;
++  const y1 = box.y + (box.height || 1) * grid - inset;
++  return [
++    { x: x0, y: y0 },
++    { x: x1, y: y0 },
++    { x: x0, y: y1 },
++    { x: x1, y: y1 },
++  ];
++}
++
++export type Cover = 'none' | 'half' | 'three-quarters' | 'total';
++
++/**
++ * DMG cover: the attacker picks a corner of its space and traces lines to every corner of the
++ * target's space; the corner that gives the best view decides. Blocked lines: none = no cover,
++ * one or two = half, three = three-quarters, all four = total (with a target bigger than one
++ * square there are more corners; the same proportions apply).
++ */
++export function wallCover(attacker: Box, target: Box, grid: number, blocked: (a: Pt, b: Pt) => boolean): { cover: Cover; blockedLines: number; lines: number } {
++  const from = corners(attacker, grid);
++  const to = corners(target, grid);
++  let best = Infinity;
++  for (const a of from) {
++    let count = 0;
++    for (const b of to) if (blocked(a, b)) count++;
++    best = Math.min(best, count);
++    if (best === 0) break;
++  }
++  const lines = to.length;
++  const share = best / lines;
++  const cover: Cover = best === 0 ? 'none' : best >= lines ? 'total' : share >= 0.75 ? 'three-quarters' : 'half';
++  return { cover, blockedLines: best, lines };
++}
++
++/** Whether a segment crosses a token's space (for creatures standing in the way). */
++export function segmentCrossesBox(a: Pt, b: Pt, box: Box, grid: number, inset = 4): boolean {
++  const minX = box.x + inset;
++  const minY = box.y + inset;
++  const maxX = box.x + (box.width || 1) * grid - inset;
++  const maxY = box.y + (box.height || 1) * grid - inset;
++  // Liang-Barsky clipping
++  let t0 = 0;
++  let t1 = 1;
++  const dx = b.x - a.x;
++  const dy = b.y - a.y;
++  const edges: Array<[number, number]> = [
++    [-dx, a.x - minX],
++    [dx, maxX - a.x],
++    [-dy, a.y - minY],
++    [dy, maxY - a.y],
++  ];
++  for (const [p, q] of edges) {
++    if (p === 0) {
++      if (q < 0) return false;
++      continue;
++    }
++    const r = q / p;
++    if (p < 0) {
++      if (r > t1) return false;
++      if (r > t0) t0 = r;
++    } else {
++      if (r < t0) return false;
++      if (r < t1) t1 = r;
++    }
++  }
++  return t0 <= t1;
++}
++
++/** Direction in radians from compass words or degrees (0 = east, 90 = south, as on the map). */
++export function directionOf(value: number | string | undefined): number | undefined {
++  if (value === undefined) return undefined;
++  if (typeof value === 'number') return (value * Math.PI) / 180;
++  const words: Record<string, number> = { e: 0, east: 0, se: 45, southeast: 45, s: 90, south: 90, sw: 135, southwest: 135, w: 180, west: 180, nw: 225, northwest: 225, n: 270, north: 270, ne: 315, northeast: 315 };
++  const deg = words[value.trim().toLowerCase()];
++  return deg === undefined ? undefined : (deg * Math.PI) / 180;
++}
+diff --git a/packages/foundry-module/src/tactical.ts b/packages/foundry-module/src/tactical.ts
+new file mode 100644
+index 0000000..01c9488
+--- /dev/null
++++ b/packages/foundry-module/src/tactical.ts
+@@ -0,0 +1,172 @@
++/**
++ * The tactical query: distances between tokens, which tokens an area of effect touches, and line
++ * of sight and cover between tokens, using the walls of the scene through Foundry's own collision
++ * test. Read-only.
++ */
++import { getGridGeometry, squaresToPixels } from './scene-objects-utils.js';
++import { boxDistance, boxInArea, centre, corners, directionOf, pointDistance, segmentCrossesBox, wallCover, type Area, type AreaShape, type Box, type Pt } from './tactical-utils.js';
++
++export interface TacticalRequest {
++  action: 'distance' | 'area' | 'sight';
++  scene?: string;
++  from?: string;
++  to?: string[];
++  shape?: AreaShape;
++  origin?: string | [number, number];
++  size?: number;
++  width?: number;
++  direction?: number | string;
++  toward?: string | [number, number];
++  include_origin?: boolean;
++}
++
++const DISPOSITION: Record<number, string> = { [-2]: 'secret', [-1]: 'hostile', 0: 'neutral', 1: 'friendly' };
++
++function sceneFor(identifier?: string): any {
++  const g = (globalThis as any).game;
++  if (identifier) {
++    const scenes = (g.scenes?.contents ?? []) as any[];
++    const s = g.scenes?.get?.(identifier) ?? scenes.find(x => x.name === identifier) ?? scenes.find(x => String(x.name).toLowerCase() === identifier.toLowerCase());
++    if (!s) throw new Error(`Scene not found: ${identifier}`);
++    return s;
++  }
++  const s = g.scenes?.viewed ?? (globalThis as any).canvas?.scene ?? g.scenes?.active;
++  if (!s) throw new Error('No scene is being viewed');
++  return s;
++}
++
++function tokenFor(scene: any, name: string): any {
++  const all = (scene.tokens?.contents ?? []) as any[];
++  const key = name.trim().toLowerCase();
++  const byId = scene.tokens?.get?.(name);
++  if (byId) return byId;
++  for (const test of [(t: any) => String(t.name).toLowerCase() === key, (t: any) => String(t.actor?.name ?? '').toLowerCase() === key, (t: any) => String(t.name).toLowerCase().includes(key)]) {
++    const hits = all.filter(test);
++    if (hits.length === 1) return hits[0];
++    if (hits.length > 1) throw new Error(`"${name}" matches ${hits.length} tokens on ${scene.name}: ${hits.slice(0, 10).map(t => `${t.name} (${t.id})`).join(', ')}`);
++  }
++  throw new Error(`No token "${name}" on ${scene.name}`);
++}
++
++const boxOf = (t: any): Box => ({ x: Number(t.x), y: Number(t.y), width: Number(t.width) || 1, height: Number(t.height) || 1 });
++
++/** Foundry's wall test between two points, or undefined when the scene is not on the canvas. */
++function collider(scene: any): ((type: 'sight' | 'move', a: Pt, b: Pt, elevation?: number) => boolean) | undefined {
++  const g = globalThis as any;
++  if (g.canvas?.scene?.id !== scene.id) return undefined;
++  const backends = g.CONFIG?.Canvas?.polygonBackends;
++  if (!backends) return undefined;
++  return (type, a, b, elevation = 0) => {
++    const backend = backends[type] ?? backends.sight;
++    try {
++      return !!backend.testCollision({ ...a, elevation }, { ...b, elevation }, { type, mode: 'any' });
++    } catch {
++      return !!backend.testCollision(a, b, { type, mode: 'any' });
++    }
++  };
++}
++
++export async function tactical(data: TacticalRequest): Promise<Record<string, any>> {
++  const scene = sceneFor(data?.scene);
++  const geom = getGridGeometry(scene);
++  const grid = geom.size;
++  const units = geom.units || 'ft';
++  const toPx = (feet: number) => (feet / (geom.distance || 5)) * grid;
++  const pointOf = (v: string | [number, number]): { pt: Pt; token?: any } => {
++    if (Array.isArray(v)) return { pt: squaresToPixels(geom, Number(v[0]), Number(v[1])) };
++    const token = tokenFor(scene, v);
++    return { pt: centre(boxOf(token), grid), token };
++  };
++  const describe = (t: any) => ({
++    name: t.name,
++    id: t.id,
++    disposition: DISPOSITION[Number(t.disposition)] ?? 'unknown',
++    ...(t.hidden ? { hidden: true } : {}),
++  });
++
++  if (data.action === 'distance') {
++    if (!data.from || !data.to?.length) throw new Error('distance needs from and to');
++    const from = tokenFor(scene, data.from);
++    return {
++      success: true,
++      scene: scene.name,
++      from: from.name,
++      distances: data.to.map(n => {
++        const t = tokenFor(scene, n);
++        return { ...describe(t), distance: `${boxDistance(boxOf(from), boxOf(t), grid, geom.distance || 5)} ${units}` };
++      }),
++    };
++  }
++
++  if (data.action === 'area') {
++    const shape = data.shape ?? 'circle';
++    if (!data.origin) throw new Error('area needs origin: a token name or [column, row] in grid squares');
++    if (!(Number(data.size) > 0)) throw new Error('area needs size in feet (radius, length or side)');
++    const { pt: origin, token: originToken } = pointOf(data.origin);
++    let direction = directionOf(data.direction);
++    if (direction === undefined && data.toward !== undefined) {
++      const { pt } = pointOf(data.toward);
++      direction = Math.atan2(pt.y - origin.y, pt.x - origin.x);
++    }
++    if ((shape === 'cone' || shape === 'line') && direction === undefined) throw new Error(`a ${shape} needs direction (degrees, 0 = east, 90 = south, or a compass word) or toward (a token or square)`);
++    const area: Area = { shape, origin, size: toPx(Number(data.size)), ...(shape === 'line' ? { width: toPx(Number(data.width ?? 5)) } : {}), ...(direction !== undefined ? { direction } : {}) };
++    const collide = collider(scene);
++    const inside: any[] = [];
++    for (const t of (scene.tokens?.contents ?? []) as any[]) {
++      if (originToken && t.id === originToken.id && !data.include_origin) continue;
++      if (!boxInArea(boxOf(t), area, grid)) continue;
++      const entry: Record<string, any> = { ...describe(t), distance: `${pointDistance(origin, boxOf(t), grid, geom.distance || 5)} ${units}` };
++      // An effect does not go through walls: flag creatures with every line from the origin blocked.
++      if (collide) {
++        const open = corners(boxOf(t), grid, 6).some(c => !collide('move', origin, c, Number(t.elevation) || 0)) || !collide('move', origin, centre(boxOf(t), grid));
++        if (!open) entry.behindWall = true;
++      }
++      inside.push(entry);
++    }
++    return {
++      success: true,
++      scene: scene.name,
++      area: `${data.size} ${units} ${shape}${originToken ? ` from ${originToken.name}` : ''}`,
++      inside,
++      note:
++        'A creature counts when the centre of one of its squares is in the area. ' +
++        (collide ? 'behindWall: walls block every line from the origin to it, so the effect does not reach it.' : 'Walls were not checked (the scene is not on screen).'),
++    };
++  }
++
++  if (data.action === 'sight') {
++    if (!data.from || !data.to?.length) throw new Error('sight needs from and to');
++    const collide = collider(scene);
++    if (!collide) throw new Error(`Line of sight needs the scene on screen: the GM is not viewing "${scene.name}"`);
++    const from = tokenFor(scene, data.from);
++    const fromBox = boxOf(from);
++    const others = ((scene.tokens?.contents ?? []) as any[]).filter(t => t.id !== from.id);
++    const elevation = Number(from.elevation) || 0;
++    return {
++      success: true,
++      scene: scene.name,
++      from: from.name,
++      targets: data.to.map(n => {
++        const t = tokenFor(scene, n);
++        const box = boxOf(t);
++        const points = [centre(box, grid), ...corners(box, grid, 6)];
++        const eye = centre(fromBox, grid);
++        const sees = points.some(p => !collide('sight', eye, p, elevation));
++        const { cover, blockedLines, lines } = wallCover(fromBox, box, grid, (a, b) => collide('move', a, b, elevation));
++        const inWay = others.filter(o => o.id !== t.id && !o.hidden && segmentCrossesBox(eye, centre(box, grid), boxOf(o), grid)).map(o => o.name);
++        const effective = cover === 'none' && inWay.length ? 'half' : cover;
++        return {
++          ...describe(t),
++          distance: `${boxDistance(fromBox, box, grid, geom.distance || 5)} ${units}`,
++          lineOfSight: sees,
++          cover: effective,
++          ...(cover !== 'none' ? { coverFromWalls: `${blockedLines} of ${lines} lines blocked` } : {}),
++          ...(inWay.length ? { creaturesInTheWay: inWay } : {}),
++        };
++      }),
++      note: 'Cover by the DMG corner method against walls; a creature in the way gives half cover. lineOfSight ignores light and vision modes (darkness, invisibility).',
++    };
++  }
++
++  throw new Error('action must be distance, area or sight');
++}
+diff --git a/packages/foundry-module/src/time-utils.test.ts b/packages/foundry-module/src/time-utils.test.ts
+new file mode 100644
+index 0000000..5350fd1
+--- /dev/null
++++ b/packages/foundry-module/src/time-utils.test.ts
+@@ -0,0 +1,50 @@
++import { describe, expect, it } from 'vitest';
++import { dayPart, describeDuration, describeTime, durationSeconds, secondsUntil, type CalendarLike, type TimeComponents } from './time-utils.js';
++
++const cal: CalendarLike = {
++  name: 'Simplified Gregorian',
++  months: { values: [{ name: 'January' }, { name: 'February' }] },
++  days: { values: [{ name: 'Monday' }, { name: 'Tuesday' }], hoursPerDay: 24, minutesPerHour: 60, secondsPerMinute: 60 },
++  seasons: { values: [{ name: 'Spring' }, { name: 'Summer' }, { name: 'Fall' }, { name: 'Winter' }] },
++  years: { yearZero: 1491 },
++  sunrise: () => 6,
++  sunset: () => 18,
++};
++const at = (hour: number, minute = 0, extra: Partial<TimeComponents> = {}): TimeComponents => ({ year: 0, day: 0, dayOfMonth: 0, dayOfWeek: 1, hour, minute, second: 0, month: 0, season: 3, ...extra });
++
++describe('in-game time', () => {
++  it('describes a moment readably', () => {
++    expect(describeTime(cal, at(21, 5), 0)).toEqual({
++      calendar: 'Simplified Gregorian',
++      date: 'Tuesday, 1 January, year 1491',
++      time: '21:05',
++      partOfDay: 'night',
++      season: 'Winter',
++      sunrise: '06:00',
++      sunset: '18:00',
++      worldTime: 0,
++    });
++  });
++  it('names the parts of the day', () => {
++    expect(dayPart(6.2, 6, 18)).toBe('dawn');
++    expect(dayPart(9, 6, 18)).toBe('morning');
++    expect(dayPart(14, 6, 18)).toBe('afternoon');
++    expect(dayPart(18.4, 6, 18)).toBe('dusk');
++    expect(dayPart(19, 6, 18)).toBe('evening');
++    expect(dayPart(23, 6, 18)).toBe('night');
++    expect(dayPart(3, 6, 18)).toBe('night');
++  });
++  it('finds the next dawn, dusk or midnight, always ahead', () => {
++    expect(secondsUntil(cal, at(22), 'dawn')).toBe(8 * 3600);
++    expect(secondsUntil(cal, at(5), 'dawn')).toBe(3600);
++    expect(secondsUntil(cal, at(6), 'dawn')).toBe(24 * 3600);
++    expect(secondsUntil(cal, at(12, 30), 'dusk')).toBe(5.5 * 3600);
++    expect(secondsUntil(cal, at(23), 'midnight')).toBe(3600);
++  });
++  it('adds up durations and reads them back', () => {
++    expect(durationSeconds(cal, { hours: 8 })).toBe(28800);
++    expect(durationSeconds(cal, { days: 1, minutes: 30, rounds: 10 })).toBe(86400 + 1800 + 60);
++    expect(describeDuration(cal, 90061)).toBe('1 day, 1 hour, 1 minute, 1 second');
++    expect(describeDuration(cal, 0)).toBe('0 seconds');
++  });
++});
+diff --git a/packages/foundry-module/src/time-utils.ts b/packages/foundry-module/src/time-utils.ts
+new file mode 100644
+index 0000000..cc63e17
+--- /dev/null
++++ b/packages/foundry-module/src/time-utils.ts
+@@ -0,0 +1,141 @@
++/**
++ * In-game time on Foundry's world calendar (v13+ game.time, extended by dnd5e with sunrise and
++ * sunset): a readable date and time, the part of the day, and how many seconds to the next dawn,
++ * noon, dusk or midnight. Pure: the calendar is passed in.
++ */
++
++export interface CalendarLike {
++  name?: string;
++  months?: { values?: Array<{ name: string; abbreviation?: string; intercalary?: boolean }> };
++  days?: { values?: Array<{ name: string }>; hoursPerDay: number; minutesPerHour: number; secondsPerMinute: number };
++  seasons?: { values?: Array<{ name: string }> };
++  years?: { yearZero?: number };
++  sunrise?: (components?: any) => number;
++  sunset?: (components?: any) => number;
++}
++
++export interface TimeComponents {
++  year: number;
++  day: number;
++  dayOfMonth: number;
++  dayOfWeek: number;
++  hour: number;
++  minute: number;
++  second: number;
++  month: number;
++  season?: number;
++}
++
++export type Localize = (key: string) => string;
++
++const pad = (n: number) => String(Math.floor(n)).padStart(2, '0');
++
++export type DayPart = 'night' | 'dawn' | 'morning' | 'afternoon' | 'dusk' | 'evening';
++
++/** Sunrise and sunset in hours (dnd5e calendars know them; plain calendars get 6 and 18). */
++export function sunTimes(cal: CalendarLike, c: TimeComponents): { sunrise: number; sunset: number } {
++  const hours = cal.days?.hoursPerDay ?? 24;
++  let sunrise = hours * 0.25;
++  let sunset = hours * 0.75;
++  try {
++    if (typeof cal.sunrise === 'function') sunrise = Number(cal.sunrise(c));
++    if (typeof cal.sunset === 'function') sunset = Number(cal.sunset(c));
++  } catch {
++    // keep the defaults
++  }
++  return { sunrise, sunset };
++}
++
++/** The part of the day: an hour around sunrise is dawn, an hour around sunset is dusk. */
++export function dayPart(hourOfDay: number, sunrise: number, sunset: number): DayPart {
++  if (Math.abs(hourOfDay - sunrise) <= 0.5) return 'dawn';
++  if (Math.abs(hourOfDay - sunset) <= 0.5) return 'dusk';
++  if (hourOfDay < sunrise || hourOfDay > sunset + 2) return 'night';
++  if (hourOfDay > sunset) return 'evening';
++  const noon = (sunrise + sunset) / 2;
++  return hourOfDay < noon ? 'morning' : 'afternoon';
++}
++
++const fmtHour = (h: number, minutesPerHour = 60) => {
++  const hour = Math.floor(h);
++  return `${pad(hour)}:${pad(Math.round((h - hour) * minutesPerHour))}`;
++};
++
++/** A readable description of a moment. */
++export function describeTime(cal: CalendarLike, c: TimeComponents, worldTime: number, t: Localize = k => k): Record<string, any> {
++  const month = cal.months?.values?.[c.month];
++  const weekday = cal.days?.values?.[c.dayOfWeek];
++  const season = c.season !== undefined ? cal.seasons?.values?.[c.season] : undefined;
++  const year = c.year + (cal.years?.yearZero ?? 0);
++  const mph = cal.days?.minutesPerHour ?? 60;
++  const sph = (cal.days?.secondsPerMinute ?? 60) * mph;
++  const hourOfDay = c.hour + c.minute / mph + c.second / sph;
++  const { sunrise, sunset } = sunTimes(cal, c);
++  const monthName = month ? t(month.name) : `Month ${c.month + 1}`;
++  return {
++    calendar: cal.name ? t(cal.name) : undefined,
++    date: `${weekday ? `${t(weekday.name)}, ` : ''}${month?.intercalary ? monthName : `${c.dayOfMonth + 1} ${monthName}`}, year ${year}`,
++    time: `${pad(c.hour)}:${pad(c.minute)}`,
++    partOfDay: dayPart(hourOfDay, sunrise, sunset),
++    ...(season ? { season: t(season.name) } : {}),
++    sunrise: fmtHour(sunrise, mph),
++    sunset: fmtHour(sunset, mph),
++    worldTime,
++  };
++}
++
++export type TimeTarget = 'dawn' | 'sunrise' | 'morning' | 'noon' | 'afternoon' | 'dusk' | 'sunset' | 'evening' | 'midnight';
++
++/** Seconds from now to the next occurrence of a time of day (always in the future, at most one day). */
++export function secondsUntil(cal: CalendarLike, c: TimeComponents, target: TimeTarget): number {
++  const hours = cal.days?.hoursPerDay ?? 24;
++  const mph = cal.days?.minutesPerHour ?? 60;
++  const spm = cal.days?.secondsPerMinute ?? 60;
++  const sph = mph * spm;
++  const { sunrise, sunset } = sunTimes(cal, c);
++  const goal: Record<TimeTarget, number> = {
++    dawn: sunrise,
++    sunrise,
++    morning: sunrise + 2,
++    noon: hours / 2,
++    afternoon: hours / 2 + 2,
++    dusk: sunset,
++    sunset,
++    evening: sunset + 2,
++    midnight: 0,
++  };
++  const now = c.hour * sph + c.minute * spm + c.second;
++  let at = Math.round(goal[target] * sph);
++  const dayLength = hours * sph;
++  let diff = at - now;
++  if (diff <= 0) diff += dayLength;
++  at = diff;
++  return at;
++}
++
++/** Duration given in parts, in seconds of this calendar. */
++export function durationSeconds(cal: CalendarLike, d: { seconds?: number; minutes?: number; hours?: number; days?: number; rounds?: number }): number {
++  const spm = cal.days?.secondsPerMinute ?? 60;
++  const mph = cal.days?.minutesPerHour ?? 60;
++  const hpd = cal.days?.hoursPerDay ?? 24;
++  return Math.round((d.seconds ?? 0) + (d.rounds ?? 0) * 6 + (d.minutes ?? 0) * spm + (d.hours ?? 0) * mph * spm + (d.days ?? 0) * hpd * mph * spm);
++}
++
++/** Readable length of a span of seconds ("2 days, 3 hours, 10 minutes"). */
++export function describeDuration(cal: CalendarLike, seconds: number): string {
++  const spm = cal.days?.secondsPerMinute ?? 60;
++  const sph = spm * (cal.days?.minutesPerHour ?? 60);
++  const spd = sph * (cal.days?.hoursPerDay ?? 24);
++  let left = Math.abs(Math.round(seconds));
++  const parts: string[] = [];
++  const take = (size: number, label: string) => {
++    const n = Math.floor(left / size);
++    if (n) parts.push(`${n} ${label}${n === 1 ? '' : 's'}`);
++    left -= n * size;
++  };
++  take(spd, 'day');
++  take(sph, 'hour');
++  take(spm, 'minute');
++  if (left) parts.push(`${left} second${left === 1 ? '' : 's'}`);
++  return parts.join(', ') || '0 seconds';
++}
 diff --git a/packages/foundry-module/src/upload-utils.test.ts b/packages/foundry-module/src/upload-utils.test.ts
 new file mode 100644
 index 0000000..909b7f5
@@ -22996,6 +23706,131 @@ index 0000000..3460272
 +      teleports: s.teleports.length,
 +    })),
 +  };
++}
+diff --git a/packages/foundry-module/src/world-time.ts b/packages/foundry-module/src/world-time.ts
+new file mode 100644
+index 0000000..c84df5b
+--- /dev/null
++++ b/packages/foundry-module/src/world-time.ts
+@@ -0,0 +1,119 @@
++/**
++ * The world-time query: read and move Foundry's world clock (game.time) on the world calendar,
++ * which dnd5e extends with sunrise, sunset and calendars such as Harptos. Advancing the clock is
++ * Foundry's own game.time.advance, so effects with durations, the dnd5e daily recovery and
++ * calendar displays all follow it.
++ */
++import { permissionManager } from './permissions.js';
++import { ERROR_MESSAGES } from './constants.js';
++import { describeDuration, describeTime, durationSeconds, secondsUntil, type TimeTarget } from './time-utils.js';
++
++export interface WorldTimeRequest {
++  action?: 'status' | 'advance' | 'until' | 'set' | 'calendar';
++  seconds?: number;
++  rounds?: number;
++  minutes?: number;
++  hours?: number;
++  days?: number;
++  until?: TimeTarget;
++  year?: number;
++  month?: number | string;
++  day?: number;
++  hour?: number;
++  minute?: number;
++  calendar?: string;
++}
++
++const TARGETS: TimeTarget[] = ['dawn', 'sunrise', 'morning', 'noon', 'afternoon', 'dusk', 'sunset', 'evening', 'midnight'];
++
++export async function worldTime(data: WorldTimeRequest): Promise<Record<string, any>> {
++  const g = (globalThis as any).game;
++  const time = g?.time;
++  if (!time?.calendar) throw new Error('This Foundry version has no world calendar (game.time.calendar)');
++  const t = (key: string) => (g.i18n?.localize ? g.i18n.localize(key) : key);
++  const now = () => describeTime(time.calendar, time.components, time.worldTime, t);
++  const action = data?.action ?? 'status';
++  const inCombat = !!(g.combat?.started);
++
++  if (action === 'status') {
++    const out: Record<string, any> = { success: true, ...now() };
++    if (g.settings?.settings?.has?.('dnd5e.calendar')) {
++      out.calendarSetting = g.settings.get('dnd5e', 'calendar');
++      const cfg = g.settings.get('dnd5e', 'calendarConfig') ?? {};
++      if (cfg.dailyRecovery !== undefined) out.dailyRecovery = !!cfg.dailyRecovery;
++    }
++    if (inCombat) out.note = 'A combat is running: each round already moves the clock by 6 seconds';
++    return out;
++  }
++
++  const gate = permissionManager.checkWritePermission('modifyScene', {});
++  if (!gate.allowed) throw new Error(`${ERROR_MESSAGES.ACCESS_DENIED}: ${gate.reason}`);
++  const before = now();
++
++  if (action === 'advance' || action === 'until') {
++    let seconds: number;
++    if (action === 'until') {
++      if (!data.until || !TARGETS.includes(data.until)) throw new Error(`until must be one of: ${TARGETS.join(', ')}`);
++      seconds = secondsUntil(time.calendar, time.components, data.until);
++    } else {
++      seconds = durationSeconds(time.calendar, data);
++      if (!(seconds > 0)) throw new Error('advance needs a positive amount: seconds, rounds, minutes, hours or days');
++    }
++    const spd = time.calendar.days.hoursPerDay * time.calendar.days.minutesPerHour * time.calendar.days.secondsPerMinute;
++    if (seconds > 366 * spd) throw new Error('That is more than a year; use set for a date instead');
++    const dayBefore = time.components.day + time.components.year * 1000;
++    await time.advance(seconds);
++    const after = now();
++    const newDays = time.components.day + time.components.year * 1000 - dayBefore;
++    return {
++      success: true,
++      advanced: describeDuration(time.calendar, seconds),
++      before: `${before.date}, ${before.time} (${before.partOfDay})`,
++      ...after,
++      ...(newDays > 0 ? { newDay: `${newDays} new day${newDays === 1 ? '' : 's'} began: dnd5e recovers daily uses when daily recovery is on` } : {}),
++      ...(inCombat ? { note: 'A combat is running; moving the clock does not change its rounds' } : {}),
++    };
++  }
++
++  if (action === 'set') {
++    const cal = time.calendar;
++    const c = { ...time.components };
++    const months = cal.months?.values ?? [];
++    if (data.month !== undefined) {
++      const index =
++        typeof data.month === 'number'
++          ? data.month - 1
++          : months.findIndex((m: any) => [m.name, t(m.name), m.abbreviation, m.abbreviation ? t(m.abbreviation) : ''].some(s => String(s ?? '').toLowerCase() === String(data.month).toLowerCase()));
++      if (index < 0 || index >= months.length) throw new Error(`Unknown month "${data.month}"; months: ${months.map((m: any) => t(m.name)).join(', ')}`);
++      c.month = index;
++    }
++    if (data.year !== undefined) c.year = data.year - (cal.years?.yearZero ?? 0);
++    if (data.day !== undefined) c.dayOfMonth = data.day - 1;
++    if (data.hour !== undefined) c.hour = data.hour;
++    if (data.minute !== undefined) c.minute = data.minute;
++    if (data.hour !== undefined || data.minute !== undefined) c.second = 0;
++    // the day of the year follows from the month and day of the month
++    if (data.month !== undefined || data.day !== undefined) {
++      const leap = !!c.leapYear;
++      let day = 0;
++      for (let i = 0; i < c.month; i++) day += Number(leap && months[i].leapDays !== undefined ? months[i].leapDays : months[i].days) || 0;
++      c.day = day + c.dayOfMonth;
++    }
++    await time.set(cal.componentsToTime(c));
++    return { success: true, before: `${before.date}, ${before.time}`, ...now() };
++  }
++
++  if (action === 'calendar') {
++    const setting = g.settings?.settings?.get?.('dnd5e.calendar');
++    if (!setting) throw new Error('Choosing a calendar needs the dnd5e system');
++    const list = ((globalThis as any).CONFIG?.DND5E?.calendar?.calendars ?? []) as any[];
++    const options = (Array.isArray(list) ? list : Object.values(list)).map(c => ({ value: c.value, label: t(c.label ?? c.value) }));
++    if (!data.calendar) return { success: true, current: g.settings.get('dnd5e', 'calendar'), options };
++    const wanted = options.find(o => o.value === data.calendar || o.label.toLowerCase().includes(String(data.calendar).toLowerCase()));
++    if (!wanted) throw new Error(`Unknown calendar "${data.calendar}"; options: ${options.map(o => o.value).join(', ')}`);
++    await g.settings.set('dnd5e', 'calendar', wanted.value);
++    return { success: true, calendar: wanted.label, note: 'The calendar changes how the same world time is shown. Reload the Foundry page (F5) if the date does not update.', ...now() };
++  }
++
++  throw new Error('action must be status, advance, until, set or calendar');
 +}
 diff --git a/packages/foundry-module/styles/map-generation.css b/packages/foundry-module/styles/map-generation.css
 new file mode 100644
@@ -23648,10 +24483,10 @@ index 096f27b..903a94e 100644
      "@vitest/coverage-v8": "^3.2.4",
      "esbuild": "^0.19.0",
 diff --git a/packages/mcp-server/src/backend.ts b/packages/mcp-server/src/backend.ts
-index 8967e33..419d644 100644
+index 8967e33..e1f1f80 100644
 --- a/packages/mcp-server/src/backend.ts
 +++ b/packages/mcp-server/src/backend.ts
-@@ -48,6 +48,46 @@ import { DnD5eAddFeatureTool } from './tools/dnd5e/add-feature.js';
+@@ -48,6 +48,48 @@ import { DnD5eAddFeatureTool } from './tools/dnd5e/add-feature.js';
  import { DnD5eNpcTools } from './tools/dnd5e/npc.js';
  import { DnD5eFeaturesFromCompendiumTools } from './tools/dnd5e/features.js';
  import { ChatTools } from './tools/chat.js';
@@ -23659,6 +24494,8 @@ index 8967e33..419d644 100644
 +import { ChatFeed, DEFAULT_CHAT_FEED_PORT } from './chat-feed.js';
 +import { TableFeed, DEFAULT_TABLE_FEED_PORT } from './table-feed.js';
 +import { TableWatchTools } from './tools/table-watch-tools.js';
++import { TimeTools } from './tools/time-tools.js';
++import { TacticalTools } from './tools/tactical-tools.js';
 +import { UploadTools } from './tools/upload.js';
 +import { ImageGenerationTools } from './tools/image-generation.js';
 +import { SpeechTools } from './tools/speech-tools.js';
@@ -23698,7 +24535,7 @@ index 8967e33..419d644 100644
  
  const CONTROL_HOST = '127.0.0.1';
  
-@@ -174,6 +214,22 @@ let comfyuiProcess: ChildProcess | null = null;
+@@ -174,6 +216,22 @@ let comfyuiProcess: ChildProcess | null = null;
  
  let comfyuiStatus: 'stopped' | 'starting' | 'running' | 'error' = 'stopped';
  
@@ -23721,7 +24558,7 @@ index 8967e33..419d644 100644
  let lockFd: number | null = null;
  
  function acquireLock(): boolean {
-@@ -350,6 +406,18 @@ async function waitForComfyUIReady(timeoutMs: number = 60000): Promise<void> {
+@@ -350,6 +408,18 @@ async function waitForComfyUIReady(timeoutMs: number = 60000): Promise<void> {
  }
  
  async function startComfyUIService(logger: Logger): Promise<any> {
@@ -23740,7 +24577,7 @@ index 8967e33..419d644 100644
    if (comfyuiStatus === 'running') {
      return { status: 'already_running', message: 'ComfyUI service is already running' };
    }
-@@ -472,6 +540,14 @@ async function startComfyUIService(logger: Logger): Promise<any> {
+@@ -472,6 +542,14 @@ async function startComfyUIService(logger: Logger): Promise<any> {
  }
  
  async function stopComfyUIService(logger: Logger): Promise<any> {
@@ -23755,7 +24592,7 @@ index 8967e33..419d644 100644
    if (comfyuiStatus === 'stopped') {
      return { status: 'already_stopped', message: 'ComfyUI service is already stopped' };
    }
-@@ -510,7 +586,7 @@ async function checkComfyUIStatus(): Promise<any> {
+@@ -510,7 +588,7 @@ async function checkComfyUIStatus(): Promise<any> {
    // This handles both spawned processes and externally-started instances
  
    try {
@@ -23764,7 +24601,7 @@ index 8967e33..419d644 100644
        signal: AbortSignal.timeout(5000),
      });
  
-@@ -520,16 +596,23 @@ async function checkComfyUIStatus(): Promise<any> {
+@@ -520,16 +598,23 @@ async function checkComfyUIStatus(): Promise<any> {
        comfyuiStatus = 'error';
      }
    } catch (error) {
@@ -23790,7 +24627,7 @@ index 8967e33..419d644 100644
    };
  }
  
-@@ -1131,7 +1214,7 @@ async function processMapGenerationInBackend(
+@@ -1131,7 +1216,7 @@ async function processMapGenerationInBackend(
      );
  
      logger.error('Background map generation processing failed', { jobId, error });
@@ -23799,7 +24636,7 @@ index 8967e33..419d644 100644
  
      // Emit failure to Foundry module
      foundryClient.sendMessage({
-@@ -1195,6 +1278,89 @@ async function startBackend(): Promise<void> {
+@@ -1195,6 +1280,91 @@ async function startBackend(): Promise<void> {
    const compendiumTools = new CompendiumTools({ foundryClient, logger, systemRegistry });
  
    const sceneTools = new SceneTools({ foundryClient, logger });
@@ -23863,6 +24700,8 @@ index 8967e33..419d644 100644
 +    port: Number(process.env.FOUNDRY_MCP_TABLE_FEED_PORT) || DEFAULT_TABLE_FEED_PORT,
 +  });
 +  const tableWatchTools = new TableWatchTools({ foundryClient, logger, feed: tableFeed });
++  const timeTools = new TimeTools({ foundryClient, logger });
++  const tacticalTools = new TacticalTools({ foundryClient, logger });
 +  const campaignMemoryTools = new CampaignMemoryTools({ foundryClient, logger });
 +  const tableTools = new TableTools({ foundryClient, logger });
 +  const revealTools = new RevealTools({ foundryClient, logger });
@@ -23889,7 +24728,7 @@ index 8967e33..419d644 100644
    const playlistTools = new PlaylistTools({ foundryClient, logger });
  
    const actorCreationTools = new ActorCreationTools({ foundryClient, logger });
-@@ -1214,6 +1380,7 @@ async function startBackend(): Promise<void> {
+@@ -1214,6 +1384,7 @@ async function startBackend(): Promise<void> {
    const questCreationTools = new QuestCreationTools({ foundryClient, logger });
  
    const chatTools = new ChatTools({ foundryClient, logger });
@@ -23897,7 +24736,7 @@ index 8967e33..419d644 100644
  
    const diceRollTools = new DiceRollTools({ foundryClient, logger });
  
-@@ -1301,6 +1468,13 @@ async function startBackend(): Promise<void> {
+@@ -1301,6 +1472,13 @@ async function startBackend(): Promise<void> {
  
          let result: any;
  
@@ -23911,7 +24750,7 @@ index 8967e33..419d644 100644
          switch (message.type) {
            case 'start-comfyui-service':
              result = await startComfyUIService(logger);
-@@ -1317,6 +1491,19 @@ async function startBackend(): Promise<void> {
+@@ -1317,6 +1495,19 @@ async function startBackend(): Promise<void> {
  
              break;
  
@@ -23931,7 +24770,7 @@ index 8967e33..419d644 100644
            // Map generation handlers (following existing tool pattern)
            case 'generate-map-request':
              await fs.appendFile(
-@@ -1429,6 +1616,34 @@ async function startBackend(): Promise<void> {
+@@ -1429,6 +1620,36 @@ async function startBackend(): Promise<void> {
  
      ...sceneTools.getToolDefinitions(),
  
@@ -23949,6 +24788,8 @@ index 8967e33..419d644 100644
 +    ...campaignMemoryTools.getToolDefinitions(),
 +    ...tableTools.getToolDefinitions(),
 +    ...tableWatchTools.getToolDefinitions(),
++    ...timeTools.getToolDefinitions(),
++    ...tacticalTools.getToolDefinitions(),
 +    ...revealTools.getToolDefinitions(),
 +    ...combatTools.getToolDefinitions(),
 +    ...rulesTools.getToolDefinitions(),
@@ -23966,7 +24807,7 @@ index 8967e33..419d644 100644
      ...actorCreationTools.getToolDefinitions(),
      ...actorManagementTools.getToolDefinitions(),
      ...effectManagementTools.getToolDefinitions(),
-@@ -1442,7 +1657,7 @@ async function startBackend(): Promise<void> {
+@@ -1442,7 +1663,7 @@ async function startBackend(): Promise<void> {
  
      ...questCreationTools.getToolDefinitions(),
  
@@ -23975,7 +24816,7 @@ index 8967e33..419d644 100644
  
      ...diceRollTools.getToolDefinitions(),
  
-@@ -1456,7 +1671,11 @@ async function startBackend(): Promise<void> {
+@@ -1456,7 +1677,11 @@ async function startBackend(): Promise<void> {
  
      ...tokenManipulationTools.getToolDefinitions(),
  
@@ -23988,7 +24829,7 @@ index 8967e33..419d644 100644
  
      ...playlistTools.getToolDefinitions(),
    ];
-@@ -1467,6 +1686,16 @@ async function startBackend(): Promise<void> {
+@@ -1467,6 +1692,16 @@ async function startBackend(): Promise<void> {
      logger.error('Foundry connector failed to start', e);
    });
  
@@ -24005,7 +24846,7 @@ index 8967e33..419d644 100644
    const autoStartComfyUI = async () => {
      try {
        logger.info('Auto-starting ComfyUI service...');
-@@ -1661,6 +1890,10 @@ async function startBackend(): Promise<void> {
+@@ -1661,6 +1896,10 @@ async function startBackend(): Promise<void> {
  
                  // Chat tools
  
@@ -24016,7 +24857,7 @@ index 8967e33..419d644 100644
                  case 'create-chat-message':
                    result = await chatTools.handleCreateChatMessage(args);
  
-@@ -1702,6 +1935,10 @@ async function startBackend(): Promise<void> {
+@@ -1702,6 +1941,10 @@ async function startBackend(): Promise<void> {
  
                  case 'request-player-rolls':
                    result = await diceRollTools.handleRequestPlayerRolls(args);
@@ -24027,7 +24868,7 @@ index 8967e33..419d644 100644
  
                    break;
  
-@@ -1764,19 +2001,11 @@ async function startBackend(): Promise<void> {
+@@ -1764,19 +2007,11 @@ async function startBackend(): Promise<void> {
                  // Map generation tools
  
                  case 'generate-map':
@@ -24050,7 +24891,7 @@ index 8967e33..419d644 100644
  
                  case 'list-scenes':
                    result = await mapGenerationTools.listScenes(args);
-@@ -1805,6 +2034,156 @@ async function startBackend(): Promise<void> {
+@@ -1805,6 +2040,164 @@ async function startBackend(): Promise<void> {
  
                    break;
  
@@ -24157,6 +24998,14 @@ index 8967e33..419d644 100644
 +
 +                case 'table-watch':
 +                  result = await tableWatchTools.handle(args);
++                  break;
++
++                case 'time':
++                  result = await timeTools.handle(args);
++                  break;
++
++                case 'tactical':
++                  result = await tacticalTools.handle(args);
 +                  break;
 +
 +                case 'campaign-memory':
@@ -41037,6 +41886,155 @@ index 0000000..ba694ec
 +        return { success: true, sent, ...(sent ? {} : { note: 'Nobody is listening to the feed; start it with the Monitor tool first' }) };
 +      }
 +    }
++  }
++}
+diff --git a/packages/mcp-server/src/tools/tactical-tools.ts b/packages/mcp-server/src/tools/tactical-tools.ts
+new file mode 100644
+index 0000000..d1ed467
+--- /dev/null
++++ b/packages/mcp-server/src/tools/tactical-tools.ts
+@@ -0,0 +1,67 @@
++import { z } from 'zod';
++import type { FoundryClient } from '../foundry-client.js';
++import type { Logger } from '../logger.js';
++
++const place = z.union([z.string().min(1), z.tuple([z.number(), z.number()])]);
++
++const schema = z
++  .object({
++    action: z.enum(['distance', 'area', 'sight']),
++    scene: z.string().min(1).optional(),
++    from: z.string().min(1).optional(),
++    to: z.array(z.string().min(1)).min(1).max(30).optional(),
++    shape: z.enum(['circle', 'cone', 'line', 'square']).optional(),
++    origin: place.optional(),
++    size: z.number().positive().max(2000).optional(),
++    width: z.number().positive().max(200).optional(),
++    direction: z.union([z.number(), z.string().min(1)]).optional(),
++    toward: place.optional(),
++    include_origin: z.boolean().optional(),
++  })
++  .strict();
++
++export class TacticalTools {
++  private foundryClient: FoundryClient;
++  private logger: Logger;
++
++  constructor({ foundryClient, logger }: { foundryClient: FoundryClient; logger: Logger }) {
++    this.foundryClient = foundryClient;
++    this.logger = logger.child({ component: 'TacticalTools' });
++  }
++
++  getToolDefinitions() {
++    return [
++      {
++        name: 'tactical',
++        description:
++          'Answer tactical questions on a scene instead of guessing from a picture. Tokens are named (token name, else actor name, else part of a name; an ambiguous name is refused with the ids) and distances are in the scene units, D&D style (diagonals count as one square, measured between the nearest edges). distance {from, to:[names]}. area {shape: circle | cone | line | square, origin: token name or [column, row] in grid squares, size: radius (circle), length (cone, line) or side (square) in feet, width? (line, default 5), direction? (degrees, 0 = east, 90 = south, or north, southeast...) or toward? (a token or square), include_origin?} lists every token the area touches (a square counts when its centre is inside, as Foundry templates do): a fireball is circle 20 at a square, a dragon breath cone 15 toward a token, lightning bolt line 100 width 5; the caster is left out unless include_origin; creatures with walls blocking every line from the origin are marked behindWall. sight {from, to:[names]} gives, for each target, the distance, whether there is a line of sight through the walls, and cover by the DMG corner method (none, half, three-quarters, total; a creature standing in the way gives half). sight needs the scene on screen; it ignores light and vision (darkness, invisibility are separate). Read-only.',
++        inputSchema: {
++          type: 'object',
++          properties: {
++            action: { type: 'string', enum: ['distance', 'area', 'sight'] },
++            scene: { type: 'string', description: 'Scene id or name (default the one being viewed)' },
++            from: { type: 'string', description: 'distance, sight: the token measured from' },
++            to: { type: 'array', items: { type: 'string' }, description: 'distance, sight: tokens measured to' },
++            shape: { type: 'string', enum: ['circle', 'cone', 'line', 'square'], description: 'area (default circle)' },
++            origin: { description: 'area: a token name or [column, row] in grid squares', anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'number' }, minItems: 2, maxItems: 2 }] },
++            size: { type: 'number', description: 'area: radius, length or side in feet' },
++            width: { type: 'number', description: 'area: width of a line in feet (default 5)' },
++            direction: { description: 'area: degrees (0 east, 90 south) or a compass word', anyOf: [{ type: 'number' }, { type: 'string' }] },
++            toward: { description: 'area: aim at this token or [column, row] instead of a direction', anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'number' }, minItems: 2, maxItems: 2 }] },
++            include_origin: { type: 'boolean', description: 'area: include the token at the origin' },
++          },
++          required: ['action'],
++          additionalProperties: false,
++        },
++      },
++    ];
++  }
++
++  async handle(args: unknown): Promise<any> {
++    const a = schema.parse(args);
++    this.logger.info('Tactical query', { action: a.action });
++    const result = await this.foundryClient.query('foundry-mcp-bridge.tactical', a);
++    if (result?.success === false && result?.error) throw new Error(result.error);
++    return result;
++  }
++}
+diff --git a/packages/mcp-server/src/tools/time-tools.ts b/packages/mcp-server/src/tools/time-tools.ts
+new file mode 100644
+index 0000000..75fc363
+--- /dev/null
++++ b/packages/mcp-server/src/tools/time-tools.ts
+@@ -0,0 +1,70 @@
++import { z } from 'zod';
++import type { FoundryClient } from '../foundry-client.js';
++import type { Logger } from '../logger.js';
++
++const TARGETS = ['dawn', 'sunrise', 'morning', 'noon', 'afternoon', 'dusk', 'sunset', 'evening', 'midnight'] as const;
++
++const schema = z
++  .object({
++    action: z.enum(['status', 'advance', 'until', 'set', 'calendar']).default('status'),
++    seconds: z.number().min(0).optional(),
++    rounds: z.number().min(0).optional(),
++    minutes: z.number().min(0).optional(),
++    hours: z.number().min(0).optional(),
++    days: z.number().min(0).optional(),
++    until: z.enum(TARGETS).optional(),
++    year: z.number().int().optional(),
++    month: z.union([z.number().int().min(1), z.string().min(1)]).optional(),
++    day: z.number().int().min(1).optional(),
++    hour: z.number().int().min(0).optional(),
++    minute: z.number().int().min(0).optional(),
++    calendar: z.string().min(1).optional(),
++  })
++  .strict();
++
++export class TimeTools {
++  private foundryClient: FoundryClient;
++  private logger: Logger;
++
++  constructor({ foundryClient, logger }: { foundryClient: FoundryClient; logger: Logger }) {
++    this.foundryClient = foundryClient;
++    this.logger = logger.child({ component: 'TimeTools' });
++  }
++
++  getToolDefinitions() {
++    return [
++      {
++        name: 'time',
++        description:
++          "In-game time on the world calendar (Foundry's world clock, which dnd5e extends with sunrise, sunset and the Gregorian, Harptos, Greyhawk and Khorvaire calendars). Moving the clock is Foundry's own, so effect durations, dnd5e daily recovery and the calendar display players see all follow it. status: date, weekday, time, part of the day (night, dawn, morning, afternoon, dusk, evening), season, sunrise and sunset. advance {seconds?, rounds?, minutes?, hours?, days?}: time passes (a short rest is 1 hour, a long rest 8 hours, a day of travel about 8 hours on the road); says when new days began. until {until: dawn | sunrise | morning | noon | afternoon | dusk | sunset | evening | midnight}: advances to the next one (for example a night watch until dawn). set {year?, month? (number from 1 or name), day?, hour?, minute?}: jumps to a date and time (start of a campaign; prefer advance afterwards). calendar {calendar?}: lists the calendars or switches to one (harptos for the Forgotten Realms). During combat each round already moves the clock 6 seconds; do not add rounds by hand. Use party rest for rests (it recovers hit dice and features) and then advance the clock by the rest's length.",
++        inputSchema: {
++          type: 'object',
++          properties: {
++            action: { type: 'string', enum: ['status', 'advance', 'until', 'set', 'calendar'], description: 'default status' },
++            seconds: { type: 'number', description: 'advance' },
++            rounds: { type: 'number', description: 'advance: 6 seconds each' },
++            minutes: { type: 'number', description: 'advance' },
++            hours: { type: 'number', description: 'advance' },
++            days: { type: 'number', description: 'advance' },
++            until: { type: 'string', enum: [...TARGETS], description: 'until: the time of day to move to' },
++            year: { type: 'number', description: 'set' },
++            month: { type: ['number', 'string'], description: 'set: 1-based number or month name' },
++            day: { type: 'number', description: 'set: day of the month, from 1' },
++            hour: { type: 'number', description: 'set' },
++            minute: { type: 'number', description: 'set' },
++            calendar: { type: 'string', description: 'calendar: gregorian, harptos, greyhawk or khorvaire' },
++          },
++          additionalProperties: false,
++        },
++      },
++    ];
++  }
++
++  async handle(args: unknown): Promise<any> {
++    const a = schema.parse(args ?? {});
++    this.logger.info('World time', { action: a.action });
++    const result = await this.foundryClient.query('foundry-mcp-bridge.world-time', a);
++    if (result?.success === false && result?.error) throw new Error(result.error);
++    return result;
 +  }
 +}
 diff --git a/packages/mcp-server/src/tools/token-manipulation.test.ts b/packages/mcp-server/src/tools/token-manipulation.test.ts
