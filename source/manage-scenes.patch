@@ -392,10 +392,10 @@ index 0000000..a1da065
 +});
 diff --git a/packages/foundry-module/src/actor-overrides-utils.ts b/packages/foundry-module/src/actor-overrides-utils.ts
 new file mode 100644
-index 0000000..d88e51b
+index 0000000..2d690c2
 --- /dev/null
 +++ b/packages/foundry-module/src/actor-overrides-utils.ts
-@@ -0,0 +1,277 @@
+@@ -0,0 +1,296 @@
 +/**
 + * Pure helpers for the actor options of manage-actors and create-actor-from-compendium:
 + * token size and behaviour, and a hit point shorthand. No Foundry globals, so they can be tested.
@@ -672,6 +672,25 @@ index 0000000..d88e51b
 +  }
 +  if (value > max) throw new Error(`${label}: hp value cannot be above max`);
 +  return { attributes: { hp: { value, max } } };
++}
++
++/**
++ * A new actor's token template (prototypeToken) must carry the actor's own name. An actor made by copying
++ * another (a compendium monster renamed "Yeemik") keeps the old template name ("Goblin"), and modules such as
++ * Bossbar then show that stale name. Sets the name on the data about to be created, unless it already matches.
++ */
++export function alignPrototypeName(data: { name?: unknown; prototypeToken?: any }): void {
++  const name = typeof data?.name === 'string' ? data.name.trim() : '';
++  if (!name) return;
++  const proto = data.prototypeToken && typeof data.prototypeToken === 'object' ? data.prototypeToken : {};
++  if (proto.name === name) return;
++  data.prototypeToken = { ...proto, name };
++}
++
++/** The template name to set when an actor is renamed: only when the template followed the old name. */
++export function renamedPrototypeName(oldActorName: unknown, oldTemplateName: unknown, newName: unknown): string | undefined {
++  if (typeof newName !== 'string' || !newName.trim()) return undefined;
++  return oldTemplateName === oldActorName && oldActorName !== newName ? newName.trim() : undefined;
 +}
 diff --git a/packages/foundry-module/src/actor-token-vision.test.ts b/packages/foundry-module/src/actor-token-vision.test.ts
 new file mode 100644
@@ -1754,6 +1773,82 @@ index 0000000..6c9da45
 +    out[`${t.kind}s`] = (out[`${t.kind}s`] ?? 0) + 1;
 +  }
 +  return out;
++}
+diff --git a/packages/foundry-module/src/atmosphere-utils.test.ts b/packages/foundry-module/src/atmosphere-utils.test.ts
+new file mode 100644
+index 0000000..6e5fb7b
+--- /dev/null
++++ b/packages/foundry-module/src/atmosphere-utils.test.ts
+@@ -0,0 +1,30 @@
++import { describe, expect, it } from 'vitest';
++import { fxmasterApi, isNoAtmosphere, resolvePreset } from './atmosphere-utils.js';
++
++const presets = ['fog', 'rolling-fog', 'rain', 'thunderstorm', 'snow', 'blizzard'];
++
++describe('atmosphere helpers', () => {
++  it('finds the FXMaster api only when active', () => {
++    const api = { presets: {} };
++    expect(fxmasterApi({ modules: { get: () => ({ active: true, api }) } })).toBe(api);
++    expect(fxmasterApi({ modules: { get: () => ({ active: false, api }) } })).toBeNull();
++    expect(fxmasterApi({ modules: { get: () => ({ active: true }) } })).toBeNull();
++    expect(fxmasterApi(undefined as any)).toBeNull();
++  });
++  it('reads clear words', () => {
++    for (const v of [null, '', 'none', 'OFF', ' clear ']) expect(isNoAtmosphere(v)).toBe(true);
++    for (const v of ['fog', undefined, 5]) expect(isNoAtmosphere(v)).toBe(false);
++  });
++  it('resolves a preset by name', () => {
++    expect(resolvePreset(presets, 'Rain')).toEqual({ name: 'rain' });
++    expect(resolvePreset(presets, 'rolling fog')).toEqual({ name: 'rolling-fog' });
++    expect(resolvePreset(presets, 'thunder')).toEqual({ name: 'thunderstorm' });
++    expect(resolvePreset(presets, 'storm')).toEqual({ name: 'thunderstorm' });
++  });
++  it('refuses unknown and ambiguous names with the options', () => {
++    expect(resolvePreset(presets, 'blood')).toHaveProperty('error');
++    const many = resolvePreset(presets, 'fo');
++    expect(many).toHaveProperty('error');
++    expect((many as any).error).toContain('fog');
++  });
++});
+diff --git a/packages/foundry-module/src/atmosphere-utils.ts b/packages/foundry-module/src/atmosphere-utils.ts
+new file mode 100644
+index 0000000..e99fbb2
+--- /dev/null
++++ b/packages/foundry-module/src/atmosphere-utils.ts
+@@ -0,0 +1,34 @@
++/**
++ * FXMaster integration (module id "fxmaster"): scene atmosphere (weather, fog, light, mood) through its preset API.
++ * Pure helpers.
++ */
++
++export const FXMASTER_ID = 'fxmaster';
++
++export function fxmasterApi(g: any = (globalThis as any).game): any | null {
++  try {
++    const mod = g?.modules?.get?.(FXMASTER_ID);
++    return mod?.active && mod.api?.presets ? mod.api : null;
++  } catch {
++    return null;
++  }
++}
++
++/** none, off, clear, an empty string or null all mean: no atmosphere. */
++export function isNoAtmosphere(value: unknown): boolean {
++  if (value === null) return true;
++  if (typeof value !== 'string') return false;
++  const v = value.trim().toLowerCase();
++  return v === '' || v === 'none' || v === 'off' || v === 'clear';
++}
++
++/** A preset by name (any case, spaces or underscores for dashes), else a part of one when only one matches. */
++export function resolvePreset(presets: string[], wanted: string): { name: string } | { error: string } {
++  const k = wanted.trim().toLowerCase().replace(/[\s_]+/g, '-');
++  const exact = presets.find(p => p.toLowerCase() === k);
++  if (exact) return { name: exact };
++  const partial = presets.filter(p => p.toLowerCase().includes(k));
++  if (partial.length === 1) return { name: partial[0]! };
++  if (partial.length > 1) return { error: `"${wanted}" matches several atmospheres: ${partial.join(', ')}` };
++  return { error: `Unknown atmosphere "${wanted}". Available: ${presets.join(', ')}` };
 +}
 diff --git a/packages/foundry-module/src/attack-checks.test.ts b/packages/foundry-module/src/attack-checks.test.ts
 new file mode 100644
@@ -8636,10 +8731,10 @@ index 0000000..07712cf
 +  });
 +});
 diff --git a/packages/foundry-module/src/data-access.ts b/packages/foundry-module/src/data-access.ts
-index eecda7e..a99dd29 100644
+index eecda7e..58c4b68 100644
 --- a/packages/foundry-module/src/data-access.ts
 +++ b/packages/foundry-module/src/data-access.ts
-@@ -1,6 +1,149 @@
+@@ -1,6 +1,152 @@
  import { MODULE_ID, ERROR_MESSAGES, TOKEN_DISPOSITIONS } from './constants.js';
  import { permissionManager } from './permissions.js';
 +import {
@@ -8693,6 +8788,8 @@ index eecda7e..a99dd29 100644
 +  buildHpPatch,
 +  buildPrototypeTokenPatch,
 +  prototypeTokenUpdate,
++  alignPrototypeName,
++  renamedPrototypeName,
 +} from './actor-overrides-utils.js';
 +import {
 +  buildRegionData,
@@ -8775,6 +8872,7 @@ index eecda7e..a99dd29 100644
 +import { moveCoins, pickItems, quantityToMove, type Purse } from './transfer-utils.js';
 +import { diceSettle } from './dice-settle.js';
 +import { blockedMessage, initiativeBlockers, monksActive } from './monks-combat-utils.js';
++import { fxmasterApi, isNoAtmosphere, resolvePreset } from './atmosphere-utils.js';
 +import { BOSSBAR_ID, bossEntries, bossbarActive, bossbarStyles, resolveBarStyle } from './bossbar-utils.js';
 +import { healthLooks } from './health-estimate-utils.js';
 +import { markDownIfZero, markSurprised, performAttack, setDeathSaves, stabilize, performCheck, pickActivity, type NamedActor } from './combat-actions.js';
@@ -8789,7 +8887,7 @@ index eecda7e..a99dd29 100644
  
  // The same five characters foundry.utils.escapeHTML replaces in v14, kept local because
  // that helper isn't confirmed in v13, this module's minimum.
-@@ -33,6 +176,7 @@ interface CharacterInfo {
+@@ -33,6 +179,7 @@ interface CharacterInfo {
    itemVariants?: any[]; // Item rule element variants (ChoiceSet, etc.)
    itemToggles?: any[]; // Item rule element toggles (RollOption, ToggleProperty, equipped)
    spellcasting?: SpellcastingEntry[]; // PF2e/D&D 5e spellcasting entries
@@ -8797,7 +8895,7 @@ index eecda7e..a99dd29 100644
  }
  
  interface SpellcastingEntry {
-@@ -363,7 +507,8 @@ interface ItemTargetingResult {
+@@ -363,7 +510,8 @@ interface ItemTargetingResult {
   */
  class PersistentCreatureIndex {
    private moduleId: string = MODULE_ID;
@@ -8807,7 +8905,7 @@ index eecda7e..a99dd29 100644
    private readonly INDEX_FILENAME = 'enhanced-creature-index.json';
    private buildInProgress = false;
    private hooksRegistered = false;
-@@ -979,26 +1124,9 @@ class PersistentCreatureIndex {
+@@ -979,26 +1127,9 @@ class PersistentCreatureIndex {
          alignment = String(alignment || 'unaligned');
        }
  
@@ -8837,7 +8935,7 @@ index eecda7e..a99dd29 100644
  
        // DEBUG: Log what we extracted for comparison
  
-@@ -1714,6 +1842,92 @@ const DND5E_SIZE: Record<string, string> = {
+@@ -1714,6 +1845,92 @@ const DND5E_SIZE: Record<string, string> = {
    gargantuan: 'gargantuan',
  };
  
@@ -8930,7 +9028,7 @@ index eecda7e..a99dd29 100644
  export class FoundryDataAccess {
    private moduleId: string = MODULE_ID;
    private persistentIndex: PersistentCreatureIndex = new PersistentCreatureIndex();
-@@ -1951,6 +2165,16 @@ export class FoundryDataAccess {
+@@ -1951,6 +2168,16 @@ export class FoundryDataAccess {
        characterData.spellcasting = spellcastingEntries;
      }
  
@@ -8947,7 +9045,7 @@ index eecda7e..a99dd29 100644
      return characterData;
    }
  
-@@ -3151,11 +3375,7 @@ export class FoundryDataAccess {
+@@ -3151,11 +3378,7 @@ export class FoundryDataAccess {
  
      // Legendary Actions filter
      if (filters.hasLegendaryActions !== undefined) {
@@ -8960,7 +9058,7 @@ index eecda7e..a99dd29 100644
        if (hasLegendary !== filters.hasLegendaryActions) {
          return false;
        }
-@@ -4681,12 +4901,28 @@ export class FoundryDataAccess {
+@@ -4681,12 +4904,28 @@ export class FoundryDataAccess {
        type: 'random' | 'grid' | 'center' | 'coordinates';
        coordinates?: { x: number; y: number }[];
      };
@@ -8989,7 +9087,15 @@ index eecda7e..a99dd29 100644
        // Validate inputs
        if (!packId || !itemId) {
          throw new Error('Both packId and itemId are required');
-@@ -4753,10 +4989,33 @@ export class FoundryDataAccess {
+@@ -4747,16 +4986,41 @@ export class FoundryDataAccess {
+             prototypeToken: sourceData.prototypeToken, // Include prototype token
+           };
+ 
++          alignPrototypeName(actorData);
++
+           // Fix remote image URLs - normalize to local paths
+           if (actorData.prototypeToken?.texture?.src?.startsWith('http')) {
+             actorData.prototypeToken.texture.src = null; // Clear remote URL
            }
  
            // Organize created actors in a folder - use "Foundry MCP Creatures" for generic monsters
@@ -9024,7 +9130,23 @@ index eecda7e..a99dd29 100644
  
            // Create the actor
            const newActor = await Actor.create(actorData);
-@@ -6021,21 +6280,22 @@ export class FoundryDataAccess {
+@@ -5064,6 +5328,7 @@ export class FoundryDataAccess {
+         }
+         resultActor = existingActor;
+       } else {
++        alignPrototypeName(actorData);
+         resultActor = await Actor.create(actorData as any);
+         if (!resultActor) {
+           throw new Error(`Failed to create actor "${actorData.name}"`);
+@@ -5865,6 +6130,7 @@ export class FoundryDataAccess {
+ 
+       // Apply customizations
+       actorData.name = customName;
++      alignPrototypeName(actorData);
+ 
+       // Fix only token texture - leave portrait (actor.img) alone
+       if (actorData.prototypeToken?.texture?.src?.startsWith('http')) {
+@@ -6021,21 +6287,22 @@ export class FoundryDataAccess {
        // For now, we'll just create the button and let the rendering logic handle the state restoration
  
        const rollButtonHtml = `
@@ -9051,7 +9173,7 @@ index eecda7e..a99dd29 100644
              </button>
            </div>
          </div>
-@@ -6074,6 +6334,8 @@ export class FoundryDataAccess {
+@@ -6074,6 +6341,8 @@ export class FoundryDataAccess {
          whisper: whisperTargets,
          flags: {
            [MODULE_ID]: {
@@ -9060,7 +9182,7 @@ index eecda7e..a99dd29 100644
              rollButtons: {
                [buttonId]: {
                  rolled: false,
-@@ -6399,6 +6661,8 @@ export class FoundryDataAccess {
+@@ -6399,6 +6668,8 @@ export class FoundryDataAccess {
          return `${rollTarget} Attack (${visibility})`;
        case 'initiative':
          return `Initiative Roll (${visibility})`;
@@ -9069,7 +9191,7 @@ index eecda7e..a99dd29 100644
        case 'custom':
          return `Custom Roll (${visibility})`;
        default:
-@@ -6498,6 +6762,7 @@ export class FoundryDataAccess {
+@@ -6498,6 +6769,7 @@ export class FoundryDataAccess {
  
        const rollFormula = button.data('roll-formula');
        const rollLabel = button.data('roll-label');
@@ -9077,7 +9199,7 @@ index eecda7e..a99dd29 100644
        const isPublicRaw = button.data('is-public');
        const isPublic = isPublicRaw === true || isPublicRaw === 'true'; // Convert to proper boolean
        const characterId = button.data('character-id');
-@@ -6515,13 +6780,22 @@ export class FoundryDataAccess {
+@@ -6515,13 +6787,22 @@ export class FoundryDataAccess {
        }
  
        try {
@@ -9103,7 +9225,7 @@ index eecda7e..a99dd29 100644
          // Use the modern Foundry v13 approach with roll.toMessage()
          const rollMode = isPublic ? 'publicroll' : 'whisper';
          const whisperTargets: string[] = [];
-@@ -6714,7 +6988,7 @@ export class FoundryDataAccess {
+@@ -6714,7 +6995,7 @@ export class FoundryDataAccess {
  
          // Send socket request to GM
          if (game.socket) {
@@ -9112,7 +9234,7 @@ index eecda7e..a99dd29 100644
              type: 'requestMessageUpdate',
              buttonId,
              userId,
-@@ -6744,7 +7018,7 @@ export class FoundryDataAccess {
+@@ -6744,7 +7025,7 @@ export class FoundryDataAccess {
  
        // Create the rolled state HTML
        const rolledHtml = `
@@ -9121,7 +9243,7 @@ index eecda7e..a99dd29 100644
            <p><strong>Roll Request:</strong> ${rollLabel}</p>
            <p><strong>Status:</strong> ✅ <strong>Completed by ${rolledByName}</strong> at ${timestamp}</p>
          </div>
-@@ -7603,6 +7877,7 @@ export class FoundryDataAccess {
+@@ -7603,6 +7884,7 @@ export class FoundryDataAccess {
      if (applyPolyglot) {
        messageData.flags = { polyglot: { language: data.language } };
      }
@@ -9129,7 +9251,56 @@ index eecda7e..a99dd29 100644
      if (whisperIds.length > 0) {
        messageData.whisper = whisperIds;
      }
-@@ -8101,223 +8376,4908 @@ export class FoundryDataAccess {
+@@ -7897,7 +8179,22 @@ export class FoundryDataAccess {
+   /**
+    * Switch to a different scene
+    */
+-  async switchScene(options: { scene_identifier: string; optimize_view?: boolean }): Promise<any> {
++  /** FXMaster atmosphere for a scene: a preset name replaces what is playing, none/clear stops everything. */
++  private async applyAtmosphere(scene: any, value: string | null): Promise<{ active: string[] }> {
++    const api = fxmasterApi();
++    if (!api) throw new Error('The FXMaster module is not active in this world');
++    if (isNoAtmosphere(value)) {
++      await api.stopSceneEffects({ scene: scene.id });
++    } else {
++      const picked = resolvePreset(api.presets.list(), String(value));
++      if ('error' in picked) throw new Error(picked.error);
++      const ok = await api.presets.switch(picked.name, { scene: scene.id });
++      if (ok === false) throw new Error(`FXMaster could not play ${picked.name}`);
++    }
++    return { active: api.presets.listActive({ scene: scene.id }) };
++  }
++
++  async switchScene(options: { scene_identifier: string; optimize_view?: boolean; atmosphere?: string | null }): Promise<any> {
+     this.validateFoundryState();
+ 
+     try {
+@@ -7915,6 +8212,15 @@ export class FoundryDataAccess {
+ 
+       // Activate the scene
+       await targetScene.activate();
++      let atmosphere: { active: string[] } | undefined;
++      let atmosphereError: string | undefined;
++      if (options.atmosphere !== undefined) {
++        try {
++          atmosphere = await this.applyAtmosphere(targetScene, options.atmosphere);
++        } catch (e) {
++          atmosphereError = e instanceof Error ? e.message : String(e);
++        }
++      }
+ 
+       // Optimize view if requested (default true)
+       if (options.optimize_view !== false && typeof canvas !== 'undefined' && canvas?.scene) {
+@@ -7943,6 +8249,8 @@ export class FoundryDataAccess {
+         success: true,
+         sceneId: targetScene.id,
+         sceneName: targetScene.name,
++        ...(atmosphere ? { atmosphere } : {}),
++        ...(atmosphereError ? { atmosphereError } : {}),
+         dimensions: {
+           width: (targetScene.dimensions as any)?.width || (targetScene as any).width || 0,
+           height: (targetScene.dimensions as any)?.height || (targetScene as any).height || 0,
+@@ -8101,200 +8409,4864 @@ export class FoundryDataAccess {
      }
    }
  
@@ -9460,6 +9631,11 @@ index eecda7e..a99dd29 100644
 -    sound?: string;
 -  }): Promise<any> {
 -    this.validateFoundryState();
+-
+-    try {
+-      const pl = this.findMusicDoc((game as any).playlists, options.playlist, 'playlist');
+-      if (!pl) throw new Error('playlist identifier is required');
+-      const info = { id: pl.id, name: pl.name, mode: pl.mode };
 +  private async applySceneBackground(scene: any, src: string | null): Promise<void> {
 +    const generation = (game as any).release?.generation ?? 0;
 +    if (generation >= 14) {
@@ -9474,10 +9650,9 @@ index eecda7e..a99dd29 100644
 +    }
 +  }
  
--    try {
--      const pl = this.findMusicDoc((game as any).playlists, options.playlist, 'playlist');
--      if (!pl) throw new Error('playlist identifier is required');
--      const info = { id: pl.id, name: pl.name, mode: pl.mode };
+-      switch (options.command) {
+-        case 'play':
+-          await pl.playAll();
 +  /**
 +   * Set the canvas colour behind the background. Foundry v14 has no Scene#backgroundColor
 +   * field in the document source: the colour lives on the first Level's background
@@ -9492,14 +9667,7 @@ index eecda7e..a99dd29 100644
 +      await scene.createEmbeddedDocuments('Level', [{ name: 'Base', background: { color } }]);
 +    }
 +  }
- 
--      switch (options.command) {
--        case 'play':
--          await pl.playAll();
--          return { success: true, action: 'play', playlist: info };
--        case 'stop':
--          await pl.stopAll();
--          return { success: true, action: 'stop', playlist: info };
++
 +  /**
 +   * Compare what was requested with what the scene reports afterwards, so a write that
 +   * Foundry silently dropped is reported instead of claimed as a success.
@@ -9589,6 +9757,7 @@ index eecda7e..a99dd29 100644
 +    grid_shift_y?: number;
 +    fog_mode?: number;
 +    weather?: string | null;
++    atmosphere?: string | null;
 +    initial_view?: { x: number; y: number; scale?: number };
 +    activate?: boolean;
 +  }): Promise<any> {
@@ -9598,7 +9767,9 @@ index eecda7e..a99dd29 100644
 +      if (options.action === 'describe') {
 +        if (options.scene_identifier) {
 +          const scene = this.findSceneByIdentifier(options.scene_identifier);
-+          return { success: true, scene: this.summarizeScene(scene) };
++          const fx = fxmasterApi();
++          const atmosphere = fx ? { active: fx.presets.listActive({ scene: scene.id }), available: fx.presets.list() } : undefined;
++          return { success: true, scene: this.summarizeScene(scene), ...(atmosphere ? { atmosphere } : {}) };
 +        }
 +        const scenes = (game.scenes?.contents || []) as any[];
 +        return { success: true, scenes: scenes.map(scene => this.summarizeScene(scene)) };
@@ -9655,6 +9826,7 @@ index eecda7e..a99dd29 100644
 +          options.background !== undefined ||
 +          levelColor !== undefined ||
 +          view !== undefined ||
++          options.atmosphere !== undefined ||
 +          options.activate === true;
 +        if (!hasChange) {
 +          throw new Error('Nothing to update: pass at least one field to change');
@@ -9678,6 +9850,8 @@ index eecda7e..a99dd29 100644
 +          initial: { x: centre.x, y: centre.y, ...(view.scale !== undefined ? { scale: view.scale } : {}) },
 +        });
 +      }
++      let atmosphere: { active: string[] } | undefined;
++      if (options.atmosphere !== undefined) atmosphere = await this.applyAtmosphere(scene, options.atmosphere);
 +      if (options.activate === true) {
 +        await scene.activate();
 +      }
@@ -9690,6 +9864,7 @@ index eecda7e..a99dd29 100644
 +        success: true,
 +        action: options.action,
 +        scene: summary,
++        ...(atmosphere ? { atmosphere } : {}),
 +        ...(warnings.length > 0 ? { warnings } : {}),
 +      };
 +    } catch (error) {
@@ -14161,12 +14336,10 @@ index eecda7e..a99dd29 100644
 +      switch (command) {
 +        case 'play':
 +          await pl.playAll();
-+          return { success: true, action: 'play', playlist: info };
-+        case 'stop':
-+          await pl.stopAll();
-+          return { success: true, action: 'stop', playlist: info };
-         case 'cycle-mode':
-           await pl.cycleMode();
+           return { success: true, action: 'play', playlist: info };
+         case 'stop':
+           await pl.stopAll();
+@@ -8304,20 +13276,48 @@ export class FoundryDataAccess {
            return { success: true, action: 'cycle-mode', playlist: info, mode: pl.mode as number };
          case 'play-sound':
          case 'stop-sound': {
@@ -14221,7 +14394,7 @@ index eecda7e..a99dd29 100644
        }
      } catch (error) {
        throw new Error(
-@@ -8468,6 +13428,59 @@ export class FoundryDataAccess {
+@@ -8468,6 +13468,59 @@ export class FoundryDataAccess {
      }
    }
  
@@ -14281,7 +14454,7 @@ index eecda7e..a99dd29 100644
    /**
     * Move a token to a new position on the scene
     */
-@@ -8476,6 +13489,12 @@ export class FoundryDataAccess {
+@@ -8476,6 +13529,12 @@ export class FoundryDataAccess {
      x: number;
      y: number;
      animate?: boolean;
@@ -14294,7 +14467,7 @@ index eecda7e..a99dd29 100644
    }): Promise<any> {
      this.validateFoundryState();
  
-@@ -8489,33 +13508,79 @@ export class FoundryDataAccess {
+@@ -8489,33 +13548,79 @@ export class FoundryDataAccess {
      }
  
      try {
@@ -14391,7 +14564,7 @@ index eecda7e..a99dd29 100644
        };
      } catch (error) {
        this.auditLog(
-@@ -8530,10 +13595,95 @@ export class FoundryDataAccess {
+@@ -8530,10 +13635,95 @@ export class FoundryDataAccess {
      }
    }
  
@@ -14488,7 +14661,7 @@ index eecda7e..a99dd29 100644
      this.validateFoundryState();
  
      // Use permission system
-@@ -8546,23 +13696,21 @@ export class FoundryDataAccess {
+@@ -8546,23 +13736,21 @@ export class FoundryDataAccess {
      }
  
      try {
@@ -14522,7 +14695,7 @@ index eecda7e..a99dd29 100644
  
        this.auditLog('updateToken', { tokenId: data.tokenId, updates: cleanUpdates }, 'success');
  
-@@ -8570,7 +13718,8 @@ export class FoundryDataAccess {
+@@ -8570,7 +13758,8 @@ export class FoundryDataAccess {
          success: true,
          tokenId: token.id,
          tokenName: token.name,
@@ -14532,7 +14705,7 @@ index eecda7e..a99dd29 100644
        };
      } catch (error) {
        this.auditLog(
-@@ -8651,19 +13800,12 @@ export class FoundryDataAccess {
+@@ -8651,19 +13840,12 @@ export class FoundryDataAccess {
    /**
     * Get detailed information about a token
     */
@@ -14555,7 +14728,15 @@ index eecda7e..a99dd29 100644
  
        // Return flat structure that matches MCP server expectations
        return {
-@@ -11274,7 +16416,10 @@ export class FoundryDataAccess {
+@@ -9664,6 +14846,7 @@ export class FoundryDataAccess {
+       }
+ 
+       // 10. Create actor
++      alignPrototypeName(actorData);
+       const actor = await Actor.create(actorData);
+       if (!actor) {
+         throw new Error(`Failed to create NPC actor "${data.name}"`);
+@@ -11274,7 +16457,10 @@ export class FoundryDataAccess {
        name: string;
        type: string;
        img?: string;
@@ -14566,7 +14747,7 @@ index eecda7e..a99dd29 100644
      }>;
      folder?: string;
    }): Promise<{ created: Array<{ id: string; name: string; type: string }>; total: number }> {
-@@ -11286,6 +16431,19 @@ export class FoundryDataAccess {
+@@ -11286,6 +16472,19 @@ export class FoundryDataAccess {
      const docs = params.actors.map(a => {
        const doc: Record<string, any> = { name: a.name, type: a.type };
        if (a.img) doc.img = a.img;
@@ -14586,7 +14767,7 @@ index eecda7e..a99dd29 100644
  
        // Merge system data, adding safe defaults for systems that require certain
        // fields to exist during data preparation (avoids non-fatal init errors).
-@@ -11423,6 +16581,14 @@ export class FoundryDataAccess {
+@@ -11423,6 +16622,15 @@ export class FoundryDataAccess {
          };
        }
  
@@ -14598,10 +14779,11 @@ index eecda7e..a99dd29 100644
 +        systemData = { ...systemData, attributes };
 +      }
 +
++      if (!(a.token && typeof a.token === 'object' && 'name' in (a.token as object))) alignPrototypeName(doc);
        doc.system = systemData;
        if (folderId) doc.folder = folderId;
        return doc;
-@@ -11471,7 +16637,16 @@ export class FoundryDataAccess {
+@@ -11471,7 +16679,16 @@ export class FoundryDataAccess {
     * Merges supplied fields into the actor (top-level keys overwrite).
     */
    async updateActors(
@@ -14619,15 +14801,20 @@ index eecda7e..a99dd29 100644
    ): Promise<{ updated: Array<{ id: string; name: string }>; total: number }> {
      const updatedActors: Array<{ id: string; name: string }> = [];
  
-@@ -11482,6 +16657,7 @@ export class FoundryDataAccess {
+@@ -11481,7 +16698,12 @@ export class FoundryDataAccess {
+ 
        const patch: Record<string, any> = {};
        if (u.name !== undefined) patch.name = u.name;
++      if (u.name !== undefined && !(u.token && typeof u.token === 'object' && 'name' in u.token)) {
++        const follow = renamedPrototypeName(actor.name, actor.prototypeToken?.name, u.name);
++        if (follow) patch['prototypeToken.name'] = follow;
++      }
        if (u.img !== undefined) patch.img = u.img;
 +      if (u.tokenImg !== undefined) patch['prototypeToken.texture.src'] = u.tokenImg;
        if (u.system !== undefined) {
          // Build a single patch.system nested object so Foundry deep-merges everything
          // in one pass without flat-key vs nested-key conflicts.
-@@ -11504,6 +16680,19 @@ export class FoundryDataAccess {
+@@ -11504,6 +16726,19 @@ export class FoundryDataAccess {
          }
          patch.system = systemPatch;
        }
@@ -14647,7 +14834,7 @@ index eecda7e..a99dd29 100644
  
        await actor.update(patch);
        updatedActors.push({ id: actor.id, name: u.name ?? actor.name });
-@@ -11706,6 +16895,199 @@ export class FoundryDataAccess {
+@@ -11706,6 +16941,199 @@ export class FoundryDataAccess {
      return { deleted: existing, total: existing.length };
    }
  
@@ -19847,6 +20034,51 @@ index 0000000..557e34d
 +  if (view) ctx.restore();
 +  return view ? outSize : { width, height };
 +}
+diff --git a/packages/foundry-module/src/prototype-name.test.ts b/packages/foundry-module/src/prototype-name.test.ts
+new file mode 100644
+index 0000000..98580b1
+--- /dev/null
++++ b/packages/foundry-module/src/prototype-name.test.ts
+@@ -0,0 +1,39 @@
++import { describe, expect, it } from 'vitest';
++import { alignPrototypeName, renamedPrototypeName } from './actor-overrides-utils.js';
++
++describe('alignPrototypeName', () => {
++  it('gives a renamed copy its own token template name', () => {
++    const data: any = { name: 'Yeemik', prototypeToken: { name: 'Goblin', texture: { src: 'x.webp' } } };
++    alignPrototypeName(data);
++    expect(data.prototypeToken).toEqual({ name: 'Yeemik', texture: { src: 'x.webp' } });
++  });
++  it('creates the template when there is none', () => {
++    const data: any = { name: 'Klarg' };
++    alignPrototypeName(data);
++    expect(data.prototypeToken).toEqual({ name: 'Klarg' });
++  });
++  it('does not mutate a shared source template', () => {
++    const source = { name: 'Goblin' };
++    const data: any = { name: 'Yeemik', prototypeToken: source };
++    alignPrototypeName(data);
++    expect(source.name).toBe('Goblin');
++  });
++  it('leaves matching or nameless data alone', () => {
++    const same: any = { name: 'Bugbear', prototypeToken: { name: 'Bugbear' } };
++    const ref = same.prototypeToken;
++    alignPrototypeName(same);
++    expect(same.prototypeToken).toBe(ref);
++    const none: any = { prototypeToken: { name: 'X' } };
++    alignPrototypeName(none);
++    expect(none.prototypeToken.name).toBe('X');
++  });
++});
++
++describe('renamedPrototypeName', () => {
++  it('follows a rename only when the template followed the old name', () => {
++    expect(renamedPrototypeName('Goblin', 'Goblin', 'Yeemik')).toBe('Yeemik');
++    expect(renamedPrototypeName('Yeemik', 'Goblin', 'Yeemik the Boss')).toBeUndefined();
++    expect(renamedPrototypeName('A', 'A', 'A')).toBeUndefined();
++    expect(renamedPrototypeName('A', 'A', '  ')).toBeUndefined();
++  });
++});
 diff --git a/packages/foundry-module/src/queries.ts b/packages/foundry-module/src/queries.ts
 index 9fe02ba..7610dcd 100644
 --- a/packages/foundry-module/src/queries.ts
@@ -30721,6 +30953,41 @@ index 0000000..68dbfab
 +    return result;
 +  }
 +}
+diff --git a/packages/mcp-server/src/tools/atmosphere.test.ts b/packages/mcp-server/src/tools/atmosphere.test.ts
+new file mode 100644
+index 0000000..784b3e8
+--- /dev/null
++++ b/packages/mcp-server/src/tools/atmosphere.test.ts
+@@ -0,0 +1,29 @@
++import { describe, expect, it, vi } from 'vitest';
++import { SceneTools } from './scene.js';
++import { MapGenerationTools } from './map-generation.js';
++
++const logger: any = { info: vi.fn(), debug: vi.fn(), error: vi.fn(), warn: vi.fn(), child: () => logger };
++
++describe('atmosphere (FXMaster) on the scene tools', () => {
++  it('manage-scenes forwards atmosphere and accepts none/null, rejects non-strings', async () => {
++    const query = vi.fn(async () => ({}));
++    const tools = new SceneTools({ foundryClient: { query } as any, logger });
++    await tools.handleManageScenes({ action: 'update', scene_identifier: 'Cave', atmosphere: 'rolling-fog' });
++    expect(query).toHaveBeenLastCalledWith('foundry-mcp-bridge.manage-scenes', { action: 'update', scene_identifier: 'Cave', atmosphere: 'rolling-fog' });
++    await tools.handleManageScenes({ action: 'update', scene_identifier: 'Cave', atmosphere: null });
++    expect(query).toHaveBeenLastCalledWith('foundry-mcp-bridge.manage-scenes', { action: 'update', scene_identifier: 'Cave', atmosphere: null });
++    await expect(tools.handleManageScenes({ action: 'update', scene_identifier: 'Cave', atmosphere: 5 })).rejects.toThrow();
++  });
++  it('manage-scenes lists the argument in its schema', () => {
++    const def = new SceneTools({ foundryClient: {} as any, logger }).getToolDefinitions().find(d => d.name === 'manage-scenes')!;
++    expect((def.inputSchema.properties as any).atmosphere).toBeDefined();
++  });
++  it('switch-scene forwards atmosphere only when given', async () => {
++    const query = vi.fn(async () => ({ success: true }));
++    const tools = new MapGenerationTools({ foundryClient: { query } as any, logger } as any);
++    await tools.switchScene({ scene_identifier: 'Road', atmosphere: 'rain' });
++    expect(query).toHaveBeenLastCalledWith('foundry-mcp-bridge.switch-scene', { scene_identifier: 'Road', optimize_view: true, atmosphere: 'rain' });
++    await tools.switchScene({ scene_identifier: 'Road' });
++    expect(query).toHaveBeenLastCalledWith('foundry-mcp-bridge.switch-scene', { scene_identifier: 'Road', optimize_view: true });
++  });
++});
 diff --git a/packages/mcp-server/src/tools/audit-tools.test.ts b/packages/mcp-server/src/tools/audit-tools.test.ts
 new file mode 100644
 index 0000000..ad50367
@@ -38485,6 +38752,29 @@ index 0000000..9384dc7
 +    }
 +  }
 +}
+diff --git a/packages/mcp-server/src/tools/map-generation.ts b/packages/mcp-server/src/tools/map-generation.ts
+index a4d2eac..33d1356 100644
+--- a/packages/mcp-server/src/tools/map-generation.ts
++++ b/packages/mcp-server/src/tools/map-generation.ts
+@@ -140,6 +140,10 @@ export class MapGenerationTools {
+               description: 'Automatically optimize the view for the scene',
+               default: true,
+             },
++            atmosphere: {
++              type: ['string', 'null'],
++              description: 'FXMaster atmosphere to play on the new scene (rain, fog, thunderstorm, snow...; "none" clears it). See manage-scenes.',
++            },
+           },
+           required: ['scene_identifier'],
+         },
+@@ -175,6 +179,7 @@ export class MapGenerationTools {
+       const params = {
+         scene_identifier: sceneIdentifier,
+         optimize_view: safeInput.optimize_view !== false,
++        ...(safeInput.atmosphere !== undefined ? { atmosphere: safeInput.atmosphere } : {}),
+       };
+ 
+       return await this.foundryClient.query('foundry-mcp-bridge.switch-scene', params);
 diff --git a/packages/mcp-server/src/tools/module-tools.test.ts b/packages/mcp-server/src/tools/module-tools.test.ts
 new file mode 100644
 index 0000000..928207e
@@ -42890,7 +43180,7 @@ index 0000000..d4f0b89
 +  });
 +});
 diff --git a/packages/mcp-server/src/tools/scene.ts b/packages/mcp-server/src/tools/scene.ts
-index 1e422bf..749c1e8 100644
+index 1e422bf..f32dbb6 100644
 --- a/packages/mcp-server/src/tools/scene.ts
 +++ b/packages/mcp-server/src/tools/scene.ts
 @@ -7,6 +7,20 @@ export interface SceneToolsOptions {
@@ -42922,7 +43212,7 @@ index 1e422bf..749c1e8 100644
              playlist: {
                type: ['string', 'null'],
                description: 'Playlist id or unique name, or null to clear',
-@@ -69,7 +84,104 @@ export class SceneTools {
+@@ -69,7 +84,109 @@ export class SceneTools {
                description: 'PlaylistSound id or unique name within the playlist, or null to clear',
              },
            },
@@ -43007,6 +43297,11 @@ index 1e422bf..749c1e8 100644
 +              type: ['string', 'null'],
 +              description: 'Weather effect id such as rain, snow, fog, or null for none',
 +            },
++            atmosphere: {
++              type: ['string', 'null'],
++              description:
++                'FXMaster atmosphere on the scene: a preset such as rain, drizzle, thunderstorm, snow, blizzard, fog, mist, rolling-fog, ashfall, sandstorm, windy, cloudy, overcast, twilight-sun, divine-light, plague-miasma, arcane-winds; it replaces what is playing. "none" (or null) clears it. describe with a scene lists what is on and every preset. Set the mood when a scene starts or the weather turns, not every beat.',
++            },
 +            initial_view: {
 +              type: 'object',
 +              description:
@@ -43028,7 +43323,7 @@ index 1e422bf..749c1e8 100644
          },
        },
      ];
-@@ -129,7 +241,7 @@ export class SceneTools {
+@@ -129,7 +246,7 @@ export class SceneTools {
        playlist: z.string().nullable().optional(),
        playlist_sound: z.string().nullable().optional(),
      });
@@ -43037,7 +43332,7 @@ index 1e422bf..749c1e8 100644
  
      this.logger.info('Updating scene music', { scene_identifier: parsed.scene_identifier });
      try {
-@@ -147,6 +259,74 @@ export class SceneTools {
+@@ -147,6 +264,75 @@ export class SceneTools {
      }
    }
  
@@ -43074,6 +43369,7 @@ index 1e422bf..749c1e8 100644
 +        grid_shift_y: z.number().int().min(-5000).max(5000).optional(),
 +        fog_mode: z.number().int().min(0).max(2).optional(),
 +        weather: z.string().min(1).max(64).nullable().optional(),
++        atmosphere: z.string().min(1).max(64).nullable().optional(),
 +        initial_view: z
 +          .object({
 +            x: z.number().finite(),

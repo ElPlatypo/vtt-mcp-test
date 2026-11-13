@@ -112399,6 +112399,10 @@ var SceneTools = class {
               type: ["string", "null"],
               description: "Weather effect id such as rain, snow, fog, or null for none"
             },
+            atmosphere: {
+              type: ["string", "null"],
+              description: 'FXMaster atmosphere on the scene: a preset such as rain, drizzle, thunderstorm, snow, blizzard, fog, mist, rolling-fog, ashfall, sandstorm, windy, cloudy, overcast, twilight-sun, divine-light, plague-miasma, arcane-winds; it replaces what is playing. "none" (or null) clears it. describe with a scene lists what is on and every preset. Set the mood when a scene starts or the weather turns, not every beat.'
+            },
             initial_view: {
               type: "object",
               description: "The view players open the scene with: x and y are the centre of the view in grid squares, scale the zoom (0.25 to 3)",
@@ -112495,6 +112499,7 @@ var SceneTools = class {
       grid_shift_y: external_exports.number().int().min(-5e3).max(5e3).optional(),
       fog_mode: external_exports.number().int().min(0).max(2).optional(),
       weather: external_exports.string().min(1).max(64).nullable().optional(),
+      atmosphere: external_exports.string().min(1).max(64).nullable().optional(),
       initial_view: external_exports.object({
         x: external_exports.number().finite(),
         y: external_exports.number().finite(),
@@ -116521,6 +116526,10 @@ var MapGenerationTools = class {
               type: "boolean",
               description: "Automatically optimize the view for the scene",
               default: true
+            },
+            atmosphere: {
+              type: ["string", "null"],
+              description: 'FXMaster atmosphere to play on the new scene (rain, fog, thunderstorm, snow...; "none" clears it). See manage-scenes.'
             }
           },
           required: ["scene_identifier"]
@@ -116550,7 +116559,8 @@ var MapGenerationTools = class {
       }
       const params = {
         scene_identifier: sceneIdentifier,
-        optimize_view: safeInput.optimize_view !== false
+        optimize_view: safeInput.optimize_view !== false,
+        ...safeInput.atmosphere !== void 0 ? { atmosphere: safeInput.atmosphere } : {}
       };
       return await this.foundryClient.query("foundry-mcp-bridge.switch-scene", params);
     } catch (error) {
