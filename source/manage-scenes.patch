@@ -2559,15 +2559,16 @@ index 0000000..ae83d88
 +});
 diff --git a/packages/foundry-module/src/combat-actions.ts b/packages/foundry-module/src/combat-actions.ts
 new file mode 100644
-index 0000000..5ae14a3
+index 0000000..b7ea4bb
 --- /dev/null
 +++ b/packages/foundry-module/src/combat-actions.ts
-@@ -0,0 +1,275 @@
+@@ -0,0 +1,285 @@
 +/**
 + * Monster and character actions in combat: roll an attack (and damage, and apply it), roll a
 + * saving-throw ability against targets, or roll a check. Works through the dnd5e activity and actor
 + * roll APIs, so the chat cards, advantage rules and modifiers are the system's own.
 + */
++import { healthLooks } from './health-estimate-utils.js';
 +import { rollModeName } from './roll-mode.js';
 +
 +export interface ActionOptions {
@@ -2587,6 +2588,8 @@ index 0000000..5ae14a3
 +  setTarget?: (target: NamedActor | null) => void;
 +  /** targets beyond the attack's normal range (but within long range): rolled with disadvantage */
 +  longRange?: (target: NamedActor) => boolean;
++  /** wait for the 3D dice (Dice So Nice) before damage is applied, so the hit does not show before the dice stop */
++  settle?: (() => Promise<unknown>) | undefined;
 +}
 +
 +export interface NamedActor {
@@ -2725,9 +2728,13 @@ index 0000000..5ae14a3
 +      const saved = total(rolls?.[0] ? [rolls[0]] : []) >= dc;
 +      const factor = saved ? (onSave === 'half' ? 0.5 : onSave === 'none' ? 0 : 1) : 1;
 +      const before = hpOf(t.actor);
-+      if (apply && damage.length) await applyTo(t.actor, damage, factor);
++      if (apply && damage.length) {
++        await options.settle?.();
++        await applyTo(t.actor, damage, factor);
++      }
 +      const after = hpOf(t.actor);
-+      out.results.push({ target: t.name, save: total(rolls?.[0] ? [rolls[0]] : []), saved, ...(apply ? { hp: `${before} -> ${after}`, ...(after <= 0 ? { down: true } : {}) } : {}) });
++      const looks = apply ? healthLooks(t.actor, after <= 0) : undefined;
++      out.results.push({ target: t.name, save: total(rolls?.[0] ? [rolls[0]] : []), saved, ...(apply ? { hp: `${before} -> ${after}`, ...(after <= 0 ? { down: true } : {}), ...(looks ? { looks } : {}) } : {}) });
 +    }
 +    return out;
 +  }
@@ -2756,7 +2763,7 @@ index 0000000..5ae14a3
 +        const hit = typeof roll.isSuccess === 'boolean' && roll.options?.target !== undefined ? roll.isSuccess : crit || (!fumble && Number(roll.total) >= ac);
 +        row.ac = ac;
 +        row.hit = hit;
-+        await finishAttackRow(row, hit, crit, t, activity, apply, message);
++        await finishAttackRow(row, hit, crit, t, activity, apply, message, options.settle);
 +      }
 +      out.results.push(row);
 +    }
@@ -2767,18 +2774,21 @@ index 0000000..5ae14a3
 +}
 +
 +/** On a hit: roll damage (the system doubles the dice on a crit), apply it through the system's own rules, note hp. */
-+async function finishAttackRow(row: Record<string, any>, hit: boolean, crit: boolean, t: NamedActor, activity: any, apply: boolean, message: Record<string, any>): Promise<void> {
++async function finishAttackRow(row: Record<string, any>, hit: boolean, crit: boolean, t: NamedActor, activity: any, apply: boolean, message: Record<string, any>, settle?: (() => Promise<unknown>) | undefined): Promise<void> {
 +  if (!hit || typeof activity.rollDamage !== 'function') return;
 +  const damage = await activity.rollDamage({ isCritical: crit }, NO_DIALOG, message);
 +  row.damage = total(damage);
 +  const types = damageTypes(damage);
 +  if (types.length) row.damageTypes = types;
 +  if (apply) {
++    await settle?.();
 +    const before = hpOf(t.actor);
 +    await applyTo(t.actor, damage, 1);
 +    const after = hpOf(t.actor);
 +    row.hp = `${before} -> ${after}`;
 +    if (after <= 0) row.down = true;
++    const looks = healthLooks(t.actor, after <= 0);
++    if (looks) row.looks = looks;
 +  }
 +}
 +
@@ -2840,12 +2850,13 @@ index 0000000..5ae14a3
 +}
 diff --git a/packages/foundry-module/src/combat-utils.ts b/packages/foundry-module/src/combat-utils.ts
 new file mode 100644
-index 0000000..704d01b
+index 0000000..67d7f5b
 --- /dev/null
 +++ b/packages/foundry-module/src/combat-utils.ts
-@@ -0,0 +1,119 @@
+@@ -0,0 +1,122 @@
 +/** Combat control helpers: picking tokens and combatants by plain description, and a short readout of the encounter. */
 +import { MODULE_ID } from './constants.js';
++import { healthLooks } from './health-estimate-utils.js';
 +
 +/**
 + * A token can show the players one name ("Goblin Leader") while the GM still finds it by another ("Yeemik"): the real
@@ -2951,6 +2962,8 @@ index 0000000..704d01b
 +      if (bloodied && tracksBloodied) statuses.push('bloodied');
 +    }
 +    if (statuses.length) parts.push(`[${statuses.join(', ')}]`);
++    const looks = healthLooks(c.actor, !!c.defeated);
++    if (looks) parts.push(`{${looks}}`);
 +    if (c.defeated) parts.push('(defeated)');
 +    if (c.hidden) parts.push('(hidden)');
 +    return parts.join(' ').trim();
@@ -8529,10 +8542,10 @@ index 0000000..07712cf
 +  });
 +});
 diff --git a/packages/foundry-module/src/data-access.ts b/packages/foundry-module/src/data-access.ts
-index eecda7e..769f7ee 100644
+index eecda7e..4dd096a 100644
 --- a/packages/foundry-module/src/data-access.ts
 +++ b/packages/foundry-module/src/data-access.ts
-@@ -1,6 +1,145 @@
+@@ -1,6 +1,147 @@
  import { MODULE_ID, ERROR_MESSAGES, TOKEN_DISPOSITIONS } from './constants.js';
  import { permissionManager } from './permissions.js';
 +import {
@@ -8666,6 +8679,8 @@ index eecda7e..769f7ee 100644
  import { transactionManager } from './transaction-manager.js';
 +import { compactCombat, matchCombatants, pickTokens, tokenRealName, type TokenLike } from './combat-utils.js';
 +import { moveCoins, pickItems, quantityToMove, type Purse } from './transfer-utils.js';
++import { diceSettle } from './dice-settle.js';
++import { healthLooks } from './health-estimate-utils.js';
 +import { markDownIfZero, markSurprised, performAttack, setDeathSaves, stabilize, performCheck, pickActivity, type NamedActor } from './combat-actions.js';
 +import { dnd5ePlayState, type PlayState } from './character-state-utils.js';
 +import { dnd5eHasLegendary, dnd5eHasSpells } from './creature-flags-utils.js';
@@ -8678,7 +8693,7 @@ index eecda7e..769f7ee 100644
  
  // The same five characters foundry.utils.escapeHTML replaces in v14, kept local because
  // that helper isn't confirmed in v13, this module's minimum.
-@@ -33,6 +172,7 @@ interface CharacterInfo {
+@@ -33,6 +174,7 @@ interface CharacterInfo {
    itemVariants?: any[]; // Item rule element variants (ChoiceSet, etc.)
    itemToggles?: any[]; // Item rule element toggles (RollOption, ToggleProperty, equipped)
    spellcasting?: SpellcastingEntry[]; // PF2e/D&D 5e spellcasting entries
@@ -8686,7 +8701,7 @@ index eecda7e..769f7ee 100644
  }
  
  interface SpellcastingEntry {
-@@ -363,7 +503,8 @@ interface ItemTargetingResult {
+@@ -363,7 +505,8 @@ interface ItemTargetingResult {
   */
  class PersistentCreatureIndex {
    private moduleId: string = MODULE_ID;
@@ -8696,7 +8711,7 @@ index eecda7e..769f7ee 100644
    private readonly INDEX_FILENAME = 'enhanced-creature-index.json';
    private buildInProgress = false;
    private hooksRegistered = false;
-@@ -979,26 +1120,9 @@ class PersistentCreatureIndex {
+@@ -979,26 +1122,9 @@ class PersistentCreatureIndex {
          alignment = String(alignment || 'unaligned');
        }
  
@@ -8726,7 +8741,7 @@ index eecda7e..769f7ee 100644
  
        // DEBUG: Log what we extracted for comparison
  
-@@ -1714,6 +1838,89 @@ const DND5E_SIZE: Record<string, string> = {
+@@ -1714,6 +1840,89 @@ const DND5E_SIZE: Record<string, string> = {
    gargantuan: 'gargantuan',
  };
  
@@ -8816,7 +8831,7 @@ index eecda7e..769f7ee 100644
  export class FoundryDataAccess {
    private moduleId: string = MODULE_ID;
    private persistentIndex: PersistentCreatureIndex = new PersistentCreatureIndex();
-@@ -1951,6 +2158,16 @@ export class FoundryDataAccess {
+@@ -1951,6 +2160,16 @@ export class FoundryDataAccess {
        characterData.spellcasting = spellcastingEntries;
      }
  
@@ -8833,7 +8848,7 @@ index eecda7e..769f7ee 100644
      return characterData;
    }
  
-@@ -3151,11 +3368,7 @@ export class FoundryDataAccess {
+@@ -3151,11 +3370,7 @@ export class FoundryDataAccess {
  
      // Legendary Actions filter
      if (filters.hasLegendaryActions !== undefined) {
@@ -8846,7 +8861,7 @@ index eecda7e..769f7ee 100644
        if (hasLegendary !== filters.hasLegendaryActions) {
          return false;
        }
-@@ -4681,12 +4894,28 @@ export class FoundryDataAccess {
+@@ -4681,12 +4896,28 @@ export class FoundryDataAccess {
        type: 'random' | 'grid' | 'center' | 'coordinates';
        coordinates?: { x: number; y: number }[];
      };
@@ -8875,7 +8890,7 @@ index eecda7e..769f7ee 100644
        // Validate inputs
        if (!packId || !itemId) {
          throw new Error('Both packId and itemId are required');
-@@ -4753,10 +4982,33 @@ export class FoundryDataAccess {
+@@ -4753,10 +4984,33 @@ export class FoundryDataAccess {
            }
  
            // Organize created actors in a folder - use "Foundry MCP Creatures" for generic monsters
@@ -8910,7 +8925,7 @@ index eecda7e..769f7ee 100644
  
            // Create the actor
            const newActor = await Actor.create(actorData);
-@@ -6021,21 +6273,22 @@ export class FoundryDataAccess {
+@@ -6021,21 +6275,22 @@ export class FoundryDataAccess {
        // For now, we'll just create the button and let the rendering logic handle the state restoration
  
        const rollButtonHtml = `
@@ -8937,7 +8952,16 @@ index eecda7e..769f7ee 100644
              </button>
            </div>
          </div>
-@@ -6399,6 +6652,8 @@ export class FoundryDataAccess {
+@@ -6074,6 +6329,8 @@ export class FoundryDataAccess {
+         whisper: whisperTargets,
+         flags: {
+           [MODULE_ID]: {
++            // the bridge's own card: the table feed must not report it as a private message to the GM
++            bridge: true,
+             rollButtons: {
+               [buttonId]: {
+                 rolled: false,
+@@ -6399,6 +6656,8 @@ export class FoundryDataAccess {
          return `${rollTarget} Attack (${visibility})`;
        case 'initiative':
          return `Initiative Roll (${visibility})`;
@@ -8946,7 +8970,7 @@ index eecda7e..769f7ee 100644
        case 'custom':
          return `Custom Roll (${visibility})`;
        default:
-@@ -6498,6 +6753,7 @@ export class FoundryDataAccess {
+@@ -6498,6 +6757,7 @@ export class FoundryDataAccess {
  
        const rollFormula = button.data('roll-formula');
        const rollLabel = button.data('roll-label');
@@ -8954,7 +8978,7 @@ index eecda7e..769f7ee 100644
        const isPublicRaw = button.data('is-public');
        const isPublic = isPublicRaw === true || isPublicRaw === 'true'; // Convert to proper boolean
        const characterId = button.data('character-id');
-@@ -6515,13 +6771,22 @@ export class FoundryDataAccess {
+@@ -6515,13 +6775,22 @@ export class FoundryDataAccess {
        }
  
        try {
@@ -8980,7 +9004,7 @@ index eecda7e..769f7ee 100644
          // Use the modern Foundry v13 approach with roll.toMessage()
          const rollMode = isPublic ? 'publicroll' : 'whisper';
          const whisperTargets: string[] = [];
-@@ -6714,7 +6979,7 @@ export class FoundryDataAccess {
+@@ -6714,7 +6983,7 @@ export class FoundryDataAccess {
  
          // Send socket request to GM
          if (game.socket) {
@@ -8989,7 +9013,7 @@ index eecda7e..769f7ee 100644
              type: 'requestMessageUpdate',
              buttonId,
              userId,
-@@ -6744,7 +7009,7 @@ export class FoundryDataAccess {
+@@ -6744,7 +7013,7 @@ export class FoundryDataAccess {
  
        // Create the rolled state HTML
        const rolledHtml = `
@@ -8998,7 +9022,7 @@ index eecda7e..769f7ee 100644
            <p><strong>Roll Request:</strong> ${rollLabel}</p>
            <p><strong>Status:</strong> ✅ <strong>Completed by ${rolledByName}</strong> at ${timestamp}</p>
          </div>
-@@ -7603,6 +7868,7 @@ export class FoundryDataAccess {
+@@ -7603,6 +7872,7 @@ export class FoundryDataAccess {
      if (applyPolyglot) {
        messageData.flags = { polyglot: { language: data.language } };
      }
@@ -9006,7 +9030,7 @@ index eecda7e..769f7ee 100644
      if (whisperIds.length > 0) {
        messageData.whisper = whisperIds;
      }
-@@ -8101,223 +8367,4847 @@ export class FoundryDataAccess {
+@@ -8101,223 +8371,4854 @@ export class FoundryDataAccess {
      }
    }
  
@@ -10600,7 +10624,8 @@ index eecda7e..769f7ee 100644
 +              }
 +              const after = Number(actor.system?.attributes?.hp?.value ?? before);
 +              const statuses = action === 'damage' && after <= 0 ? await markDownIfZero(actor) : [];
-+              applied.push({ name, hp: `${before} -> ${after}`, ...(after <= 0 ? { down: true } : {}), ...(statuses.length ? { addedStatuses: statuses } : {}) });
++              const looks = healthLooks(actor, after <= 0);
++              applied.push({ name, hp: `${before} -> ${after}`, ...(after <= 0 ? { down: true } : {}), ...(looks ? { looks } : {}), ...(statuses.length ? { addedStatuses: statuses } : {}) });
 +            }
 +          }
 +          out.applied = applied;
@@ -10663,6 +10688,8 @@ index eecda7e..769f7ee 100644
 +            ...(data.apply === false ? { apply: false } : {}),
 +            ...(data.public ? { public: true } : {}),
 +            ...(data.consume === false ? { consume: false } : {}),
++            // public rolls: the hit shows once the 3D dice have stopped
++            ...(data.public ? { settle: () => diceSettle.settle() } : {}),
 +          });
 +          Object.assign(out, result);
 +          if (warnings.length) out.warnings = warnings;
@@ -10688,6 +10715,10 @@ index eecda7e..769f7ee 100644
 +            { skills: cfg.skills ?? {}, abilities: cfg.abilities ?? {} }
 +          );
 +          Object.assign(out, result);
++          if (data.public) {
++            const waited = await diceSettle.settle();
++            if (waited > 0) out.diceSettledMs = waited;
++          }
 +          break;
 +        }
 +
@@ -14037,7 +14068,7 @@ index eecda7e..769f7ee 100644
        }
      } catch (error) {
        throw new Error(
-@@ -8468,6 +13358,59 @@ export class FoundryDataAccess {
+@@ -8468,6 +13369,59 @@ export class FoundryDataAccess {
      }
    }
  
@@ -14097,7 +14128,7 @@ index eecda7e..769f7ee 100644
    /**
     * Move a token to a new position on the scene
     */
-@@ -8476,6 +13419,12 @@ export class FoundryDataAccess {
+@@ -8476,6 +13430,12 @@ export class FoundryDataAccess {
      x: number;
      y: number;
      animate?: boolean;
@@ -14110,7 +14141,7 @@ index eecda7e..769f7ee 100644
    }): Promise<any> {
      this.validateFoundryState();
  
-@@ -8489,33 +13438,79 @@ export class FoundryDataAccess {
+@@ -8489,33 +13449,79 @@ export class FoundryDataAccess {
      }
  
      try {
@@ -14207,7 +14238,7 @@ index eecda7e..769f7ee 100644
        };
      } catch (error) {
        this.auditLog(
-@@ -8530,10 +13525,95 @@ export class FoundryDataAccess {
+@@ -8530,10 +13536,95 @@ export class FoundryDataAccess {
      }
    }
  
@@ -14304,7 +14335,7 @@ index eecda7e..769f7ee 100644
      this.validateFoundryState();
  
      // Use permission system
-@@ -8546,23 +13626,21 @@ export class FoundryDataAccess {
+@@ -8546,23 +13637,21 @@ export class FoundryDataAccess {
      }
  
      try {
@@ -14338,7 +14369,7 @@ index eecda7e..769f7ee 100644
  
        this.auditLog('updateToken', { tokenId: data.tokenId, updates: cleanUpdates }, 'success');
  
-@@ -8570,7 +13648,8 @@ export class FoundryDataAccess {
+@@ -8570,7 +13659,8 @@ export class FoundryDataAccess {
          success: true,
          tokenId: token.id,
          tokenName: token.name,
@@ -14348,7 +14379,7 @@ index eecda7e..769f7ee 100644
        };
      } catch (error) {
        this.auditLog(
-@@ -8651,19 +13730,12 @@ export class FoundryDataAccess {
+@@ -8651,19 +13741,12 @@ export class FoundryDataAccess {
    /**
     * Get detailed information about a token
     */
@@ -14371,7 +14402,7 @@ index eecda7e..769f7ee 100644
  
        // Return flat structure that matches MCP server expectations
        return {
-@@ -11274,7 +16346,10 @@ export class FoundryDataAccess {
+@@ -11274,7 +16357,10 @@ export class FoundryDataAccess {
        name: string;
        type: string;
        img?: string;
@@ -14382,7 +14413,7 @@ index eecda7e..769f7ee 100644
      }>;
      folder?: string;
    }): Promise<{ created: Array<{ id: string; name: string; type: string }>; total: number }> {
-@@ -11286,6 +16361,19 @@ export class FoundryDataAccess {
+@@ -11286,6 +16372,19 @@ export class FoundryDataAccess {
      const docs = params.actors.map(a => {
        const doc: Record<string, any> = { name: a.name, type: a.type };
        if (a.img) doc.img = a.img;
@@ -14402,7 +14433,22 @@ index eecda7e..769f7ee 100644
  
        // Merge system data, adding safe defaults for systems that require certain
        // fields to exist during data preparation (avoids non-fatal init errors).
-@@ -11471,7 +16559,16 @@ export class FoundryDataAccess {
+@@ -11423,6 +16522,14 @@ export class FoundryDataAccess {
+         };
+       }
+ 
++      // The hp shorthand (dnd5e): a number sets current and maximum, {value, max} sets what is given.
++      if (a.hp !== undefined) {
++        const hpPatch = buildHpPatch(gameSystemId, a.hp, `actors[${a.name}].hp`);
++        const attributes: Record<string, any> = { ...(systemData.attributes ?? {}) };
++        attributes.hp = { ...(attributes.hp ?? {}), ...hpPatch.attributes.hp };
++        systemData = { ...systemData, attributes };
++      }
++
+       doc.system = systemData;
+       if (folderId) doc.folder = folderId;
+       return doc;
+@@ -11471,7 +16578,16 @@ export class FoundryDataAccess {
     * Merges supplied fields into the actor (top-level keys overwrite).
     */
    async updateActors(
@@ -14420,7 +14466,7 @@ index eecda7e..769f7ee 100644
    ): Promise<{ updated: Array<{ id: string; name: string }>; total: number }> {
      const updatedActors: Array<{ id: string; name: string }> = [];
  
-@@ -11482,6 +16579,7 @@ export class FoundryDataAccess {
+@@ -11482,6 +16598,7 @@ export class FoundryDataAccess {
        const patch: Record<string, any> = {};
        if (u.name !== undefined) patch.name = u.name;
        if (u.img !== undefined) patch.img = u.img;
@@ -14428,7 +14474,7 @@ index eecda7e..769f7ee 100644
        if (u.system !== undefined) {
          // Build a single patch.system nested object so Foundry deep-merges everything
          // in one pass without flat-key vs nested-key conflicts.
-@@ -11504,6 +16602,19 @@ export class FoundryDataAccess {
+@@ -11504,6 +16621,19 @@ export class FoundryDataAccess {
          }
          patch.system = systemPatch;
        }
@@ -14448,7 +14494,7 @@ index eecda7e..769f7ee 100644
  
        await actor.update(patch);
        updatedActors.push({ id: actor.id, name: u.name ?? actor.name });
-@@ -11706,6 +16817,60 @@ export class FoundryDataAccess {
+@@ -11706,6 +16836,60 @@ export class FoundryDataAccess {
      return { deleted: existing, total: existing.length };
    }
  
@@ -14971,6 +15017,133 @@ index 0000000..55aec33
 +    await expect(da.manageWorld({ action: 'list_folders' })).resolves.toMatchObject({ success: true });
 +  });
 +});
+diff --git a/packages/foundry-module/src/dice-settle.test.ts b/packages/foundry-module/src/dice-settle.test.ts
+new file mode 100644
+index 0000000..c4894c3
+--- /dev/null
++++ b/packages/foundry-module/src/dice-settle.test.ts
+@@ -0,0 +1,54 @@
++import { afterEach, describe, expect, it, vi } from 'vitest';
++import { attachDiceSettle, DiceSettle } from './dice-settle.js';
++
++afterEach(() => vi.useRealTimers());
++
++describe('DiceSettle', () => {
++  it('returns at once (after the short grace) when no dice are rolling', async () => {
++    vi.useFakeTimers();
++    const d = new DiceSettle();
++    const p = d.settle(5000, 250);
++    await vi.advanceTimersByTimeAsync(260);
++    expect(await p).toBe(0);
++  });
++
++  it('waits until every started animation has completed', async () => {
++    vi.useFakeTimers();
++    const d = new DiceSettle();
++    d.start('m1');
++    d.start('m2');
++    let done = false;
++    const p = d.settle(10000).then(ms => {
++      done = true;
++      return ms;
++    });
++    await vi.advanceTimersByTimeAsync(1000);
++    d.complete('m1');
++    await vi.advanceTimersByTimeAsync(1000);
++    expect(done).toBe(false);
++    d.complete('m2');
++    const waited = await p;
++    expect(done).toBe(true);
++    expect(waited).toBeGreaterThanOrEqual(2000);
++  });
++
++  it('gives up after the time limit', async () => {
++    vi.useFakeTimers();
++    const d = new DiceSettle();
++    d.start('stuck');
++    const p = d.settle(3000);
++    await vi.advanceTimersByTimeAsync(3100);
++    expect(await p).toBeGreaterThanOrEqual(3000);
++    expect(d.pending).toBe(1);
++  });
++
++  it('is fed by the Dice So Nice hooks', () => {
++    const handlers: Record<string, (id: string) => void> = {};
++    const d = new DiceSettle();
++    attachDiceSettle({ on: (name, fn) => void (handlers[name] = fn as any) }, d);
++    handlers.diceSoNiceRollStart!('a');
++    expect(d.pending).toBe(1);
++    handlers.diceSoNiceRollComplete!('a');
++    expect(d.pending).toBe(0);
++  });
++});
+diff --git a/packages/foundry-module/src/dice-settle.ts b/packages/foundry-module/src/dice-settle.ts
+new file mode 100644
+index 0000000..59a5800
+--- /dev/null
++++ b/packages/foundry-module/src/dice-settle.ts
+@@ -0,0 +1,61 @@
++/**
++ * Dice So Nice integration. With the module on, a public roll's chat card stays hidden until the 3D dice have
++ * stopped. The bridge learns of a roll the moment its message exists, so without this it would apply the damage,
++ * return its result and let the narration start while the dice are still tumbling in front of the players.
++ * `settle` waits until every animation that started has finished (or a time limit passes).
++ * The tracking is plain (no Foundry globals) so it can be tested; `attachDiceSettle` hooks it to Dice So Nice.
++ */
++
++export class DiceSettle {
++  private inFlight = new Set<string>();
++  private waiters: Array<() => void> = [];
++
++  get pending(): number {
++    return this.inFlight.size;
++  }
++
++  start(messageId: unknown): void {
++    this.inFlight.add(String(messageId));
++  }
++
++  complete(messageId: unknown): void {
++    this.inFlight.delete(String(messageId));
++    if (this.inFlight.size === 0) this.release();
++  }
++
++  private release(): void {
++    const waiting = this.waiters;
++    this.waiters = [];
++    for (const wake of waiting) wake();
++  }
++
++  /**
++   * Wait for the dice in flight. `graceMs` first lets a roll that was just made start its animation.
++   * Resolves with how long it waited (0 when nothing was rolling) and never longer than `maxMs`.
++   */
++  async settle(maxMs = 10000, graceMs = 250): Promise<number> {
++    const started = Date.now();
++    if (graceMs > 0 && this.inFlight.size === 0) await new Promise(resolve => setTimeout(resolve, graceMs));
++    if (this.inFlight.size === 0) return 0;
++    await new Promise<void>(resolve => {
++      const timer = setTimeout(() => {
++        this.waiters = this.waiters.filter(w => w !== done);
++        resolve();
++      }, Math.max(0, maxMs - (Date.now() - started)));
++      const done = () => {
++        clearTimeout(timer);
++        resolve();
++      };
++      this.waiters.push(done);
++    });
++    return Date.now() - started;
++  }
++}
++
++export const diceSettle = new DiceSettle();
++
++/** Listen to Dice So Nice's animation hooks (a no-op when the module is off: the hooks never fire). */
++export function attachDiceSettle(hooks: { on: (name: string, fn: (...args: any[]) => void) => unknown }, target: DiceSettle = diceSettle): void {
++  hooks.on('diceSoNiceRollStart', (messageId: unknown) => target.start(messageId));
++  hooks.on('diceSoNiceRollComplete', (messageId: unknown) => target.complete(messageId));
++}
 diff --git a/packages/foundry-module/src/file-browse-utils.test.ts b/packages/foundry-module/src/file-browse-utils.test.ts
 new file mode 100644
 index 0000000..d74f26b
@@ -15621,6 +15794,163 @@ index 0000000..f27f66e
 +    region,
 +    divisors: divisorSizes(width, height),
 +  };
++}
+diff --git a/packages/foundry-module/src/health-estimate-utils.test.ts b/packages/foundry-module/src/health-estimate-utils.test.ts
+new file mode 100644
+index 0000000..d586157
+--- /dev/null
++++ b/packages/foundry-module/src/health-estimate-utils.test.ts
+@@ -0,0 +1,62 @@
++import { describe, expect, it } from 'vitest';
++import { estimateLabel, healthLooks, readHealthEstimateConfig, type HealthEstimateConfig } from './health-estimate-utils.js';
++
++const cfg: HealthEstimateConfig = {
++  sets: [
++    {
++      estimates: [
++        { value: 0, label: 'Unconscious' },
++        { value: 25, label: 'Near Death' },
++        { value: 50, label: 'Badly Injured' },
++        { value: 75, label: 'Injured' },
++        { value: 99, label: 'Barely Injured' },
++        { value: 100, label: 'Unharmed' },
++      ],
++      actorTypes: [],
++    },
++    { estimates: [{ value: 0, label: 'Wrecked' }, { value: 100, label: 'Pristine' }], actorTypes: ['vehicle'] },
++  ],
++  npcsJustDie: true,
++  deadName: 'Dead',
++  deathState: false,
++  addTemp: false,
++};
++
++const npc = (value: number, max = 7) => ({ type: 'npc', hp: { value, max }, playerOwned: false });
++
++describe('estimateLabel', () => {
++  it('maps the hit point percentage to the module words', () => {
++    expect(estimateLabel(cfg, npc(7))).toBe('Unharmed');
++    expect(estimateLabel(cfg, npc(6))).toBe('Barely Injured'); // 85.7 %
++    expect(estimateLabel(cfg, npc(5))).toBe('Injured'); // 71 %
++    expect(estimateLabel(cfg, npc(3))).toBe('Badly Injured'); // 43 %
++    expect(estimateLabel(cfg, npc(1))).toBe('Near Death'); // 14 %
++  });
++  it('shows an NPC at 0 as dead, a player character as unconscious', () => {
++    expect(estimateLabel(cfg, npc(0))).toBe('Dead');
++    expect(estimateLabel(cfg, { type: 'character', hp: { value: 0, max: 20 }, playerOwned: true })).toBe('Unconscious');
++  });
++  it('uses the set for the actor type and says nothing without hit points', () => {
++    expect(estimateLabel(cfg, { type: 'vehicle', hp: { value: 50, max: 100 }, playerOwned: false })).toBe('Pristine');
++    expect(estimateLabel(cfg, npc(3, 0))).toBeUndefined();
++  });
++  it('shows the dead name for a defeated combatant when the module is set to', () => {
++    expect(estimateLabel({ ...cfg, deathState: true }, { ...npc(5), defeated: true })).toBe('Dead');
++  });
++});
++
++describe('reading the module', () => {
++  const game = (active: boolean, estimations: unknown) => ({
++    modules: { get: () => ({ active }) },
++    settings: { get: (_m: string, key: string) => ({ 'core.estimations': estimations, 'core.NPCsJustDie': true, 'core.deathStateName': 'Dead', 'core.deathState': false, 'core.addTemp': false })[key] },
++  });
++  it('is undefined when the module is off', () => {
++    expect(readHealthEstimateConfig(game(false, cfg.sets))).toBeUndefined();
++  });
++  it('reads the live settings', () => {
++    expect(readHealthEstimateConfig(game(true, cfg.sets))?.deadName).toBe('Dead');
++  });
++  it('leaves player characters out of healthLooks', () => {
++    expect(healthLooks({ hasPlayerOwner: true, type: 'character', system: { attributes: { hp: { value: 3, max: 9 } } } })).toBeUndefined();
++  });
++});
+diff --git a/packages/foundry-module/src/health-estimate-utils.ts b/packages/foundry-module/src/health-estimate-utils.ts
+new file mode 100644
+index 0000000..f98d796
+--- /dev/null
++++ b/packages/foundry-module/src/health-estimate-utils.ts
+@@ -0,0 +1,83 @@
++/**
++ * Health Estimate integration. The module shows players a word over a token ("Badly Injured") instead of numbers.
++ * Its settings hold the words and where they change; reading them here lets the AI GM narrate the same words the
++ * players see on screen. Pure, so it can be tested; `healthLooks` reads the live settings.
++ */
++
++export interface EstimateStage {
++  value: number;
++  label: string;
++}
++
++export interface EstimateSet {
++  name?: string;
++  estimates: EstimateStage[];
++  actorTypes?: string[];
++}
++
++export interface HealthEstimateConfig {
++  sets: EstimateSet[];
++  /** NPCs show as dead at the lowest stage */
++  npcsJustDie: boolean;
++  deadName: string;
++  /** a defeated combatant shows the dead name */
++  deathState: boolean;
++  addTemp: boolean;
++}
++
++export interface EstimateInput {
++  type?: string;
++  hp: { value: number; max: number; temp?: number };
++  playerOwned: boolean;
++  defeated?: boolean;
++}
++
++/** The word the players see for a creature, or undefined when Health Estimate shows nothing (no hit points). */
++export function estimateLabel(cfg: HealthEstimateConfig, input: EstimateInput): string | undefined {
++  const max = Number(input.hp.max);
++  if (!(max > 0)) return undefined;
++  if (input.defeated && cfg.deathState) return cfg.deadName;
++  const set = cfg.sets.find(s => s.actorTypes?.length && input.type && s.actorTypes.includes(input.type)) ?? cfg.sets.find(s => !s.actorTypes?.length) ?? cfg.sets[0];
++  const stages = [...(set?.estimates ?? [])].sort((a, b) => a.value - b.value);
++  if (stages.length === 0) return undefined;
++  const value = Math.max(0, Number(input.hp.value) + (cfg.addTemp ? Number(input.hp.temp ?? 0) : 0));
++  const percent = Math.min(100, (value / max) * 100);
++  const index = stages.findIndex(s => percent <= s.value);
++  const at = index < 0 ? stages.length - 1 : index;
++  if (at === 0 && cfg.npcsJustDie && !input.playerOwned) return cfg.deadName;
++  return stages[at]!.label;
++}
++
++/** The module's settings, or undefined when Health Estimate is not active. */
++export function readHealthEstimateConfig(g: any = (globalThis as any).game): HealthEstimateConfig | undefined {
++  try {
++    if (!g?.modules?.get?.('healthEstimate')?.active) return undefined;
++    const get = (key: string) => {
++      try {
++        return g.settings.get('healthEstimate', key);
++      } catch {
++        return undefined;
++      }
++    };
++    const sets = get('core.estimations');
++    if (!Array.isArray(sets) || sets.length === 0) return undefined;
++    return {
++      sets: sets.filter((s: any) => Array.isArray(s?.estimates)).map((s: any) => ({ name: s.name, estimates: s.estimates, actorTypes: s.actorTypes ?? [] })),
++      npcsJustDie: get('core.NPCsJustDie') !== false,
++      deadName: String(get('core.deathStateName') || 'Dead'),
++      deathState: get('core.deathState') === true,
++      addTemp: get('core.addTemp') === true,
++    };
++  } catch {
++    return undefined;
++  }
++}
++
++/** What the players see over this actor's token, or undefined (module off, or no hit points). Player characters are left out: their numbers are known. */
++export function healthLooks(actor: any, defeated = false): string | undefined {
++  if (!actor || actor.hasPlayerOwner) return undefined;
++  const cfg = readHealthEstimateConfig();
++  const hp = actor.system?.attributes?.hp;
++  if (!cfg || !hp) return undefined;
++  return estimateLabel(cfg, { type: actor.type, hp: { value: Number(hp.value), max: Number(hp.max), temp: Number(hp.temp ?? 0) }, playerOwned: false, defeated });
 +}
 diff --git a/packages/foundry-module/src/image-profiles-utils.test.ts b/packages/foundry-module/src/image-profiles-utils.test.ts
 new file mode 100644
@@ -17039,10 +17369,10 @@ index 0000000..eab3007
 +  });
 +}
 diff --git a/packages/foundry-module/src/main.ts b/packages/foundry-module/src/main.ts
-index 9024ead..d06786c 100644
+index 9024ead..85fa8ea 100644
 --- a/packages/foundry-module/src/main.ts
 +++ b/packages/foundry-module/src/main.ts
-@@ -1,9 +1,12 @@
+@@ -1,9 +1,13 @@
  import { MODULE_ID } from './constants.js';
 +import { speechPlayer } from './speech-player.js';
  import { SocketBridge } from './socket-bridge.js';
@@ -17052,20 +17382,23 @@ index 9024ead..d06786c 100644
  import { ComfyUIManager } from './comfyui-manager.js';
 +import { registerAnnotationUI } from './annotation-ui.js';
 +import { tableWatcher } from './table-watcher.js';
++import { attachDiceSettle } from './dice-settle.js';
  // Connection control now handled through settings menu
  
  /**
-@@ -77,6 +80,9 @@ class FoundryMCPBridge {
+@@ -77,6 +81,11 @@ class FoundryMCPBridge {
  
        // Connection control now handled through settings menu
  
 +      // Record what happens at the table for the AI GM's table feed (local, read on request)
 +      tableWatcher.register();
++      // Dice So Nice: public rolls wait for the 3D dice before their result is used
++      attachDiceSettle(Hooks);
 +
        // Validate settings
        const validation = this.settings.validateSettings();
        if (!validation.valid) {
-@@ -414,6 +420,26 @@ class FoundryMCPBridge {
+@@ -414,6 +423,26 @@ class FoundryMCPBridge {
          return;
        }
  
@@ -17092,7 +17425,7 @@ index 9024ead..d06786c 100644
        console.log(`[${MODULE_ID}] Starting ComfyUI monitoring...`);
  
        // Show initial loading banner
-@@ -507,6 +533,13 @@ const foundryMCPBridge = new FoundryMCPBridge();
+@@ -507,6 +536,13 @@ const foundryMCPBridge = new FoundryMCPBridge();
  // Make it available globally for settings callbacks
  (window as any).foundryMCPBridge = foundryMCPBridge;
  
@@ -17106,7 +17439,7 @@ index 9024ead..d06786c 100644
  // Foundry VTT Hooks
  Hooks.once('init', async () => {
    try {
-@@ -519,10 +552,11 @@ Hooks.once('init', async () => {
+@@ -519,10 +555,11 @@ Hooks.once('init', async () => {
  Hooks.once('ready', async () => {
    try {
      await foundryMCPBridge.onReady();
@@ -22343,10 +22676,11 @@ index 0000000..f92e9cc
 +}
 diff --git a/packages/foundry-module/src/table-utils.ts b/packages/foundry-module/src/table-utils.ts
 new file mode 100644
-index 0000000..209e405
+index 0000000..1282257
 --- /dev/null
 +++ b/packages/foundry-module/src/table-utils.ts
-@@ -0,0 +1,151 @@
+@@ -0,0 +1,154 @@
++import { healthLooks } from './health-estimate-utils.js';
 +/** Helpers that turn Foundry chat messages, combats and actors into short plain objects. */
 +
 +export function stripHtml(html: string, max = 600): string {
@@ -22454,6 +22788,8 @@ index 0000000..209e405
 +  if (ac !== undefined) out.ac = ac;
 +  const statuses = actor?.statuses ? [...actor.statuses] : [];
 +  if (statuses.length > 0) out.conditions = statuses;
++  const looks = healthLooks(actor);
++  if (looks) out.looks = looks;
 +  return out;
 +}
 +
@@ -22884,7 +23220,7 @@ index 0000000..2bd53f5
 +}
 diff --git a/packages/foundry-module/src/table-watcher.ts b/packages/foundry-module/src/table-watcher.ts
 new file mode 100644
-index 0000000..8d99c4a
+index 0000000..61237db
 --- /dev/null
 +++ b/packages/foundry-module/src/table-watcher.ts
 @@ -0,0 +1,204 @@
@@ -23058,7 +23394,7 @@ index 0000000..8d99c4a
 +        round: summary.round,
 +        turn: summary.current,
 +        order: (summary.combatants as any[]).map(c =>
-+          [c.initiative ?? '--', c.name, c.active ? '(their turn)' : '', c.hp ? `hp ${c.hp}` : '', c.conditions?.length ? `[${c.conditions.join(', ')}]` : '', c.defeated ? '(defeated)' : '', c.hidden ? '(hidden)' : '']
++          [c.initiative ?? '--', c.name, c.active ? '(their turn)' : '', c.hp ? `hp ${c.hp}` : '', c.looks ? `{${c.looks}}` : '', c.conditions?.length ? `[${c.conditions.join(', ')}]` : '', c.defeated ? '(defeated)' : '', c.hidden ? '(hidden)' : '']
 +            .filter(Boolean)
 +            .join(' ')
 +        ),
@@ -23542,10 +23878,10 @@ index 0000000..0a080dc
 +}
 diff --git a/packages/foundry-module/src/time-utils.test.ts b/packages/foundry-module/src/time-utils.test.ts
 new file mode 100644
-index 0000000..5350fd1
+index 0000000..efabc23
 --- /dev/null
 +++ b/packages/foundry-module/src/time-utils.test.ts
-@@ -0,0 +1,50 @@
+@@ -0,0 +1,60 @@
 +import { describe, expect, it } from 'vitest';
 +import { dayPart, describeDuration, describeTime, durationSeconds, secondsUntil, type CalendarLike, type TimeComponents } from './time-utils.js';
 +
@@ -23596,12 +23932,22 @@ index 0000000..5350fd1
 +    expect(describeDuration(cal, 0)).toBe('0 seconds');
 +  });
 +});
++
++describe('yearZeroWarning', () => {
++  it('warns for a date before the calendar year zero or negative world time', async () => {
++    const { yearZeroWarning } = await import('./time-utils.js');
++    const cal: any = { years: { yearZero: 1501 } };
++    expect(yearZeroWarning(cal, 1491, -315360000)).toContain('before this calendar');
++    expect(yearZeroWarning(cal, 1501, 0)).toBeUndefined();
++    expect(yearZeroWarning(cal, 1510, 1000)).toBeUndefined();
++  });
++});
 diff --git a/packages/foundry-module/src/time-utils.ts b/packages/foundry-module/src/time-utils.ts
 new file mode 100644
-index 0000000..cc63e17
+index 0000000..aaeefb7
 --- /dev/null
 +++ b/packages/foundry-module/src/time-utils.ts
-@@ -0,0 +1,141 @@
+@@ -0,0 +1,151 @@
 +/**
 + * In-game time on Foundry's world calendar (v13+ game.time, extended by dnd5e with sunrise and
 + * sunset): a readable date and time, the part of the day, and how many seconds to the next dawn,
@@ -23686,6 +24032,16 @@ index 0000000..cc63e17
 +    sunset: fmtHour(sunset, mph),
 +    worldTime,
 +  };
++}
++
++/**
++ * A date before the calendar's year zero is negative world time: Foundry and modules treat that badly (dates shown
++ * wrong, effects that never expire). A warning for set, or undefined when the date is fine.
++ */
++export function yearZeroWarning(cal: CalendarLike, year: number, worldTime: number): string | undefined {
++  const zero = cal.years?.yearZero ?? 0;
++  if (worldTime >= 0 && year >= zero) return undefined;
++  return `Year ${year} is before this calendar's year zero (${zero}), so the world time is negative (${worldTime} seconds). Foundry and some modules show such dates wrongly. Pick year ${zero} or later, or switch to a calendar that starts earlier.`;
 +}
 +
 +export type TimeTarget = 'dawn' | 'sunrise' | 'morning' | 'noon' | 'afternoon' | 'dusk' | 'sunset' | 'evening' | 'midnight';
@@ -24490,10 +24846,10 @@ index 0000000..3460272
 +}
 diff --git a/packages/foundry-module/src/world-time.ts b/packages/foundry-module/src/world-time.ts
 new file mode 100644
-index 0000000..c84df5b
+index 0000000..e808212
 --- /dev/null
 +++ b/packages/foundry-module/src/world-time.ts
-@@ -0,0 +1,119 @@
+@@ -0,0 +1,137 @@
 +/**
 + * The world-time query: read and move Foundry's world clock (game.time) on the world calendar,
 + * which dnd5e extends with sunrise, sunset and calendars such as Harptos. Advancing the clock is
@@ -24502,7 +24858,7 @@ index 0000000..c84df5b
 + */
 +import { permissionManager } from './permissions.js';
 +import { ERROR_MESSAGES } from './constants.js';
-+import { describeDuration, describeTime, durationSeconds, secondsUntil, type TimeTarget } from './time-utils.js';
++import { describeDuration, describeTime, durationSeconds, secondsUntil, yearZeroWarning, type TimeTarget } from './time-utils.js';
 +
 +export interface WorldTimeRequest {
 +  action?: 'status' | 'advance' | 'until' | 'set' | 'calendar';
@@ -24595,8 +24951,10 @@ index 0000000..c84df5b
 +      for (let i = 0; i < c.month; i++) day += Number(leap && months[i].leapDays !== undefined ? months[i].leapDays : months[i].days) || 0;
 +      c.day = day + c.dayOfMonth;
 +    }
-+    await time.set(cal.componentsToTime(c));
-+    return { success: true, before: `${before.date}, ${before.time}`, ...now() };
++    const target = cal.componentsToTime(c);
++    const warning = yearZeroWarning(cal, c.year + (cal.years?.yearZero ?? 0), target);
++    await time.set(target);
++    return { success: true, before: `${before.date}, ${before.time}`, ...now(), ...(warning ? { warning } : {}) };
 +  }
 +
 +  if (action === 'calendar') {
@@ -24607,8 +24965,24 @@ index 0000000..c84df5b
 +    if (!data.calendar) return { success: true, current: g.settings.get('dnd5e', 'calendar'), options };
 +    const wanted = options.find(o => o.value === data.calendar || o.label.toLowerCase().includes(String(data.calendar).toLowerCase()));
 +    if (!wanted) throw new Error(`Unknown calendar "${data.calendar}"; options: ${options.map(o => o.value).join(', ')}`);
++    const shownBefore = now().calendar;
 +    await g.settings.set('dnd5e', 'calendar', wanted.value);
-+    return { success: true, calendar: wanted.label, note: 'The calendar changes how the same world time is shown. Reload the Foundry page (F5) if the date does not update.', ...now() };
++    // Foundry builds the world calendar once at load; ask it to rebuild so the new one is used at once.
++    try {
++      if (typeof time.initializeCalendar === 'function') await time.initializeCalendar();
++    } catch (error) {
++      console.warn('[foundry-mcp-bridge-scenes] could not rebuild the calendar:', error);
++    }
++    const shown = now();
++    const switched = shown.calendar !== shownBefore;
++    return {
++      success: true,
++      calendar: wanted.label,
++      ...(switched
++        ? { note: 'The calendar changes how the same world time is shown (the date moves, the world time does not).' }
++        : { reloadNeeded: true, note: `The setting is saved as ${wanted.label}, but Foundry still shows ${shown.calendar}: reload the Foundry page (F5) before using set, advance or until, which would otherwise read the old calendar.` }),
++      ...shown,
++    };
 +  }
 +
 +  throw new Error('action must be status, advance, until, set or calendar');
