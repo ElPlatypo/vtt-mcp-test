@@ -120613,6 +120613,11 @@ var TableFeed = class {
       if (client.readyState === 1)
         client.send(text3);
   }
+  /** A line for the GM's AI on the feed, such as a queued job that failed after its tool call returned. */
+  announce(text3) {
+    this.lastNotice = void 0;
+    this.notice(text3);
+  }
   notice(text3) {
     if (this.lastNotice === text3)
       return;
@@ -122227,7 +122232,7 @@ function segmentPlan(rate) {
   };
 }
 var schema5 = external_exports.object({
-  action: external_exports.enum(["say", "describe", "stop"]).optional(),
+  action: external_exports.enum(["say", "describe", "stop", "status"]).optional(),
   text: external_exports.string().min(1).max(1500).optional(),
   voice: external_exports.string().min(1).max(300).optional(),
   style: external_exports.string().min(1).max(300).optional(),
@@ -122249,21 +122254,23 @@ var SpeechTools = class {
   logger;
   getClient;
   applyTarget;
+  lane;
   constructor(options) {
     this.foundryClient = options.foundryClient;
     this.logger = options.logger.child({ component: "SpeechTools" });
     this.getClient = options.getClient;
     this.applyTarget = options.applyTarget;
+    this.lane = options.lane;
   }
   getToolDefinitions() {
     return [
       {
         name: "speak",
-        description: `Narrate or voice a line aloud for the whole table. It makes the speech with the GM's ComfyUI (the same one used for images), uploads the audio to the Foundry world, plays it for every connected player, and shows the words in the chat revealed in time with the audio. say {text, voice?, style?, language?, speed?, engine?, speaker_name?, chat?} speaks the text (up to 1500 characters, a paragraph or two): the engine, voice, style and speed default to what the GM set in the module settings (Narration). Engines: qwen3-fast (the best voice, streams while it generates: starts within about a second; needs the claude_tts node in ComfyUI; presets such as Ryan, "style" says how to speak), kokoro (fast, a few seconds per paragraph; voice is an id like bm_fable or af_heart), qwen3-custom (slower, preset voices such as Ryan or Serena, "style" says how to speak), qwen3-design (slowest; "voice" is a description such as "a gruff old dwarf with a Scottish accent"). speaker_name is the label in the chat (default Narrator, or the NPC's name); token_id or actor makes it a character speaking: its name and portrait in the chat and the whole line as a speech bubble over its token when the audio starts; chat:false plays the audio without the chat text. The text is spoken sentence by sentence: the first sentence starts playing as soon as it is ready (about a second with kokoro or qwen3-fast) while the rest is generated, and each sentence appears in the chat as it is spoken. The call returns when everything is queued, not when it finishes playing. Write text to be heard: no stage directions, no markup, and spell out what should be said. Do not speak secrets or GM notes. describe shows the settings, which engines this ComfyUI can run and their voices; stop silences the narration now. Needs ComfyUI running with a text-to-speech node (Kokoro or Qwen3-TTS) and Allow Write Operations.`,
+        description: `Narrate or voice a line aloud for the whole table. It makes the speech with the GM's ComfyUI (the same one used for images), uploads the audio to the Foundry world, plays it for every connected player, and shows the words in the chat revealed in time with the audio. say {text, voice?, style?, language?, speed?, engine?, speaker_name?, chat?} speaks the text (up to 1500 characters, a paragraph or two): the engine, voice, style and speed default to what the GM set in the module settings (Narration). Engines: qwen3-fast (the best voice, streams while it generates: starts within about a second; needs the claude_tts node in ComfyUI; presets such as Ryan, "style" says how to speak), kokoro (fast, a few seconds per paragraph; voice is an id like bm_fable or af_heart), qwen3-custom (slower, preset voices such as Ryan or Serena, "style" says how to speak), qwen3-design (slowest; "voice" is a description such as "a gruff old dwarf with a Scottish accent"). speaker_name is the label in the chat (default Narrator, or the NPC's name); token_id or actor makes it a character speaking: its name and portrait in the chat and the whole line as a speech bubble over its token when the audio starts; chat:false plays the audio without the chat text. The text is spoken sentence by sentence: the first sentence starts playing as soon as it is ready (about a second with kokoro or qwen3-fast) while the rest is generated, and each sentence appears in the chat as it is spoken. The call returns at once with {queued, position}: speeches play one after the other in the order the calls were sent (and chat narrate/say and roll request cards wait for the speech before them), so send narration, an NPC line and a roll request in one message without waiting. A failure while generating later shows as a notice on the table feed. Write text to be heard: no stage directions, no markup, and spell out what should be said. Do not speak secrets or GM notes. describe shows the settings, which engines this ComfyUI can run and their voices; stop silences the narration now. Needs ComfyUI running with a text-to-speech node (Kokoro or Qwen3-TTS) and Allow Write Operations.`,
         inputSchema: {
           type: "object",
           properties: {
-            action: { type: "string", enum: ["say", "describe", "stop"], description: "say (default), describe or stop" },
+            action: { type: "string", enum: ["say", "describe", "stop", "status"], description: "say (default), describe, stop (silences and empties the table queue) or status (what is queued)" },
             text: { type: "string", description: "say: what to speak (max 1500 characters)" },
             voice: { type: "string", description: "say: the voice (kokoro id, qwen3 preset, or for qwen3-design a description). Default: the setting" },
             style: { type: "string", description: "say: how to speak it (qwen3-custom), or the voice description for qwen3-design when voice is empty" },
@@ -122284,11 +122291,22 @@ var SpeechTools = class {
   async handleSpeak(args) {
     const a = schema5.parse(args ?? {});
     const action = a.action ?? "say";
-    if (action === "stop")
-      return this.foundryClient.query("foundry-mcp-bridge.speak", { action: "stop" });
+    if (action === "stop") {
+      const dropped = this.lane?.clear() ?? 0;
+      const result = await this.foundryClient.query("foundry-mcp-bridge.speak", { action: "stop" });
+      return dropped > 0 ? { ...result, cleared_from_queue: dropped } : result;
+    }
     if (action === "describe")
       return this.describe();
-    return this.say(a);
+    if (action === "status")
+      return { success: true, queued_items: this.lane?.busy ?? 0 };
+    if (!a.text?.trim())
+      throw new Error("say needs text");
+    const lane = this.lane;
+    if (!lane)
+      return this.say(a);
+    const label = `speak "${a.text.trim().slice(0, 40)}"`;
+    return lane.speech(label, (epoch) => this.say(a, epoch));
   }
   async readSettings() {
     const result = await this.foundryClient.query("foundry-mcp-bridge.get-speech-settings", {});
@@ -122296,7 +122314,10 @@ var SpeechTools = class {
       throw new Error(result.error || "Could not read the narration settings");
     return { target: result?.target, settings: normalizeSpeechSettings(result?.settings) };
   }
-  async say(a) {
+  async say(a, epoch) {
+    const cancelled = () => epoch !== void 0 && this.lane?.cancelled(epoch) === true;
+    if (cancelled())
+      return { success: true, cancelled: true };
     if (!a.text?.trim())
       throw new Error("say needs text");
     const { target: target2, settings } = await this.readSettings();
@@ -122304,7 +122325,7 @@ var SpeechTools = class {
     const client = this.getClient();
     const engine = a.engine ?? settings.engine;
     if (engine === "qwen3-fast")
-      return this.sayFast(a, settings, client);
+      return this.sayFast(a, settings, client, epoch);
     const node = nodeForEngine(engine);
     const info = await client.getNodeInfo(node);
     if (!info) {
@@ -122328,6 +122349,8 @@ var SpeechTools = class {
     let lastPath;
     let messageId;
     for (let index = 0; index < pieces.length; index++) {
+      if (cancelled())
+        return { success: true, cancelled: true };
       const piece = pieces[index];
       const pieceStart = Date.now();
       const request = { engine, text: piece, voice: checked, language: a.language ?? settings.language, speed: a.speed ?? settings.speed, style: a.style ?? settings.style, seed: seed + index };
@@ -122395,7 +122418,8 @@ var SpeechTools = class {
     };
   }
   /** The streaming engine: sentence by sentence, each streamed from the narration server and queued in Foundry in growing pieces. */
-  async sayFast(a, settings, client) {
+  async sayFast(a, settings, client, epoch) {
+    const cancelled = () => epoch !== void 0 && this.lane?.cancelled(epoch) === true;
     const baseUrl = client.getBaseUrl();
     let voices;
     try {
@@ -122470,7 +122494,7 @@ var SpeechTools = class {
     let target2 = plan.first;
     try {
       for (const piece of pieces) {
-        if (sendError)
+        if (sendError || cancelled())
           break;
         const words2 = piece.split(/\s+/).length;
         const expected = Math.max(1, words2 * this.secondsPerWord);
@@ -122495,9 +122519,11 @@ var SpeechTools = class {
           pendingBytes += chunk2.length;
           if (pendingBytes / 2 / stream4.sampleRate >= target2)
             flush(false);
-          if (sendError)
+          if (sendError || cancelled())
             break;
         }
+        if (cancelled())
+          break;
         flush(true);
         if (spoken > 0)
           this.secondsPerWord = Math.max(0.2, Math.min(0.9, (this.secondsPerWord + spoken / words2) / 2));
@@ -122505,6 +122531,8 @@ var SpeechTools = class {
       await sendChain;
       if (sendError)
         throw sendError;
+      if (cancelled())
+        return { success: true, cancelled: true };
     } catch (error) {
       await this.stopQuietly();
       throw new Error(`Speech generation failed: ${error instanceof Error ? error.message : String(error)}`);
@@ -122589,6 +122617,101 @@ var SpeechTools = class {
     const info = await client.getNodeInfo(engine === "kokoro" ? "KokoroSpeaker" : "FB_Qwen3TTSCustomVoice");
     const choices = info?.input?.required?.[engine === "kokoro" ? "speaker_name" : "speaker"]?.[0];
     return Array.isArray(choices) ? choices : [];
+  }
+};
+
+// dist/say-lane.js
+var SayLane = class {
+  hooks;
+  tail = Promise.resolve();
+  pending = 0;
+  epoch = 0;
+  timers = /* @__PURE__ */ new Set();
+  constructor(hooks) {
+    this.hooks = hooks;
+  }
+  /** Jobs waiting or running, plus posts and actions waiting for the speech to end. */
+  get busy() {
+    return this.pending + this.timers.size;
+  }
+  /** True when `stop` has been called since `epoch` was read. Speech jobs check it between pieces. */
+  cancelled(epoch) {
+    return epoch !== this.epoch;
+  }
+  currentEpoch() {
+    return this.epoch;
+  }
+  /** Queue a speech. `run` receives the epoch to pass to `cancelled`. Returns at once. */
+  speech(label, run) {
+    return this.add("speech", label, async (epoch) => {
+      await run(epoch);
+    });
+  }
+  /**
+   * Run `run` once the speech queued so far has been spoken to the end. When nothing is queued or playing it runs
+   * now and its own result is returned; otherwise the call returns {queued: true} and a failure becomes a notice.
+   */
+  async afterSpeech(label, run, kind = "post") {
+    if (this.pending === 0 && this.timers.size === 0) {
+      const wait = await this.safeWait();
+      if (wait <= 0 && this.pending === 0 && this.timers.size === 0)
+        return run();
+    }
+    return this.add(kind, label, async (epoch) => {
+      const wait = await this.safeWait();
+      if (wait <= 0) {
+        await run();
+        return;
+      }
+      const timer = setTimeout(() => {
+        this.timers.delete(timer);
+        if (epoch !== this.epoch)
+          return;
+        run().catch((error) => this.fail(label, error));
+      }, wait);
+      this.timers.add(timer);
+    });
+  }
+  /** Empty the lane: planned lines no longer fit. Returns how many jobs were dropped. */
+  clear() {
+    const dropped = this.pending + this.timers.size;
+    this.epoch++;
+    for (const timer of this.timers)
+      clearTimeout(timer);
+    this.timers.clear();
+    return dropped;
+  }
+  /** Resolves when every job queued so far has been handled (generated or scheduled). For tests. */
+  idle() {
+    return this.tail;
+  }
+  add(kind, label, job) {
+    const epoch = this.epoch;
+    const position = this.pending + this.timers.size + 1;
+    this.pending++;
+    this.tail = this.tail.then(async () => {
+      try {
+        if (epoch !== this.epoch)
+          return;
+        await job(epoch);
+      } catch (error) {
+        this.fail(label, error);
+      } finally {
+        this.pending--;
+      }
+    });
+    return { queued: true, position, ...position > 1 ? { note: `${kind} comes after ${position - 1} earlier item(s) of the table queue` } : {} };
+  }
+  async safeWait() {
+    try {
+      const wait = await this.hooks.untilSpeechEnds();
+      return Number.isFinite(wait) ? wait : 0;
+    } catch {
+      return 0;
+    }
+  }
+  fail(label, error) {
+    this.hooks.onFailure(`${label} failed: ${error instanceof Error ? error.message : String(error)}`);
   }
 };
 
@@ -129431,9 +129554,22 @@ async function startBackend() {
       }
     }
   });
+  let announce = () => {
+  };
+  const sayLane = new SayLane({
+    untilSpeechEnds: async () => {
+      const r = await foundryClient.query("foundry-mcp-bridge.speak", { action: "lane-end" });
+      return Number(r?.wait) || 0;
+    },
+    onFailure: (text3) => {
+      logger.warn("Table queue job failed", { text: text3 });
+      announce(text3);
+    }
+  });
   const speechTools = new SpeechTools({
     foundryClient,
     logger,
+    lane: sayLane,
     getClient: () => {
       if (!mapGenerationComfyUIClient)
         throw new Error("The ComfyUI client is not available");
@@ -129710,6 +129846,17 @@ async function startBackend() {
     ...mapGenerationTools.getToolDefinitions().filter((tool) => !DISABLED_LEGACY_MAP_TOOLS.includes(tool.name)),
     ...playlistTools.getToolDefinitions()
   ];
+  for (const tool of allTools) {
+    const props = tool?.inputSchema?.properties;
+    if (!props)
+      continue;
+    if (AFTER_SPEECH_TOOLS.has(tool.name)) {
+      props.after_speech = { type: "boolean", description: 'Wait for the narration queued before this call to be spoken to the end, then do it (e.g. reveal a hidden creature after "a shape steps out"). Default: act at once' };
+    }
+    if (tool.name === "chat" || tool.name === "request-player-rolls") {
+      props.queue = { type: "boolean", description: "false posts at once instead of after the speech queued before it (default: wait for the speech)" };
+    }
+  }
   foundryClient.connect().catch((e) => {
     logger.error("Foundry connector failed to start", e);
   });
@@ -129720,6 +129867,7 @@ async function startBackend() {
     port: Number(process.env.FOUNDRY_MCP_CHAT_FEED_PORT) || DEFAULT_CHAT_FEED_PORT
   });
   void chatFeed.start();
+  announce = (text3) => tableFeed.announce(text3);
   void tableFeed.start();
   const autoStartComfyUI = async () => {
     try {
@@ -129756,278 +129904,303 @@ async function startBackend() {
           if (msg.method === "call_tool") {
             const { name, args } = msg.params || {};
             try {
+              const dispatch = async (name2, args2) => {
+                let result2;
+                switch (name2) {
+                  case "get-character":
+                    result2 = await characterTools.handleGetCharacter(args2);
+                    break;
+                  case "list-characters":
+                    result2 = await characterTools.handleListCharacters(args2);
+                    break;
+                  case "get-character-entity":
+                    result2 = await characterTools.handleGetCharacterEntity(args2);
+                    break;
+                  case "use-item":
+                    result2 = await characterTools.handleUseItem(args2);
+                    break;
+                  case "search-character-items":
+                    result2 = await characterTools.handleSearchCharacterItems(args2);
+                    break;
+                  case "manage-world-items":
+                    result2 = await characterTools.handleManageWorldItems(args2);
+                    break;
+                  case "search-compendium":
+                    result2 = await compendiumTools.handleSearchCompendium(args2);
+                    break;
+                  case "get-compendium-item":
+                    result2 = await compendiumTools.handleGetCompendiumItem(args2);
+                    break;
+                  case "list-creatures-by-criteria":
+                    result2 = await compendiumTools.handleListCreaturesByCriteria(args2);
+                    break;
+                  case "list-compendium-packs":
+                    result2 = await compendiumTools.handleListCompendiumPacks(args2);
+                    break;
+                  case "get-current-scene":
+                    result2 = await sceneTools.handleGetCurrentScene(args2);
+                    break;
+                  case "get-world-info":
+                    result2 = await sceneTools.handleGetWorldInfo(args2);
+                    break;
+                  case "create-actor-from-compendium":
+                    result2 = await actorCreationTools.handleCreateActorFromCompendium(args2);
+                    break;
+                  case "get-compendium-entry-full":
+                    result2 = await actorCreationTools.handleGetCompendiumEntryFull(args2);
+                    break;
+                  case "wfrp4e-update-actor":
+                    result2 = await wfrp4eUpdateActorTools.handleUpdateActor(args2);
+                    break;
+                  case "wfrp4e-add-items":
+                    result2 = await wfrp4eAddItemsTools.handleAddItems(args2);
+                    break;
+                  case "manage-actors":
+                    result2 = await actorManagementTools.handleManageActors(args2);
+                    break;
+                  case "manage-effects":
+                    result2 = await effectManagementTools.handleManageEffects(args2);
+                    break;
+                  case "create-dsa5-character-from-archetype":
+                    result2 = await dsa5CharacterCreator.handleCreateCharacterFromArchetype(args2);
+                    break;
+                  case "list-dsa5-archetypes":
+                    result2 = await dsa5CharacterCreator.handleListArchetypes(args2);
+                    break;
+                  case "import-dsa5-actor-from-json":
+                    result2 = await dsa5JsonActorImporter.handleImportActorFromJson(args2);
+                    break;
+                  case "dnd5e-add-feature":
+                    result2 = await dnd5eAddFeatureTool.handleAddFeature(args2);
+                    break;
+                  case "dnd5e-create-npc":
+                    result2 = await dnd5eNpcTools.handleCreateNpc(args2);
+                    break;
+                  case "dnd5e-add-features-from-compendium":
+                    result2 = await dnd5eFeaturesFromCompendiumTools.handleAddFeaturesFromCompendium(args2);
+                    break;
+                  case "chat":
+                    if (args2?.action === "read" || args2?.queue === false) {
+                      const { queue: _q, ...rest } = args2 ?? {};
+                      result2 = await chatControlTools.handleChat(rest);
+                    } else {
+                      const { queue: _q, ...rest } = args2 ?? {};
+                      result2 = await sayLane.afterSpeech(`chat ${rest.action}`, () => chatControlTools.handleChat(rest));
+                    }
+                    break;
+                  case "create-chat-message":
+                    result2 = await chatTools.handleCreateChatMessage(args2);
+                    break;
+                  case "create-quest-journal":
+                    result2 = await questCreationTools.handleCreateQuestJournal(args2);
+                    break;
+                  case "link-quest-to-npc":
+                    result2 = await questCreationTools.handleLinkQuestToNPC(args2);
+                    break;
+                  case "update-quest-journal":
+                    result2 = await questCreationTools.handleUpdateQuestJournal(args2);
+                    break;
+                  case "replace-journal-page":
+                    result2 = await questCreationTools.handleReplaceJournalPage(args2);
+                    break;
+                  case "list-journals":
+                    result2 = await questCreationTools.handleListJournals(args2);
+                    break;
+                  case "search-journals":
+                    result2 = await questCreationTools.handleSearchJournals(args2);
+                    break;
+                  case "request-player-rolls":
+                    {
+                      const { queue: noQueue, ...rest } = args2 ?? {};
+                      const post = async () => {
+                        const sent = await diceRollTools.handleRequestPlayerRolls(rest);
+                        if (typeof sent === "string" && sent.startsWith("Roll request sent successfully") && typeof rest.targetPlayer === "string") {
+                          tableFeed.expect([rest.targetPlayer], 9e4);
+                        } else if (typeof sent === "string") {
+                          throw new Error(sent);
+                        }
+                        return sent;
+                      };
+                      result2 = noQueue === false ? await post().catch((e) => e?.message ?? String(e)) : await sayLane.afterSpeech("roll request", post);
+                    }
+                    break;
+                  case "create-campaign-dashboard":
+                    result2 = await campaignManagementTools.handleCreateCampaignDashboard(args2);
+                    break;
+                  case "assign-actor-ownership":
+                    result2 = await ownershipTools.handleToolCall("assign-actor-ownership", args2);
+                    break;
+                  case "remove-actor-ownership":
+                    result2 = await ownershipTools.handleToolCall("remove-actor-ownership", args2);
+                    break;
+                  case "list-actor-ownership":
+                    result2 = await ownershipTools.handleToolCall("list-actor-ownership", args2);
+                    break;
+                  case "move-token":
+                    result2 = await tokenManipulationTools.handleMoveToken(args2);
+                    break;
+                  case "update-token":
+                    result2 = await tokenManipulationTools.handleUpdateToken(args2);
+                    break;
+                  case "delete-tokens":
+                    result2 = await tokenManipulationTools.handleDeleteTokens(args2);
+                    break;
+                  case "get-token-details":
+                    result2 = await tokenManipulationTools.handleGetTokenDetails(args2);
+                    break;
+                  case "toggle-token-condition":
+                    result2 = await tokenManipulationTools.handleToggleTokenCondition(args2);
+                    break;
+                  case "get-available-conditions":
+                    result2 = await tokenManipulationTools.handleGetAvailableConditions(args2);
+                    break;
+                  case "generate-map":
+                  case "check-map-status":
+                  case "cancel-map-job":
+                    throw new Error(`The ${name2} tool is switched off. Use generate-image with kind "map" instead.`);
+                  case "list-scenes":
+                    result2 = await mapGenerationTools.listScenes(args2);
+                    break;
+                  case "switch-scene":
+                    result2 = await mapGenerationTools.switchScene(args2);
+                    break;
+                  case "manage-playlists":
+                    result2 = await playlistTools.handleManagePlaylists(args2);
+                    break;
+                  case "control-playlist":
+                    result2 = await playlistTools.handleControlPlaylist(args2);
+                    break;
+                  case "update-scene-music":
+                    result2 = await sceneTools.handleUpdateSceneMusic(args2);
+                    break;
+                  case "manage-scenes":
+                    result2 = await sceneTools.handleManageScenes(args2);
+                    break;
+                  case "manage-scene-objects":
+                    result2 = await sceneObjectTools.handleManageSceneObjects(args2);
+                    break;
+                  case "inspect-document":
+                    result2 = await inspectTools.handleInspectDocument(args2);
+                    break;
+                  case "preview-scene":
+                    result2 = await sceneObjectTools.handlePreviewScene(args2);
+                    break;
+                  case "measure-grid":
+                    result2 = await sceneObjectTools.handleMeasureGrid(args2);
+                    break;
+                  case "manage-regions":
+                    result2 = await sceneObjectTools.handleManageRegions(args2);
+                    break;
+                  case "manage-roll-tables":
+                    result2 = await playTools.handleManageRollTables(args2);
+                    break;
+                  case "layout":
+                    result2 = await layoutTools.handleLayout(args2);
+                    break;
+                  case "manage-macros":
+                    result2 = await playTools.handleManageMacros(args2);
+                    break;
+                  case "manage-modules":
+                    result2 = await moduleTools.handleManageModules(args2);
+                    break;
+                  case "make-prop":
+                    result2 = await propTools.handleMakeProp(args2);
+                    break;
+                  case "browse-files":
+                    result2 = await fileBackupTools.handleBrowseFiles(args2);
+                    break;
+                  case "manage-scene-backups":
+                    result2 = await fileBackupTools.handleManageSceneBackups(args2);
+                    break;
+                  case "make-actor-art":
+                    result2 = await actorArtTools.handleMakeActorArt(args2);
+                    break;
+                  case "edit-image-area":
+                    result2 = await imageEditTools.handle(args2);
+                    break;
+                  case "annotations":
+                    result2 = await annotationTools.handle(args2);
+                    break;
+                  case "party":
+                    result2 = await partyTools.handleParty(args2);
+                    break;
+                  case "plutonium":
+                    result2 = await plutoniumTools.handlePlutonium(args2);
+                    break;
+                  case "adventure":
+                    result2 = await plutoniumTools.handleAdventure(args2);
+                    break;
+                  case "pause":
+                    result2 = await pauseTools.handlePause(args2);
+                    break;
+                  case "speak":
+                    result2 = await speechTools.handleSpeak(args2);
+                    break;
+                  case "rules":
+                    result2 = await rulesTools.handleRules(args2);
+                    break;
+                  case "combat":
+                    result2 = await combatTools.handleCombat(args2);
+                    break;
+                  case "reveal":
+                    result2 = await revealTools.handleReveal(args2);
+                    break;
+                  case "read-table":
+                    result2 = await tableTools.handleReadTable(args2);
+                    break;
+                  case "table-watch":
+                    result2 = await tableWatchTools.handle(args2);
+                    break;
+                  case "time":
+                    result2 = await timeTools.handle(args2);
+                    break;
+                  case "tactical":
+                    result2 = await tacticalTools.handle(args2);
+                    break;
+                  case "campaign-memory":
+                    result2 = await campaignMemoryTools.handle(args2);
+                    break;
+                  case "share-with-players":
+                    result2 = await shareTools.handleShareWithPlayers(args2);
+                    break;
+                  case "add-compendium-items":
+                    result2 = await lootTools.handleAddCompendiumItems(args2);
+                    break;
+                  case "make-chest":
+                    result2 = await lootTools.handleMakeChest(args2);
+                    break;
+                  case "audit-world":
+                    result2 = await auditTools.handleAuditWorld(args2);
+                    break;
+                  case "setup-scene-sound":
+                    result2 = await sceneSoundTools.handleSetupSceneSound(args2);
+                    break;
+                  case "manage-world":
+                    result2 = await sceneObjectTools.handleManageWorld(args2);
+                    break;
+                  case "manage-journals":
+                    result2 = await journalTools.handleManageJournals(args2);
+                    break;
+                  case "upload-file":
+                    result2 = await uploadTools.handleUploadFile(args2);
+                    break;
+                  case "generate-image":
+                    result2 = await imageGenerationTools.handleGenerateImage(args2);
+                    break;
+                  case "describe-image-generation":
+                    result2 = await imageGenerationTools.handleDescribe();
+                    break;
+                  default:
+                    throw new Error(`Unknown tool: ${name2}`);
+                }
+                return result2;
+              };
               let result;
-              switch (name) {
-                case "get-character":
-                  result = await characterTools.handleGetCharacter(args);
-                  break;
-                case "list-characters":
-                  result = await characterTools.handleListCharacters(args);
-                  break;
-                case "get-character-entity":
-                  result = await characterTools.handleGetCharacterEntity(args);
-                  break;
-                case "use-item":
-                  result = await characterTools.handleUseItem(args);
-                  break;
-                case "search-character-items":
-                  result = await characterTools.handleSearchCharacterItems(args);
-                  break;
-                case "manage-world-items":
-                  result = await characterTools.handleManageWorldItems(args);
-                  break;
-                case "search-compendium":
-                  result = await compendiumTools.handleSearchCompendium(args);
-                  break;
-                case "get-compendium-item":
-                  result = await compendiumTools.handleGetCompendiumItem(args);
-                  break;
-                case "list-creatures-by-criteria":
-                  result = await compendiumTools.handleListCreaturesByCriteria(args);
-                  break;
-                case "list-compendium-packs":
-                  result = await compendiumTools.handleListCompendiumPacks(args);
-                  break;
-                case "get-current-scene":
-                  result = await sceneTools.handleGetCurrentScene(args);
-                  break;
-                case "get-world-info":
-                  result = await sceneTools.handleGetWorldInfo(args);
-                  break;
-                case "create-actor-from-compendium":
-                  result = await actorCreationTools.handleCreateActorFromCompendium(args);
-                  break;
-                case "get-compendium-entry-full":
-                  result = await actorCreationTools.handleGetCompendiumEntryFull(args);
-                  break;
-                case "wfrp4e-update-actor":
-                  result = await wfrp4eUpdateActorTools.handleUpdateActor(args);
-                  break;
-                case "wfrp4e-add-items":
-                  result = await wfrp4eAddItemsTools.handleAddItems(args);
-                  break;
-                case "manage-actors":
-                  result = await actorManagementTools.handleManageActors(args);
-                  break;
-                case "manage-effects":
-                  result = await effectManagementTools.handleManageEffects(args);
-                  break;
-                case "create-dsa5-character-from-archetype":
-                  result = await dsa5CharacterCreator.handleCreateCharacterFromArchetype(args);
-                  break;
-                case "list-dsa5-archetypes":
-                  result = await dsa5CharacterCreator.handleListArchetypes(args);
-                  break;
-                case "import-dsa5-actor-from-json":
-                  result = await dsa5JsonActorImporter.handleImportActorFromJson(args);
-                  break;
-                case "dnd5e-add-feature":
-                  result = await dnd5eAddFeatureTool.handleAddFeature(args);
-                  break;
-                case "dnd5e-create-npc":
-                  result = await dnd5eNpcTools.handleCreateNpc(args);
-                  break;
-                case "dnd5e-add-features-from-compendium":
-                  result = await dnd5eFeaturesFromCompendiumTools.handleAddFeaturesFromCompendium(args);
-                  break;
-                case "chat":
-                  result = await chatControlTools.handleChat(args);
-                  break;
-                case "create-chat-message":
-                  result = await chatTools.handleCreateChatMessage(args);
-                  break;
-                case "create-quest-journal":
-                  result = await questCreationTools.handleCreateQuestJournal(args);
-                  break;
-                case "link-quest-to-npc":
-                  result = await questCreationTools.handleLinkQuestToNPC(args);
-                  break;
-                case "update-quest-journal":
-                  result = await questCreationTools.handleUpdateQuestJournal(args);
-                  break;
-                case "replace-journal-page":
-                  result = await questCreationTools.handleReplaceJournalPage(args);
-                  break;
-                case "list-journals":
-                  result = await questCreationTools.handleListJournals(args);
-                  break;
-                case "search-journals":
-                  result = await questCreationTools.handleSearchJournals(args);
-                  break;
-                case "request-player-rolls":
-                  result = await diceRollTools.handleRequestPlayerRolls(args);
-                  if (typeof result === "string" && result.startsWith("Roll request sent successfully") && typeof args?.targetPlayer === "string") {
-                    tableFeed.expect([args.targetPlayer], 9e4);
-                  }
-                  break;
-                case "create-campaign-dashboard":
-                  result = await campaignManagementTools.handleCreateCampaignDashboard(args);
-                  break;
-                case "assign-actor-ownership":
-                  result = await ownershipTools.handleToolCall("assign-actor-ownership", args);
-                  break;
-                case "remove-actor-ownership":
-                  result = await ownershipTools.handleToolCall("remove-actor-ownership", args);
-                  break;
-                case "list-actor-ownership":
-                  result = await ownershipTools.handleToolCall("list-actor-ownership", args);
-                  break;
-                case "move-token":
-                  result = await tokenManipulationTools.handleMoveToken(args);
-                  break;
-                case "update-token":
-                  result = await tokenManipulationTools.handleUpdateToken(args);
-                  break;
-                case "delete-tokens":
-                  result = await tokenManipulationTools.handleDeleteTokens(args);
-                  break;
-                case "get-token-details":
-                  result = await tokenManipulationTools.handleGetTokenDetails(args);
-                  break;
-                case "toggle-token-condition":
-                  result = await tokenManipulationTools.handleToggleTokenCondition(args);
-                  break;
-                case "get-available-conditions":
-                  result = await tokenManipulationTools.handleGetAvailableConditions(args);
-                  break;
-                case "generate-map":
-                case "check-map-status":
-                case "cancel-map-job":
-                  throw new Error(`The ${name} tool is switched off. Use generate-image with kind "map" instead.`);
-                case "list-scenes":
-                  result = await mapGenerationTools.listScenes(args);
-                  break;
-                case "switch-scene":
-                  result = await mapGenerationTools.switchScene(args);
-                  break;
-                case "manage-playlists":
-                  result = await playlistTools.handleManagePlaylists(args);
-                  break;
-                case "control-playlist":
-                  result = await playlistTools.handleControlPlaylist(args);
-                  break;
-                case "update-scene-music":
-                  result = await sceneTools.handleUpdateSceneMusic(args);
-                  break;
-                case "manage-scenes":
-                  result = await sceneTools.handleManageScenes(args);
-                  break;
-                case "manage-scene-objects":
-                  result = await sceneObjectTools.handleManageSceneObjects(args);
-                  break;
-                case "inspect-document":
-                  result = await inspectTools.handleInspectDocument(args);
-                  break;
-                case "preview-scene":
-                  result = await sceneObjectTools.handlePreviewScene(args);
-                  break;
-                case "measure-grid":
-                  result = await sceneObjectTools.handleMeasureGrid(args);
-                  break;
-                case "manage-regions":
-                  result = await sceneObjectTools.handleManageRegions(args);
-                  break;
-                case "manage-roll-tables":
-                  result = await playTools.handleManageRollTables(args);
-                  break;
-                case "layout":
-                  result = await layoutTools.handleLayout(args);
-                  break;
-                case "manage-macros":
-                  result = await playTools.handleManageMacros(args);
-                  break;
-                case "manage-modules":
-                  result = await moduleTools.handleManageModules(args);
-                  break;
-                case "make-prop":
-                  result = await propTools.handleMakeProp(args);
-                  break;
-                case "browse-files":
-                  result = await fileBackupTools.handleBrowseFiles(args);
-                  break;
-                case "manage-scene-backups":
-                  result = await fileBackupTools.handleManageSceneBackups(args);
-                  break;
-                case "make-actor-art":
-                  result = await actorArtTools.handleMakeActorArt(args);
-                  break;
-                case "edit-image-area":
-                  result = await imageEditTools.handle(args);
-                  break;
-                case "annotations":
-                  result = await annotationTools.handle(args);
-                  break;
-                case "party":
-                  result = await partyTools.handleParty(args);
-                  break;
-                case "plutonium":
-                  result = await plutoniumTools.handlePlutonium(args);
-                  break;
-                case "adventure":
-                  result = await plutoniumTools.handleAdventure(args);
-                  break;
-                case "pause":
-                  result = await pauseTools.handlePause(args);
-                  break;
-                case "speak":
-                  result = await speechTools.handleSpeak(args);
-                  break;
-                case "rules":
-                  result = await rulesTools.handleRules(args);
-                  break;
-                case "combat":
-                  result = await combatTools.handleCombat(args);
-                  break;
-                case "reveal":
-                  result = await revealTools.handleReveal(args);
-                  break;
-                case "read-table":
-                  result = await tableTools.handleReadTable(args);
-                  break;
-                case "table-watch":
-                  result = await tableWatchTools.handle(args);
-                  break;
-                case "time":
-                  result = await timeTools.handle(args);
-                  break;
-                case "tactical":
-                  result = await tacticalTools.handle(args);
-                  break;
-                case "campaign-memory":
-                  result = await campaignMemoryTools.handle(args);
-                  break;
-                case "share-with-players":
-                  result = await shareTools.handleShareWithPlayers(args);
-                  break;
-                case "add-compendium-items":
-                  result = await lootTools.handleAddCompendiumItems(args);
-                  break;
-                case "make-chest":
-                  result = await lootTools.handleMakeChest(args);
-                  break;
-                case "audit-world":
-                  result = await auditTools.handleAuditWorld(args);
-                  break;
-                case "setup-scene-sound":
-                  result = await sceneSoundTools.handleSetupSceneSound(args);
-                  break;
-                case "manage-world":
-                  result = await sceneObjectTools.handleManageWorld(args);
-                  break;
-                case "manage-journals":
-                  result = await journalTools.handleManageJournals(args);
-                  break;
-                case "upload-file":
-                  result = await uploadTools.handleUploadFile(args);
-                  break;
-                case "generate-image":
-                  result = await imageGenerationTools.handleGenerateImage(args);
-                  break;
-                case "describe-image-generation":
-                  result = await imageGenerationTools.handleDescribe();
-                  break;
-                default:
-                  throw new Error(`Unknown tool: ${name}`);
+              if (args && typeof args === "object" && args.after_speech !== void 0) {
+                const { after_speech, ...rest } = args;
+                result = after_speech === true && AFTER_SPEECH_TOOLS.has(name) ? await sayLane.afterSpeech(name, () => dispatch(name, rest), "action") : await dispatch(name, rest);
+              } else {
+                result = await dispatch(name, args);
               }
               const payload = {
                 content: [
@@ -130079,6 +130252,7 @@ async function startBackend() {
     process.exit(0);
   });
 }
+var AFTER_SPEECH_TOOLS = /* @__PURE__ */ new Set(["reveal", "switch-scene", "move-token", "update-token", "toggle-token-condition", "manage-scene-objects", "manage-scenes", "manage-regions", "combat", "use-item", "time", "update-scene-music", "control-playlist", "delete-tokens"]);
 var hasLock = acquireLock();
 (async function main() {
   if (!hasLock) {

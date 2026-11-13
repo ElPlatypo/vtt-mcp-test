@@ -2459,15 +2459,16 @@ index 0000000..29a397c
 +});
 diff --git a/packages/foundry-module/src/combat-actions.ts b/packages/foundry-module/src/combat-actions.ts
 new file mode 100644
-index 0000000..7746ce2
+index 0000000..0a8498b
 --- /dev/null
 +++ b/packages/foundry-module/src/combat-actions.ts
-@@ -0,0 +1,209 @@
+@@ -0,0 +1,211 @@
 +/**
 + * Monster and character actions in combat: roll an attack (and damage, and apply it), roll a
 + * saving-throw ability against targets, or roll a check. Works through the dnd5e activity and actor
 + * roll APIs, so the chat cards, advantage rules and modifiers are the system's own.
 + */
++import { rollModeName } from './roll-mode.js';
 +
 +export interface ActionOptions {
 +  item?: string;
@@ -2497,7 +2498,8 @@ index 0000000..7746ce2
 +const NO_DIALOG = { configure: false };
 +/** The chat message of a roll: GM only by default (a hidden monster's attack must not show to players), public on request. */
 +// Foundry v14 names the key messageMode (public | gm); rollMode is its older spelling, kept for older versions.
-+const messageFor = (isPublic?: boolean) => ({ create: true, messageMode: isPublic ? 'public' : 'gm', rollMode: isPublic ? 'publicroll' : 'gmroll' });
++// dnd5e 6 hands rollMode on as v14's messageMode, so it must carry the v14 name too (rollModeName).
++const messageFor = (isPublic?: boolean) => ({ create: true, messageMode: isPublic ? 'public' : 'gm', rollMode: rollModeName(isPublic ? 'public' : 'gm') });
 +
 +const total = (rolls: any): number => (Array.isArray(rolls) ? rolls : rolls ? [rolls] : []).reduce((n: number, r: any) => n + (Number(r?.total) || 0), 0);
 +const hpOf = (actor: any): number => Number(actor?.system?.attributes?.hp?.value ?? 0);
@@ -8343,10 +8345,10 @@ index 0000000..07712cf
 +  });
 +});
 diff --git a/packages/foundry-module/src/data-access.ts b/packages/foundry-module/src/data-access.ts
-index eecda7e..8e48ccf 100644
+index eecda7e..936fb8c 100644
 --- a/packages/foundry-module/src/data-access.ts
 +++ b/packages/foundry-module/src/data-access.ts
-@@ -1,6 +1,143 @@
+@@ -1,6 +1,144 @@
  import { MODULE_ID, ERROR_MESSAGES, TOKEN_DISPOSITIONS } from './constants.js';
  import { permissionManager } from './permissions.js';
 +import {
@@ -8483,6 +8485,7 @@ index eecda7e..8e48ccf 100644
 +import { dnd5ePlayState, type PlayState } from './character-state-utils.js';
 +import { dnd5eHasLegendary, dnd5eHasSpells } from './creature-flags-utils.js';
 +import { attackRangeOf, rangeVerdict, sameUnits, tokenDistance, turnWarning } from './attack-checks.js';
++import { rollModeName } from './roll-mode.js';
 +import { partyRow, pickActors, pickClass, splitXp } from './party-utils.js';
 +import { clipText, htmlToText, searchPages, type RulePage } from './rules-utils.js';
 +import { selectMessages } from './chat-utils.js';
@@ -8490,7 +8493,7 @@ index eecda7e..8e48ccf 100644
  
  // The same five characters foundry.utils.escapeHTML replaces in v14, kept local because
  // that helper isn't confirmed in v13, this module's minimum.
-@@ -33,6 +170,7 @@ interface CharacterInfo {
+@@ -33,6 +171,7 @@ interface CharacterInfo {
    itemVariants?: any[]; // Item rule element variants (ChoiceSet, etc.)
    itemToggles?: any[]; // Item rule element toggles (RollOption, ToggleProperty, equipped)
    spellcasting?: SpellcastingEntry[]; // PF2e/D&D 5e spellcasting entries
@@ -8498,7 +8501,7 @@ index eecda7e..8e48ccf 100644
  }
  
  interface SpellcastingEntry {
-@@ -363,7 +501,8 @@ interface ItemTargetingResult {
+@@ -363,7 +502,8 @@ interface ItemTargetingResult {
   */
  class PersistentCreatureIndex {
    private moduleId: string = MODULE_ID;
@@ -8508,7 +8511,7 @@ index eecda7e..8e48ccf 100644
    private readonly INDEX_FILENAME = 'enhanced-creature-index.json';
    private buildInProgress = false;
    private hooksRegistered = false;
-@@ -979,26 +1118,9 @@ class PersistentCreatureIndex {
+@@ -979,26 +1119,9 @@ class PersistentCreatureIndex {
          alignment = String(alignment || 'unaligned');
        }
  
@@ -8538,7 +8541,7 @@ index eecda7e..8e48ccf 100644
  
        // DEBUG: Log what we extracted for comparison
  
-@@ -1714,6 +1836,84 @@ const DND5E_SIZE: Record<string, string> = {
+@@ -1714,6 +1837,84 @@ const DND5E_SIZE: Record<string, string> = {
    gargantuan: 'gargantuan',
  };
  
@@ -8623,7 +8626,7 @@ index eecda7e..8e48ccf 100644
  export class FoundryDataAccess {
    private moduleId: string = MODULE_ID;
    private persistentIndex: PersistentCreatureIndex = new PersistentCreatureIndex();
-@@ -1951,6 +2151,16 @@ export class FoundryDataAccess {
+@@ -1951,6 +2152,16 @@ export class FoundryDataAccess {
        characterData.spellcasting = spellcastingEntries;
      }
  
@@ -8640,7 +8643,7 @@ index eecda7e..8e48ccf 100644
      return characterData;
    }
  
-@@ -3151,11 +3361,7 @@ export class FoundryDataAccess {
+@@ -3151,11 +3362,7 @@ export class FoundryDataAccess {
  
      // Legendary Actions filter
      if (filters.hasLegendaryActions !== undefined) {
@@ -8653,7 +8656,7 @@ index eecda7e..8e48ccf 100644
        if (hasLegendary !== filters.hasLegendaryActions) {
          return false;
        }
-@@ -4681,12 +4887,28 @@ export class FoundryDataAccess {
+@@ -4681,12 +4888,28 @@ export class FoundryDataAccess {
        type: 'random' | 'grid' | 'center' | 'coordinates';
        coordinates?: { x: number; y: number }[];
      };
@@ -8682,7 +8685,7 @@ index eecda7e..8e48ccf 100644
        // Validate inputs
        if (!packId || !itemId) {
          throw new Error('Both packId and itemId are required');
-@@ -4753,10 +4975,33 @@ export class FoundryDataAccess {
+@@ -4753,10 +4976,33 @@ export class FoundryDataAccess {
            }
  
            // Organize created actors in a folder - use "Foundry MCP Creatures" for generic monsters
@@ -8717,7 +8720,32 @@ index eecda7e..8e48ccf 100644
  
            // Create the actor
            const newActor = await Actor.create(actorData);
-@@ -6714,7 +6959,7 @@ export class FoundryDataAccess {
+@@ -6021,12 +6267,12 @@ export class FoundryDataAccess {
+       // For now, we'll just create the button and let the rendering logic handle the state restoration
+ 
+       const rollButtonHtml = `
+-        <div class="mcp-roll-request" style="margin: 12px 0; padding: 12px; border: 1px solid #ccc; border-radius: 8px; background: #f9f9f9;">
++        <div class="mcp-roll-request">
+           <p><strong>Roll Request:</strong> ${buttonLabel}</p>
+           <p><strong>Target:</strong> ${playerInfo.targetName} ${playerInfo.character ? `(${playerInfo.character.name})` : ''}</p>
+           ${data.flavor ? `<p><strong>Context:</strong> ${data.flavor}</p>` : ''}
+-          
+-          <div style="text-align: center; margin-top: 8px;">
++
++          <div class="mcp-roll-actions">
+             <!-- Single Roll Button (clickable by both character owner and GM) -->
+             <button class="mcp-roll-button mcp-button-active" 
+                     data-button-id="${buttonId}"
+@@ -6035,7 +6281,7 @@ export class FoundryDataAccess {
+                     data-is-public="${data.isPublic}"
+                     data-character-id="${playerInfo.character?.id || ''}"
+                     data-target-user-id="${playerInfo.user?.id || ''}">
+-              🎲 ${buttonLabel}
++              🎲 ${buttonLabel.replace(/\s*\((Public|Private)\)\s*$/i, '')}
+             </button>
+           </div>
+         </div>
+@@ -6714,7 +6960,7 @@ export class FoundryDataAccess {
  
          // Send socket request to GM
          if (game.socket) {
@@ -8726,7 +8754,16 @@ index eecda7e..8e48ccf 100644
              type: 'requestMessageUpdate',
              buttonId,
              userId,
-@@ -7603,6 +7848,7 @@ export class FoundryDataAccess {
+@@ -6744,7 +6990,7 @@ export class FoundryDataAccess {
+ 
+       // Create the rolled state HTML
+       const rolledHtml = `
+-        <div class="mcp-roll-request" style="margin: 10px 0; padding: 10px; border: 1px solid #ccc; border-radius: 5px; background: #f9f9f9;">
++        <div class="mcp-roll-request">
+           <p><strong>Roll Request:</strong> ${rollLabel}</p>
+           <p><strong>Status:</strong> ✅ <strong>Completed by ${rolledByName}</strong> at ${timestamp}</p>
+         </div>
+@@ -7603,6 +7849,7 @@ export class FoundryDataAccess {
      if (applyPolyglot) {
        messageData.flags = { polyglot: { language: data.language } };
      }
@@ -8734,7 +8771,7 @@ index eecda7e..8e48ccf 100644
      if (whisperIds.length > 0) {
        messageData.whisper = whisperIds;
      }
-@@ -8101,198 +8347,4762 @@ export class FoundryDataAccess {
+@@ -8101,198 +8348,4762 @@ export class FoundryDataAccess {
      }
    }
  
@@ -9027,7 +9064,7 @@ index eecda7e..8e48ccf 100644
 +      if (typeof options.token_vision !== 'boolean')
 +        throw new Error('token_vision must be boolean');
 +      data.tokenVision = options.token_vision;
-+    }
+     }
 +
 +    const environment: Record<string, any> = {};
 +    const darkness = number('darkness', 'darkness', 0, 1, false);
@@ -9046,7 +9083,7 @@ index eecda7e..8e48ccf 100644
 +    if (options.nav_name !== undefined) {
 +      if (typeof options.nav_name !== 'string') throw new Error('nav_name must be a string');
 +      data.navName = options.nav_name;
-     }
++    }
 +
 +    return data;
    }
@@ -9189,7 +9226,6 @@ index eecda7e..8e48ccf 100644
      try {
 -      const pl = this.findMusicDoc((game as any).playlists, options.playlist, 'playlist');
 -      if (!pl) throw new Error('playlist identifier is required');
--      const info = { id: pl.id, name: pl.name, mode: pl.mode };
 +      if (options.action === 'describe') {
 +        if (options.scene_identifier) {
 +          const scene = this.findSceneByIdentifier(options.scene_identifier);
@@ -9556,7 +9592,7 @@ index eecda7e..8e48ccf 100644
 +        const table = this.findWorldDocument('RollTable', options.table);
 +        const rolled: Array<Record<string, any>> = [];
 +        for (let i = 0; i < times; i++) {
-+          const draw = await table.draw({ displayChat: toChat, rollMode: toChat ? 'gmroll' : undefined });
++          const draw = await table.draw({ displayChat: toChat, rollMode: toChat ? rollModeName('gm') : undefined });
 +          rolled.push({
 +            roll: draw.roll?.total ?? null,
 +            results: ((draw.results || []) as any[]).map(r => ({ text: r.name, description: r.description || undefined })),
@@ -10149,7 +10185,7 @@ index eecda7e..8e48ccf 100644
 +            if (!roll._evaluated) await roll.evaluate();
 +            await combatant.update({ initiative: roll.total });
 +            const speaker = (globalThis as any).ChatMessage?.getSpeaker?.({ token: combatant.token, actor: combatant.actor });
-+            await roll.toMessage({ ...(speaker ? { speaker } : {}), flavor: `${combatant.name} rolls for Initiative!` }, { rollMode: 'gmroll' });
++            await roll.toMessage({ ...(speaker ? { speaker } : {}), flavor: `${combatant.name} rolls for Initiative!` }, { rollMode: rollModeName('gm'), messageMode: 'gm' } as any);
 +          } else {
 +            await combat.rollInitiative([id]);
 +          }
@@ -13634,7 +13670,7 @@ index eecda7e..8e48ccf 100644
 +
 +      const pl = this.findMusicDoc((game as any).playlists, options.playlist, 'playlist');
 +      if (!pl) throw new Error('playlist identifier is required');
-+      const info = { id: pl.id, name: pl.name, mode: pl.mode };
+       const info = { id: pl.id, name: pl.name, mode: pl.mode };
 +      const sounds = ((pl.sounds?.contents || []) as any[]);
 +      const target = (): any => {
 +        if (!options.sound) throw new Error(`command ${command} requires "sound"`);
@@ -13665,7 +13701,7 @@ index eecda7e..8e48ccf 100644
          case 'play':
            await pl.playAll();
            return { success: true, action: 'play', playlist: info };
-@@ -8304,20 +13114,48 @@ export class FoundryDataAccess {
+@@ -8304,20 +13115,48 @@ export class FoundryDataAccess {
            return { success: true, action: 'cycle-mode', playlist: info, mode: pl.mode as number };
          case 'play-sound':
          case 'stop-sound': {
@@ -13720,7 +13756,7 @@ index eecda7e..8e48ccf 100644
        }
      } catch (error) {
        throw new Error(
-@@ -8468,6 +13306,57 @@ export class FoundryDataAccess {
+@@ -8468,6 +13307,57 @@ export class FoundryDataAccess {
      }
    }
  
@@ -13778,7 +13814,7 @@ index eecda7e..8e48ccf 100644
    /**
     * Move a token to a new position on the scene
     */
-@@ -8476,6 +13365,12 @@ export class FoundryDataAccess {
+@@ -8476,6 +13366,12 @@ export class FoundryDataAccess {
      x: number;
      y: number;
      animate?: boolean;
@@ -13791,7 +13827,7 @@ index eecda7e..8e48ccf 100644
    }): Promise<any> {
      this.validateFoundryState();
  
-@@ -8489,33 +13384,79 @@ export class FoundryDataAccess {
+@@ -8489,33 +13385,79 @@ export class FoundryDataAccess {
      }
  
      try {
@@ -13888,7 +13924,7 @@ index eecda7e..8e48ccf 100644
        };
      } catch (error) {
        this.auditLog(
-@@ -8530,10 +13471,56 @@ export class FoundryDataAccess {
+@@ -8530,10 +13472,56 @@ export class FoundryDataAccess {
      }
    }
  
@@ -13946,7 +13982,7 @@ index eecda7e..8e48ccf 100644
      this.validateFoundryState();
  
      // Use permission system
-@@ -8546,20 +13533,14 @@ export class FoundryDataAccess {
+@@ -8546,20 +13534,14 @@ export class FoundryDataAccess {
      }
  
      try {
@@ -13972,7 +14008,7 @@ index eecda7e..8e48ccf 100644
  
        // Apply updates
        await token.update(cleanUpdates);
-@@ -8651,19 +13632,12 @@ export class FoundryDataAccess {
+@@ -8651,19 +13633,12 @@ export class FoundryDataAccess {
    /**
     * Get detailed information about a token
     */
@@ -13995,7 +14031,7 @@ index eecda7e..8e48ccf 100644
  
        // Return flat structure that matches MCP server expectations
        return {
-@@ -11274,7 +16248,10 @@ export class FoundryDataAccess {
+@@ -11274,7 +16249,10 @@ export class FoundryDataAccess {
        name: string;
        type: string;
        img?: string;
@@ -14006,7 +14042,7 @@ index eecda7e..8e48ccf 100644
      }>;
      folder?: string;
    }): Promise<{ created: Array<{ id: string; name: string; type: string }>; total: number }> {
-@@ -11286,6 +16263,19 @@ export class FoundryDataAccess {
+@@ -11286,6 +16264,19 @@ export class FoundryDataAccess {
      const docs = params.actors.map(a => {
        const doc: Record<string, any> = { name: a.name, type: a.type };
        if (a.img) doc.img = a.img;
@@ -14026,7 +14062,7 @@ index eecda7e..8e48ccf 100644
  
        // Merge system data, adding safe defaults for systems that require certain
        // fields to exist during data preparation (avoids non-fatal init errors).
-@@ -11471,7 +16461,16 @@ export class FoundryDataAccess {
+@@ -11471,7 +16462,16 @@ export class FoundryDataAccess {
     * Merges supplied fields into the actor (top-level keys overwrite).
     */
    async updateActors(
@@ -14044,7 +14080,7 @@ index eecda7e..8e48ccf 100644
    ): Promise<{ updated: Array<{ id: string; name: string }>; total: number }> {
      const updatedActors: Array<{ id: string; name: string }> = [];
  
-@@ -11482,6 +16481,7 @@ export class FoundryDataAccess {
+@@ -11482,6 +16482,7 @@ export class FoundryDataAccess {
        const patch: Record<string, any> = {};
        if (u.name !== undefined) patch.name = u.name;
        if (u.img !== undefined) patch.img = u.img;
@@ -14052,7 +14088,7 @@ index eecda7e..8e48ccf 100644
        if (u.system !== undefined) {
          // Build a single patch.system nested object so Foundry deep-merges everything
          // in one pass without flat-key vs nested-key conflicts.
-@@ -11504,6 +16504,19 @@ export class FoundryDataAccess {
+@@ -11504,6 +16505,19 @@ export class FoundryDataAccess {
          }
          patch.system = systemPatch;
        }
@@ -19757,6 +19793,45 @@ index 0000000..dcf8a11
 +  if (kind === 'door') return { _id: id, door: reveal ? 1 : 2 };
 +  return { _id: id, hidden: !reveal };
 +}
+diff --git a/packages/foundry-module/src/roll-mode.test.ts b/packages/foundry-module/src/roll-mode.test.ts
+new file mode 100644
+index 0000000..1bd5f71
+--- /dev/null
++++ b/packages/foundry-module/src/roll-mode.test.ts
+@@ -0,0 +1,14 @@
++import { describe, expect, it } from 'vitest';
++import { rollModeName } from './roll-mode.js';
++
++describe('rollModeName', () => {
++  it('uses the v14 mode names when Foundry has them', () => {
++    const modes = { public: {}, gm: {}, blind: {}, self: {}, ic: {} };
++    expect(rollModeName('gm', modes)).toBe('gm');
++    expect(rollModeName('public', modes)).toBe('public');
++  });
++  it('falls back to the older roll mode names', () => {
++    expect(rollModeName('gm', undefined)).toBe('gmroll');
++    expect(rollModeName('blind', {})).toBe('blindroll');
++  });
++});
+diff --git a/packages/foundry-module/src/roll-mode.ts b/packages/foundry-module/src/roll-mode.ts
+new file mode 100644
+index 0000000..eeefae9
+--- /dev/null
++++ b/packages/foundry-module/src/roll-mode.ts
+@@ -0,0 +1,13 @@
++/**
++ * The name of a chat visibility mode for the running Foundry version. Foundry v14 names them
++ * public | gm | blind | self (CONFIG.ChatMessage.modes); older versions publicroll | gmroll | ...
++ * dnd5e 6 passes the message's rollMode straight on as v14's messageMode, and v14 treats an
++ * unknown name as the table default (usually public), so the old names leak GM-only rolls.
++ */
++export type Visibility = 'public' | 'gm' | 'blind' | 'self';
++
++const LEGACY: Record<Visibility, string> = { public: 'publicroll', gm: 'gmroll', blind: 'blindroll', self: 'selfroll' };
++
++export function rollModeName(visibility: Visibility, modes: Record<string, unknown> | undefined = (globalThis as any).CONFIG?.ChatMessage?.modes): string {
++  return modes && visibility in modes ? visibility : LEGACY[visibility];
++}
 diff --git a/packages/foundry-module/src/rules-utils.ts b/packages/foundry-module/src/rules-utils.ts
 new file mode 100644
 index 0000000..526702e
@@ -21335,10 +21410,10 @@ index d689724..c1655cf 100644
        hint: 'Higher quality = better detail but slower generation. Generation time depends on your hardware.',
 diff --git a/packages/foundry-module/src/speech-player.ts b/packages/foundry-module/src/speech-player.ts
 new file mode 100644
-index 0000000..4a4e346
+index 0000000..5a63b91
 --- /dev/null
 +++ b/packages/foundry-module/src/speech-player.ts
-@@ -0,0 +1,293 @@
+@@ -0,0 +1,301 @@
 +import { MODULE_ID } from './constants.js';
 +import { escapeHtml, planSegment, segmentsEnd, segmentsHtml, segmentsText, speechSettingsFrom, type SpeechSegment } from './speech-utils.js';
 +
@@ -21377,6 +21452,8 @@ index 0000000..4a4e346
 +
 +export class SpeechPlayer {
 +  private sessions = new Map<string, Session>();
++  /** server time the last queued audio of the whole world ends: one timeline, so speeches never overlap */
++  private laneEnd = 0;
 +  private sources = new Set<AudioBufferSourceNode>();
 +  private buffers = new Map<string, Promise<AudioBuffer | null>>();
 +  private gain: GainNode | null = null;
@@ -21400,7 +21477,12 @@ index 0000000..4a4e346
 +  /** The `speak` query from the MCP server. */
 +  async handle(data: any): Promise<any> {
 +    const action = data?.action;
++    if (action === 'lane-end') {
++      // How long until everything queued so far has been spoken to the end; the server holds its posts for that long.
++      return { success: true, wait: Math.max(0, this.laneEnd - this.now()) };
++    }
 +    if (action === 'stop') {
++      this.laneEnd = 0;
 +      this.sessions.clear();
 +      this.broadcast({ type: 'tts', op: 'stop' });
 +      this.silence();
@@ -21428,8 +21510,9 @@ index 0000000..4a4e346
 +      this.resolveSpeaker(session, data);
 +      this.sessions.set(id, session);
 +    }
-+    const plan = planSegment(session.nextStart, this.now(), seconds, Number(data.startDelayMs) || 0);
++    const plan = planSegment(session.nextStart, this.now(), seconds, Number(data.startDelayMs) || 0, this.laneEnd);
 +    session.nextStart = plan.nextStart;
++    this.laneEnd = Math.max(this.laneEnd, plan.nextStart);
 +    const url = path.startsWith('/') || /^https?:/.test(path) ? path : `/${path}`;
 +    this.broadcast({ type: 'tts', op: 'play', id, url, start: plan.start, seconds });
 +    void this.play({ type: 'tts', op: 'play', id, url, start: plan.start, seconds });
@@ -21634,12 +21717,21 @@ index 0000000..4a4e346
 +export { speechSettingsFrom };
 diff --git a/packages/foundry-module/src/speech-utils.test.ts b/packages/foundry-module/src/speech-utils.test.ts
 new file mode 100644
-index 0000000..edc57f9
+index 0000000..b93e059
 --- /dev/null
 +++ b/packages/foundry-module/src/speech-utils.test.ts
-@@ -0,0 +1,60 @@
+@@ -0,0 +1,69 @@
 +import { describe, expect, it } from 'vitest';
-+import { LEAD_MS, planSegment, segmentsEnd, segmentsHtml, segmentsText, speechSettingsFrom, wordTimes } from './speech-utils.js';
++import { LANE_GAP_MS, LEAD_MS, planSegment, segmentsEnd, segmentsHtml, segmentsText, speechSettingsFrom, wordTimes } from './speech-utils.js';
++
++describe('planSegment with a lane', () => {
++  it('starts a new utterance after the audio already queued, with a short gap', () => {
++    expect(planSegment(undefined, 1000, 2, 0, 9000).start).toBe(9000 + LANE_GAP_MS);
++  });
++  it('ignores a lane that has already ended', () => {
++    expect(planSegment(undefined, 1000, 2, 0, 500).start).toBe(1000 + LEAD_MS);
++  });
++});
 +
 +describe('planSegment', () => {
 +  it('starts the first piece after the lead and any requested delay', () => {
@@ -21700,10 +21792,10 @@ index 0000000..edc57f9
 +});
 diff --git a/packages/foundry-module/src/speech-utils.ts b/packages/foundry-module/src/speech-utils.ts
 new file mode 100644
-index 0000000..5e8447e
+index 0000000..f92e9cc
 --- /dev/null
 +++ b/packages/foundry-module/src/speech-utils.ts
-@@ -0,0 +1,91 @@
+@@ -0,0 +1,96 @@
 +/**
 + * Narration in the table's browsers: when each piece of audio starts, when each word of the chat text
 + * appears. No Foundry globals, so it can be tested. All times are server time in milliseconds
@@ -21730,10 +21822,15 @@ index 0000000..5e8447e
 + * generates slower than speech) plus the lead; the next ones follow the previous piece without a gap, or start
 + * after the lead if they arrived late.
 + */
-+export function planSegment(previousEnd: number | undefined, now: number, seconds: number, delayMs = 0): PlaybackPlan {
-+  const start = previousEnd === undefined ? now + LEAD_MS + Math.max(0, delayMs) : Math.max(previousEnd, now + LEAD_MS);
++export function planSegment(previousEnd: number | undefined, now: number, seconds: number, delayMs = 0, laneEnd = 0): PlaybackPlan {
++  // laneEnd is when the last audio of any earlier speech ends: a new utterance starts after it, never on top of it.
++  const start =
++    previousEnd === undefined ? Math.max(now + LEAD_MS + Math.max(0, delayMs), laneEnd + (laneEnd > now ? LANE_GAP_MS : 0)) : Math.max(previousEnd, now + LEAD_MS);
 +  return { start, nextStart: start + seconds * 1000 };
 +}
++
++/** A short breath between one speech and the next. */
++export const LANE_GAP_MS = 250;
 +
 +export interface TimedWord {
 +  word: string;
@@ -24202,10 +24299,41 @@ index 0000000..5228f12
 +  margin: 0;
 +}
 diff --git a/packages/foundry-module/styles/module.css b/packages/foundry-module/styles/module.css
-index 5085b45..738b2e2 100644
+index 5085b45..df4f4bf 100644
 --- a/packages/foundry-module/styles/module.css
 +++ b/packages/foundry-module/styles/module.css
-@@ -429,4 +429,8 @@
+@@ -114,9 +114,30 @@
+   margin-bottom: 8px;
+ }
+ 
++/* Roll request card: follows the chat theme (light or dark) instead of a fixed white box */
++.mcp-roll-request {
++  margin: 8px 0;
++  padding: 8px 10px;
++  border: 1px solid rgba(127, 127, 127, 0.45);
++  border-radius: 6px;
++  background: rgba(127, 127, 127, 0.1);
++  color: inherit;
++}
++
++.mcp-roll-request p {
++  margin: 2px 0;
++}
++
++.mcp-roll-request .mcp-roll-actions {
++  text-align: center;
++  margin-top: 8px;
++}
++
+ /* Roll Button Styles */
+ .mcp-roll-button {
+   display: inline-block;
++  height: auto;
++  max-width: 100%;
+   padding: 12px 20px;
+   min-height: 40px;
+   min-width: 120px;
+@@ -429,4 +450,8 @@
  
  [data-service-type].hidden {
    display: none;
@@ -24500,10 +24628,10 @@ index 096f27b..903a94e 100644
      "@vitest/coverage-v8": "^3.2.4",
      "esbuild": "^0.19.0",
 diff --git a/packages/mcp-server/src/backend.ts b/packages/mcp-server/src/backend.ts
-index 8967e33..e1f1f80 100644
+index 8967e33..44e7851 100644
 --- a/packages/mcp-server/src/backend.ts
 +++ b/packages/mcp-server/src/backend.ts
-@@ -48,6 +48,48 @@ import { DnD5eAddFeatureTool } from './tools/dnd5e/add-feature.js';
+@@ -48,6 +48,49 @@ import { DnD5eAddFeatureTool } from './tools/dnd5e/add-feature.js';
  import { DnD5eNpcTools } from './tools/dnd5e/npc.js';
  import { DnD5eFeaturesFromCompendiumTools } from './tools/dnd5e/features.js';
  import { ChatTools } from './tools/chat.js';
@@ -24516,6 +24644,7 @@ index 8967e33..e1f1f80 100644
 +import { UploadTools } from './tools/upload.js';
 +import { ImageGenerationTools } from './tools/image-generation.js';
 +import { SpeechTools } from './tools/speech-tools.js';
++import { SayLane } from './say-lane.js';
 +
 +/** Old map generation tools that are no longer offered (see generate-image). */
 +const DISABLED_LEGACY_MAP_TOOLS = ['generate-map', 'check-map-status', 'cancel-map-job'];
@@ -24552,7 +24681,7 @@ index 8967e33..e1f1f80 100644
  
  const CONTROL_HOST = '127.0.0.1';
  
-@@ -174,6 +216,22 @@ let comfyuiProcess: ChildProcess | null = null;
+@@ -174,6 +217,22 @@ let comfyuiProcess: ChildProcess | null = null;
  
  let comfyuiStatus: 'stopped' | 'starting' | 'running' | 'error' = 'stopped';
  
@@ -24575,7 +24704,7 @@ index 8967e33..e1f1f80 100644
  let lockFd: number | null = null;
  
  function acquireLock(): boolean {
-@@ -350,6 +408,18 @@ async function waitForComfyUIReady(timeoutMs: number = 60000): Promise<void> {
+@@ -350,6 +409,18 @@ async function waitForComfyUIReady(timeoutMs: number = 60000): Promise<void> {
  }
  
  async function startComfyUIService(logger: Logger): Promise<any> {
@@ -24594,7 +24723,7 @@ index 8967e33..e1f1f80 100644
    if (comfyuiStatus === 'running') {
      return { status: 'already_running', message: 'ComfyUI service is already running' };
    }
-@@ -472,6 +542,14 @@ async function startComfyUIService(logger: Logger): Promise<any> {
+@@ -472,6 +543,14 @@ async function startComfyUIService(logger: Logger): Promise<any> {
  }
  
  async function stopComfyUIService(logger: Logger): Promise<any> {
@@ -24609,7 +24738,7 @@ index 8967e33..e1f1f80 100644
    if (comfyuiStatus === 'stopped') {
      return { status: 'already_stopped', message: 'ComfyUI service is already stopped' };
    }
-@@ -510,7 +588,7 @@ async function checkComfyUIStatus(): Promise<any> {
+@@ -510,7 +589,7 @@ async function checkComfyUIStatus(): Promise<any> {
    // This handles both spawned processes and externally-started instances
  
    try {
@@ -24618,7 +24747,7 @@ index 8967e33..e1f1f80 100644
        signal: AbortSignal.timeout(5000),
      });
  
-@@ -520,16 +598,23 @@ async function checkComfyUIStatus(): Promise<any> {
+@@ -520,16 +599,23 @@ async function checkComfyUIStatus(): Promise<any> {
        comfyuiStatus = 'error';
      }
    } catch (error) {
@@ -24644,7 +24773,7 @@ index 8967e33..e1f1f80 100644
    };
  }
  
-@@ -1131,7 +1216,7 @@ async function processMapGenerationInBackend(
+@@ -1131,7 +1217,7 @@ async function processMapGenerationInBackend(
      );
  
      logger.error('Background map generation processing failed', { jobId, error });
@@ -24653,7 +24782,7 @@ index 8967e33..e1f1f80 100644
  
      // Emit failure to Foundry module
      foundryClient.sendMessage({
-@@ -1195,6 +1280,91 @@ async function startBackend(): Promise<void> {
+@@ -1195,6 +1281,105 @@ async function startBackend(): Promise<void> {
    const compendiumTools = new CompendiumTools({ foundryClient, logger, systemRegistry });
  
    const sceneTools = new SceneTools({ foundryClient, logger });
@@ -24674,9 +24803,23 @@ index 8967e33..e1f1f80 100644
 +      }
 +    },
 +  });
++  // The table queue: speech, chat posts, roll cards and gated board actions play in the order they were sent.
++  // tableFeed is created further down; it is only used once a queued job fails.
++  let announce: (text: string) => void = () => {};
++  const sayLane = new SayLane({
++    untilSpeechEnds: async () => {
++      const r = await foundryClient.query('foundry-mcp-bridge.speak', { action: 'lane-end' });
++      return Number(r?.wait) || 0;
++    },
++    onFailure: text => {
++      logger.warn('Table queue job failed', { text });
++      announce(text);
++    },
++  });
 +  const speechTools = new SpeechTools({
 +    foundryClient,
 +    logger,
++    lane: sayLane,
 +    getClient: () => {
 +      if (!mapGenerationComfyUIClient) throw new Error('The ComfyUI client is not available');
 +      return mapGenerationComfyUIClient as any;
@@ -24745,7 +24888,7 @@ index 8967e33..e1f1f80 100644
    const playlistTools = new PlaylistTools({ foundryClient, logger });
  
    const actorCreationTools = new ActorCreationTools({ foundryClient, logger });
-@@ -1214,6 +1384,7 @@ async function startBackend(): Promise<void> {
+@@ -1214,6 +1399,7 @@ async function startBackend(): Promise<void> {
    const questCreationTools = new QuestCreationTools({ foundryClient, logger });
  
    const chatTools = new ChatTools({ foundryClient, logger });
@@ -24753,7 +24896,7 @@ index 8967e33..e1f1f80 100644
  
    const diceRollTools = new DiceRollTools({ foundryClient, logger });
  
-@@ -1301,6 +1472,13 @@ async function startBackend(): Promise<void> {
+@@ -1301,6 +1487,13 @@ async function startBackend(): Promise<void> {
  
          let result: any;
  
@@ -24767,7 +24910,7 @@ index 8967e33..e1f1f80 100644
          switch (message.type) {
            case 'start-comfyui-service':
              result = await startComfyUIService(logger);
-@@ -1317,6 +1495,19 @@ async function startBackend(): Promise<void> {
+@@ -1317,6 +1510,19 @@ async function startBackend(): Promise<void> {
  
              break;
  
@@ -24787,7 +24930,7 @@ index 8967e33..e1f1f80 100644
            // Map generation handlers (following existing tool pattern)
            case 'generate-map-request':
              await fs.appendFile(
-@@ -1429,6 +1620,36 @@ async function startBackend(): Promise<void> {
+@@ -1429,6 +1635,36 @@ async function startBackend(): Promise<void> {
  
      ...sceneTools.getToolDefinitions(),
  
@@ -24824,7 +24967,7 @@ index 8967e33..e1f1f80 100644
      ...actorCreationTools.getToolDefinitions(),
      ...actorManagementTools.getToolDefinitions(),
      ...effectManagementTools.getToolDefinitions(),
-@@ -1442,7 +1663,7 @@ async function startBackend(): Promise<void> {
+@@ -1442,7 +1678,7 @@ async function startBackend(): Promise<void> {
  
      ...questCreationTools.getToolDefinitions(),
  
@@ -24833,7 +24976,7 @@ index 8967e33..e1f1f80 100644
  
      ...diceRollTools.getToolDefinitions(),
  
-@@ -1456,7 +1677,11 @@ async function startBackend(): Promise<void> {
+@@ -1456,17 +1692,44 @@ async function startBackend(): Promise<void> {
  
      ...tokenManipulationTools.getToolDefinitions(),
  
@@ -24846,7 +24989,22 @@ index 8967e33..e1f1f80 100644
  
      ...playlistTools.getToolDefinitions(),
    ];
-@@ -1467,6 +1692,16 @@ async function startBackend(): Promise<void> {
+ 
++  // Table queue parameters, advertised on the tools they apply to.
++  for (const tool of allTools as any[]) {
++    const props = tool?.inputSchema?.properties;
++    if (!props) continue;
++    if (AFTER_SPEECH_TOOLS.has(tool.name)) {
++      props.after_speech = { type: 'boolean', description: 'Wait for the narration queued before this call to be spoken to the end, then do it (e.g. reveal a hidden creature after "a shape steps out"). Default: act at once' };
++    }
++    if (tool.name === 'chat' || tool.name === 'request-player-rolls') {
++      props.queue = { type: 'boolean', description: 'false posts at once instead of after the speech queued before it (default: wait for the speech)' };
++    }
++  }
++
+   // Start Foundry connector (owns app port 31415)
+ 
+   foundryClient.connect().catch(e => {
      logger.error('Foundry connector failed to start', e);
    });
  
@@ -24858,34 +25016,62 @@ index 8967e33..e1f1f80 100644
 +    port: Number(process.env.FOUNDRY_MCP_CHAT_FEED_PORT) || DEFAULT_CHAT_FEED_PORT,
 +  });
 +  void chatFeed.start();
++  announce = text => tableFeed.announce(text);
 +  void tableFeed.start();
 +
    const autoStartComfyUI = async () => {
      try {
        logger.info('Auto-starting ComfyUI service...');
-@@ -1661,6 +1896,10 @@ async function startBackend(): Promise<void> {
+@@ -1521,6 +1784,7 @@ async function startBackend(): Promise<void> {
+             const { name, args } = (msg.params || {}) as { name: string; args?: any };
+ 
+             try {
++              const dispatch = async (name: string, args: any): Promise<any> => {
+               let result: any;
+ 
+               switch (name) {
+@@ -1661,6 +1925,17 @@ async function startBackend(): Promise<void> {
  
                  // Chat tools
  
 +                case 'chat':
-+                  result = await chatControlTools.handleChat(args);
++                  // narrate and say wait for the speech queued before them (queue: false posts at once).
++                  if ((args as any)?.action === 'read' || (args as any)?.queue === false) {
++                    const { queue: _q, ...rest } = (args ?? {}) as any;
++                    result = await chatControlTools.handleChat(rest);
++                  } else {
++                    const { queue: _q, ...rest } = (args ?? {}) as any;
++                    result = await sayLane.afterSpeech(`chat ${rest.action}`, () => chatControlTools.handleChat(rest));
++                  }
 +                  break;
 +
                  case 'create-chat-message':
                    result = await chatTools.handleCreateChatMessage(args);
  
-@@ -1702,6 +1941,10 @@ async function startBackend(): Promise<void> {
+@@ -1701,7 +1976,21 @@ async function startBackend(): Promise<void> {
+                 // Dice roll tools
  
                  case 'request-player-rolls':
-                   result = await diceRollTools.handleRequestPlayerRolls(args);
-+                  // The table feed holds its next beat until this roll comes in (or times out).
-+                  if (typeof result === 'string' && result.startsWith('Roll request sent successfully') && typeof (args as any)?.targetPlayer === 'string') {
-+                    tableFeed.expect([(args as any).targetPlayer], 90_000);
+-                  result = await diceRollTools.handleRequestPlayerRolls(args);
++                  {
++                    const { queue: noQueue, ...rest } = (args ?? {}) as any;
++                    // The card waits for the speech before it; the feed arms its wait when the card is posted.
++                    const post = async () => {
++                      const sent = await diceRollTools.handleRequestPlayerRolls(rest);
++                      // The table feed holds its next beat until this roll comes in (or times out).
++                      if (typeof sent === 'string' && sent.startsWith('Roll request sent successfully') && typeof rest.targetPlayer === 'string') {
++                        tableFeed.expect([rest.targetPlayer], 90_000);
++                      } else if (typeof sent === 'string') {
++                        throw new Error(sent);
++                      }
++                      return sent;
++                    };
++                    result = noQueue === false ? await post().catch(e => (e?.message ?? String(e))) : await sayLane.afterSpeech('roll request', post);
 +                  }
  
                    break;
  
-@@ -1764,19 +2007,11 @@ async function startBackend(): Promise<void> {
+@@ -1764,19 +2053,11 @@ async function startBackend(): Promise<void> {
                  // Map generation tools
  
                  case 'generate-map':
@@ -24908,7 +25094,7 @@ index 8967e33..e1f1f80 100644
  
                  case 'list-scenes':
                    result = await mapGenerationTools.listScenes(args);
-@@ -1805,6 +2040,164 @@ async function startBackend(): Promise<void> {
+@@ -1805,9 +2086,178 @@ async function startBackend(): Promise<void> {
  
                    break;
  
@@ -25073,6 +25259,30 @@ index 8967e33..e1f1f80 100644
                  default:
                    throw new Error(`Unknown tool: ${name}`);
                }
++              return result;
++              };
++
++              // Board tools that can wait for the narration: after_speech: true runs them once the speech queued so far has ended.
++              let result: any;
++              if (args && typeof args === 'object' && (args as any).after_speech !== undefined) {
++                const { after_speech, ...rest } = args as any;
++                result = after_speech === true && AFTER_SPEECH_TOOLS.has(name) ? await sayLane.afterSpeech(name, () => dispatch(name, rest), 'action') : await dispatch(name, rest);
++              } else {
++                result = await dispatch(name, args);
++              }
+ 
+               const payload = {
+                 content: [
+@@ -1880,6 +2330,9 @@ async function startBackend(): Promise<void> {
+ // Check lock BEFORE any async operations
+ // If another instance is running, wait forever silently (don't exit)
+ // This prevents Claude Desktop from seeing a "server closed" error
++/** Board tools that accept after_speech: true. */
++const AFTER_SPEECH_TOOLS = new Set(['reveal', 'switch-scene', 'move-token', 'update-token', 'toggle-token-condition', 'manage-scene-objects', 'manage-scenes', 'manage-regions', 'combat', 'use-item', 'time', 'update-scene-music', 'control-playlist', 'delete-tokens']);
++
+ const hasLock = acquireLock();
+ 
+ (async function main() {
 diff --git a/packages/mcp-server/src/chat-feed.test.ts b/packages/mcp-server/src/chat-feed.test.ts
 new file mode 100644
 index 0000000..dd1bbe2
@@ -26966,6 +27176,226 @@ index fe400d1..0bdee03 100644
    async markJobFailed(jobId: string, error: string): Promise<void> {
      const job = this.jobs.get(jobId);
      if (!job) {
+diff --git a/packages/mcp-server/src/say-lane.test.ts b/packages/mcp-server/src/say-lane.test.ts
+new file mode 100644
+index 0000000..297f1ff
+--- /dev/null
++++ b/packages/mcp-server/src/say-lane.test.ts
+@@ -0,0 +1,90 @@
++import { describe, expect, it, vi } from 'vitest';
++import { SayLane } from './say-lane.js';
++
++function make(wait = 0) {
++  const state = { wait };
++  const failures: string[] = [];
++  const lane = new SayLane({ untilSpeechEnds: async () => state.wait, onFailure: t => failures.push(t) });
++  return { lane, state, failures };
++}
++
++describe('SayLane', () => {
++  it('generates speech jobs one at a time, in order', async () => {
++    const { lane } = make();
++    const log: string[] = [];
++    const slow = (name: string, ms: number) => async () => {
++      log.push(`${name}:start`);
++      await new Promise(r => setTimeout(r, ms));
++      log.push(`${name}:end`);
++    };
++    expect(lane.speech('a', slow('a', 20))).toMatchObject({ queued: true, position: 1 });
++    expect(lane.speech('b', slow('b', 1))).toMatchObject({ queued: true, position: 2 });
++    await lane.idle();
++    await lane.idle();
++    expect(log).toEqual(['a:start', 'a:end', 'b:start', 'b:end']);
++  });
++
++  it('runs a post at once when nothing is queued or playing', async () => {
++    const { lane } = make(0);
++    const result = await lane.afterSpeech('post', async () => 'posted');
++    expect(result).toBe('posted');
++  });
++
++  it('holds a post until the speech has ended, and keeps post order', async () => {
++    vi.useFakeTimers();
++    try {
++      const { lane, state } = make(0);
++      const log: string[] = [];
++      lane.speech('s', async () => {
++        state.wait = 1000;
++      });
++      const p1 = await lane.afterSpeech('p1', async () => void log.push('p1'));
++      const p2 = await lane.afterSpeech('p2', async () => void log.push('p2'));
++      expect(p1).toMatchObject({ queued: true });
++      expect(p2).toMatchObject({ queued: true });
++      await vi.advanceTimersByTimeAsync(500);
++      expect(log).toEqual([]);
++      await vi.advanceTimersByTimeAsync(600);
++      expect(log).toEqual(['p1', 'p2']);
++    } finally {
++      vi.useRealTimers();
++    }
++  });
++
++  it('clear drops queued jobs and scheduled posts', async () => {
++    vi.useFakeTimers();
++    try {
++      const { lane, state } = make(2000);
++      const ran: string[] = [];
++      lane.speech('s', async () => void ran.push('s'));
++      await lane.afterSpeech('post', async () => void ran.push('post'));
++      state.wait = 2000;
++      expect(lane.clear()).toBeGreaterThan(0);
++      await vi.advanceTimersByTimeAsync(5000);
++      expect(ran).not.toContain('post');
++    } finally {
++      vi.useRealTimers();
++    }
++  });
++
++  it('reports a failed job as a notice and keeps going', async () => {
++    const { lane, failures } = make();
++    const ran: string[] = [];
++    lane.speech('bad', async () => {
++      throw new Error('ComfyUI down');
++    });
++    lane.speech('good', async () => void ran.push('good'));
++    await lane.idle();
++    await lane.idle();
++    expect(failures).toEqual(['bad failed: ComfyUI down']);
++    expect(ran).toEqual(['good']);
++  });
++
++  it('marks speech cancelled after a clear', () => {
++    const { lane } = make();
++    const epoch = lane.currentEpoch();
++    expect(lane.cancelled(epoch)).toBe(false);
++    lane.clear();
++    expect(lane.cancelled(epoch)).toBe(true);
++  });
++});
+diff --git a/packages/mcp-server/src/say-lane.ts b/packages/mcp-server/src/say-lane.ts
+new file mode 100644
+index 0000000..d05eaac
+--- /dev/null
++++ b/packages/mcp-server/src/say-lane.ts
+@@ -0,0 +1,118 @@
++/**
++ * The say lane: what the table hears and reads plays in order. Speech jobs generate one at a time, in the order the
++ * tool calls came in; chat posts, roll cards and gated board actions wait until the speech queued before them has
++ * been spoken to the end. Board actions that are not gated never come here.
++ */
++
++export interface LaneHooks {
++  /** Milliseconds until everything queued in Foundry has been spoken to the end (0 when nothing is playing). */
++  untilSpeechEnds(): Promise<number>;
++  /** A job failed after its tool call had already returned. */
++  onFailure(text: string): void;
++}
++
++export interface Queued {
++  queued: true;
++  position: number;
++  note?: string;
++}
++
++type Kind = 'speech' | 'post' | 'action';
++
++export class SayLane {
++  private tail: Promise<void> = Promise.resolve();
++  private pending = 0;
++  private epoch = 0;
++  private timers = new Set<ReturnType<typeof setTimeout>>();
++
++  constructor(private hooks: LaneHooks) {}
++
++  /** Jobs waiting or running, plus posts and actions waiting for the speech to end. */
++  get busy(): number {
++    return this.pending + this.timers.size;
++  }
++
++  /** True when `stop` has been called since `epoch` was read. Speech jobs check it between pieces. */
++  cancelled(epoch: number): boolean {
++    return epoch !== this.epoch;
++  }
++
++  currentEpoch(): number {
++    return this.epoch;
++  }
++
++  /** Queue a speech. `run` receives the epoch to pass to `cancelled`. Returns at once. */
++  speech(label: string, run: (epoch: number) => Promise<unknown>): Queued {
++    return this.add('speech', label, async epoch => {
++      await run(epoch);
++    });
++  }
++
++  /**
++   * Run `run` once the speech queued so far has been spoken to the end. When nothing is queued or playing it runs
++   * now and its own result is returned; otherwise the call returns {queued: true} and a failure becomes a notice.
++   */
++  async afterSpeech<T>(label: string, run: () => Promise<T>, kind: Kind = 'post'): Promise<T | Queued> {
++    if (this.pending === 0 && this.timers.size === 0) {
++      const wait = await this.safeWait();
++      if (wait <= 0 && this.pending === 0 && this.timers.size === 0) return run();
++    }
++    return this.add(kind, label, async epoch => {
++      const wait = await this.safeWait();
++      if (wait <= 0) {
++        await run();
++        return;
++      }
++      const timer = setTimeout(() => {
++        this.timers.delete(timer);
++        if (epoch !== this.epoch) return;
++        run().catch(error => this.fail(label, error));
++      }, wait);
++      this.timers.add(timer);
++    });
++  }
++
++  /** Empty the lane: planned lines no longer fit. Returns how many jobs were dropped. */
++  clear(): number {
++    const dropped = this.pending + this.timers.size;
++    this.epoch++;
++    for (const timer of this.timers) clearTimeout(timer);
++    this.timers.clear();
++    return dropped;
++  }
++
++  /** Resolves when every job queued so far has been handled (generated or scheduled). For tests. */
++  idle(): Promise<void> {
++    return this.tail;
++  }
++
++  private add(kind: Kind, label: string, job: (epoch: number) => Promise<void>): Queued {
++    const epoch = this.epoch;
++    const position = this.pending + this.timers.size + 1;
++    this.pending++;
++    this.tail = this.tail.then(async () => {
++      try {
++        if (epoch !== this.epoch) return; // dropped by a stop
++        await job(epoch);
++      } catch (error) {
++        this.fail(label, error);
++      } finally {
++        this.pending--;
++      }
++    });
++    return { queued: true, position, ...(position > 1 ? { note: `${kind} comes after ${position - 1} earlier item(s) of the table queue` } : {}) };
++  }
++
++  private async safeWait(): Promise<number> {
++    try {
++      const wait = await this.hooks.untilSpeechEnds();
++      return Number.isFinite(wait) ? wait : 0;
++    } catch {
++      return 0;
++    }
++  }
++
++  private fail(label: string, error: unknown): void {
++    this.hooks.onFailure(`${label} failed: ${error instanceof Error ? error.message : String(error)}`);
++  }
++}
 diff --git a/packages/mcp-server/src/speech.test.ts b/packages/mcp-server/src/speech.test.ts
 new file mode 100644
 index 0000000..b843513
@@ -27774,10 +28204,10 @@ index 0000000..538a5f4
 +});
 diff --git a/packages/mcp-server/src/table-feed.ts b/packages/mcp-server/src/table-feed.ts
 new file mode 100644
-index 0000000..aac20eb
+index 0000000..0947fe7
 --- /dev/null
 +++ b/packages/mcp-server/src/table-feed.ts
-@@ -0,0 +1,211 @@
+@@ -0,0 +1,217 @@
 +import { WebSocketServer, type WebSocket } from 'ws';
 +import { TableBundler, type BundlerSettings, type TableEventIn } from './table-bundler.js';
 +
@@ -27877,6 +28307,12 @@ index 0000000..aac20eb
 +  private send(line: Record<string, unknown>): void {
 +    const text = JSON.stringify(line);
 +    for (const client of this.clients) if (client.readyState === 1) client.send(text);
++  }
++
++  /** A line for the GM's AI on the feed, such as a queued job that failed after its tool call returned. */
++  announce(text: string): void {
++    this.lastNotice = undefined;
++    this.notice(text);
 +  }
 +
 +  private notice(text: string): void {
@@ -41009,7 +41445,7 @@ index 0000000..1aafc44
 +}
 diff --git a/packages/mcp-server/src/tools/speech-tools.test.ts b/packages/mcp-server/src/tools/speech-tools.test.ts
 new file mode 100644
-index 0000000..c83dd53
+index 0000000..c706f11
 --- /dev/null
 +++ b/packages/mcp-server/src/tools/speech-tools.test.ts
 @@ -0,0 +1,201 @@
@@ -41055,7 +41491,7 @@ index 0000000..c83dd53
 +  it('is exposed', () => {
 +    const def = make().tools.getToolDefinitions()[0]!;
 +    expect(def.name).toBe('speak');
-+    expect(def.description).toContain('not when it finishes playing');
++    expect(def.description).toContain('returns at once');
 +  });
 +
 +  it('generates with the default Kokoro setting, uploads the audio and plays it with the text', async () => {
@@ -41216,10 +41652,10 @@ index 0000000..c83dd53
 +});
 diff --git a/packages/mcp-server/src/tools/speech-tools.ts b/packages/mcp-server/src/tools/speech-tools.ts
 new file mode 100644
-index 0000000..335aed8
+index 0000000..d6abab3
 --- /dev/null
 +++ b/packages/mcp-server/src/tools/speech-tools.ts
-@@ -0,0 +1,451 @@
+@@ -0,0 +1,471 @@
 +import { randomInt } from 'crypto';
 +import { z } from 'zod';
 +import { FoundryClient } from '../foundry-client.js';
@@ -41238,6 +41674,7 @@ index 0000000..335aed8
 +  startDelayMs,
 +  type SpeechEngine,
 +} from '../speech.js';
++import type { SayLane } from '../say-lane.js';
 +import { getServerJson, pcmSeconds, pcmToWav, sliceWords, streamSpeech } from '../tts-stream.js';
 +
 +/** The part of the ComfyUI client that speech needs. */
@@ -41255,6 +41692,8 @@ index 0000000..335aed8
 +  getClient: () => SpeechComfyClient;
 +  /** Point the client at the ComfyUI the module's settings choose. */
 +  applyTarget: (rawTarget: unknown) => void;
++  /** The table queue: when given, speak returns at once and speeches play one after the other. */
++  lane?: SayLane;
 +}
 +
 +const UPLOAD_TIMEOUT_MS = 120000;
@@ -41285,7 +41724,7 @@ index 0000000..335aed8
 +
 +const schema = z
 +  .object({
-+    action: z.enum(['say', 'describe', 'stop']).optional(),
++    action: z.enum(['say', 'describe', 'stop', 'status']).optional(),
 +    text: z.string().min(1).max(1500).optional(),
 +    voice: z.string().min(1).max(300).optional(),
 +    style: z.string().min(1).max(300).optional(),
@@ -41309,12 +41748,14 @@ index 0000000..335aed8
 +  private logger: Logger;
 +  private getClient: () => SpeechComfyClient;
 +  private applyTarget: (raw: unknown) => void;
++  private lane: SayLane | undefined;
 +
 +  constructor(options: SpeechToolsOptions) {
 +    this.foundryClient = options.foundryClient;
 +    this.logger = options.logger.child({ component: 'SpeechTools' });
 +    this.getClient = options.getClient;
 +    this.applyTarget = options.applyTarget;
++    this.lane = options.lane;
 +  }
 +
 +  getToolDefinitions() {
@@ -41326,12 +41767,12 @@ index 0000000..335aed8
 +          'say {text, voice?, style?, language?, speed?, engine?, speaker_name?, chat?} speaks the text (up to 1500 characters, a paragraph or two): the engine, voice, style and speed default to what the GM set in the module settings (Narration). ' +
 +          'Engines: qwen3-fast (the best voice, streams while it generates: starts within about a second; needs the claude_tts node in ComfyUI; presets such as Ryan, "style" says how to speak), kokoro (fast, a few seconds per paragraph; voice is an id like bm_fable or af_heart), qwen3-custom (slower, preset voices such as Ryan or Serena, "style" says how to speak), qwen3-design (slowest; "voice" is a description such as "a gruff old dwarf with a Scottish accent"). ' +
 +          'speaker_name is the label in the chat (default Narrator, or the NPC\'s name); token_id or actor makes it a character speaking: its name and portrait in the chat and the whole line as a speech bubble over its token when the audio starts; chat:false plays the audio without the chat text. ' +
-+          'The text is spoken sentence by sentence: the first sentence starts playing as soon as it is ready (about a second with kokoro or qwen3-fast) while the rest is generated, and each sentence appears in the chat as it is spoken. The call returns when everything is queued, not when it finishes playing. Write text to be heard: no stage directions, no markup, and spell out what should be said. Do not speak secrets or GM notes. ' +
++          'The text is spoken sentence by sentence: the first sentence starts playing as soon as it is ready (about a second with kokoro or qwen3-fast) while the rest is generated, and each sentence appears in the chat as it is spoken. The call returns at once with {queued, position}: speeches play one after the other in the order the calls were sent (and chat narrate/say and roll request cards wait for the speech before them), so send narration, an NPC line and a roll request in one message without waiting. A failure while generating later shows as a notice on the table feed. Write text to be heard: no stage directions, no markup, and spell out what should be said. Do not speak secrets or GM notes. ' +
 +          'describe shows the settings, which engines this ComfyUI can run and their voices; stop silences the narration now. Needs ComfyUI running with a text-to-speech node (Kokoro or Qwen3-TTS) and Allow Write Operations.',
 +        inputSchema: {
 +          type: 'object',
 +          properties: {
-+            action: { type: 'string', enum: ['say', 'describe', 'stop'], description: 'say (default), describe or stop' },
++            action: { type: 'string', enum: ['say', 'describe', 'stop', 'status'], description: 'say (default), describe, stop (silences and empties the table queue) or status (what is queued)' },
 +            text: { type: 'string', description: 'say: what to speak (max 1500 characters)' },
 +            voice: { type: 'string', description: 'say: the voice (kokoro id, qwen3 preset, or for qwen3-design a description). Default: the setting' },
 +            style: { type: 'string', description: 'say: how to speak it (qwen3-custom), or the voice description for qwen3-design when voice is empty' },
@@ -41353,9 +41794,18 @@ index 0000000..335aed8
 +  async handleSpeak(args: unknown): Promise<any> {
 +    const a = schema.parse(args ?? {});
 +    const action = a.action ?? 'say';
-+    if (action === 'stop') return this.foundryClient.query('foundry-mcp-bridge.speak', { action: 'stop' });
++    if (action === 'stop') {
++      const dropped = this.lane?.clear() ?? 0;
++      const result = await this.foundryClient.query('foundry-mcp-bridge.speak', { action: 'stop' });
++      return dropped > 0 ? { ...result, cleared_from_queue: dropped } : result;
++    }
 +    if (action === 'describe') return this.describe();
-+    return this.say(a);
++    if (action === 'status') return { success: true, queued_items: this.lane?.busy ?? 0 };
++    if (!a.text?.trim()) throw new Error('say needs text');
++    const lane = this.lane;
++    if (!lane) return this.say(a);
++    const label = `speak "${a.text.trim().slice(0, 40)}"`;
++    return lane.speech(label, epoch => this.say(a, epoch));
 +  }
 +
 +  private async readSettings(): Promise<{ target: unknown; settings: ReturnType<typeof normalizeSpeechSettings> }> {
@@ -41364,14 +41814,16 @@ index 0000000..335aed8
 +    return { target: result?.target, settings: normalizeSpeechSettings(result?.settings) };
 +  }
 +
-+  private async say(a: z.infer<typeof schema>): Promise<any> {
++  private async say(a: z.infer<typeof schema>, epoch?: number): Promise<any> {
++    const cancelled = () => epoch !== undefined && this.lane?.cancelled(epoch) === true;
++    if (cancelled()) return { success: true, cancelled: true };
 +    if (!a.text?.trim()) throw new Error('say needs text');
 +    const { target, settings } = await this.readSettings();
 +    this.applyTarget(target);
 +    const client = this.getClient();
 +
 +    const engine: SpeechEngine = a.engine ?? settings.engine;
-+    if (engine === 'qwen3-fast') return this.sayFast(a, settings, client);
++    if (engine === 'qwen3-fast') return this.sayFast(a, settings, client, epoch);
 +    const node = nodeForEngine(engine)!;
 +    const info = await client.getNodeInfo(node);
 +    if (!info) {
@@ -41405,6 +41857,7 @@ index 0000000..335aed8
 +    let lastPath: string | undefined;
 +    let messageId: string | undefined;
 +    for (let index = 0; index < pieces.length; index++) {
++      if (cancelled()) return { success: true, cancelled: true };
 +      const piece = pieces[index]!;
 +      const pieceStart = Date.now();
 +      const request = { engine, text: piece, voice: checked, language: a.language ?? settings.language, speed: a.speed ?? settings.speed, style: a.style ?? settings.style, seed: seed + index };
@@ -41477,7 +41930,8 @@ index 0000000..335aed8
 +  }
 +
 +  /** The streaming engine: sentence by sentence, each streamed from the narration server and queued in Foundry in growing pieces. */
-+  private async sayFast(a: z.infer<typeof schema>, settings: ReturnType<typeof normalizeSpeechSettings>, client: SpeechComfyClient): Promise<any> {
++  private async sayFast(a: z.infer<typeof schema>, settings: ReturnType<typeof normalizeSpeechSettings>, client: SpeechComfyClient, epoch?: number): Promise<any> {
++    const cancelled = () => epoch !== undefined && this.lane?.cancelled(epoch) === true;
 +    const baseUrl = client.getBaseUrl();
 +    let voices: any;
 +    try {
@@ -41552,7 +42006,7 @@ index 0000000..335aed8
 +    let target = plan.first; // keeps growing across sentences
 +    try {
 +      for (const piece of pieces) {
-+        if (sendError) break;
++        if (sendError || cancelled()) break;
 +        const words = piece.split(/\s+/).length;
 +        const expected = Math.max(1, words * this.secondsPerWord);
 +        const stream = await streamSpeech(baseUrl, { text: piece, mode: 'custom', speaker: voice, instruct, language, model: '1.7B', chunk_size: 6, seed, temperature: 0.7 });
@@ -41574,13 +42028,15 @@ index 0000000..335aed8
 +          pending.push(chunk);
 +          pendingBytes += chunk.length;
 +          if (pendingBytes / 2 / stream.sampleRate >= target) flush(false);
-+          if (sendError) break;
++          if (sendError || cancelled()) break;
 +        }
++        if (cancelled()) break;
 +        flush(true);
 +        if (spoken > 0) this.secondsPerWord = Math.max(0.2, Math.min(0.9, (this.secondsPerWord + spoken / words) / 2));
 +      }
 +      await sendChain;
 +      if (sendError) throw sendError;
++      if (cancelled()) return { success: true, cancelled: true };
 +    } catch (error) {
 +      await this.stopQuietly();
 +      throw new Error(`Speech generation failed: ${error instanceof Error ? error.message : String(error)}`);
