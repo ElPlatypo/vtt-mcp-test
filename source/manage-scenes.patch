@@ -2037,10 +2037,10 @@ index 0000000..424321f
 +});
 diff --git a/packages/foundry-module/src/character-state-utils.ts b/packages/foundry-module/src/character-state-utils.ts
 new file mode 100644
-index 0000000..2672e0b
+index 0000000..8b5d108
 --- /dev/null
 +++ b/packages/foundry-module/src/character-state-utils.ts
-@@ -0,0 +1,192 @@
+@@ -0,0 +1,198 @@
 +/**
 + * What a GM needs to know about a dnd5e creature during play, in a compact form: speed, senses,
 + * saves, spell slots, hit dice, feature uses (Second Wind, Action Surge, Rage, a wand's charges),
@@ -2172,7 +2172,10 @@ index 0000000..2672e0b
 +  const pact = system.spells?.pact;
 +  if (n(pact?.max)) slots.pact = `${n(pact.value) ?? 0}/${n(pact.max)}${n(pact.level) ? ` (level ${n(pact.level)})` : ''}`;
 +  if (Object.keys(slots).length) out.spellSlots = slots;
-+  if (Object.keys(slots).length || spellAbility) {
++  // dnd5e gives every actor a spellcasting ability (Intelligence by default), so only a creature
++  // with spell slots or spells of its own is a caster.
++  const hasSpells = valuesOf(actor.items).some((i: any) => i?.type === 'spell');
++  if (Object.keys(slots).length || hasSpells) {
 +    out.spellcasting = {
 +      ...(spellAbility ? { ability: spellAbility } : {}),
 +      ...(dc !== undefined ? { dc } : {}),
@@ -2199,6 +2202,9 @@ index 0000000..2672e0b
 +    const uses = item.system?.uses;
 +    const max = n(uses?.max);
 +    if (!max || max <= 0) continue;
++    // Ordinary consumables (torches, rations, potions) are counted by quantity in the item list;
++    // only charged ones (a wand, a waterskin's drinks) are worth listing here.
++    if (item.type === 'consumable' && (max <= 1 || uses.autoDestroy)) continue;
 +    const value = n(uses.value) ?? max - (n(uses.spent) ?? 0);
 +    const recovers = recoveryOf(uses);
 +    resources.push({ name: item.name, uses: `${value}/${max}`, ...(recovers ? { recovers } : {}) });
@@ -3307,6 +3313,81 @@ index 864412c..71104a6 100644
  
  /**
   * Socket event names
+diff --git a/packages/foundry-module/src/creature-flags-utils.test.ts b/packages/foundry-module/src/creature-flags-utils.test.ts
+new file mode 100644
+index 0000000..71acfc0
+--- /dev/null
++++ b/packages/foundry-module/src/creature-flags-utils.test.ts
+@@ -0,0 +1,28 @@
++import { describe, expect, it } from 'vitest';
++import { dnd5eHasLegendary, dnd5eHasSpells } from './creature-flags-utils.js';
++
++const emptyNpc = {
++  system: {
++    attributes: { spellcasting: 'int' },
++    details: { spellLevel: 0 },
++    spells: { spell1: { value: 0, max: 0 }, pact: { value: 0, max: 0 } },
++    resources: { legact: { value: 0, max: 0 }, legres: { value: 0, max: 0 }, lair: { value: false } },
++  },
++  items: [{ type: 'weapon' }, { type: 'feat' }],
++};
++
++describe('dnd5e creature flags', () => {
++  it('ignores the empty fields every NPC has (a ghoul)', () => {
++    expect(dnd5eHasSpells(emptyNpc)).toBe(false);
++    expect(dnd5eHasLegendary(emptyNpc)).toBe(false);
++  });
++  it('finds casters by level, slots or spell items', () => {
++    expect(dnd5eHasSpells({ system: { details: { spellLevel: 5 } } })).toBe(true);
++    expect(dnd5eHasSpells({ system: { spells: { spell3: { max: 2 } } } })).toBe(true);
++    expect(dnd5eHasSpells({ system: {}, items: { contents: [{ type: 'spell' }] } })).toBe(true);
++  });
++  it('finds legendary creatures by action or resistance maximum', () => {
++    expect(dnd5eHasLegendary({ system: { resources: { legact: { value: 3, max: 3 } } } })).toBe(true);
++    expect(dnd5eHasLegendary({ system: { resources: { legres: { value: 3, max: 3 } } } })).toBe(true);
++  });
++});
+diff --git a/packages/foundry-module/src/creature-flags-utils.ts b/packages/foundry-module/src/creature-flags-utils.ts
+new file mode 100644
+index 0000000..3100b24
+--- /dev/null
++++ b/packages/foundry-module/src/creature-flags-utils.ts
+@@ -0,0 +1,35 @@
++/**
++ * Whether a dnd5e creature casts spells or has legendary actions. dnd5e gives every NPC empty
++ * spell slot and legendary resource objects (and a default spellcasting ability), so their mere
++ * presence means nothing: what counts is a spellcaster level, a slot, a spell item, or a
++ * legendary action or resistance maximum above zero. Pure: no Foundry globals.
++ */
++
++const positive = (v: unknown): boolean => {
++  const n = typeof v === 'string' && v.trim() !== '' ? Number(v) : v;
++  return typeof n === 'number' && Number.isFinite(n) && n > 0;
++};
++
++const itemsOf = (doc: any): any[] => {
++  const items = doc?.items;
++  if (!items) return [];
++  if (Array.isArray(items)) return items;
++  if (Array.isArray(items.contents)) return items.contents;
++  if (typeof items.values === 'function') return [...items.values()];
++  return [];
++};
++
++export function dnd5eHasSpells(doc: any): boolean {
++  const system = doc?.system ?? {};
++  if (positive(system.details?.spellLevel)) return true;
++  const spells = system.spells ?? {};
++  for (const [key, slot] of Object.entries(spells)) {
++    if ((/^spell\d$/.test(key) || key === 'pact') && positive((slot as any)?.max ?? (slot as any)?.override)) return true;
++  }
++  return itemsOf(doc).some(i => i?.type === 'spell');
++}
++
++export function dnd5eHasLegendary(doc: any): boolean {
++  const r = doc?.system?.resources ?? {};
++  return positive(r.legact?.max) || positive(r.legres?.max);
++}
 diff --git a/packages/foundry-module/src/data-access.actor-art.test.ts b/packages/foundry-module/src/data-access.actor-art.test.ts
 new file mode 100644
 index 0000000..dd6edf5
@@ -8079,16 +8160,19 @@ index 0000000..936436e
 +});
 diff --git a/packages/foundry-module/src/data-access.token-scene.test.ts b/packages/foundry-module/src/data-access.token-scene.test.ts
 new file mode 100644
-index 0000000..057a706
+index 0000000..23ecb89
 --- /dev/null
 +++ b/packages/foundry-module/src/data-access.token-scene.test.ts
-@@ -0,0 +1,86 @@
+@@ -0,0 +1,100 @@
 +/** move-token and update-token find a token on any scene, and update-token takes vision/light options. */
 +import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 +import { FoundryDataAccess } from './data-access.js';
 +
 +function makeScene(id: string, name: string, tokenIds: string[]) {
-+  const update = vi.fn(async () => undefined);
++  // Applies the change to the token it is called on, as Foundry would.
++  const update = vi.fn(async function (this: any, changes: any) {
++    Object.assign(this, changes);
++  });
 +  const tokens = new Map(tokenIds.map(t => [t, { id: t, name: `Token ${t}`, update }]));
 +  return { id, name, tokens, update };
 +}
@@ -8144,6 +8228,17 @@ index 0000000..057a706
 +    await expect(da.moveToken({ tokenId: 'Token tb', x: 1, y: 1, scene: 'Trail' })).rejects.toThrow('not found in scene "Trail"');
 +  });
 +
++  it('reports a teleport that Foundry did not apply instead of claiming it', async () => {
++    const { da, a } = setup();
++    const token = (a.tokens as Map<string, any>).get('ta');
++    Object.assign(token, { x: 0, y: 0 });
++    token.update = vi.fn(async () => undefined); // the update is dropped: the position stays
++    const r = await da.moveToken({ tokenId: 'ta', x: 128, y: 64, mode: 'teleport' });
++    expect(r).toMatchObject({ success: false, moved: false, tokenId: 'ta', position: { x: 0, y: 0 } });
++    token.update = vi.fn(async (u: any) => Object.assign(token, u));
++    expect(await da.moveToken({ tokenId: 'ta', x: 128, y: 64, mode: 'teleport' })).toMatchObject({ success: true, newPosition: { x: 128, y: 64 } });
++  });
++
 +  it('updates light and vision on a token of another scene', async () => {
 +    const { da, b } = setup();
 +    const r = await da.updateToken({ tokenId: 'tb', options: { light: { preset: 'torch', dim: 50 }, vision_range: 60 }, updates: { hidden: false } });
@@ -8171,16 +8266,19 @@ index 0000000..057a706
 +});
 diff --git a/packages/foundry-module/src/data-access.token-squares.test.ts b/packages/foundry-module/src/data-access.token-squares.test.ts
 new file mode 100644
-index 0000000..26e6aab
+index 0000000..07712cf
 --- /dev/null
 +++ b/packages/foundry-module/src/data-access.token-squares.test.ts
-@@ -0,0 +1,69 @@
+@@ -0,0 +1,72 @@
 +/** move-token in grid squares, and get-token-details on any scene. Foundry is stubbed. */
 +import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 +import { FoundryDataAccess } from './data-access.js';
 +
 +function makeScene(id: string, name: string, tokenId: string) {
-+  const update = vi.fn(async () => undefined);
++  // Applies the change to the token it is called on, as Foundry would.
++  const update = vi.fn(async function (this: any, changes: any) {
++    Object.assign(this, changes);
++  });
 +  const token = { id: tokenId, name: `Token ${tokenId}`, x: 5, y: 6, width: 1, height: 1, update, texture: { src: 'a.png' } };
 +  return {
 +    id,
@@ -8245,10 +8343,10 @@ index 0000000..26e6aab
 +  });
 +});
 diff --git a/packages/foundry-module/src/data-access.ts b/packages/foundry-module/src/data-access.ts
-index eecda7e..92aa4dd 100644
+index eecda7e..8e48ccf 100644
 --- a/packages/foundry-module/src/data-access.ts
 +++ b/packages/foundry-module/src/data-access.ts
-@@ -1,6 +1,142 @@
+@@ -1,6 +1,143 @@
  import { MODULE_ID, ERROR_MESSAGES, TOKEN_DISPOSITIONS } from './constants.js';
  import { permissionManager } from './permissions.js';
 +import {
@@ -8383,6 +8481,7 @@ index eecda7e..92aa4dd 100644
 +import { compactCombat, matchCombatants, pickTokens, type TokenLike } from './combat-utils.js';
 +import { performAttack, performCheck, pickActivity, type NamedActor } from './combat-actions.js';
 +import { dnd5ePlayState, type PlayState } from './character-state-utils.js';
++import { dnd5eHasLegendary, dnd5eHasSpells } from './creature-flags-utils.js';
 +import { attackRangeOf, rangeVerdict, sameUnits, tokenDistance, turnWarning } from './attack-checks.js';
 +import { partyRow, pickActors, pickClass, splitXp } from './party-utils.js';
 +import { clipText, htmlToText, searchPages, type RulePage } from './rules-utils.js';
@@ -8391,7 +8490,7 @@ index eecda7e..92aa4dd 100644
  
  // The same five characters foundry.utils.escapeHTML replaces in v14, kept local because
  // that helper isn't confirmed in v13, this module's minimum.
-@@ -33,6 +169,7 @@ interface CharacterInfo {
+@@ -33,6 +170,7 @@ interface CharacterInfo {
    itemVariants?: any[]; // Item rule element variants (ChoiceSet, etc.)
    itemToggles?: any[]; // Item rule element toggles (RollOption, ToggleProperty, equipped)
    spellcasting?: SpellcastingEntry[]; // PF2e/D&D 5e spellcasting entries
@@ -8399,7 +8498,47 @@ index eecda7e..92aa4dd 100644
  }
  
  interface SpellcastingEntry {
-@@ -1714,6 +1851,84 @@ const DND5E_SIZE: Record<string, string> = {
+@@ -363,7 +501,8 @@ interface ItemTargetingResult {
+  */
+ class PersistentCreatureIndex {
+   private moduleId: string = MODULE_ID;
+-  private readonly INDEX_VERSION = '1.0.0';
++  // 1.1.0: dnd5e spellcaster and legendary flags no longer count empty fields
++  private readonly INDEX_VERSION = '1.1.0';
+   private readonly INDEX_FILENAME = 'enhanced-creature-index.json';
+   private buildInProgress = false;
+   private hooksRegistered = false;
+@@ -979,26 +1118,9 @@ class PersistentCreatureIndex {
+         alignment = String(alignment || 'unaligned');
+       }
+ 
+-      // Check for spells with more comprehensive detection
+-      const hasSpells = !!(
+-        system.spells ||
+-        system.attributes?.spellcasting ||
+-        (system.details?.spellLevel && system.details.spellLevel > 0) ||
+-        (system.resources?.spell && system.resources.spell.max > 0) ||
+-        system.spellcasting ||
+-        system.traits?.spellcasting ||
+-        system.details?.spellcaster
+-      );
+-
+-      // Check for legendary actions with more comprehensive detection
+-      const hasLegendaryActions = !!(
+-        system.resources?.legact ||
+-        system.legendary ||
+-        (system.resources?.legres && system.resources.legres.value > 0) ||
+-        system.details?.legendary ||
+-        system.traits?.legendary ||
+-        (system.resources?.legendary && system.resources.legendary.max > 0)
+-      );
++      // Every dnd5e NPC has empty spell and legendary fields, so only real values count.
++      const hasSpells = dnd5eHasSpells(doc);
++      const hasLegendaryActions = dnd5eHasLegendary(doc);
+ 
+       // DEBUG: Log what we extracted for comparison
+ 
+@@ -1714,6 +1836,84 @@ const DND5E_SIZE: Record<string, string> = {
    gargantuan: 'gargantuan',
  };
  
@@ -8484,7 +8623,7 @@ index eecda7e..92aa4dd 100644
  export class FoundryDataAccess {
    private moduleId: string = MODULE_ID;
    private persistentIndex: PersistentCreatureIndex = new PersistentCreatureIndex();
-@@ -1951,6 +2166,16 @@ export class FoundryDataAccess {
+@@ -1951,6 +2151,16 @@ export class FoundryDataAccess {
        characterData.spellcasting = spellcastingEntries;
      }
  
@@ -8501,7 +8640,20 @@ index eecda7e..92aa4dd 100644
      return characterData;
    }
  
-@@ -4681,12 +4906,28 @@ export class FoundryDataAccess {
+@@ -3151,11 +3361,7 @@ export class FoundryDataAccess {
+ 
+     // Legendary Actions filter
+     if (filters.hasLegendaryActions !== undefined) {
+-      const hasLegendary = !!(
+-        system.resources?.legact ||
+-        system.legendary ||
+-        (system.resources?.legres && system.resources.legres.value > 0)
+-      );
++      const hasLegendary = dnd5eHasLegendary({ system });
+       if (hasLegendary !== filters.hasLegendaryActions) {
+         return false;
+       }
+@@ -4681,12 +4887,28 @@ export class FoundryDataAccess {
        type: 'random' | 'grid' | 'center' | 'coordinates';
        coordinates?: { x: number; y: number }[];
      };
@@ -8530,7 +8682,7 @@ index eecda7e..92aa4dd 100644
        // Validate inputs
        if (!packId || !itemId) {
          throw new Error('Both packId and itemId are required');
-@@ -4753,10 +4994,33 @@ export class FoundryDataAccess {
+@@ -4753,10 +4975,33 @@ export class FoundryDataAccess {
            }
  
            // Organize created actors in a folder - use "Foundry MCP Creatures" for generic monsters
@@ -8565,7 +8717,7 @@ index eecda7e..92aa4dd 100644
  
            // Create the actor
            const newActor = await Actor.create(actorData);
-@@ -6714,7 +6978,7 @@ export class FoundryDataAccess {
+@@ -6714,7 +6959,7 @@ export class FoundryDataAccess {
  
          // Send socket request to GM
          if (game.socket) {
@@ -8574,7 +8726,7 @@ index eecda7e..92aa4dd 100644
              type: 'requestMessageUpdate',
              buttonId,
              userId,
-@@ -7603,6 +7867,7 @@ export class FoundryDataAccess {
+@@ -7603,6 +7848,7 @@ export class FoundryDataAccess {
      if (applyPolyglot) {
        messageData.flags = { polyglot: { language: data.language } };
      }
@@ -8582,7 +8734,7 @@ index eecda7e..92aa4dd 100644
      if (whisperIds.length > 0) {
        messageData.whisper = whisperIds;
      }
-@@ -8101,239 +8366,4831 @@ export class FoundryDataAccess {
+@@ -8101,198 +8347,4762 @@ export class FoundryDataAccess {
      }
    }
  
@@ -8911,40 +9063,6 @@ index eecda7e..92aa4dd 100644
 -    playlist: string;
 -    command: 'play' | 'stop' | 'cycle-mode' | 'play-sound' | 'stop-sound';
 -    sound?: string;
--  }): Promise<any> {
--    this.validateFoundryState();
--
--    try {
--      const pl = this.findMusicDoc((game as any).playlists, options.playlist, 'playlist');
--      if (!pl) throw new Error('playlist identifier is required');
--      const info = { id: pl.id, name: pl.name, mode: pl.mode };
--
--      switch (options.command) {
--        case 'play':
--          await pl.playAll();
--          return { success: true, action: 'play', playlist: info };
--        case 'stop':
--          await pl.stopAll();
--          return { success: true, action: 'stop', playlist: info };
--        case 'cycle-mode':
--          await pl.cycleMode();
--          return { success: true, action: 'cycle-mode', playlist: info, mode: pl.mode as number };
--        case 'play-sound':
--        case 'stop-sound': {
--          if (!options.sound) throw new Error(`command ${options.command} requires "sound"`);
--          const snd = this.findMusicDoc(pl.sounds, options.sound, 'playlistSound');
--          if (!snd) throw new Error(`sound not found: "${options.sound}"`);
--          if (options.command === 'play-sound') await pl.playSound(snd);
--          else await pl.stopSound(snd);
--          return {
--            success: true,
--            action: options.command,
--            playlist: info,
--            sound: { id: snd.id, name: snd.name, path: snd.path },
--          };
--        }
--        default:
--          throw new Error(`Unknown command: ${options.command}`);
 +  private async applySceneBackground(scene: any, src: string | null): Promise<void> {
 +    const generation = (game as any).release?.generation ?? 0;
 +    if (generation >= 14) {
@@ -8953,17 +9071,12 @@ index eecda7e..92aa4dd 100644
 +        await level.update({ background: { src } });
 +      } else if (src) {
 +        await scene.createEmbeddedDocuments('Level', [{ name: 'Base', background: { src } }]);
-       }
--    } catch (error) {
--      throw new Error(
--        `Failed to control playlist: ${error instanceof Error ? error.message : 'Unknown error'}`
--      );
++      }
 +    } else {
 +      await scene.update({ background: { src } });
-     }
-   }
- 
--  // ===== PHASE 7: CHARACTER ENTITY AND TOKEN MANIPULATION METHODS =====
++    }
++  }
++
 +  /**
 +   * Set the canvas colour behind the background. Foundry v14 has no Scene#backgroundColor
 +   * field in the document source: the colour lives on the first Level's background
@@ -8978,15 +9091,11 @@ index eecda7e..92aa4dd 100644
 +      await scene.createEmbeddedDocuments('Level', [{ name: 'Base', background: { color } }]);
 +    }
 +  }
- 
-   /**
--   * Get detailed information about a specific entity within a character (item, action, or effect)
++
++  /**
 +   * Compare what was requested with what the scene reports afterwards, so a write that
 +   * Foundry silently dropped is reported instead of claimed as a success.
-    */
--  async getCharacterEntity(data: {
--    characterIdentifier: string;
--    entityIdentifier: string;
++   */
 +  private findUnappliedSceneChanges(
 +    options: Record<string, any>,
 +    summary: Record<string, any>
@@ -9074,10 +9183,13 @@ index eecda7e..92aa4dd 100644
 +    weather?: string | null;
 +    initial_view?: { x: number; y: number; scale?: number };
 +    activate?: boolean;
-+  }): Promise<any> {
-+    this.validateFoundryState();
-+
-+    try {
+   }): Promise<any> {
+     this.validateFoundryState();
+ 
+     try {
+-      const pl = this.findMusicDoc((game as any).playlists, options.playlist, 'playlist');
+-      if (!pl) throw new Error('playlist identifier is required');
+-      const info = { id: pl.id, name: pl.name, mode: pl.mode };
 +      if (options.action === 'describe') {
 +        if (options.scene_identifier) {
 +          const scene = this.findSceneByIdentifier(options.scene_identifier);
@@ -13547,29 +13659,31 @@ index eecda7e..92aa4dd 100644
 +        }
 +        return paused;
 +      };
-+
+ 
+-      switch (options.command) {
 +      switch (command) {
-+        case 'play':
-+          await pl.playAll();
-+          return { success: true, action: 'play', playlist: info };
-+        case 'stop':
-+          await pl.stopAll();
-+          return { success: true, action: 'stop', playlist: info };
-+        case 'cycle-mode':
-+          await pl.cycleMode();
-+          return { success: true, action: 'cycle-mode', playlist: info, mode: pl.mode as number };
-+        case 'play-sound':
-+        case 'stop-sound': {
+         case 'play':
+           await pl.playAll();
+           return { success: true, action: 'play', playlist: info };
+@@ -8304,20 +13114,48 @@ export class FoundryDataAccess {
+           return { success: true, action: 'cycle-mode', playlist: info, mode: pl.mode as number };
+         case 'play-sound':
+         case 'stop-sound': {
+-          if (!options.sound) throw new Error(`command ${options.command} requires "sound"`);
+-          const snd = this.findMusicDoc(pl.sounds, options.sound, 'playlistSound');
+-          if (!snd) throw new Error(`sound not found: "${options.sound}"`);
+-          if (options.command === 'play-sound') await pl.playSound(snd);
 +          const snd = target();
 +          if (command === 'play-sound') await pl.playSound(snd);
-+          else await pl.stopSound(snd);
-+          return {
-+            success: true,
+           else await pl.stopSound(snd);
+           return {
+             success: true,
+-            action: options.command,
 +            action: command,
-+            playlist: info,
-+            sound: { id: snd.id, name: snd.name, path: snd.path },
-+          };
-+        }
+             playlist: info,
+             sound: { id: snd.id, name: snd.name, path: snd.path },
+           };
+         }
 +        case 'pause':
 +        case 'pause-sound': {
 +          const done = await pause(command === 'pause' ? sounds : [target()]);
@@ -13600,28 +13714,13 @@ index eecda7e..92aa4dd 100644
 +          await pl.updateEmbeddedDocuments('PlaylistSound', list.map(s => ({ _id: s.id, volume: options.volume })));
 +          return { success: true, action: command, playlist: info, volume: options.volume, sounds: list.length };
 +        }
-+        default:
+         default:
+-          throw new Error(`Unknown command: ${options.command}`);
 +          throw new Error(`Unknown command: ${command}`);
-+      }
-+    } catch (error) {
-+      throw new Error(
-+        `Failed to control playlist: ${error instanceof Error ? error.message : 'Unknown error'}`
-+      );
-+    }
-+  }
-+
-+  // ===== PHASE 7: CHARACTER ENTITY AND TOKEN MANIPULATION METHODS =====
-+
-+  /**
-+   * Get detailed information about a specific entity within a character (item, action, or effect)
-+   */
-+  async getCharacterEntity(data: {
-+    characterIdentifier: string;
-+    entityIdentifier: string;
-   }): Promise<any> {
-     this.validateFoundryState();
- 
-@@ -8468,6 +13325,57 @@ export class FoundryDataAccess {
+       }
+     } catch (error) {
+       throw new Error(
+@@ -8468,6 +13306,57 @@ export class FoundryDataAccess {
      }
    }
  
@@ -13679,7 +13778,7 @@ index eecda7e..92aa4dd 100644
    /**
     * Move a token to a new position on the scene
     */
-@@ -8476,6 +13384,12 @@ export class FoundryDataAccess {
+@@ -8476,6 +13365,12 @@ export class FoundryDataAccess {
      x: number;
      y: number;
      animate?: boolean;
@@ -13692,7 +13791,7 @@ index eecda7e..92aa4dd 100644
    }): Promise<any> {
      this.validateFoundryState();
  
-@@ -8489,33 +13403,65 @@ export class FoundryDataAccess {
+@@ -8489,33 +13384,79 @@ export class FoundryDataAccess {
      }
  
      try {
@@ -13748,6 +13847,20 @@ index eecda7e..92aa4dd 100644
 +          },
 +          { animate: data.animate !== false }
 +        );
++        // An update can be dropped (for example while the GM changes scene): say so instead of claiming the move.
++        const fresh = scene.tokens?.get?.(token.id) ?? token;
++        if (Math.round(Number(fresh.x)) !== Math.round(target.x) || Math.round(Number(fresh.y)) !== Math.round(target.y)) {
++          this.auditLog('moveToken', data, 'failure', 'position unchanged after update');
++          return {
++            success: false,
++            tokenId: token.id,
++            tokenName: token.name,
++            scene: { id: scene.id, name: scene.name },
++            moved: false,
++            position: { x: fresh.x, y: fresh.y },
++            note: 'Foundry did not apply the move (the token is still where it was). Check that the scene is not being changed and try again.',
++          };
++        }
        }
  
 -      // Update token position
@@ -13775,7 +13888,7 @@ index eecda7e..92aa4dd 100644
        };
      } catch (error) {
        this.auditLog(
-@@ -8530,10 +13476,56 @@ export class FoundryDataAccess {
+@@ -8530,10 +13471,56 @@ export class FoundryDataAccess {
      }
    }
  
@@ -13833,7 +13946,7 @@ index eecda7e..92aa4dd 100644
      this.validateFoundryState();
  
      // Use permission system
-@@ -8546,20 +13538,14 @@ export class FoundryDataAccess {
+@@ -8546,20 +13533,14 @@ export class FoundryDataAccess {
      }
  
      try {
@@ -13859,7 +13972,7 @@ index eecda7e..92aa4dd 100644
  
        // Apply updates
        await token.update(cleanUpdates);
-@@ -8651,19 +13637,12 @@ export class FoundryDataAccess {
+@@ -8651,19 +13632,12 @@ export class FoundryDataAccess {
    /**
     * Get detailed information about a token
     */
@@ -13882,7 +13995,7 @@ index eecda7e..92aa4dd 100644
  
        // Return flat structure that matches MCP server expectations
        return {
-@@ -11274,7 +16253,10 @@ export class FoundryDataAccess {
+@@ -11274,7 +16248,10 @@ export class FoundryDataAccess {
        name: string;
        type: string;
        img?: string;
@@ -13893,7 +14006,7 @@ index eecda7e..92aa4dd 100644
      }>;
      folder?: string;
    }): Promise<{ created: Array<{ id: string; name: string; type: string }>; total: number }> {
-@@ -11286,6 +16268,19 @@ export class FoundryDataAccess {
+@@ -11286,6 +16263,19 @@ export class FoundryDataAccess {
      const docs = params.actors.map(a => {
        const doc: Record<string, any> = { name: a.name, type: a.type };
        if (a.img) doc.img = a.img;
@@ -13913,7 +14026,7 @@ index eecda7e..92aa4dd 100644
  
        // Merge system data, adding safe defaults for systems that require certain
        // fields to exist during data preparation (avoids non-fatal init errors).
-@@ -11471,7 +16466,16 @@ export class FoundryDataAccess {
+@@ -11471,7 +16461,16 @@ export class FoundryDataAccess {
     * Merges supplied fields into the actor (top-level keys overwrite).
     */
    async updateActors(
@@ -13931,7 +14044,7 @@ index eecda7e..92aa4dd 100644
    ): Promise<{ updated: Array<{ id: string; name: string }>; total: number }> {
      const updatedActors: Array<{ id: string; name: string }> = [];
  
-@@ -11482,6 +16486,7 @@ export class FoundryDataAccess {
+@@ -11482,6 +16481,7 @@ export class FoundryDataAccess {
        const patch: Record<string, any> = {};
        if (u.name !== undefined) patch.name = u.name;
        if (u.img !== undefined) patch.img = u.img;
@@ -13939,7 +14052,7 @@ index eecda7e..92aa4dd 100644
        if (u.system !== undefined) {
          // Build a single patch.system nested object so Foundry deep-merges everything
          // in one pass without flat-key vs nested-key conflicts.
-@@ -11504,6 +16509,19 @@ export class FoundryDataAccess {
+@@ -11504,6 +16504,19 @@ export class FoundryDataAccess {
          }
          patch.system = systemPatch;
        }
@@ -14213,10 +14326,10 @@ index 0000000..83a409c
 +});
 diff --git a/packages/foundry-module/src/data-access.walk.test.ts b/packages/foundry-module/src/data-access.walk.test.ts
 new file mode 100644
-index 0000000..1d2b520
+index 0000000..2a4ce9b
 --- /dev/null
 +++ b/packages/foundry-module/src/data-access.walk.test.ts
-@@ -0,0 +1,83 @@
+@@ -0,0 +1,86 @@
 +/** move-token walks with Foundry's own movement: path around walls, cost, speed limit. Foundry is stubbed. */
 +import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 +import { FoundryDataAccess } from './data-access.js';
@@ -14224,7 +14337,10 @@ index 0000000..1d2b520
 +function setup(options: { cost?: number; speed?: number; pathEnd?: { x: number; y: number } } = {}) {
 +  const end = options.pathEnd ?? { x: 320, y: 64 };
 +  const move = vi.fn(async () => undefined);
-+  const update = vi.fn(async () => undefined);
++  // Applies the change to the token it is called on, as Foundry would.
++  const update = vi.fn(async function (this: any, changes: any) {
++    Object.assign(this, changes);
++  });
 +  const findMovementPath = vi.fn(() => ({ promise: Promise.resolve([{ x: end.x, y: end.y, action: 'walk' }]) }));
 +  const measureMovementPath = vi.fn(() => ({ cost: options.cost ?? 25 }));
 +  const token: any = {
@@ -22079,7 +22195,7 @@ index 0000000..023b07e
 +}
 diff --git a/packages/foundry-module/src/table-watcher.ts b/packages/foundry-module/src/table-watcher.ts
 new file mode 100644
-index 0000000..54b6ce2
+index 0000000..0d21064
 --- /dev/null
 +++ b/packages/foundry-module/src/table-watcher.ts
 @@ -0,0 +1,171 @@
@@ -22220,7 +22336,7 @@ index 0000000..54b6ce2
 +        round: summary.round,
 +        turn: summary.current,
 +        order: (summary.combatants as any[]).map(c =>
-+          [c.active ? '>' : '', c.initiative ?? '--', c.name, c.hp ? `hp ${c.hp}` : '', c.conditions?.length ? `[${c.conditions.join(', ')}]` : '', c.defeated ? '(defeated)' : '', c.hidden ? '(hidden)' : '']
++          [c.initiative ?? '--', c.name, c.active ? '(their turn)' : '', c.hp ? `hp ${c.hp}` : '', c.conditions?.length ? `[${c.conditions.join(', ')}]` : '', c.defeated ? '(defeated)' : '', c.hidden ? '(hidden)' : '']
 +            .filter(Boolean)
 +            .join(' ')
 +        ),
@@ -40971,7 +41087,7 @@ index 0000000..75481f8
 +  });
 +});
 diff --git a/packages/mcp-server/src/tools/token-manipulation.ts b/packages/mcp-server/src/tools/token-manipulation.ts
-index 6afedf1..2962d4c 100644
+index 6afedf1..5a63aee 100644
 --- a/packages/mcp-server/src/tools/token-manipulation.ts
 +++ b/packages/mcp-server/src/tools/token-manipulation.ts
 @@ -24,27 +24,33 @@ export class TokenManipulationTools {
@@ -41072,7 +41188,7 @@ index 6afedf1..2962d4c 100644
  
      this.logger.info('Moving token', { tokenId, x, y, animate });
  
-@@ -199,6 +218,12 @@ export class TokenManipulationTools {
+@@ -199,15 +218,32 @@ export class TokenManipulationTools {
          x,
          y,
          animate,
@@ -41085,12 +41201,17 @@ index 6afedf1..2962d4c 100644
        });
  
        this.logger.debug('Token moved successfully', { tokenId });
-@@ -206,8 +231,16 @@ export class TokenManipulationTools {
+ 
        return {
-         success: true,
-         tokenId,
+-        success: true,
+-        tokenId,
 -        newPosition: { x, y },
++        success: result?.success !== false,
++        // the real token, which matters when it was named rather than given by id
++        tokenId: result?.tokenId ?? tokenId,
++        ...(result?.tokenName ? { tokenName: result.tokenName } : {}),
 +        ...(result?.moved === false ? {} : { newPosition: result?.newPosition ?? { x, y } }),
++        ...(result?.moved === false && result?.position ? { position: result.position } : {}),
 +        ...(result?.moved !== false && result?.newSquares ? { newSquares: result.newSquares } : {}),
 +        ...(result?.scene ? { scene: result.scene } : {}),
          animated: animate,
@@ -41103,7 +41224,7 @@ index 6afedf1..2962d4c 100644
        };
      } catch (error) {
        this.logger.error('Failed to move token', error);
-@@ -220,6 +253,8 @@ export class TokenManipulationTools {
+@@ -220,6 +256,8 @@ export class TokenManipulationTools {
    async handleUpdateToken(args: any): Promise<any> {
      const schema = z.object({
        tokenId: z.string(),
@@ -41112,7 +41233,7 @@ index 6afedf1..2962d4c 100644
        updates: z.object({
          x: z.number().optional(),
          y: z.number().optional(),
-@@ -231,10 +266,11 @@ export class TokenManipulationTools {
+@@ -231,10 +269,11 @@ export class TokenManipulationTools {
          name: z.string().optional(),
          elevation: z.number().optional(),
          lockRotation: z.boolean().optional(),
@@ -41126,7 +41247,7 @@ index 6afedf1..2962d4c 100644
  
      this.logger.info('Updating token', { tokenId, updates });
  
-@@ -242,6 +278,8 @@ export class TokenManipulationTools {
+@@ -242,6 +281,8 @@ export class TokenManipulationTools {
        const result = await this.foundryClient.query('foundry-mcp-bridge.update-token', {
          tokenId,
          updates,
@@ -41135,7 +41256,7 @@ index 6afedf1..2962d4c 100644
        });
  
        this.logger.debug('Token updated successfully', { tokenId, result });
-@@ -296,15 +334,17 @@ export class TokenManipulationTools {
+@@ -296,15 +337,17 @@ export class TokenManipulationTools {
    async handleGetTokenDetails(args: any): Promise<any> {
      const schema = z.object({
        tokenId: z.string(),

@@ -116867,9 +116867,12 @@ var TokenManipulationTools = class {
       });
       this.logger.debug("Token moved successfully", { tokenId });
       return {
-        success: true,
-        tokenId,
+        success: result?.success !== false,
+        // the real token, which matters when it was named rather than given by id
+        tokenId: result?.tokenId ?? tokenId,
+        ...result?.tokenName ? { tokenName: result.tokenName } : {},
         ...result?.moved === false ? {} : { newPosition: result?.newPosition ?? { x, y } },
+        ...result?.moved === false && result?.position ? { position: result.position } : {},
         ...result?.moved !== false && result?.newSquares ? { newSquares: result.newSquares } : {},
         ...result?.scene ? { scene: result.scene } : {},
         animated: animate,
