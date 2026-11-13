@@ -113344,7 +113344,7 @@ var ActorManagementTools = class {
     return [
       {
         name: "manage-actors",
-        description: 'Create, update, or delete Actor documents in Foundry VTT. Works with any game system.\n- "create": Create one or more actors of any type with arbitrary system data.\n- "update": Update one or more existing actors by ID. Merges into existing system data.\n- "delete": Permanently delete one or more actors by ID.\n- "update-items": Update embedded items on an actor by item ID.\n- "delete-items": Delete embedded items from an actor by item ID.\n- "describe": Return system-specific actor schema notes (actor types, item restrictions,\n  field paths, skill shorthands). Call this before creating actors in an unfamiliar system.',
+        description: 'Create, update, or delete Actor documents in Foundry VTT. Works with any game system.\n- "create": Create one or more actors of any type with arbitrary system data.\n- "update": Update one or more existing actors by ID. Merges into existing system data.\n- "delete": Permanently delete one or more actors by ID.\n- "update-items": Update embedded items on an actor by item ID.\n- "delete-items": Delete embedded items from an actor by item ID.\n- "transfer-items": Move real items (not compendium copies) and/or coins from one actor to another, a chest included: {from, to, itemIds? | itemNames?, quantity?, currency?: {gp, sp...}}. A whole stack moves unless quantity is given; the same item on the receiver is stacked.\n- "describe": Return system-specific actor schema notes (actor types, item restrictions,\n  field paths, skill shorthands). Call this before creating actors in an unfamiliar system.',
         inputSchema: {
           type: "object",
           properties: {
@@ -113357,6 +113357,7 @@ var ActorManagementTools = class {
                 "place",
                 "update-items",
                 "delete-items",
+                "transfer-items",
                 "describe"
               ],
               description: 'Operation to perform: "create" / "update" / "delete" actors, "place" existing world actors as tokens on the current scene, "update-items" / "delete-items" for embedded items, or "describe" to get system-specific schema notes.'
@@ -113505,8 +113506,14 @@ var ActorManagementTools = class {
               type: "array",
               items: { type: "string" },
               minItems: 1,
-              description: 'Required for "delete-items". IDs of the embedded items to delete.'
-            }
+              description: 'Required for "delete-items". IDs of the embedded items to delete. For "transfer-items": ids of the items to move.'
+            },
+            // ── transfer-items ───────────────────────────────────────────────
+            from: { type: "string", description: "transfer-items: the giving actor (name or id)" },
+            to: { type: "string", description: "transfer-items: the receiving actor (name or id), e.g. a chest" },
+            itemNames: { type: "array", items: { type: "string" }, description: "transfer-items: names of the items to move (exact, else part of a name)" },
+            quantity: { type: "number", description: "transfer-items: how many of a stack to move (default the whole stack)" },
+            currency: { type: "object", description: 'transfer-items: coins to move, e.g. {"gp": 10, "sp": 5}' }
           },
           required: ["action"]
         }
@@ -113522,6 +113529,7 @@ var ActorManagementTools = class {
         "place",
         "update-items",
         "delete-items",
+        "transfer-items",
         "describe"
       ])
     }).parse(args);
@@ -113538,9 +113546,37 @@ var ActorManagementTools = class {
         return this.handleUpdateItems(args);
       case "delete-items":
         return this.handleDeleteItems(args);
+      case "transfer-items":
+        return this.handleTransferItems(args);
       case "describe":
         return this.handleDescribe();
     }
+  }
+  // ── transfer-items ──────────────────────────────────────────────────────────
+  async handleTransferItems(args) {
+    const schema22 = external_exports.object({
+      from: external_exports.string().min(1),
+      to: external_exports.string().min(1),
+      itemIds: external_exports.array(external_exports.string().min(1)).optional(),
+      itemNames: external_exports.array(external_exports.string().min(1)).optional(),
+      quantity: external_exports.number().int().min(1).optional(),
+      currency: external_exports.record(external_exports.number().int().min(1)).optional()
+    }).passthrough();
+    const a = schema22.parse(args);
+    if (!a.itemIds?.length && !a.itemNames?.length && !a.currency) {
+      throw new Error("transfer-items needs itemIds, itemNames and/or currency");
+    }
+    const result = await this.foundryClient.query("foundry-mcp-bridge.transferActorItems", {
+      from: a.from,
+      to: a.to,
+      itemIds: a.itemIds ?? [],
+      itemNames: a.itemNames ?? [],
+      ...a.quantity !== void 0 ? { quantity: a.quantity } : {},
+      ...a.currency ? { currency: a.currency } : {}
+    });
+    if (result?.success === false)
+      throw new Error(result.error || "Transfer was refused");
+    return result;
   }
   // ── place ─────────────────────────────────────────────────────────────────
   async handlePlace(args) {
@@ -114975,8 +115011,8 @@ var DiceRollTools = class {
           properties: {
             rollType: {
               type: "string",
-              description: "Type of roll to request (ability, skill, save, attack, initiative, custom)",
-              enum: ["ability", "skill", "save", "attack", "initiative", "custom"]
+              description: 'Type of roll to request (ability, skill, save, attack, initiative, death (a death saving throw: rolled through the actor so the sheet counts it; rollTarget can be "death"), custom)',
+              enum: ["ability", "skill", "save", "attack", "initiative", "death", "custom"]
             },
             rollTarget: {
               type: "string",
@@ -115019,7 +115055,7 @@ var DiceRollTools = class {
   }
   async handleRequestPlayerRolls(args) {
     const schema22 = external_exports.object({
-      rollType: external_exports.enum(["ability", "skill", "save", "attack", "initiative", "custom"]),
+      rollType: external_exports.enum(["ability", "skill", "save", "attack", "initiative", "death", "custom"]),
       rollTarget: external_exports.string(),
       targetPlayer: external_exports.string(),
       isPublic: external_exports.boolean(),
@@ -116767,9 +116803,22 @@ var TokenManipulationTools = class {
               type: "object",
               description: "Vision, light and other token options: vision, vision_range, vision_mode, sight, light {preset, bright, dim, color, animation...}, detection_modes, lock_rotation, alpha, display_name, display_bars, scale, raw",
               additionalProperties: true
+            },
+            real_name: {
+              type: ["string", "null"],
+              description: 'A GM-only real name for the token (null clears it): the players see the token name ("Goblin Leader"), you still find it by "Yeemik" in every tool; shown in brackets in the combat order, the scene preview and tactical.'
+            },
+            apply_to: {
+              type: "string",
+              enum: ["npcs", "hostile", "non_players"],
+              description: "Instead of one token: set options (display_name, display_bars...) on every non-player token of the scene (hostile: only hostile ones). tokenId is not needed."
+            },
+            world_default: {
+              type: "boolean",
+              description: "With apply_to: also set the same options on the prototype token of every non-player actor, so tokens placed later follow."
             }
           },
-          required: ["tokenId"]
+          required: []
         }
       },
       {
@@ -116890,9 +116939,12 @@ var TokenManipulationTools = class {
   }
   async handleUpdateToken(args) {
     const schema22 = external_exports.object({
-      tokenId: external_exports.string(),
+      tokenId: external_exports.string().optional(),
       scene: external_exports.string().min(1).optional(),
       options: external_exports.record(external_exports.any()).optional(),
+      real_name: external_exports.string().nullable().optional(),
+      apply_to: external_exports.enum(["npcs", "hostile", "non_players"]).optional(),
+      world_default: external_exports.boolean().optional(),
       updates: external_exports.object({
         x: external_exports.number().optional(),
         y: external_exports.number().optional(),
@@ -116906,23 +116958,40 @@ var TokenManipulationTools = class {
         lockRotation: external_exports.boolean().optional()
       }).default({})
     });
-    const { tokenId, updates, options, scene } = schema22.parse(args);
-    if (Object.keys(updates).length === 0 && !options)
-      throw new Error("Give updates or options");
+    const { tokenId, updates, options, scene, real_name, apply_to, world_default } = schema22.parse(args);
+    if (apply_to) {
+      if (!options || Object.keys(options).length === 0)
+        throw new Error("apply_to needs options (for example display_name, display_bars)");
+      const bulk = await this.foundryClient.query("foundry-mcp-bridge.update-token", {
+        apply_to,
+        options,
+        ...scene ? { scene } : {},
+        ...world_default ? { world_default } : {}
+      });
+      if (bulk?.success === false || bulk?.error)
+        throw new Error(bulk.error || "Bulk token update refused");
+      return bulk;
+    }
+    if (!tokenId)
+      throw new Error("tokenId is required (or apply_to for every non-player token)");
+    if (Object.keys(updates).length === 0 && !options && real_name === void 0)
+      throw new Error("Give updates, options or real_name");
     this.logger.info("Updating token", { tokenId, updates });
     try {
       const result = await this.foundryClient.query("foundry-mcp-bridge.update-token", {
         tokenId,
         updates,
         ...options ? { options } : {},
-        ...scene ? { scene } : {}
+        ...scene ? { scene } : {},
+        ...real_name !== void 0 ? { realName: real_name } : {}
       });
       this.logger.debug("Token updated successfully", { tokenId, result });
       return {
         success: true,
         tokenId,
         updated: true,
-        appliedUpdates: updates
+        appliedUpdates: updates,
+        ...real_name !== void 0 ? { realName: real_name } : {}
       };
     } catch (error) {
       this.logger.error("Failed to update token", error);
@@ -120403,6 +120472,7 @@ var ChatControlTools = class {
 init_wrapper();
 
 // dist/table-bundler.js
+var LOOKBACK_MS = 6e4;
 var DEFAULT_BUNDLER_SETTINGS = {
   quietMs: 5e3,
   turnQuietMs: 1500,
@@ -120411,6 +120481,23 @@ var DEFAULT_BUNDLER_SETTINGS = {
   maxBackground: 40
 };
 var lower = (s) => String(s ?? "").trim().toLowerCase();
+function foldRolls(events) {
+  const same2 = (a, b) => !!a.item && a.item === b.item && lower(a.actor ?? a.user) === lower(b.actor ?? b.user);
+  const drop = /* @__PURE__ */ new Set();
+  const text3 = /* @__PURE__ */ new Map();
+  events.forEach((e, i) => {
+    if (e.kind === "card" && e.item && events.slice(i + 1).some((r) => r.kind === "roll" && same2(e, r)))
+      drop.add(e);
+    if (e.kind === "roll" && e.rollKind === "attack") {
+      const damage = events.slice(i + 1).find((r) => r.kind === "roll" && r.rollKind === "damage" && !drop.has(r) && same2(e, r));
+      if (damage && damage.total !== void 0) {
+        drop.add(damage);
+        text3.set(e, `${e.text}; damage ${damage.total}`);
+      }
+    }
+  });
+  return events.filter((e) => !drop.has(e)).map((e) => text3.has(e) ? { ...e, text: text3.get(e) } : e);
+}
 var TableBundler = class {
   settings;
   pending = [];
@@ -120420,6 +120507,8 @@ var TableBundler = class {
   lastBeatAt = -Infinity;
   expectation;
   reasons = [];
+  /** rolls seen lately, kept after their beat went out, for expectations armed after the roll came in */
+  recentRolls = [];
   muted = false;
   constructor(settings = {}) {
     this.settings = { ...DEFAULT_BUNDLER_SETTINGS, ...settings };
@@ -120434,7 +120523,7 @@ var TableBundler = class {
     return this.expectation ? [...this.expectation.waiting].map((k) => this.expectation.names.get(k) ?? k) : void 0;
   }
   /** Wait for these players or characters to roll; the bundle comes when all have, or at the deadline. */
-  expect(names, now, timeoutMs) {
+  expect(names, now, timeoutMs, since = now - LOOKBACK_MS) {
     const list = names.map((n) => n.trim()).filter(Boolean);
     if (!list.length)
       return;
@@ -120445,6 +120534,39 @@ var TableBundler = class {
     }
     exp.deadline = Math.max(exp.deadline, now + timeoutMs);
     this.expectation = exp;
+    for (const roll of this.recentRolls) {
+      if (roll.at < since)
+        continue;
+      for (const k of [roll.user, roll.actor])
+        if (k && exp.waiting.has(k)) {
+          for (const j of [roll.user, roll.actor])
+            exp.waiting.delete(j);
+          break;
+        }
+    }
+    if (exp.waiting.size === 0) {
+      this.expectation = void 0;
+      this.markWake("every roll asked for is in", "rolls", now);
+    }
+  }
+  /**
+   * Turn events for a creature that is no longer the one to act (the GM's tools already ran those turns, or the combat
+   * ended) are not worth waking for: drop them. Returns whether anything still waits to be sent as a wake.
+   */
+  dropStaleTurns(currentTurn) {
+    const keep = (e) => e.kind !== "turn" || currentTurn !== void 0 && lower(e.actor) === lower(currentTurn);
+    if (this.pending.every(keep))
+      return this.hasWake;
+    this.pending = this.pending.filter(keep);
+    const wakes = this.pending.filter((e) => e.wake);
+    if (wakes.length === 0 && this.reasons.length === 0) {
+      this.firstWakeAt = void 0;
+      this.lastWakeAt = void 0;
+      this.lastWakeKind = void 0;
+    } else {
+      this.lastWakeKind = wakes.length ? wakes[wakes.length - 1].kind : this.lastWakeKind;
+    }
+    return this.hasWake;
   }
   cancelExpectation() {
     this.expectation = void 0;
@@ -120452,6 +120574,11 @@ var TableBundler = class {
   add(events, now) {
     for (const e of events) {
       this.pending.push(e);
+      if (e.kind === "roll") {
+        this.recentRolls.push({ at: e.at, user: lower(e.user), actor: lower(e.actor) });
+        if (this.recentRolls.length > 60)
+          this.recentRolls.splice(0, this.recentRolls.length - 60);
+      }
       if (e.kind === "roll" && this.expectation) {
         const hit = [lower(e.user), lower(e.actor)].find((k) => k && this.expectation.waiting.has(k));
         if (hit) {
@@ -120524,7 +120651,7 @@ var TableBundler = class {
       why.push(LABEL[k] ?? k);
     const lastByKey = /* @__PURE__ */ new Map();
     this.pending.forEach((e, i) => e.key && lastByKey.set(e.key, i));
-    const kept = this.pending.filter((e, i) => !e.key || lastByKey.get(e.key) === i);
+    const kept = foldRolls(this.pending.filter((e, i) => !e.key || lastByKey.get(e.key) === i));
     const background = kept.filter((e) => !e.wake);
     const overflow = Math.max(0, background.length - this.settings.maxBackground);
     const dropSet = new Set(background.slice(0, overflow));
@@ -120657,12 +120784,14 @@ var TableFeed = class {
       table = void 0;
     }
     const now = this.now();
+    if (!reason && table && !this.bundler.dropStaleTurns(table.combat?.turn))
+      return false;
     const beat = this.bundler.flush(now, reason);
     if (!beat)
       return false;
     this.beats += 1;
     this.lastBeatAt = now;
-    this.send({ type: "beat", n: this.beats, ...beat, ...table ? { table } : {} });
+    this.send({ type: "beat", n: this.beats, why: beat.why, ...table ? { table } : {}, events: beat.events, ...beat.dropped ? { dropped: beat.dropped } : {} });
     return true;
   }
   async tick() {
@@ -120717,8 +120846,8 @@ var TableFeed = class {
   configure(patch) {
     this.bundler.settings = { ...this.bundler.settings, ...patch };
   }
-  expect(names, timeoutMs) {
-    this.bundler.expect(names, this.now(), timeoutMs);
+  expect(names, timeoutMs, since) {
+    this.bundler.expect(names, this.now(), timeoutMs, since);
   }
   cancelExpectation() {
     this.bundler.cancelExpectation();
@@ -125008,7 +125137,7 @@ var RevealTools = class {
 
 // dist/tools/combat-tools.js
 init_zod();
-var ACTIONS = ["status", "start", "add", "remove", "roll", "set_initiative", "next", "previous", "next_round", "damage", "heal", "defeat", "end", "attack", "check"];
+var ACTIONS = ["status", "start", "add", "remove", "roll", "set_initiative", "next", "previous", "next_round", "damage", "heal", "defeat", "stabilize", "death_saves", "end", "attack", "check"];
 var schema13 = external_exports.object({
   action: external_exports.enum(ACTIONS),
   scene: external_exports.string().min(1).optional(),
@@ -125031,7 +125160,10 @@ var schema13 = external_exports.object({
   dc: external_exports.number().min(0).max(40).optional(),
   public: external_exports.boolean().optional(),
   consume: external_exports.boolean().optional(),
-  ignore_range: external_exports.boolean().optional()
+  ignore_range: external_exports.boolean().optional(),
+  surprised: external_exports.array(external_exports.string().min(1)).max(60).optional(),
+  success: external_exports.number().int().min(0).max(3).optional(),
+  failure: external_exports.number().int().min(0).max(3).optional()
 }).strict();
 var CombatTools = class {
   foundryClient;
@@ -125044,14 +125176,14 @@ var CombatTools = class {
     return [
       {
         name: "combat",
-        description: `Run the combat tracker (Foundry's own, so tracker modules keep working). Every action returns a short readout: round, whose turn, and one line per combatant in order (initiative, name, hp, conditions). ACTIONS: status; start {scene?, who?, roll?, begin?} makes the encounter from tokens on the scene (who = list of: "all" (default), "hostile", "friendly", "neutral", "players", "npcs", or token/actor names; hidden tokens are included), rolls initiative for the ones without one (roll: missing (default) | npcs | all | none) and begins it (begin:false to only set it up); add {who, roll?} adds more tokens mid-fight; remove {names}; roll {names? | roll?} rolls initiative (default for everyone still without one); set_initiative {initiative:[{name, value}]}; next, previous, next_round move the turn (the first next begins the combat); damage / heal {amounts:[{target, amount}]} apply to combatants (or scene tokens) by name, through the system rules (temp HP, resistances are the system's job) and report hp before and after; defeat {names, defeated?(true)} marks defeated or not; end ends and deletes the encounter. ATTACK AND CHECK (the dnd5e system does the maths: modifiers, advantage, critical hits, resistances, chat cards): attack {attacker, item?, targets?, advantage?, disadvantage?, apply?(true)} uses an item of the attacker (default its first attack or save): spends its charges or slot, rolls the attack against each target (the target is targeted first, so the roll uses its AC and the card shows hit or miss), rolls damage on a hit (double dice on a crit) and applies it, reporting roll, natural, hit, damage and hp before and after; a save item (a breath weapon) rolls damage once and each target rolls a saving throw against its DC; apply:false rolls without applying. Before rolling, the distance from attacker to each target token is checked against the weapon reach or the range: out of range is refused (ignore_range:true rolls anyway), beyond normal range rolls with disadvantage; the result lists warnings, such as an attack made outside the attacker turn or a target already at 0 hp. check {who:[names], skill | ability | save, dc?, advantage?, disadvantage?} rolls a skill (perception or prc), an ability check or a saving throw (dex or dexterity) for each name and reports totals and success against dc. Rolls are posted to the GM only unless public:true. attacker, targets and who match combatants, then scene tokens, then actors. Names match exactly, else part of a name or the actor name. Needs the Foundry tab open in a browser.`,
+        description: `Run the combat tracker (Foundry's own, so tracker modules keep working). Every action returns a short readout: round, whose turn, and one line per combatant in order (initiative, name, hp, conditions). ACTIONS: status; start {scene?, who?, roll?, begin?, surprised?} makes the encounter from tokens on the scene (who = list of: "all" (default), "hostile", "friendly", "neutral", "players", "npcs", or token/actor names; hidden tokens are included), rolls initiative for the ones without one (roll: missing (default) | npcs | all | none) and begins it (begin:false to only set it up); add {who, roll?} adds more tokens mid-fight; remove {names}; roll {names? | roll?} rolls initiative (default for everyone still without one); set_initiative {initiative:[{name, value}]}; next, previous, next_round move the turn (the first next begins the combat); damage / heal {amounts:[{target, amount}]} apply to combatants (or scene tokens) by name, through the system rules (temp HP, resistances are the system's job) and report hp before and after; defeat {names, defeated?(true)} marks defeated or not; stabilize {names} makes dying characters stable (3 death save successes, 0 failures); death_saves {names, success?, failure?} sets the death save counts (0 to 3; the sheet shows them; 3 failures mark the character dead and defeated); surprised (on start) lists creatures that get the Surprised status for the first round; a character reduced to 0 hp by damage here becomes unconscious and prone; end ends and deletes the encounter. ATTACK AND CHECK (the dnd5e system does the maths: modifiers, advantage, critical hits, resistances, chat cards): attack {attacker, item?, targets?, advantage?, disadvantage?, apply?(true)} uses an item of the attacker (default its first attack or save): spends its charges or slot, rolls the attack against each target (the target is targeted first, so the roll uses its AC and the card shows hit or miss), rolls damage on a hit (double dice on a crit) and applies it, reporting roll, natural, hit, damage and hp before and after; a save item (a breath weapon) rolls damage once and each target rolls a saving throw against its DC; apply:false rolls without applying. Before rolling, the distance from attacker to each target token is checked against the weapon reach or the range: out of range is refused (ignore_range:true rolls anyway), beyond normal range rolls with disadvantage; the result lists warnings, such as an attack made outside the attacker turn or a target already at 0 hp. check {who:[names], skill | ability | save, dc?, advantage?, disadvantage?} rolls a skill (perception or prc), an ability check or a saving throw (dex or dexterity) for each name and reports totals and success against dc. Rolls are posted to the GM only unless public:true. attacker, targets and who match combatants, then scene tokens, then actors. Names match exactly, else part of a name or the actor name. Needs the Foundry tab open in a browser.`,
         inputSchema: {
           type: "object",
           properties: {
             action: { type: "string", enum: [...ACTIONS] },
             scene: { type: "string", description: "start, add, damage, heal: scene id or exact name (default the one being viewed)" },
             who: { type: "array", items: { type: "string" }, description: 'check: names to roll for. start, add: "all", "hostile", "friendly", "neutral", "players", "npcs" or token/actor names' },
-            names: { type: "array", items: { type: "string" }, description: "remove, roll, defeat: combatant names" },
+            names: { type: "array", items: { type: "string" }, description: "remove, roll, defeat, stabilize, death_saves: combatant names" },
             roll: { type: "string", enum: ["none", "missing", "npcs", "all"], description: "start, add, roll: who to roll initiative for (default missing)" },
             begin: { type: "boolean", description: "start: begin the combat after setting it up (default true)" },
             initiative: { type: "array", items: { type: "object", properties: { name: { type: "string" }, value: { type: "number" } }, required: ["name", "value"], additionalProperties: false }, description: "set_initiative: [{name, value}]" },
@@ -125069,6 +125201,9 @@ var CombatTools = class {
             dc: { type: "number", description: "check: the difficulty; success is reported against it" },
             consume: { type: "boolean", description: "attack: spend the item charges, ammunition or spell slot (default true)" },
             ignore_range: { type: "boolean", description: "attack: roll even when a target is out of range" },
+            surprised: { type: "array", items: { type: "string" }, description: "start: creatures (names) surprised in the first round" },
+            success: { type: "number", description: "death_saves: death save successes to set (0 to 3)" },
+            failure: { type: "number", description: "death_saves: death save failures to set (0 to 3)" },
             public: { type: "boolean", description: "attack, check: post the rolls for everyone (default: GM only, so hidden monsters are not given away)" }
           },
           required: ["action"],
@@ -130013,9 +130148,10 @@ async function startBackend() {
                     {
                       const { queue: noQueue, ...rest } = args2 ?? {};
                       const post = async () => {
+                        const requestedAt = Date.now();
                         const sent = await diceRollTools.handleRequestPlayerRolls(rest);
                         if (typeof sent === "string" && sent.startsWith("Roll request sent successfully") && typeof rest.targetPlayer === "string") {
-                          tableFeed.expect([rest.targetPlayer], 9e4);
+                          tableFeed.expect([rest.targetPlayer], 9e4, requestedAt);
                         } else if (typeof sent === "string") {
                           throw new Error(sent);
                         }
