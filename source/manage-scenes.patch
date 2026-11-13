@@ -8542,10 +8542,10 @@ index 0000000..07712cf
 +  });
 +});
 diff --git a/packages/foundry-module/src/data-access.ts b/packages/foundry-module/src/data-access.ts
-index eecda7e..4dd096a 100644
+index eecda7e..a6bc475 100644
 --- a/packages/foundry-module/src/data-access.ts
 +++ b/packages/foundry-module/src/data-access.ts
-@@ -1,6 +1,147 @@
+@@ -1,6 +1,148 @@
  import { MODULE_ID, ERROR_MESSAGES, TOKEN_DISPOSITIONS } from './constants.js';
  import { permissionManager } from './permissions.js';
 +import {
@@ -8680,6 +8680,7 @@ index eecda7e..4dd096a 100644
 +import { compactCombat, matchCombatants, pickTokens, tokenRealName, type TokenLike } from './combat-utils.js';
 +import { moveCoins, pickItems, quantityToMove, type Purse } from './transfer-utils.js';
 +import { diceSettle } from './dice-settle.js';
++import { blockedMessage, initiativeBlockers, monksActive } from './monks-combat-utils.js';
 +import { healthLooks } from './health-estimate-utils.js';
 +import { markDownIfZero, markSurprised, performAttack, setDeathSaves, stabilize, performCheck, pickActivity, type NamedActor } from './combat-actions.js';
 +import { dnd5ePlayState, type PlayState } from './character-state-utils.js';
@@ -8693,7 +8694,7 @@ index eecda7e..4dd096a 100644
  
  // The same five characters foundry.utils.escapeHTML replaces in v14, kept local because
  // that helper isn't confirmed in v13, this module's minimum.
-@@ -33,6 +174,7 @@ interface CharacterInfo {
+@@ -33,6 +175,7 @@ interface CharacterInfo {
    itemVariants?: any[]; // Item rule element variants (ChoiceSet, etc.)
    itemToggles?: any[]; // Item rule element toggles (RollOption, ToggleProperty, equipped)
    spellcasting?: SpellcastingEntry[]; // PF2e/D&D 5e spellcasting entries
@@ -8701,7 +8702,7 @@ index eecda7e..4dd096a 100644
  }
  
  interface SpellcastingEntry {
-@@ -363,7 +505,8 @@ interface ItemTargetingResult {
+@@ -363,7 +506,8 @@ interface ItemTargetingResult {
   */
  class PersistentCreatureIndex {
    private moduleId: string = MODULE_ID;
@@ -8711,7 +8712,7 @@ index eecda7e..4dd096a 100644
    private readonly INDEX_FILENAME = 'enhanced-creature-index.json';
    private buildInProgress = false;
    private hooksRegistered = false;
-@@ -979,26 +1122,9 @@ class PersistentCreatureIndex {
+@@ -979,26 +1123,9 @@ class PersistentCreatureIndex {
          alignment = String(alignment || 'unaligned');
        }
  
@@ -8741,7 +8742,7 @@ index eecda7e..4dd096a 100644
  
        // DEBUG: Log what we extracted for comparison
  
-@@ -1714,6 +1840,89 @@ const DND5E_SIZE: Record<string, string> = {
+@@ -1714,6 +1841,89 @@ const DND5E_SIZE: Record<string, string> = {
    gargantuan: 'gargantuan',
  };
  
@@ -8831,7 +8832,7 @@ index eecda7e..4dd096a 100644
  export class FoundryDataAccess {
    private moduleId: string = MODULE_ID;
    private persistentIndex: PersistentCreatureIndex = new PersistentCreatureIndex();
-@@ -1951,6 +2160,16 @@ export class FoundryDataAccess {
+@@ -1951,6 +2161,16 @@ export class FoundryDataAccess {
        characterData.spellcasting = spellcastingEntries;
      }
  
@@ -8848,7 +8849,7 @@ index eecda7e..4dd096a 100644
      return characterData;
    }
  
-@@ -3151,11 +3370,7 @@ export class FoundryDataAccess {
+@@ -3151,11 +3371,7 @@ export class FoundryDataAccess {
  
      // Legendary Actions filter
      if (filters.hasLegendaryActions !== undefined) {
@@ -8861,7 +8862,7 @@ index eecda7e..4dd096a 100644
        if (hasLegendary !== filters.hasLegendaryActions) {
          return false;
        }
-@@ -4681,12 +4896,28 @@ export class FoundryDataAccess {
+@@ -4681,12 +4897,28 @@ export class FoundryDataAccess {
        type: 'random' | 'grid' | 'center' | 'coordinates';
        coordinates?: { x: number; y: number }[];
      };
@@ -8890,7 +8891,7 @@ index eecda7e..4dd096a 100644
        // Validate inputs
        if (!packId || !itemId) {
          throw new Error('Both packId and itemId are required');
-@@ -4753,10 +4984,33 @@ export class FoundryDataAccess {
+@@ -4753,10 +4985,33 @@ export class FoundryDataAccess {
            }
  
            // Organize created actors in a folder - use "Foundry MCP Creatures" for generic monsters
@@ -8925,7 +8926,7 @@ index eecda7e..4dd096a 100644
  
            // Create the actor
            const newActor = await Actor.create(actorData);
-@@ -6021,21 +6275,22 @@ export class FoundryDataAccess {
+@@ -6021,21 +6276,22 @@ export class FoundryDataAccess {
        // For now, we'll just create the button and let the rendering logic handle the state restoration
  
        const rollButtonHtml = `
@@ -8952,7 +8953,7 @@ index eecda7e..4dd096a 100644
              </button>
            </div>
          </div>
-@@ -6074,6 +6329,8 @@ export class FoundryDataAccess {
+@@ -6074,6 +6330,8 @@ export class FoundryDataAccess {
          whisper: whisperTargets,
          flags: {
            [MODULE_ID]: {
@@ -8961,7 +8962,7 @@ index eecda7e..4dd096a 100644
              rollButtons: {
                [buttonId]: {
                  rolled: false,
-@@ -6399,6 +6656,8 @@ export class FoundryDataAccess {
+@@ -6399,6 +6657,8 @@ export class FoundryDataAccess {
          return `${rollTarget} Attack (${visibility})`;
        case 'initiative':
          return `Initiative Roll (${visibility})`;
@@ -8970,7 +8971,7 @@ index eecda7e..4dd096a 100644
        case 'custom':
          return `Custom Roll (${visibility})`;
        default:
-@@ -6498,6 +6757,7 @@ export class FoundryDataAccess {
+@@ -6498,6 +6758,7 @@ export class FoundryDataAccess {
  
        const rollFormula = button.data('roll-formula');
        const rollLabel = button.data('roll-label');
@@ -8978,7 +8979,7 @@ index eecda7e..4dd096a 100644
        const isPublicRaw = button.data('is-public');
        const isPublic = isPublicRaw === true || isPublicRaw === 'true'; // Convert to proper boolean
        const characterId = button.data('character-id');
-@@ -6515,13 +6775,22 @@ export class FoundryDataAccess {
+@@ -6515,13 +6776,22 @@ export class FoundryDataAccess {
        }
  
        try {
@@ -9004,7 +9005,7 @@ index eecda7e..4dd096a 100644
          // Use the modern Foundry v13 approach with roll.toMessage()
          const rollMode = isPublic ? 'publicroll' : 'whisper';
          const whisperTargets: string[] = [];
-@@ -6714,7 +6983,7 @@ export class FoundryDataAccess {
+@@ -6714,7 +6984,7 @@ export class FoundryDataAccess {
  
          // Send socket request to GM
          if (game.socket) {
@@ -9013,7 +9014,7 @@ index eecda7e..4dd096a 100644
              type: 'requestMessageUpdate',
              buttonId,
              userId,
-@@ -6744,7 +7013,7 @@ export class FoundryDataAccess {
+@@ -6744,7 +7014,7 @@ export class FoundryDataAccess {
  
        // Create the rolled state HTML
        const rolledHtml = `
@@ -9022,7 +9023,7 @@ index eecda7e..4dd096a 100644
            <p><strong>Roll Request:</strong> ${rollLabel}</p>
            <p><strong>Status:</strong> ✅ <strong>Completed by ${rolledByName}</strong> at ${timestamp}</p>
          </div>
-@@ -7603,6 +7872,7 @@ export class FoundryDataAccess {
+@@ -7603,6 +7873,7 @@ export class FoundryDataAccess {
      if (applyPolyglot) {
        messageData.flags = { polyglot: { language: data.language } };
      }
@@ -9030,7 +9031,7 @@ index eecda7e..4dd096a 100644
      if (whisperIds.length > 0) {
        messageData.whisper = whisperIds;
      }
-@@ -8101,223 +8371,4854 @@ export class FoundryDataAccess {
+@@ -8101,223 +8372,4881 @@ export class FoundryDataAccess {
      }
    }
  
@@ -10523,7 +10524,16 @@ index eecda7e..4dd096a 100644
 +          }
 +          const rollWhich = data.roll ?? 'missing';
 +          if (rollWhich !== 'none') out.rolled = await rollFor(rollWhich);
-+          if (action === 'start' && data.begin !== false && !combat.started) await combat.startCombat();
++          if (action === 'start' && data.begin !== false && !combat.started) {
++            // Monk's Combat Details never lets startCombat return while someone lacks an initiative
++            const blockers = initiativeBlockers(members());
++            if (blockers.length > 0) {
++              out.begun = false;
++              out.warning = blockedMessage(blockers);
++            } else {
++              await combat.startCombat();
++            }
++          }
 +          if (action === 'start') {
 +            // a paused game blocks every player action, so a combat that starts is never paused
 +            const g2 = game as any;
@@ -10586,8 +10596,11 @@ index eecda7e..4dd096a 100644
 +        case 'previous':
 +        case 'next_round': {
 +          needCombat();
-+          if (!combat.started) await combat.startCombat();
-+          else if (action === 'next') await combat.nextTurn();
++          if (!combat.started) {
++            const blockers = initiativeBlockers(members());
++            if (blockers.length > 0) throw new Error(blockedMessage(blockers));
++            await combat.startCombat();
++          } else if (action === 'next') await combat.nextTurn();
 +          else if (action === 'previous') await combat.previousTurn();
 +          else await combat.nextRound();
 +          break;
@@ -10599,13 +10612,14 @@ index eecda7e..4dd096a 100644
 +          if (list.length === 0) throw new Error(`${action} needs amounts: [{target, amount}]`);
 +          const sceneTokens = (this.resolveSceneForObjects(data.scene).tokens?.contents || []) as any[];
 +          const applied: Array<Record<string, any>> = [];
++          const touched: Array<{ row: Record<string, any>; actor: any; doc?: any }> = [];
 +          const missing: string[] = [];
 +          for (const entry of list) {
 +            const amount = Number(entry.amount);
 +            if (!(amount > 0)) throw new Error('amount must be a number above 0');
-+            let actors: Array<{ name: string; actor: any }> = [];
++            let actors: Array<{ name: string; actor: any; doc?: any }> = [];
 +            const inCombat = combat ? matchCombatants(members(), entry.target) : [];
-+            if (inCombat.length > 0) actors = inCombat.map(c => ({ name: c.name ?? '?', actor: c.doc.actor }));
++            if (inCombat.length > 0) actors = inCombat.map(c => ({ name: c.name ?? '?', actor: c.doc.actor, doc: c.doc }));
 +            else {
 +              const infos: TokenLike[] = sceneTokens.map(t => ({ id: t.id, name: t.name, actorName: t.actor?.name, realName: tokenRealName(t) }));
 +              const { picked } = pickTokens(infos, [entry.target]);
@@ -10613,7 +10627,7 @@ index eecda7e..4dd096a 100644
 +            }
 +            actors = actors.filter(a => a.actor);
 +            if (actors.length === 0) missing.push(entry.target);
-+            for (const { name, actor } of actors) {
++            for (const { name, actor, doc } of actors) {
 +              const before = Number(actor.system?.attributes?.hp?.value ?? 0);
 +              if (typeof actor.applyDamage === 'function') {
 +                await actor.applyDamage(action === 'damage' ? amount : -amount);
@@ -10625,7 +10639,21 @@ index eecda7e..4dd096a 100644
 +              const after = Number(actor.system?.attributes?.hp?.value ?? before);
 +              const statuses = action === 'damage' && after <= 0 ? await markDownIfZero(actor) : [];
 +              const looks = healthLooks(actor, after <= 0);
-+              applied.push({ name, hp: `${before} -> ${after}`, ...(after <= 0 ? { down: true } : {}), ...(looks ? { looks } : {}), ...(statuses.length ? { addedStatuses: statuses } : {}) });
++              const row: Record<string, any> = { name, hp: `${before} -> ${after}`, ...(after <= 0 ? { down: true } : {}), ...(looks ? { looks } : {}), ...(statuses.length ? { addedStatuses: statuses } : {}) };
++              applied.push(row);
++              touched.push({ row, actor, doc });
++            }
++          }
++          // Monk's Combat Details marks a creature defeated a moment after it drops, and does not undo it when it is healed.
++          if (monksActive() && touched.length > 0) await new Promise(resolve => setTimeout(resolve, 500));
++          for (const { row, actor, doc } of touched) {
++            const hpNow = Number(actor.system?.attributes?.hp?.value ?? 0);
++            if (action === 'heal' && hpNow > 0 && doc?.defeated) {
++              await doc.update({ defeated: false });
++              if (actor.statuses?.has?.('dead') && typeof actor.toggleStatusEffect === 'function') await actor.toggleStatusEffect('dead', { active: false });
++              row.revived = true;
++            } else if (action === 'damage' && doc?.defeated) {
++              row.defeated = true;
 +            }
 +          }
 +          out.applied = applied;
@@ -14068,7 +14096,7 @@ index eecda7e..4dd096a 100644
        }
      } catch (error) {
        throw new Error(
-@@ -8468,6 +13369,59 @@ export class FoundryDataAccess {
+@@ -8468,6 +13397,59 @@ export class FoundryDataAccess {
      }
    }
  
@@ -14128,7 +14156,7 @@ index eecda7e..4dd096a 100644
    /**
     * Move a token to a new position on the scene
     */
-@@ -8476,6 +13430,12 @@ export class FoundryDataAccess {
+@@ -8476,6 +13458,12 @@ export class FoundryDataAccess {
      x: number;
      y: number;
      animate?: boolean;
@@ -14141,7 +14169,7 @@ index eecda7e..4dd096a 100644
    }): Promise<any> {
      this.validateFoundryState();
  
-@@ -8489,33 +13449,79 @@ export class FoundryDataAccess {
+@@ -8489,33 +13477,79 @@ export class FoundryDataAccess {
      }
  
      try {
@@ -14238,7 +14266,7 @@ index eecda7e..4dd096a 100644
        };
      } catch (error) {
        this.auditLog(
-@@ -8530,10 +13536,95 @@ export class FoundryDataAccess {
+@@ -8530,10 +13564,95 @@ export class FoundryDataAccess {
      }
    }
  
@@ -14335,7 +14363,7 @@ index eecda7e..4dd096a 100644
      this.validateFoundryState();
  
      // Use permission system
-@@ -8546,23 +13637,21 @@ export class FoundryDataAccess {
+@@ -8546,23 +13665,21 @@ export class FoundryDataAccess {
      }
  
      try {
@@ -14369,7 +14397,7 @@ index eecda7e..4dd096a 100644
  
        this.auditLog('updateToken', { tokenId: data.tokenId, updates: cleanUpdates }, 'success');
  
-@@ -8570,7 +13659,8 @@ export class FoundryDataAccess {
+@@ -8570,7 +13687,8 @@ export class FoundryDataAccess {
          success: true,
          tokenId: token.id,
          tokenName: token.name,
@@ -14379,7 +14407,7 @@ index eecda7e..4dd096a 100644
        };
      } catch (error) {
        this.auditLog(
-@@ -8651,19 +13741,12 @@ export class FoundryDataAccess {
+@@ -8651,19 +13769,12 @@ export class FoundryDataAccess {
    /**
     * Get detailed information about a token
     */
@@ -14402,7 +14430,7 @@ index eecda7e..4dd096a 100644
  
        // Return flat structure that matches MCP server expectations
        return {
-@@ -11274,7 +16357,10 @@ export class FoundryDataAccess {
+@@ -11274,7 +16385,10 @@ export class FoundryDataAccess {
        name: string;
        type: string;
        img?: string;
@@ -14413,7 +14441,7 @@ index eecda7e..4dd096a 100644
      }>;
      folder?: string;
    }): Promise<{ created: Array<{ id: string; name: string; type: string }>; total: number }> {
-@@ -11286,6 +16372,19 @@ export class FoundryDataAccess {
+@@ -11286,6 +16400,19 @@ export class FoundryDataAccess {
      const docs = params.actors.map(a => {
        const doc: Record<string, any> = { name: a.name, type: a.type };
        if (a.img) doc.img = a.img;
@@ -14433,7 +14461,7 @@ index eecda7e..4dd096a 100644
  
        // Merge system data, adding safe defaults for systems that require certain
        // fields to exist during data preparation (avoids non-fatal init errors).
-@@ -11423,6 +16522,14 @@ export class FoundryDataAccess {
+@@ -11423,6 +16550,14 @@ export class FoundryDataAccess {
          };
        }
  
@@ -14448,7 +14476,7 @@ index eecda7e..4dd096a 100644
        doc.system = systemData;
        if (folderId) doc.folder = folderId;
        return doc;
-@@ -11471,7 +16578,16 @@ export class FoundryDataAccess {
+@@ -11471,7 +16606,16 @@ export class FoundryDataAccess {
     * Merges supplied fields into the actor (top-level keys overwrite).
     */
    async updateActors(
@@ -14466,7 +14494,7 @@ index eecda7e..4dd096a 100644
    ): Promise<{ updated: Array<{ id: string; name: string }>; total: number }> {
      const updatedActors: Array<{ id: string; name: string }> = [];
  
-@@ -11482,6 +16598,7 @@ export class FoundryDataAccess {
+@@ -11482,6 +16626,7 @@ export class FoundryDataAccess {
        const patch: Record<string, any> = {};
        if (u.name !== undefined) patch.name = u.name;
        if (u.img !== undefined) patch.img = u.img;
@@ -14474,7 +14502,7 @@ index eecda7e..4dd096a 100644
        if (u.system !== undefined) {
          // Build a single patch.system nested object so Foundry deep-merges everything
          // in one pass without flat-key vs nested-key conflicts.
-@@ -11504,6 +16621,19 @@ export class FoundryDataAccess {
+@@ -11504,6 +16649,19 @@ export class FoundryDataAccess {
          }
          patch.system = systemPatch;
        }
@@ -14494,7 +14522,7 @@ index eecda7e..4dd096a 100644
  
        await actor.update(patch);
        updatedActors.push({ id: actor.id, name: u.name ?? actor.name });
-@@ -11706,6 +16836,60 @@ export class FoundryDataAccess {
+@@ -11706,6 +16864,60 @@ export class FoundryDataAccess {
      return { deleted: existing, total: existing.length };
    }
  
@@ -17862,6 +17890,74 @@ index 0000000..855e0cb
 +    }
 +  }
 +  return { ok: problems.length === 0, change, unchanged, problems };
++}
+diff --git a/packages/foundry-module/src/monks-combat-utils.test.ts b/packages/foundry-module/src/monks-combat-utils.test.ts
+new file mode 100644
+index 0000000..dcb3631
+--- /dev/null
++++ b/packages/foundry-module/src/monks-combat-utils.test.ts
+@@ -0,0 +1,24 @@
++import { describe, expect, it } from 'vitest';
++import { blockedMessage, initiativeBlockers, monksActive } from './monks-combat-utils.js';
++
++const game = (active: boolean, prevent: boolean) => ({
++  modules: { get: () => ({ active }) },
++  settings: { get: (_m: string, key: string) => (key === 'prevent-initiative' ? prevent : undefined) },
++});
++
++describe("Monk's Combat Details helpers", () => {
++  it('knows whether the module is on', () => {
++    expect(monksActive(game(true, true))).toBe(true);
++    expect(monksActive(game(false, true))).toBe(false);
++    expect(monksActive(undefined as any)).toBe(false);
++  });
++  it('lists who has no initiative only while the module insists on it', () => {
++    const combatants = [{ name: 'A', initiative: 12 }, { name: 'B', initiative: null }, { name: 'C' }];
++    expect(initiativeBlockers(combatants, game(true, true))).toEqual(['B', 'C']);
++    expect(initiativeBlockers(combatants, game(true, false))).toEqual([]);
++    expect(initiativeBlockers(combatants, game(false, true))).toEqual([]);
++  });
++  it('explains the block', () => {
++    expect(blockedMessage(['B'])).toContain('set_initiative');
++  });
++});
+diff --git a/packages/foundry-module/src/monks-combat-utils.ts b/packages/foundry-module/src/monks-combat-utils.ts
+new file mode 100644
+index 0000000..3a36694
+--- /dev/null
++++ b/packages/foundry-module/src/monks-combat-utils.ts
+@@ -0,0 +1,32 @@
++/**
++ * Monk's Combat Details integration. Found by testing on a live world: with "No Combat Without Initiative" on, starting a
++ * combat while someone has no initiative never returns (the module waits on a prompt in the GM's browser), and its
++ * "Automatically set defeated" marks a creature defeated (and dead) a moment after it drops, even when it was healed
++ * in between. Pure helpers, so they can be tested.
++ */
++
++export function monksActive(g: any = (globalThis as any).game): boolean {
++  try {
++    return !!g?.modules?.get?.('monks-combat-details')?.active;
++  } catch {
++    return false;
++  }
++}
++
++export function monksSetting(key: string, g: any = (globalThis as any).game): unknown {
++  try {
++    return monksActive(g) ? g.settings.get('monks-combat-details', key) : undefined;
++  } catch {
++    return undefined;
++  }
++}
++
++/** The names that keep a combat from starting: no initiative, while the module insists on all of them. Empty when nothing blocks. */
++export function initiativeBlockers(combatants: Array<{ name?: string; initiative?: number | null }>, g: any = (globalThis as any).game): string[] {
++  if (monksSetting('prevent-initiative', g) !== true) return [];
++  return combatants.filter(c => c.initiative === null || c.initiative === undefined).map(c => c.name ?? '?');
++}
++
++export function blockedMessage(names: string[]): string {
++  return `Monk's Combat Details will not start a combat while someone has no initiative (${names.join(', ')}): roll for them (combat roll) or give a value (set_initiative), then use next to begin. Starting now would leave a prompt open in the GM's browser.`;
 +}
 diff --git a/packages/foundry-module/src/object-update-utils.test.ts b/packages/foundry-module/src/object-update-utils.test.ts
 new file mode 100644
@@ -31102,7 +31198,7 @@ index 0000000..ef4d95e
 +});
 diff --git a/packages/mcp-server/src/tools/combat-tools.ts b/packages/mcp-server/src/tools/combat-tools.ts
 new file mode 100644
-index 0000000..59c6cb4
+index 0000000..35eb1eb
 --- /dev/null
 +++ b/packages/mcp-server/src/tools/combat-tools.ts
 @@ -0,0 +1,101 @@
@@ -31162,7 +31258,7 @@ index 0000000..59c6cb4
 +        name: 'combat',
 +        description:
 +          'Run the combat tracker (Foundry\'s own, so tracker modules keep working). Every action returns a short readout: round, whose turn, and one line per combatant in order (initiative, name, hp, conditions). ' +
-+          'ACTIONS: status; start {scene?, who?, roll?, begin?, surprised?} makes the encounter from tokens on the scene (who = list of: "all" (default), "hostile", "friendly", "neutral", "players", "npcs", or token/actor names; hidden tokens are included), rolls initiative for the ones without one (roll: missing (default) | npcs | all | none) and begins it (begin:false to only set it up); add {who, roll?} adds more tokens mid-fight; remove {names}; roll {names? | roll?} rolls initiative (default for everyone still without one); set_initiative {initiative:[{name, value}]}; next, previous, next_round move the turn (the first next begins the combat); damage / heal {amounts:[{target, amount}]} apply to combatants (or scene tokens) by name, through the system rules (temp HP, resistances are the system\'s job) and report hp before and after; defeat {names, defeated?(true)} marks defeated or not; stabilize {names} makes dying characters stable (3 death save successes, 0 failures); death_saves {names, success?, failure?} sets the death save counts (0 to 3; the sheet shows them; 3 failures mark the character dead and defeated); surprised (on start) lists creatures that get the Surprised status for the first round; a character reduced to 0 hp by damage here becomes unconscious and prone; end ends and deletes the encounter. ATTACK AND CHECK (the dnd5e system does the maths: modifiers, advantage, critical hits, resistances, chat cards): attack {attacker, item?, targets?, advantage?, disadvantage?, apply?(true)} uses an item of the attacker (default its first attack or save): spends its charges or slot, rolls the attack against each target (the target is targeted first, so the roll uses its AC and the card shows hit or miss), rolls damage on a hit (double dice on a crit) and applies it, reporting roll, natural, hit, damage and hp before and after; a save item (a breath weapon) rolls damage once and each target rolls a saving throw against its DC; apply:false rolls without applying. Before rolling, the distance from attacker to each target token is checked against the weapon reach or the range: out of range is refused (ignore_range:true rolls anyway), beyond normal range rolls with disadvantage; the result lists warnings, such as an attack made outside the attacker turn or a target already at 0 hp. check {who:[names], skill | ability | save, dc?, advantage?, disadvantage?} rolls a skill (perception or prc), an ability check or a saving throw (dex or dexterity) for each name and reports totals and success against dc. Rolls are posted to the GM only unless public:true. attacker, targets and who match combatants, then scene tokens, then actors. Names match exactly, else part of a name or the actor name. Needs the Foundry tab open in a browser.',
++          'ACTIONS: status; start {scene?, who?, roll?, begin?, surprised?} makes the encounter from tokens on the scene (who = list of: "all" (default), "hostile", "friendly", "neutral", "players", "npcs", or token/actor names; hidden tokens are included), rolls initiative for the ones without one (roll: missing (default) | npcs | all | none) and begins it (begin:false to only set it up); add {who, roll?} adds more tokens mid-fight; remove {names}; roll {names? | roll?} rolls initiative (default for everyone still without one); set_initiative {initiative:[{name, value}]}; next, previous, next_round move the turn (the first next begins the combat); damage / heal {amounts:[{target, amount}]} apply to combatants (or scene tokens) by name, through the system rules (temp HP, resistances are the system\'s job) and report hp before and after; defeat {names, defeated?(true)} marks defeated or not; stabilize {names} makes dying characters stable (3 death save successes, 0 failures); death_saves {names, success?, failure?} sets the death save counts (0 to 3; the sheet shows them; 3 failures mark the character dead and defeated); surprised (on start) lists creatures that get the Surprised status for the first round; a character reduced to 0 hp by damage here becomes unconscious and prone; with Monk\'s Combat Details on, NPCs are marked defeated automatically at 0 hp (no defeat call needed), a heal brings a defeated creature back (revived:true), and a start or next with someone lacking an initiative is refused with a clear message (roll or set_initiative first); end ends and deletes the encounter. ATTACK AND CHECK (the dnd5e system does the maths: modifiers, advantage, critical hits, resistances, chat cards): attack {attacker, item?, targets?, advantage?, disadvantage?, apply?(true)} uses an item of the attacker (default its first attack or save): spends its charges or slot, rolls the attack against each target (the target is targeted first, so the roll uses its AC and the card shows hit or miss), rolls damage on a hit (double dice on a crit) and applies it, reporting roll, natural, hit, damage and hp before and after; a save item (a breath weapon) rolls damage once and each target rolls a saving throw against its DC; apply:false rolls without applying. Before rolling, the distance from attacker to each target token is checked against the weapon reach or the range: out of range is refused (ignore_range:true rolls anyway), beyond normal range rolls with disadvantage; the result lists warnings, such as an attack made outside the attacker turn or a target already at 0 hp. check {who:[names], skill | ability | save, dc?, advantage?, disadvantage?} rolls a skill (perception or prc), an ability check or a saving throw (dex or dexterity) for each name and reports totals and success against dc. Rolls are posted to the GM only unless public:true. attacker, targets and who match combatants, then scene tokens, then actors. Names match exactly, else part of a name or the actor name. Needs the Foundry tab open in a browser.',
 +        inputSchema: {
 +          type: 'object',
 +          properties: {
