@@ -13,8 +13,31 @@ index 73094be..ee383b5 100644
      ],
      "deny": [],
      "ask": [],
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 6346d1a..07682fd 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -1,3 +1,18 @@
++## Unreleased (scenes fork 0.8.6.56)
++
++### New Features
++
++- **Table feed and `table-watch`**: follow a session in real time. The module records the table (chat, rolls, combat turns, player token moves, doors, hit points, players joining) and the server sends one bundled "beat" on `ws://127.0.0.1:31418` only when the GM is needed: a player writing as their character or privately to the GM, a GM-run creature's turn, a door opening, or all awaited rolls coming in. Public out-of-character and blind messages do not wake it. Beats carry a table snapshot. Timings are adjustable; a module setting mutes it. `request-player-rolls` makes the feed wait for that roll.
++- **`get-character` playState** (dnd5e): classes, proficiency, initiative, speed, senses, saves, spell DC and attack, spell slots left, hit dice left, feature and item uses left with their recovery, death saves, exhaustion, concentration, legendary actions.
++- **`combat attack` checks**: refuses targets out of reach or range (`ignore_range` to roll anyway), rolls with disadvantage beyond normal range, and warns when it is not the attacker's turn or someone is already at 0 hp.
++- **Tokens by name**: `move-token`, `update-token` and `get-token-details` accept a token or actor name as well as an id; ambiguous names are refused with the candidates.
++
++### Fixes
++
++- `list-creatures-by-criteria` returned no CR and marked every creature as not undead; it now reports CR, HP, AC and the type flags from the creature index.
++- Layouts are kept in a per-user data folder (`%LOCALAPPDATA%\FoundryMCPServer\layouts` on Windows; `FOUNDRY_MCP_LAYOUTS_DIR` overrides it) instead of the temp folder, which clean-ups can empty. Layouts from the old folder are copied over once.
++- The combat readout showed a stale Bloodied right after healing; it is now derived from the hit points.
++
+ ## v0.8.6 (2026-11-04)
+ 
+ ### New Features
 diff --git a/README.md b/README.md
-index 86fdc42..0423500 100644
+index 86fdc42..003c846 100644
 --- a/README.md
 +++ b/README.md
 @@ -13,6 +13,7 @@ The Foundry MCP Bridge enables natural AI conversations with your Foundry VTT ga
@@ -25,6 +48,35 @@ index 86fdc42..0423500 100644
  - **Map Generation**: Create maps from prompts and automatically upload them into scenes in Foundry VTT using the optional ComfyUI component
  
  ## Installation
+@@ -184,6 +185,28 @@ Once connected, ask Claude Desktop:
+ - **49** wfrp4e-update-actor (WFRP4e Only)
+ - **50** wfrp4e-add-items (WFRP4e Only)
+ 
++## Running a Session: the Table Feed
++
++The AI GM cannot be woken by Foundry on its own, and waking it for every chat line would be slow and costly. The table feed solves both: the Foundry module records what happens at the table, and the MCP server sends one bundled message (a "beat") only when the GM is actually needed.
++
++**Start it** (Claude Code): ask Claude to start the table feed. It runs `table-watch status` for the address (default `ws://127.0.0.1:31418`) and watches it with the Monitor tool for the rest of the session.
++
++**How the chat is read**
++
++| Sent as | Effect |
++|---|---|
++| A character, in character or emote | Wakes the AI GM |
++| Private to the GM (whisper) | Wakes the AI GM |
++| Public, as the user (out of character) | Ignored: table talk |
++| Blind to the GM | Ignored |
++| Whisper between players | Ignored |
++
++**Other events**: a GM-run creature's turn in combat and a player opening a door wake the AI GM. Rolls, item and spell cards, token moves, hit point changes, players joining or leaving, combat start and end and a player's turn are not worth a wake-up on their own, so they are listed in the next beat. Rolls asked for with `request-player-rolls` are awaited: the beat comes once each of them is in (or after 90 seconds, naming who did not roll).
++
++**Timing**: a beat goes once the table has been quiet for 5 seconds after the last waking event (1.5 seconds after a turn change), at most one every 10 seconds, and at the latest 25 seconds after the first waking event. Each beat carries a snapshot of the table (scene, combat order with hit points and conditions, the party, who is online). `table-watch settings` changes these timings.
++
++**Mute**: the module settings have **Mute the AI GM (table feed)** for breaks and long banter. Events keep being recorded and arrive in one beat when it is turned off again. **Wake the AI GM when a player opens a door** can be turned off too.
++
+ ## Settings
+ 
+ <img width="964" height="803" alt="image" src="https://github.com/user-attachments/assets/bfd435d5-2df4-40a6-a79b-87e98121db3f" />
 diff --git a/package-lock.json b/package-lock.json
 index 1b9aef4..fdbc3c1 100644
 --- a/package-lock.json
@@ -1682,6 +1734,505 @@ index 0000000..6c9da45
 +  }
 +  return out;
 +}
+diff --git a/packages/foundry-module/src/attack-checks.test.ts b/packages/foundry-module/src/attack-checks.test.ts
+new file mode 100644
+index 0000000..6435d31
+--- /dev/null
++++ b/packages/foundry-module/src/attack-checks.test.ts
+@@ -0,0 +1,73 @@
++import { describe, expect, it } from 'vitest';
++import { attackRangeOf, rangeVerdict, sameUnits, tokenDistance, turnWarning } from './attack-checks.js';
++
++const G = 100; // pixels per square
++
++describe('attackRangeOf', () => {
++  it('reads a melee weapon (reach 5 by default) and a reach weapon', () => {
++    expect(attackRangeOf({ system: { range: { units: 'ft' } } }, { attack: { type: { value: 'melee' } } })).toEqual({ melee: true, units: 'ft', reach: 5 });
++    expect(attackRangeOf({ system: { range: { reach: 10, units: 'ft' } } }, { attack: { type: { value: 'melee' } } })).toMatchObject({ reach: 10 });
++  });
++  it('reads a ranged weapon, a thrown melee weapon and a touch spell', () => {
++    expect(attackRangeOf({ system: { range: { value: 80, long: 320, units: 'ft' } } }, { attack: { type: { value: 'ranged' } } })).toEqual({
++      melee: false,
++      units: 'ft',
++      normal: 80,
++      long: 320,
++    });
++    expect(attackRangeOf({ system: { range: { value: 20, long: 60, units: 'ft' } } }, { attack: { type: { value: 'melee' } } })).toEqual({
++      melee: true,
++      units: 'ft',
++      reach: 5,
++      normal: 20,
++      long: 60,
++    });
++    expect(attackRangeOf({ system: {} }, { range: { units: 'touch' }, attack: { type: { value: 'melee' } } })).toMatchObject({ reach: 5 });
++  });
++  it('lets an overriding activity range win, and skips self and special ranges', () => {
++    expect(attackRangeOf({ system: { range: { value: 30, units: 'ft' } } }, { range: { override: true, value: 120, units: 'ft' } })).toMatchObject({ normal: 120 });
++    expect(attackRangeOf({ system: { range: { units: 'self' } } }, {})).toBeNull();
++    expect(attackRangeOf({ system: {} }, {})).toBeNull();
++  });
++});
++
++describe('tokenDistance', () => {
++  it('counts adjacent as 5 ft, diagonals as one square, and from the nearest edge of large tokens', () => {
++    const a = { x: 0, y: 0, width: 1, height: 1 };
++    expect(tokenDistance(a, { x: G, y: 0, width: 1, height: 1 }, G, 5)).toBe(5);
++    expect(tokenDistance(a, { x: G, y: G, width: 1, height: 1 }, G, 5)).toBe(5);
++    expect(tokenDistance(a, { x: 10 * G, y: 5 * G, width: 1, height: 1 }, G, 5)).toBe(50);
++    // A Large ogre whose near edge is two squares away
++    expect(tokenDistance(a, { x: 3 * G, y: 0, width: 2, height: 2 }, G, 5)).toBe(15);
++  });
++});
++
++describe('rangeVerdict', () => {
++  const bow = { melee: false, units: 'ft', normal: 80, long: 320 };
++  const sword = { melee: true, units: 'ft', reach: 5 };
++  const axe = { melee: true, units: 'ft', reach: 5, normal: 20, long: 60 };
++  it('judges normal, long and out of range', () => {
++    expect(rangeVerdict(50, bow)).toEqual({ status: 'ok' });
++    expect(rangeVerdict(100, bow)).toEqual({ status: 'long', normal: 80 });
++    expect(rangeVerdict(400, bow)).toEqual({ status: 'out', max: 320 });
++    expect(rangeVerdict(5, sword)).toEqual({ status: 'ok' });
++    expect(rangeVerdict(10, sword)).toEqual({ status: 'out', max: 5 });
++    expect(rangeVerdict(15, axe)).toEqual({ status: 'ok' });
++    expect(rangeVerdict(40, axe)).toEqual({ status: 'long', normal: 20 });
++  });
++  it('compares units by meaning', () => {
++    expect(sameUnits('ft', 'feet')).toBe(true);
++    expect(sameUnits(undefined, 'ft')).toBe(true);
++    expect(sameUnits('m', 'ft')).toBe(false);
++  });
++});
++
++describe('turnWarning', () => {
++  const combat = { started: true, combatant: { tokenId: 't3', actorId: 'a', name: 'Goblin 3' } };
++  it('warns only when a running combat has someone else turn', () => {
++    expect(turnWarning(combat, { tokenId: 't3', name: 'Goblin 3' }, true)).toBeUndefined();
++    expect(turnWarning(combat, { tokenId: 't1', name: 'Goblin 1' }, true)).toMatch(/Goblin 3's turn, not Goblin 1's/);
++    expect(turnWarning(combat, { tokenId: 't9', name: 'Bystander' }, false)).toBeUndefined();
++    expect(turnWarning({ started: false, combatant: null }, { tokenId: 't1', name: 'Goblin 1' }, true)).toBeUndefined();
++  });
++});
+diff --git a/packages/foundry-module/src/attack-checks.ts b/packages/foundry-module/src/attack-checks.ts
+new file mode 100644
+index 0000000..61d5487
+--- /dev/null
++++ b/packages/foundry-module/src/attack-checks.ts
+@@ -0,0 +1,120 @@
++/**
++ * Checks made before an attack is rolled: is the target within the weapon's or spell's range, and
++ * is it the attacker's turn. Pure functions over plain data so they can be tested without Foundry.
++ */
++
++export interface AttackRange {
++  /** a melee attack (a thrown melee weapon may also have a normal and long range) */
++  melee: boolean;
++  /** melee reach, in the range units */
++  reach?: number;
++  /** normal range */
++  normal?: number;
++  /** long range (beyond normal: disadvantage) */
++  long?: number;
++  /** ft, m, ... as the item stores it */
++  units: string;
++}
++
++const num = (v: unknown): number | undefined => {
++  const n = typeof v === 'string' && v.trim() !== '' ? Number(v) : v;
++  return typeof n === 'number' && Number.isFinite(n) && n > 0 ? n : undefined;
++};
++
++/**
++ * The range of a dnd5e item and activity. dnd5e 4+ keeps the range on the activity (which may
++ * override the item) and reach on the item; older data keeps everything on the item. Returns null
++ * when there is nothing to check (self, special, no range at all).
++ */
++export function attackRangeOf(item: any, activity: any): AttackRange | null {
++  const itemRange = item?.system?.range ?? {};
++  const actRange = activity?.range ?? {};
++  const pick = (key: string) => (activity?.range?.override ? actRange[key] ?? itemRange[key] : itemRange[key] ?? actRange[key]);
++  const unitsRaw = String(pick('units') ?? '').toLowerCase();
++  if (['self', 'spec', 'any', 'none'].includes(unitsRaw)) return null;
++  const attackType = activity?.attack?.type?.value ?? item?.system?.actionType ?? '';
++  const melee = attackType === 'melee' || attackType === 'mwak' || attackType === 'msak';
++  const touch = unitsRaw === 'touch';
++  const units = touch || unitsRaw === '' ? 'ft' : unitsRaw;
++  const reach = num(itemRange.reach) ?? num(actRange.reach) ?? (melee || touch ? 5 : undefined);
++  const normal = touch ? undefined : num(pick('value'));
++  const long = touch ? undefined : num(pick('long'));
++  if (reach === undefined && normal === undefined && long === undefined) return null;
++  return {
++    melee: melee || touch,
++    units,
++    ...(reach !== undefined ? { reach } : {}),
++    ...(normal !== undefined ? { normal } : {}),
++    ...(long !== undefined && (normal === undefined || long > normal) ? { long } : {}),
++  };
++}
++
++export interface TokenBox {
++  /** top-left corner, pixels */
++  x: number;
++  y: number;
++  /** size in grid squares */
++  width: number;
++  height: number;
++}
++
++/**
++ * Distance between two tokens the way D&D counts it on a square grid: squares between their
++ * nearest edges, plus one (adjacent tokens are 5 ft apart), diagonals counting as one square.
++ * Returned in the scene's distance units.
++ */
++export function tokenDistance(a: TokenBox, b: TokenBox, gridSize: number, gridDistance: number): number {
++  const sq = (px: number) => px / (gridSize || 1);
++  const ax = sq(a.x);
++  const ay = sq(a.y);
++  const bx = sq(b.x);
++  const by = sq(b.y);
++  const aw = a.width || 1;
++  const ah = a.height || 1;
++  const bw = b.width || 1;
++  const bh = b.height || 1;
++  const gapX = Math.max(0, bx - (ax + aw), ax - (bx + bw));
++  const gapY = Math.max(0, by - (ay + ah), ay - (by + bh));
++  const squares = Math.round(Math.max(gapX, gapY)) + 1;
++  return squares * (gridDistance || 5);
++}
++
++export type RangeVerdict =
++  | { status: 'ok' }
++  | { status: 'long'; normal: number }
++  | { status: 'out'; max: number };
++
++/** Whether a distance is within the attack's reach or range, its long range, or out of range. */
++export function rangeVerdict(distance: number, range: AttackRange): RangeVerdict {
++  const reach = range.reach ?? 0;
++  if (distance <= reach) return { status: 'ok' };
++  if (range.normal !== undefined && distance <= range.normal) return { status: 'ok' };
++  if (range.long !== undefined && distance <= range.long) return { status: 'long', normal: range.normal ?? reach };
++  return { status: 'out', max: Math.max(reach, range.normal ?? 0, range.long ?? 0) };
++}
++
++/** Units a scene and an item share, so a distance can be compared (ft and feet, m and meters). */
++export function sameUnits(a: string | undefined, b: string | undefined): boolean {
++  const norm = (u: string | undefined) => {
++    const s = String(u ?? 'ft').trim().toLowerCase().replace(/\.$/, '');
++    if (['ft', 'feet', 'foot'].includes(s)) return 'ft';
++    if (['m', 'meter', 'meters', 'metre', 'metres'].includes(s)) return 'm';
++    return s;
++  };
++  return norm(a) === norm(b);
++}
++
++/** A warning when a running combat has someone else's turn (attacks of opportunity are fine, just flagged). */
++export function turnWarning(
++  combat: { started?: boolean; combatant?: { tokenId?: string; actorId?: string; name?: string } | null } | null | undefined,
++  attacker: { tokenId?: string; actorId?: string; name: string },
++  inCombat: boolean
++): string | undefined {
++  if (!combat?.started || !combat.combatant || !inCombat) return undefined;
++  const current = combat.combatant;
++  const same =
++    (attacker.tokenId && current.tokenId === attacker.tokenId) ||
++    (!attacker.tokenId && attacker.actorId && current.actorId === attacker.actorId);
++  if (same) return undefined;
++  return `It is ${current.name ?? 'someone else'}'s turn, not ${attacker.name}'s (fine for a reaction such as an opportunity attack)`;
++}
+diff --git a/packages/foundry-module/src/character-state-utils.test.ts b/packages/foundry-module/src/character-state-utils.test.ts
+new file mode 100644
+index 0000000..424321f
+--- /dev/null
++++ b/packages/foundry-module/src/character-state-utils.test.ts
+@@ -0,0 +1,90 @@
++import { describe, expect, it, vi } from 'vitest';
++import { dnd5ePlayState } from './character-state-utils.js';
++
++describe('dnd5ePlayState', () => {
++  it('summarises a fighter: speed, saves, hit dice and feature uses', () => {
++    const actor = {
++      type: 'character',
++      statuses: new Set<string>(),
++      system: {
++        attributes: {
++          prof: 2,
++          init: { total: 2 },
++          movement: { walk: 30, units: 'ft' },
++          senses: { darkvision: 0, units: 'ft' },
++          hp: { value: 12, max: 20 },
++          exhaustion: 0,
++          inspiration: true,
++        },
++        abilities: { str: { mod: 3, save: { value: 5 } }, dex: { mod: 2, save: 2 }, con: { mod: 2, proficient: 1 } },
++        spells: {},
++      },
++      items: [
++        { type: 'class', name: 'Fighter', system: { levels: 2, identifier: 'fighter', hd: { denomination: 'd10', max: 2, spent: 1 } } },
++        { type: 'feat', name: 'Second Wind', system: { uses: { max: 1, spent: 0, recovery: [{ period: 'sr' }] } } },
++        { type: 'feat', name: 'Action Surge', system: { uses: { max: 1, value: 0, per: 'sr' } } },
++        { type: 'weapon', name: 'Longsword', system: {} },
++      ],
++    };
++    expect(dnd5ePlayState(actor)).toEqual({
++      classes: 'Fighter 2',
++      proficiencyBonus: 2,
++      initiative: 2,
++      speed: '30 ft',
++      saves: { str: 5, dex: 2, con: 4 },
++      hitDice: 'd10 1/2',
++      resources: [
++        { name: 'Second Wind', uses: '1/1', recovers: 'sr' },
++        { name: 'Action Surge', uses: '0/1', recovers: 'sr' },
++      ],
++      inspiration: true,
++    });
++  });
++
++  it('adds slots, spell DC, senses, death saves and concentration for a caster', () => {
++    const actor = {
++      type: 'character',
++      statuses: new Set(['concentrating']),
++      system: {
++        attributes: {
++          spellcasting: 'wis',
++          spell: { dc: 13, attack: 5 },
++          movement: { walk: 25, fly: 50, units: 'ft', hover: true },
++          senses: { ranges: { darkvision: 60 }, units: 'ft' },
++          hp: { value: 0, max: 18 },
++          death: { success: 1, failure: 2 },
++        },
++        spells: { spell1: { value: 1, max: 3 }, spell2: { value: 2, max: 2 }, spell3: { value: 0, max: 0 }, pact: { value: 0, max: 0 } },
++      },
++      items: [{ type: 'class', name: 'Cleric', system: { levels: 3, identifier: 'cleric', hd: { denomination: 'd8', value: 3, max: 3 } } }],
++    };
++    expect(dnd5ePlayState(actor)).toMatchObject({
++      speed: 'walk 25, fly 50 ft (hover)',
++      senses: 'darkvision 60 ft',
++      spellcasting: { ability: 'wis', dc: 13, attack: 5 },
++      spellSlots: { 1: '1/3', 2: '2/2' },
++      deathSaves: '1 successes, 2 failures',
++      concentrating: true,
++      hitDice: 'd8 3/3',
++    });
++  });
++
++  it('never reads a deprecated save accessor', () => {
++    const getter = vi.fn(() => ({ value: 99 }));
++    const wis = { mod: 1, proficient: 1 } as Record<string, unknown>;
++    Object.defineProperty(wis, 'save', { enumerable: true, get: getter });
++    const state = dnd5ePlayState({ type: 'npc', system: { attributes: { prof: 2 }, abilities: { wis } }, items: [] });
++    expect(state?.saves).toEqual({ wis: 3 });
++    expect(getter).not.toHaveBeenCalled();
++  });
++
++  it('reports legendary actions for a monster and returns nothing for an empty actor', () => {
++    const dragon = {
++      type: 'npc',
++      system: { attributes: { hp: { value: 0, max: 200 } }, resources: { legact: { value: 2, max: 3 }, legres: { value: 3, max: 3 } } },
++      items: [],
++    };
++    expect(dnd5ePlayState(dragon)).toEqual({ legendary: 'actions 2/3, resistances 3/3' });
++    expect(dnd5ePlayState({})).toBeUndefined();
++  });
++});
+diff --git a/packages/foundry-module/src/character-state-utils.ts b/packages/foundry-module/src/character-state-utils.ts
+new file mode 100644
+index 0000000..2672e0b
+--- /dev/null
++++ b/packages/foundry-module/src/character-state-utils.ts
+@@ -0,0 +1,192 @@
++/**
++ * What a GM needs to know about a dnd5e creature during play, in a compact form: speed, senses,
++ * saves, spell slots, hit dice, feature uses (Second Wind, Action Surge, Rage, a wand's charges),
++ * death saves, exhaustion, legendary actions. Read from the prepared (live) actor, so derived
++ * values such as remaining uses and save totals are the system's own. Pure: no Foundry globals.
++ */
++
++export interface PlayState {
++  classes?: string;
++  proficiencyBonus?: number;
++  initiative?: number;
++  speed?: string;
++  senses?: string;
++  saves?: Record<string, number>;
++  spellcasting?: { ability?: string; dc?: number; attack?: number };
++  spellSlots?: Record<string, string>;
++  hitDice?: string;
++  resources?: Array<{ name: string; uses: string; recovers?: string }>;
++  deathSaves?: string;
++  exhaustion?: number;
++  inspiration?: boolean;
++  concentrating?: boolean;
++  legendary?: string;
++}
++
++const n = (v: unknown): number | undefined => {
++  const x = typeof v === 'string' && v.trim() !== '' ? Number(v) : v;
++  return typeof x === 'number' && Number.isFinite(x) ? x : undefined;
++};
++
++const valuesOf = (collection: any): any[] => {
++  if (!collection) return [];
++  if (Array.isArray(collection)) return collection;
++  if (Array.isArray(collection.contents)) return collection.contents;
++  if (typeof collection.values === 'function') return [...collection.values()];
++  return Object.values(collection);
++};
++
++const ABILITIES = ['str', 'dex', 'con', 'int', 'wis', 'cha'];
++const MOVES = ['walk', 'fly', 'swim', 'climb', 'burrow'];
++const SENSES = ['darkvision', 'blindsight', 'tremorsense', 'truesight'];
++
++/** "walk 30, fly 60 ft (hover)"; just "30 ft" when only walking. */
++function speedOf(movement: any): string | undefined {
++  if (!movement) return undefined;
++  const units = movement.units || 'ft';
++  const parts = MOVES.map(k => [k, n(movement[k])] as const).filter(([, v]) => v !== undefined && v > 0);
++  if (!parts.length) return undefined;
++  const hover = movement.hover ? ' (hover)' : '';
++  if (parts.length === 1 && parts[0]![0] === 'walk') return `${parts[0]![1]} ${units}${hover}`;
++  return `${parts.map(([k, v]) => `${k} ${v}`).join(', ')} ${units}${hover}`;
++}
++
++function sensesOf(senses: any): string | undefined {
++  if (!senses) return undefined;
++  const ranges = senses.ranges ?? senses;
++  const units = senses.units || ranges.units || 'ft';
++  const parts = SENSES.map(k => [k, n(ranges[k])] as const)
++    .filter(([, v]) => v !== undefined && v > 0)
++    .map(([k, v]) => `${k} ${v} ${units}`);
++  const special = typeof senses.special === 'string' && senses.special.trim() ? senses.special.trim() : '';
++  if (special) parts.push(special);
++  return parts.length ? parts.join(', ') : undefined;
++}
++
++/** Recovery period of an item's uses: dnd5e 4+ has a recovery list, older data a single "per". */
++function recoveryOf(uses: any): string | undefined {
++  const list = Array.isArray(uses?.recovery) ? uses.recovery : [];
++  const periods = list.map((r: any) => r?.period).filter(Boolean);
++  if (periods.length) return [...new Set(periods)].join('/');
++  return typeof uses?.per === 'string' && uses.per ? uses.per : undefined;
++}
++
++export function dnd5ePlayState(actor: any): PlayState | undefined {
++  const system = actor?.system;
++  if (!system) return undefined;
++  const attr = system.attributes ?? {};
++  const out: PlayState = {};
++
++  const classes = valuesOf(actor.items).filter((i: any) => i?.type === 'class');
++  if (classes.length) {
++    out.classes = classes
++      .map((c: any) => {
++        const sub = valuesOf(actor.items).find(
++          (i: any) => i?.type === 'subclass' && i.system?.classIdentifier && i.system.classIdentifier === c.system?.identifier
++        );
++        return `${c.name}${sub ? ` (${sub.name})` : ''} ${n(c.system?.levels) ?? 1}`;
++      })
++      .join(', ');
++  }
++
++  const prof = n(attr.prof);
++  if (prof !== undefined) out.proficiencyBonus = prof;
++  const init = n(attr.init?.total) ?? n(attr.init?.mod);
++  if (init !== undefined) out.initiative = init;
++  const speed = speedOf(attr.movement);
++  if (speed) out.speed = speed;
++  const senses = sensesOf(attr.senses);
++  if (senses) out.senses = senses;
++
++  if (system.abilities) {
++    const saves: Record<string, number> = {};
++    for (const k of ABILITIES) {
++      const a = system.abilities[k];
++      if (!a) continue;
++      // Newer dnd5e keeps ability.save only as a deprecated accessor that warns when read, so it
++      // is read only when it is plain data (older versions: a number, or an object with a value).
++      // Otherwise: modifier plus save proficiency (proficient is the multiplier, 0/1/2).
++      const desc = Object.getOwnPropertyDescriptor(a, 'save');
++      const plain = desc && 'value' in desc ? desc.value : undefined;
++      const fromData = n(plain?.value) ?? n(plain);
++      const mod = n(a.mod);
++      const computed = mod !== undefined ? mod + Math.floor((n(a.proficient) ?? 0) * (prof ?? 0)) : undefined;
++      const save = fromData ?? computed;
++      if (save !== undefined) saves[k] = save;
++    }
++    if (Object.keys(saves).length) out.saves = saves;
++  }
++
++  const spellAbility = typeof attr.spellcasting === 'string' && attr.spellcasting ? attr.spellcasting : undefined;
++  const dc = n(attr.spell?.dc) ?? n(attr.spelldc);
++  const spellAttack = n(attr.spell?.attack);
++  const slots: Record<string, string> = {};
++  for (let level = 1; level <= 9; level++) {
++    const s = system.spells?.[`spell${level}`];
++    const max = n(s?.max);
++    if (max && max > 0) slots[String(level)] = `${n(s.value) ?? 0}/${max}`;
++  }
++  const pact = system.spells?.pact;
++  if (n(pact?.max)) slots.pact = `${n(pact.value) ?? 0}/${n(pact.max)}${n(pact.level) ? ` (level ${n(pact.level)})` : ''}`;
++  if (Object.keys(slots).length) out.spellSlots = slots;
++  if (Object.keys(slots).length || spellAbility) {
++    out.spellcasting = {
++      ...(spellAbility ? { ability: spellAbility } : {}),
++      ...(dc !== undefined ? { dc } : {}),
++      ...(spellAttack !== undefined ? { attack: spellAttack } : {}),
++    };
++  }
++
++  // Hit dice per class (dnd5e 4+: hd.denomination / hd.value or max - spent), else the actor total.
++  const hd = classes
++    .map((c: any) => {
++      const den = c.system?.hd?.denomination ?? c.system?.hitDice;
++      const max = n(c.system?.hd?.max) ?? n(c.system?.levels);
++      const left = n(c.system?.hd?.value) ?? (max !== undefined ? max - (n(c.system?.hd?.spent) ?? n(c.system?.hitDiceUsed) ?? 0) : undefined);
++      return den && max !== undefined ? `${den} ${left ?? max}/${max}` : undefined;
++    })
++    .filter(Boolean);
++  if (hd.length) out.hitDice = hd.join(', ');
++  else if (n(attr.hd?.max)) out.hitDice = `${n(attr.hd.value) ?? 0}/${n(attr.hd.max)}`;
++  else if (typeof attr.hd === 'number') out.hitDice = String(attr.hd);
++
++  const resources: Array<{ name: string; uses: string; recovers?: string }> = [];
++  for (const item of valuesOf(actor.items)) {
++    if (!item || item.type === 'spell' || item.type === 'class') continue;
++    const uses = item.system?.uses;
++    const max = n(uses?.max);
++    if (!max || max <= 0) continue;
++    const value = n(uses.value) ?? max - (n(uses.spent) ?? 0);
++    const recovers = recoveryOf(uses);
++    resources.push({ name: item.name, uses: `${value}/${max}`, ...(recovers ? { recovers } : {}) });
++  }
++  // Legacy resource slots on characters (primary, secondary, tertiary)
++  for (const key of ['primary', 'secondary', 'tertiary']) {
++    const r = system.resources?.[key];
++    const max = n(r?.max);
++    if (r?.label && max && max > 0) {
++      resources.push({ name: r.label, uses: `${n(r.value) ?? 0}/${max}`, ...(r.lr ? { recovers: 'lr' } : r.sr ? { recovers: 'sr' } : {}) });
++    }
++  }
++  if (resources.length) out.resources = resources;
++
++  const hp = n(attr.hp?.value);
++  if (actor.type === 'character' && hp !== undefined && hp <= 0) {
++    out.deathSaves = `${n(attr.death?.success) ?? 0} successes, ${n(attr.death?.failure) ?? 0} failures`;
++  }
++  const exhaustion = n(attr.exhaustion);
++  if (exhaustion) out.exhaustion = exhaustion;
++  if (attr.inspiration === true) out.inspiration = true;
++  const statuses = actor.statuses ? [...actor.statuses] : [];
++  if (statuses.includes('concentrating')) out.concentrating = true;
++
++  const legact = system.resources?.legact;
++  const legres = system.resources?.legres;
++  const legendary: string[] = [];
++  if (n(legact?.max)) legendary.push(`actions ${n(legact.value) ?? 0}/${n(legact.max)}`);
++  if (n(legres?.max)) legendary.push(`resistances ${n(legres.value) ?? 0}/${n(legres.max)}`);
++  if (system.resources?.lair?.value) legendary.push('lair actions');
++  if (legendary.length) out.legendary = legendary.join(', ');
++
++  return Object.keys(out).length ? out : undefined;
++}
 diff --git a/packages/foundry-module/src/chat-utils.ts b/packages/foundry-module/src/chat-utils.ts
 new file mode 100644
 index 0000000..7b10937
@@ -1902,10 +2453,10 @@ index 0000000..29a397c
 +});
 diff --git a/packages/foundry-module/src/combat-actions.ts b/packages/foundry-module/src/combat-actions.ts
 new file mode 100644
-index 0000000..01a2a16
+index 0000000..7746ce2
 --- /dev/null
 +++ b/packages/foundry-module/src/combat-actions.ts
-@@ -0,0 +1,206 @@
+@@ -0,0 +1,209 @@
 +/**
 + * Monster and character actions in combat: roll an attack (and damage, and apply it), roll a
 + * saving-throw ability against targets, or roll a check. Works through the dnd5e activity and actor
@@ -1927,6 +2478,8 @@ index 0000000..01a2a16
 +   * attack: it then rolls against that token's AC and shows hit or miss on the card.
 +   */
 +  setTarget?: (target: NamedActor | null) => void;
++  /** targets beyond the attack's normal range (but within long range): rolled with disadvantage */
++  longRange?: (target: NamedActor) => boolean;
 +}
 +
 +export interface NamedActor {
@@ -2017,13 +2570,14 @@ index 0000000..01a2a16
 +  try {
 +    for (const t of list) {
 +      options.setTarget?.(t.actor ? t : null);
-+      const rolls = await activity.rollAttack(config, NO_DIALOG, message);
++      const long = !!(t.actor && options.longRange?.(t));
++      const rolls = await activity.rollAttack(long ? { ...config, disadvantage: true } : config, NO_DIALOG, message);
 +      const roll = rolls?.[0];
 +      if (!roll) throw new Error('The attack was cancelled or could not be rolled');
 +      const natural = roll.dice?.[0]?.results?.find((r: any) => r.active !== false)?.result ?? roll.terms?.[0]?.total;
 +      const crit = !!roll.isCritical;
 +      const fumble = !!roll.isFumble;
-+      const row: Record<string, any> = { ...(t.name ? { target: t.name } : {}), roll: Number(roll.total), ...(natural !== undefined ? { natural } : {}), ...(crit ? { crit: true } : {}), ...(fumble ? { fumble: true } : {}) };
++      const row: Record<string, any> = { ...(t.name ? { target: t.name } : {}), roll: Number(roll.total), ...(natural !== undefined ? { natural } : {}), ...(crit ? { crit: true } : {}), ...(fumble ? { fumble: true } : {}), ...(long ? { longRange: 'disadvantage' } : {}) };
 +      if (t.actor) {
 +        const ac = Number(t.actor.system?.attributes?.ac?.value ?? 10);
 +        // the roll knows its target's AC (the system set it from the targeted token); fall back to comparing
@@ -2114,10 +2668,10 @@ index 0000000..01a2a16
 +}
 diff --git a/packages/foundry-module/src/combat-utils.ts b/packages/foundry-module/src/combat-utils.ts
 new file mode 100644
-index 0000000..c643700
+index 0000000..460cc6f
 --- /dev/null
 +++ b/packages/foundry-module/src/combat-utils.ts
-@@ -0,0 +1,89 @@
+@@ -0,0 +1,99 @@
 +/** Combat control helpers: picking tokens and combatants by plain description, and a short readout of the encounter. */
 +
 +export interface TokenLike {
@@ -2193,7 +2747,17 @@ index 0000000..c643700
 +      c.name ?? '?',
 +    ];
 +    if (hp && hp.value !== undefined) parts.push(`hp ${hp.value}${hp.max !== undefined ? '/' + hp.max : ''}${hp.temp ? '+' + hp.temp : ''}`);
-+    const statuses = c.actor?.statuses ? [...c.actor.statuses] : [];
++    let statuses: string[] = c.actor?.statuses ? [...c.actor.statuses] : [];
++    // dnd5e adds and removes Bloodied in a hook that runs after the hit point update, so right
++    // after damage or healing the status set is stale: derive it from the hit points instead.
++    const hpValue = Number(hp?.value);
++    const hpMax = Number(hp?.max);
++    if (Number.isFinite(hpValue) && Number.isFinite(hpMax) && hpMax > 0) {
++      const bloodied = hpValue > 0 && hpValue <= hpMax / 2;
++      const tracksBloodied = statuses.includes('bloodied') || (globalThis as any).game?.system?.id === 'dnd5e';
++      statuses = statuses.filter(s => s !== 'bloodied');
++      if (bloodied && tracksBloodied) statuses.push('bloodied');
++    }
 +    if (statuses.length) parts.push(`[${statuses.join(', ')}]`);
 +    if (c.defeated) parts.push('(defeated)');
 +    if (c.hidden) parts.push('(hidden)');
@@ -3055,10 +3619,10 @@ index 0000000..e1a0a64
 +});
 diff --git a/packages/foundry-module/src/data-access.combat.test.ts b/packages/foundry-module/src/data-access.combat.test.ts
 new file mode 100644
-index 0000000..8d9b842
+index 0000000..9cfdafd
 --- /dev/null
 +++ b/packages/foundry-module/src/data-access.combat.test.ts
-@@ -0,0 +1,233 @@
+@@ -0,0 +1,250 @@
 +/** combat control: start an encounter, initiative, turns, damage and healing. Foundry is stubbed. */
 +import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 +import { FoundryDataAccess } from './data-access.js';
@@ -3095,6 +3659,23 @@ index 0000000..8d9b842
 +    const view = compactCombat(combat)!;
 +    expect(view).toMatchObject({ started: true, round: 2, turn: 'Mira' });
 +    expect(view.order).toEqual(['18 Goblin 1 hp 3/7 [prone]', '> 12 Mira hp 20/20+4', '-- Boss (hidden)']);
++  });
++  it('derives bloodied from hit points, since the system status lags behind an update', () => {
++    const combat = {
++      started: false,
++      turns: [
++        // Healed to full, but the Bloodied status has not been removed yet.
++        { name: 'Randal', initiative: 7, actor: { system: { attributes: { hp: { value: 20, max: 20 } } }, statuses: new Set(['bloodied']) } },
++        // Just took damage below half; the status has not been added yet, but the system tracks it.
++        { name: 'Ogre', initiative: 5, actor: { system: { attributes: { hp: { value: 10, max: 59 } } }, statuses: new Set(['bloodied', 'prone']) } },
++        { name: 'Goblin', initiative: 3, actor: { system: { attributes: { hp: { value: 0, max: 7 } } }, statuses: new Set(['bloodied']) } },
++      ],
++    };
++    expect(compactCombat(combat)!.order).toEqual([
++      '7 Randal hp 20/20',
++      '5 Ogre hp 10/59 [prone, bloodied]',
++      '3 Goblin hp 0/7',
++    ]);
 +  });
 +});
 +
@@ -7498,10 +8079,10 @@ index 0000000..936436e
 +});
 diff --git a/packages/foundry-module/src/data-access.token-scene.test.ts b/packages/foundry-module/src/data-access.token-scene.test.ts
 new file mode 100644
-index 0000000..3539e49
+index 0000000..057a706
 --- /dev/null
 +++ b/packages/foundry-module/src/data-access.token-scene.test.ts
-@@ -0,0 +1,67 @@
+@@ -0,0 +1,86 @@
 +/** move-token and update-token find a token on any scene, and update-token takes vision/light options. */
 +import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 +import { FoundryDataAccess } from './data-access.js';
@@ -7542,6 +8123,25 @@ index 0000000..3539e49
 +    await expect(da.moveToken({ tokenId: 'ta', x: 1, y: 1, scene: 'Town' })).rejects.toThrow('not found in scene "Town"');
 +    await expect(da.moveToken({ tokenId: 'zz', x: 1, y: 1 })).rejects.toThrow('not found in scene "Trail"');
 +    await expect(da.moveToken({ tokenId: 'ta', x: 1, y: 1, scene: 'Nowhere' })).rejects.toThrow('Scene not found');
++  });
++
++  it('finds a token by name: viewed scene first, then other scenes, refusing ambiguous names', async () => {
++    const { da, a, b } = setup();
++    // Token name, any case, on the viewed scene.
++    await da.moveToken({ tokenId: 'token ta', x: 64, y: 64, mode: 'teleport' });
++    expect(a.update).toHaveBeenCalledTimes(1);
++    // Not on the viewed scene: found on another one.
++    const r = await da.moveToken({ tokenId: 'Token tb', x: 64, y: 64, mode: 'teleport' });
++    expect(r.tokenId).toBe('tb');
++    expect(b.update).toHaveBeenCalledTimes(1);
++    // Actor name when no token is named so; two matches are refused with their ids.
++    (a.tokens as Map<string, any>).set('tc', { id: 'tc', name: 'Goblin 1', actor: { name: 'Goblin' }, update: a.update });
++    (a.tokens as Map<string, any>).set('td', { id: 'td', name: 'Goblin 2', actor: { name: 'Goblin' }, update: a.update });
++    await expect(da.moveToken({ tokenId: 'Goblin', x: 1, y: 1, mode: 'teleport' })).rejects.toThrow(/matches 2 tokens: Goblin 1 \(tc\), Goblin 2 \(td\)/);
++    const d = await da.getTokenDetails({ tokenId: 'goblin 2' });
++    expect(d.id).toBe('td');
++    // With a scene given, other scenes are not searched.
++    await expect(da.moveToken({ tokenId: 'Token tb', x: 1, y: 1, scene: 'Trail' })).rejects.toThrow('not found in scene "Trail"');
 +  });
 +
 +  it('updates light and vision on a token of another scene', async () => {
@@ -7645,10 +8245,10 @@ index 0000000..26e6aab
 +  });
 +});
 diff --git a/packages/foundry-module/src/data-access.ts b/packages/foundry-module/src/data-access.ts
-index eecda7e..e061afa 100644
+index eecda7e..92aa4dd 100644
 --- a/packages/foundry-module/src/data-access.ts
 +++ b/packages/foundry-module/src/data-access.ts
-@@ -1,6 +1,140 @@
+@@ -1,6 +1,142 @@
  import { MODULE_ID, ERROR_MESSAGES, TOKEN_DISPOSITIONS } from './constants.js';
  import { permissionManager } from './permissions.js';
 +import {
@@ -7781,7 +8381,9 @@ index eecda7e..e061afa 100644
 +} from './upload-utils.js';
  import { transactionManager } from './transaction-manager.js';
 +import { compactCombat, matchCombatants, pickTokens, type TokenLike } from './combat-utils.js';
-+import { performAttack, performCheck, type NamedActor } from './combat-actions.js';
++import { performAttack, performCheck, pickActivity, type NamedActor } from './combat-actions.js';
++import { dnd5ePlayState, type PlayState } from './character-state-utils.js';
++import { attackRangeOf, rangeVerdict, sameUnits, tokenDistance, turnWarning } from './attack-checks.js';
 +import { partyRow, pickActors, pickClass, splitXp } from './party-utils.js';
 +import { clipText, htmlToText, searchPages, type RulePage } from './rules-utils.js';
 +import { selectMessages } from './chat-utils.js';
@@ -7789,7 +8391,15 @@ index eecda7e..e061afa 100644
  
  // The same five characters foundry.utils.escapeHTML replaces in v14, kept local because
  // that helper isn't confirmed in v13, this module's minimum.
-@@ -1714,6 +1848,82 @@ const DND5E_SIZE: Record<string, string> = {
+@@ -33,6 +169,7 @@ interface CharacterInfo {
+   itemVariants?: any[]; // Item rule element variants (ChoiceSet, etc.)
+   itemToggles?: any[]; // Item rule element toggles (RollOption, ToggleProperty, equipped)
+   spellcasting?: SpellcastingEntry[]; // PF2e/D&D 5e spellcasting entries
++  playState?: PlayState; // dnd5e: slots, feature uses, hit dice, speed, senses, saves
+ }
+ 
+ interface SpellcastingEntry {
+@@ -1714,6 +1851,84 @@ const DND5E_SIZE: Record<string, string> = {
    gargantuan: 'gargantuan',
  };
  
@@ -7815,6 +8425,8 @@ index eecda7e..e061afa 100644
 +  dc?: number;
 +  public?: boolean;
 +  consume?: boolean;
++  /** attack: roll even when a target is out of range */
++  ignore_range?: boolean;
 +}
 +
 +export interface ChatControlRequest {
@@ -7872,7 +8484,24 @@ index eecda7e..e061afa 100644
  export class FoundryDataAccess {
    private moduleId: string = MODULE_ID;
    private persistentIndex: PersistentCreatureIndex = new PersistentCreatureIndex();
-@@ -4681,12 +4891,28 @@ export class FoundryDataAccess {
+@@ -1951,6 +2166,16 @@ export class FoundryDataAccess {
+       characterData.spellcasting = spellcastingEntries;
+     }
+ 
++    // dnd5e: what matters during play (slots, feature uses, hit dice, speed, senses, saves)
++    if ((game as any).system?.id === 'dnd5e') {
++      try {
++        const playState = dnd5ePlayState(actor);
++        if (playState) characterData.playState = playState;
++      } catch (error) {
++        console.warn(`[${this.moduleId}] Could not read the play state of ${actor.name}:`, error);
++      }
++    }
++
+     return characterData;
+   }
+ 
+@@ -4681,12 +4906,28 @@ export class FoundryDataAccess {
        type: 'random' | 'grid' | 'center' | 'coordinates';
        coordinates?: { x: number; y: number }[];
      };
@@ -7901,7 +8530,7 @@ index eecda7e..e061afa 100644
        // Validate inputs
        if (!packId || !itemId) {
          throw new Error('Both packId and itemId are required');
-@@ -4753,10 +4979,33 @@ export class FoundryDataAccess {
+@@ -4753,10 +4994,33 @@ export class FoundryDataAccess {
            }
  
            // Organize created actors in a folder - use "Foundry MCP Creatures" for generic monsters
@@ -7936,7 +8565,7 @@ index eecda7e..e061afa 100644
  
            // Create the actor
            const newActor = await Actor.create(actorData);
-@@ -6714,7 +6963,7 @@ export class FoundryDataAccess {
+@@ -6714,7 +6978,7 @@ export class FoundryDataAccess {
  
          // Send socket request to GM
          if (game.socket) {
@@ -7945,7 +8574,7 @@ index eecda7e..e061afa 100644
              type: 'requestMessageUpdate',
              buttonId,
              userId,
-@@ -7603,6 +7852,7 @@ export class FoundryDataAccess {
+@@ -7603,6 +7867,7 @@ export class FoundryDataAccess {
      if (applyPolyglot) {
        messageData.flags = { polyglot: { language: data.language } };
      }
@@ -7953,7 +8582,7 @@ index eecda7e..e061afa 100644
      if (whisperIds.length > 0) {
        messageData.whisper = whisperIds;
      }
-@@ -8101,246 +8351,4805 @@ export class FoundryDataAccess {
+@@ -8101,239 +8366,4831 @@ export class FoundryDataAccess {
      }
    }
  
@@ -8255,7 +8884,7 @@ index eecda7e..e061afa 100644
 +      if (typeof options.global_light !== 'boolean')
 +        throw new Error('global_light must be boolean');
 +      environment.globalLight = { enabled: options.global_light };
-     }
++    }
 +    if (Object.keys(environment).length > 0) data.environment = environment;
 +
 +    if (options.navigation !== undefined) {
@@ -8265,7 +8894,7 @@ index eecda7e..e061afa 100644
 +    if (options.nav_name !== undefined) {
 +      if (typeof options.nav_name !== 'string') throw new Error('nav_name must be a string');
 +      data.navName = options.nav_name;
-+    }
+     }
 +
 +    return data;
    }
@@ -8335,19 +8964,12 @@ index eecda7e..e061afa 100644
    }
  
 -  // ===== PHASE 7: CHARACTER ENTITY AND TOKEN MANIPULATION METHODS =====
--
-   /**
--   * Get detailed information about a specific entity within a character (item, action, or effect)
++  /**
 +   * Set the canvas colour behind the background. Foundry v14 has no Scene#backgroundColor
 +   * field in the document source: the colour lives on the first Level's background
 +   * (Scene#backgroundColor is only a derived getter, and writing it is silently ignored).
 +   * Verified against a v14.369 world.
-    */
--  async getCharacterEntity(data: {
--    characterIdentifier: string;
--    entityIdentifier: string;
--  }): Promise<any> {
--    this.validateFoundryState();
++   */
 +  private async applySceneBackgroundColor(scene: any, color: string): Promise<void> {
 +    const level = scene.levels?.contents?.[0];
 +    if (level) {
@@ -8357,14 +8979,14 @@ index eecda7e..e061afa 100644
 +    }
 +  }
  
--    try {
--      const serializeDocument = (document: any): Record<string, any> => {
--        const source = document?.toObject?.() ?? document?._source ?? document ?? {};
--        return source as Record<string, any>;
-+  /**
+   /**
+-   * Get detailed information about a specific entity within a character (item, action, or effect)
 +   * Compare what was requested with what the scene reports afterwards, so a write that
 +   * Foundry silently dropped is reported instead of claimed as a success.
-+   */
+    */
+-  async getCharacterEntity(data: {
+-    characterIdentifier: string;
+-    entityIdentifier: string;
 +  private findUnappliedSceneChanges(
 +    options: Record<string, any>,
 +    summary: Record<string, any>
@@ -9597,7 +10219,39 @@ index eecda7e..e061afa 100644
 +              // targeting is only a help for the system to know the AC
 +            }
 +          };
++          // Before rolling: is each target in range, and is it the attacker's turn?
++          const warnings: string[] = [];
++          const longRange = new Set<NamedActor>();
++          const found = pickActivity(attacker.actor, data.item);
++          const range = found ? attackRangeOf(found.item, found.activity) : null;
++          const attackerToken = attacker.token ?? attacker.actor?.getActiveTokens?.(false, true)?.[0] ?? null;
++          if (range && attackerToken) {
++            const outOfRange: string[] = [];
++            for (const t of targets) {
++              const targetToken = t.token ?? t.actor?.getActiveTokens?.(false, true)?.[0] ?? null;
++              if (!targetToken || targetToken.parent?.id !== attackerToken.parent?.id) continue;
++              const grid = attackerToken.parent?.grid ?? {};
++              if (!sameUnits(grid.units, range.units)) continue;
++              const distance = tokenDistance(attackerToken, targetToken, Number(grid.size) || 100, Number(grid.distance) || 5);
++              const verdict = rangeVerdict(distance, range);
++              if (verdict.status === 'out') outOfRange.push(`${t.name} is ${distance} ${range.units} away (${found!.item.name} reaches ${verdict.max} ${range.units})`);
++              else if (verdict.status === 'long') {
++                longRange.add(t);
++                warnings.push(`${t.name} is ${distance} ${range.units} away, beyond the normal range of ${verdict.normal} ${range.units}: rolled with disadvantage`);
++              }
++            }
++            if (outOfRange.length && !data.ignore_range) {
++              throw new Error(`Out of range: ${outOfRange.join('; ')}. Move closer, pick another attack, or pass ignore_range: true`);
++            }
++            if (outOfRange.length) warnings.push(`Out of range (rolled anyway): ${outOfRange.join('; ')}`);
++          }
++          const attackerInCombat = !!combat && members().some(m => (attackerToken && m.tokenId === attackerToken.id) || m.doc.actor === attacker.actor);
++          const turn = turnWarning(combat, { tokenId: attackerToken?.id, actorId: attacker.actor?.id, name: attacker.name }, attackerInCombat);
++          if (turn) warnings.push(turn);
++          if (Number(attacker.actor?.system?.attributes?.hp?.value ?? 0) <= 0 && attacker.actor?.system?.attributes?.hp) warnings.push(`${attacker.name} is at 0 hit points`);
++          for (const t of targets) if (t.actor?.system?.attributes?.hp && Number(t.actor?.system?.attributes?.hp?.value ?? 0) <= 0) warnings.push(`${t.name} was already at 0 hit points`);
 +          const result = await performAttack(attacker, targets, {
++            longRange: t => longRange.has(t),
 +            setTarget,
 +            ...(data.item ? { item: data.item } : {}),
 +            ...(data.advantage ? { advantage: true } : {}),
@@ -9607,6 +10261,7 @@ index eecda7e..e061afa 100644
 +            ...(data.consume === false ? { consume: false } : {}),
 +          });
 +          Object.assign(out, result);
++          if (warnings.length) out.warnings = warnings;
 +          if (missingTargets.length) out.notFound = missingTargets;
 +          break;
 +        }
@@ -12963,17 +13618,10 @@ index eecda7e..e061afa 100644
 +  async getCharacterEntity(data: {
 +    characterIdentifier: string;
 +    entityIdentifier: string;
-+  }): Promise<any> {
-+    this.validateFoundryState();
-+
-+    try {
-+      const serializeDocument = (document: any): Record<string, any> => {
-+        const source = document?.toObject?.() ?? document?._source ?? document ?? {};
-+        return source as Record<string, any>;
-       };
+   }): Promise<any> {
+     this.validateFoundryState();
  
-       // Find the character first
-@@ -8468,6 +13277,21 @@ export class FoundryDataAccess {
+@@ -8468,6 +13325,57 @@ export class FoundryDataAccess {
      }
    }
  
@@ -12992,10 +13640,46 @@ index eecda7e..e061afa 100644
 +    return current;
 +  }
 +
++  /**
++   * Find a token by id or by name. An id is looked up as before (the scene named, else the viewed
++   * scene, else any scene). A name matches the token name exactly (any case), else the actor name,
++   * on the scene named or the viewed scene; without a scene, other scenes are searched when the
++   * viewed one has no match. More than one match is refused with the candidates and their ids.
++   */
++  private findSceneToken(identifier: string, sceneIdentifier?: string): { scene: any; token: any } {
++    const scene = this.findTokenScene(identifier, sceneIdentifier);
++    const byId = scene.tokens?.get(identifier);
++    if (byId) return { scene, token: byId };
++
++    const wanted = String(identifier ?? '').trim().toLowerCase();
++    const matchIn = (s: any): any[] => {
++      const all = (s.tokens?.contents ?? Array.from(s.tokens?.values?.() ?? [])) as any[];
++      const exact = all.filter(t => String(t.name ?? '').toLowerCase() === wanted);
++      if (exact.length) return exact;
++      return all.filter(t => String(t.actor?.name ?? '').toLowerCase() === wanted);
++    };
++    const candidates: { scene: any; token: any }[] = matchIn(scene).map(token => ({ scene, token }));
++    if (!candidates.length && !sceneIdentifier) {
++      for (const s of ((game.scenes as any)?.contents || []) as any[]) {
++        if (s === scene) continue;
++        for (const token of matchIn(s)) candidates.push({ scene: s, token });
++      }
++    }
++    if (candidates.length === 1) return candidates[0];
++    if (candidates.length > 1) {
++      const list = candidates
++        .slice(0, 10)
++        .map(c => `${c.token.name} (${c.token.id}${c.scene !== scene ? `, on ${c.scene.name}` : ''})`)
++        .join(', ');
++      throw new Error(`"${identifier}" matches ${candidates.length} tokens: ${list}. Pass the token id.`);
++    }
++    throw new Error(`Token ${identifier} not found in scene "${scene.name}" (no token with that id or name)`);
++  }
++
    /**
     * Move a token to a new position on the scene
     */
-@@ -8476,6 +13300,12 @@ export class FoundryDataAccess {
+@@ -8476,6 +13384,12 @@ export class FoundryDataAccess {
      x: number;
      y: number;
      animate?: boolean;
@@ -13008,30 +13692,15 @@ index eecda7e..e061afa 100644
    }): Promise<any> {
      this.validateFoundryState();
  
-@@ -8489,24 +13319,57 @@ export class FoundryDataAccess {
+@@ -8489,33 +13403,65 @@ export class FoundryDataAccess {
      }
  
      try {
 -      const scene = (game.scenes as any).current;
 -      if (!scene) {
 -        throw new Error('No active scene found');
--      }
-+      const scene = this.findTokenScene(data.tokenId, data.scene);
- 
-       const token = scene.tokens.get(data.tokenId);
-       if (!token) {
--        throw new Error(`Token ${data.tokenId} not found in current scene`);
-+        throw new Error(`Token ${data.tokenId} not found in scene "${scene.name}"`);
-       }
- 
--      // Update token position
--      await token.update(
--        {
--          x: data.x,
--          y: data.y,
--        },
--        { animate: data.animate !== false }
--      );
++      const { scene, token } = this.findSceneToken(data.tokenId, data.scene);
++
 +      if (data.units !== undefined && data.units !== 'pixels' && data.units !== 'squares') {
 +        throw new Error('units must be pixels or squares');
 +      }
@@ -13065,7 +13734,11 @@ index eecda7e..e061afa 100644
 +        } else {
 +          walkNote = 'The scene is not the one on screen, so the token was placed directly (no walls or speed checked). View the scene first to have it walk.';
 +        }
-+      }
+       }
+-
+-      const token = scene.tokens.get(data.tokenId);
+-      if (!token) {
+-        throw new Error(`Token ${data.tokenId} not found in current scene`);
 +      if (!walked) {
 +        // Update token position
 +        await token.update(
@@ -13075,11 +13748,20 @@ index eecda7e..e061afa 100644
 +          },
 +          { animate: data.animate !== false }
 +        );
-+      }
+       }
  
+-      // Update token position
+-      await token.update(
+-        {
+-          x: data.x,
+-          y: data.y,
+-        },
+-        { animate: data.animate !== false }
+-      );
+-
        this.auditLog('moveToken', data, 'success');
  
-@@ -8514,8 +13377,12 @@ export class FoundryDataAccess {
+       return {
          success: true,
          tokenId: token.id,
          tokenName: token.name,
@@ -13093,7 +13775,7 @@ index eecda7e..e061afa 100644
        };
      } catch (error) {
        this.auditLog(
-@@ -8530,10 +13397,56 @@ export class FoundryDataAccess {
+@@ -8530,10 +13476,56 @@ export class FoundryDataAccess {
      }
    }
  
@@ -13151,7 +13833,7 @@ index eecda7e..e061afa 100644
      this.validateFoundryState();
  
      // Use permission system
-@@ -8546,20 +13459,19 @@ export class FoundryDataAccess {
+@@ -8546,20 +13538,14 @@ export class FoundryDataAccess {
      }
  
      try {
@@ -13159,13 +13841,12 @@ index eecda7e..e061afa 100644
 -      if (!scene) {
 -        throw new Error('No active scene found');
 -      }
-+      const scene = this.findTokenScene(data.tokenId, data.scene);
- 
-       const token = scene.tokens.get(data.tokenId);
-       if (!token) {
+-
+-      const token = scene.tokens.get(data.tokenId);
+-      if (!token) {
 -        throw new Error(`Token ${data.tokenId} not found in current scene`);
-+        throw new Error(`Token ${data.tokenId} not found in scene "${scene.name}"`);
-       }
+-      }
++      const { token } = this.findSceneToken(data.tokenId, data.scene);
  
 -      // Filter out undefined values
 +      // Filter out undefined values; token options become the same dotted fields a prototype token has.
@@ -13178,7 +13859,7 @@ index eecda7e..e061afa 100644
  
        // Apply updates
        await token.update(cleanUpdates);
-@@ -8651,18 +13563,15 @@ export class FoundryDataAccess {
+@@ -8651,19 +13637,12 @@ export class FoundryDataAccess {
    /**
     * Get detailed information about a token
     */
@@ -13192,16 +13873,16 @@ index eecda7e..e061afa 100644
 -        throw new Error('No active scene found');
 -      }
 -
-+      // Found on any scene (the viewed scene first), or on the scene named.
-+      const scene = this.findTokenScene(data.tokenId, data.scene);
-       const token = scene.tokens.get(data.tokenId);
-       if (!token) {
+-      const token = scene.tokens.get(data.tokenId);
+-      if (!token) {
 -        throw new Error(`Token ${data.tokenId} not found in current scene`);
-+        throw new Error(`Token ${data.tokenId} not found in scene "${scene.name}"`);
-       }
+-      }
++      // Found on any scene (the viewed scene first), or on the scene named.
++      const { token } = this.findSceneToken(data.tokenId, data.scene);
  
        // Return flat structure that matches MCP server expectations
-@@ -11274,7 +16183,10 @@ export class FoundryDataAccess {
+       return {
+@@ -11274,7 +16253,10 @@ export class FoundryDataAccess {
        name: string;
        type: string;
        img?: string;
@@ -13212,7 +13893,7 @@ index eecda7e..e061afa 100644
      }>;
      folder?: string;
    }): Promise<{ created: Array<{ id: string; name: string; type: string }>; total: number }> {
-@@ -11286,6 +16198,19 @@ export class FoundryDataAccess {
+@@ -11286,6 +16268,19 @@ export class FoundryDataAccess {
      const docs = params.actors.map(a => {
        const doc: Record<string, any> = { name: a.name, type: a.type };
        if (a.img) doc.img = a.img;
@@ -13232,7 +13913,7 @@ index eecda7e..e061afa 100644
  
        // Merge system data, adding safe defaults for systems that require certain
        // fields to exist during data preparation (avoids non-fatal init errors).
-@@ -11471,7 +16396,16 @@ export class FoundryDataAccess {
+@@ -11471,7 +16466,16 @@ export class FoundryDataAccess {
     * Merges supplied fields into the actor (top-level keys overwrite).
     */
    async updateActors(
@@ -13250,7 +13931,7 @@ index eecda7e..e061afa 100644
    ): Promise<{ updated: Array<{ id: string; name: string }>; total: number }> {
      const updatedActors: Array<{ id: string; name: string }> = [];
  
-@@ -11482,6 +16416,7 @@ export class FoundryDataAccess {
+@@ -11482,6 +16486,7 @@ export class FoundryDataAccess {
        const patch: Record<string, any> = {};
        if (u.name !== undefined) patch.name = u.name;
        if (u.img !== undefined) patch.img = u.img;
@@ -13258,7 +13939,7 @@ index eecda7e..e061afa 100644
        if (u.system !== undefined) {
          // Build a single patch.system nested object so Foundry deep-merges everything
          // in one pass without flat-key vs nested-key conflicts.
-@@ -11504,6 +16439,19 @@ export class FoundryDataAccess {
+@@ -11504,6 +16509,19 @@ export class FoundryDataAccess {
          }
          patch.system = systemPatch;
        }
@@ -15793,10 +16474,10 @@ index 0000000..eab3007
 +  });
 +}
 diff --git a/packages/foundry-module/src/main.ts b/packages/foundry-module/src/main.ts
-index 9024ead..ce71970 100644
+index 9024ead..d06786c 100644
 --- a/packages/foundry-module/src/main.ts
 +++ b/packages/foundry-module/src/main.ts
-@@ -1,9 +1,11 @@
+@@ -1,9 +1,12 @@
  import { MODULE_ID } from './constants.js';
 +import { speechPlayer } from './speech-player.js';
  import { SocketBridge } from './socket-bridge.js';
@@ -15805,10 +16486,21 @@ index 9024ead..ce71970 100644
  import { CampaignHooks } from './campaign-hooks.js';
  import { ComfyUIManager } from './comfyui-manager.js';
 +import { registerAnnotationUI } from './annotation-ui.js';
++import { tableWatcher } from './table-watcher.js';
  // Connection control now handled through settings menu
  
  /**
-@@ -414,6 +416,26 @@ class FoundryMCPBridge {
+@@ -77,6 +80,9 @@ class FoundryMCPBridge {
+ 
+       // Connection control now handled through settings menu
+ 
++      // Record what happens at the table for the AI GM's table feed (local, read on request)
++      tableWatcher.register();
++
+       // Validate settings
+       const validation = this.settings.validateSettings();
+       if (!validation.valid) {
+@@ -414,6 +420,26 @@ class FoundryMCPBridge {
          return;
        }
  
@@ -15835,7 +16527,7 @@ index 9024ead..ce71970 100644
        console.log(`[${MODULE_ID}] Starting ComfyUI monitoring...`);
  
        // Show initial loading banner
-@@ -507,6 +529,13 @@ const foundryMCPBridge = new FoundryMCPBridge();
+@@ -507,6 +533,13 @@ const foundryMCPBridge = new FoundryMCPBridge();
  // Make it available globally for settings callbacks
  (window as any).foundryMCPBridge = foundryMCPBridge;
  
@@ -15849,7 +16541,7 @@ index 9024ead..ce71970 100644
  // Foundry VTT Hooks
  Hooks.once('init', async () => {
    try {
-@@ -519,10 +548,11 @@ Hooks.once('init', async () => {
+@@ -519,10 +552,11 @@ Hooks.once('init', async () => {
  Hooks.once('ready', async () => {
    try {
      await foundryMCPBridge.onReady();
@@ -17898,21 +18590,22 @@ index 0000000..557e34d
 +  return view ? outSize : { width, height };
 +}
 diff --git a/packages/foundry-module/src/queries.ts b/packages/foundry-module/src/queries.ts
-index 9fe02ba..15b9ed7 100644
+index 9fe02ba..1c7354d 100644
 --- a/packages/foundry-module/src/queries.ts
 +++ b/packages/foundry-module/src/queries.ts
-@@ -1,7 +1,9 @@
+@@ -1,7 +1,10 @@
 -import { MODULE_ID } from './constants.js';
 +import { MODULE_ID, QUERY_NAMESPACE } from './constants.js';
 +import { speechPlayer, speechSettingsFrom } from './speech-player.js';
  import { FoundryDataAccess } from './data-access.js';
  import { ComfyUIManager } from './comfyui-manager.js';
  import { guardQueryHandler } from './query-guard.js';
++import { tableWatcher, TABLE_WATCH_MUTED, TABLE_WATCH_DOORS } from './table-watcher.js';
 +import { profilesFromSetting } from './image-profiles-utils.js';
  
  export class QueryHandlers {
    public dataAccess: FoundryDataAccess;
-@@ -27,7 +29,7 @@ export class QueryHandlers {
+@@ -27,7 +30,7 @@ export class QueryHandlers {
     * Register all query handlers in CONFIG.queries
     */
    registerHandlers(): void {
@@ -17921,7 +18614,7 @@ index 9fe02ba..15b9ed7 100644
  
      // Character/Actor queries
      CONFIG.queries[`${modulePrefix}.getCharacterInfo`] = this.handleGetCharacterInfo.bind(this);
-@@ -46,6 +48,39 @@ export class QueryHandlers {
+@@ -46,6 +49,40 @@ export class QueryHandlers {
      CONFIG.queries[`${modulePrefix}.list-scenes`] = this.handleListScenes.bind(this);
      CONFIG.queries[`${modulePrefix}.switch-scene`] = this.handleSwitchScene.bind(this);
      CONFIG.queries[`${modulePrefix}.update-scene-music`] = this.handleUpdateSceneMusic.bind(this);
@@ -17945,6 +18638,7 @@ index 9fe02ba..15b9ed7 100644
 +    CONFIG.queries[`${modulePrefix}.set-actor-art`] = this.handleSetActorArt.bind(this);
 +    CONFIG.queries[`${modulePrefix}.share-with-players`] = this.handleShareWithPlayers.bind(this);
 +    CONFIG.queries[`${modulePrefix}.read-table`] = this.handleReadTable.bind(this);
++    CONFIG.queries[`${modulePrefix}.table-events`] = this.handleTableEvents.bind(this);
 +    CONFIG.queries[`${modulePrefix}.reveal`] = this.handleReveal.bind(this);
 +    CONFIG.queries[`${modulePrefix}.combat`] = this.handleCombat.bind(this);
 +    CONFIG.queries[`${modulePrefix}.party`] = this.handleParty.bind(this);
@@ -17961,7 +18655,7 @@ index 9fe02ba..15b9ed7 100644
      CONFIG.queries[`${modulePrefix}.manage-playlists`] = this.handleManagePlaylists.bind(this);
      CONFIG.queries[`${modulePrefix}.control-playlist`] = this.handleControlPlaylist.bind(this);
  
-@@ -184,7 +219,7 @@ export class QueryHandlers {
+@@ -184,7 +221,7 @@ export class QueryHandlers {
     * Unregister all query handlers
     */
    unregisterHandlers(): void {
@@ -17970,7 +18664,7 @@ index 9fe02ba..15b9ed7 100644
      const keysToRemove = Object.keys(CONFIG.queries).filter(key => key.startsWith(modulePrefix));
  
      for (const key of keysToRemove) {
-@@ -477,7 +512,7 @@ export class QueryHandlers {
+@@ -477,7 +514,7 @@ export class QueryHandlers {
     * Get list of all registered query methods
     */
    getRegisteredMethods(): string[] {
@@ -17979,7 +18673,7 @@ index 9fe02ba..15b9ed7 100644
      return Object.keys(CONFIG.queries)
        .filter(key => key.startsWith(modulePrefix))
        .map(key => key.replace(`${modulePrefix}.`, ''));
-@@ -487,7 +522,7 @@ export class QueryHandlers {
+@@ -487,7 +524,7 @@ export class QueryHandlers {
     * Test if a specific query handler is registered
     */
    isMethodRegistered(method: string): boolean {
@@ -17988,7 +18682,7 @@ index 9fe02ba..15b9ed7 100644
      return queryKey in CONFIG.queries && typeof CONFIG.queries[queryKey] === 'function';
    }
  
-@@ -530,6 +565,9 @@ export class QueryHandlers {
+@@ -530,6 +567,9 @@ export class QueryHandlers {
        if (data.placement) {
          requestData.placement = data.placement;
        }
@@ -17998,7 +18692,7 @@ index 9fe02ba..15b9ed7 100644
  
        return await this.dataAccess.createActorFromCompendiumEntry(requestData);
      } catch (error) {
-@@ -1218,6 +1256,332 @@ export class QueryHandlers {
+@@ -1218,6 +1258,357 @@ export class QueryHandlers {
      }
    }
  
@@ -18172,6 +18866,31 @@ index 9fe02ba..15b9ed7 100644
 +    return await this.dataAccess.revealObjects(data ?? {});
 +  }
 +
++  /**
++   * The table feed: read the recorded table events (and optionally a snapshot of the table), or
++   * change the table watch settings (muted, wake on doors).
++   */
++  private async handleTableEvents(data: any): Promise<any> {
++    const gmCheck = this.validateGMAccess();
++    if (!gmCheck.allowed) {
++      return { error: 'Access denied', success: false };
++    }
++    if (data?.action === 'settings') {
++      if (typeof data.muted === 'boolean') await game.settings.set(MODULE_ID, TABLE_WATCH_MUTED, data.muted);
++      if (typeof data.wake_on_doors === 'boolean') await game.settings.set(MODULE_ID, TABLE_WATCH_DOORS, data.wake_on_doors);
++      return {
++        success: true,
++        muted: game.settings.get(MODULE_ID, TABLE_WATCH_MUTED) === true,
++        wake_on_doors: game.settings.get(MODULE_ID, TABLE_WATCH_DOORS) !== false,
++      };
++    }
++    return tableWatcher.read({
++      ...(typeof data?.since === 'number' ? { since: data.since } : {}),
++      ...(typeof data?.session === 'string' ? { session: data.session } : {}),
++      ...(data?.snapshot ? { snapshot: true } : {}),
++    });
++  }
++
 +  private async handleReadTable(data: any): Promise<any> {
 +    const gmCheck = this.validateGMAccess();
 +    if (!gmCheck.allowed) {
@@ -18331,7 +19050,7 @@ index 9fe02ba..15b9ed7 100644
    private async handleManagePlaylists(data: any): Promise<any> {
      try {
        const gmCheck = this.validateGMAccess();
-@@ -1241,8 +1605,11 @@ export class QueryHandlers {
+@@ -1241,8 +1632,11 @@ export class QueryHandlers {
        if (!gmCheck.allowed) {
          return { error: 'Access denied', success: false };
        }
@@ -18345,7 +19064,7 @@ index 9fe02ba..15b9ed7 100644
        }
        return await this.dataAccess.controlPlaylist(data);
      } catch (error) {
-@@ -1547,7 +1914,9 @@ export class QueryHandlers {
+@@ -1547,7 +1941,9 @@ export class QueryHandlers {
     */
    private async handleUpdateToken(data: {
      tokenId: string;
@@ -18356,7 +19075,7 @@ index 9fe02ba..15b9ed7 100644
    }): Promise<any> {
      try {
        // SECURITY: Silent GM validation
-@@ -1561,8 +1930,8 @@ export class QueryHandlers {
+@@ -1561,8 +1957,8 @@ export class QueryHandlers {
        if (!data.tokenId) {
          throw new Error('tokenId is required');
        }
@@ -20175,7 +20894,7 @@ index 0000000..cd16bb0
 +  return data;
 +}
 diff --git a/packages/foundry-module/src/settings.ts b/packages/foundry-module/src/settings.ts
-index d689724..29b47d7 100644
+index d689724..c1655cf 100644
 --- a/packages/foundry-module/src/settings.ts
 +++ b/packages/foundry-module/src/settings.ts
 @@ -1,5 +1,12 @@
@@ -20412,7 +21131,32 @@ index d689724..29b47d7 100644
      // ============================================================================
      // SECTION 1: BASIC SETTINGS
      // ============================================================================
-@@ -295,6 +456,40 @@ export class ModuleSettings {
+@@ -240,6 +401,24 @@ export class ModuleSettings {
+     // SECTION 2: WRITE PERMISSIONS
+     // ============================================================================
+ 
++    game.settings.register(this.moduleId, 'tableWatchMuted', {
++      name: 'Mute the AI GM (table feed)',
++      hint: 'While on, what happens at the table is still recorded, but the AI GM is not woken up. Turn it off again and it catches up on everything at once.',
++      scope: 'world',
++      config: true,
++      type: Boolean,
++      default: false,
++    });
++
++    game.settings.register(this.moduleId, 'tableWatchWakeOnDoors', {
++      name: 'Wake the AI GM when a player opens a door',
++      hint: 'So the room beyond can be described. When off, doors are still noted and read the next time the AI GM is woken.',
++      scope: 'world',
++      config: true,
++      type: Boolean,
++      default: true,
++    });
++
+     game.settings.register(this.moduleId, 'allowWriteOperations', {
+       name: 'Allow Write Operations',
+       hint: 'Let AI model create actors, NPCs, and modify world content. Reading is always allowed.',
+@@ -295,6 +474,40 @@ export class ModuleSettings {
        default: true,
      });
  
@@ -21072,6 +21816,444 @@ index 0000000..209e405
 +    return entry;
 +  });
 +}
+diff --git a/packages/foundry-module/src/table-watch-utils.test.ts b/packages/foundry-module/src/table-watch-utils.test.ts
+new file mode 100644
+index 0000000..f1172e0
+--- /dev/null
++++ b/packages/foundry-module/src/table-watch-utils.test.ts
+@@ -0,0 +1,80 @@
++import { describe, expect, it } from 'vitest';
++import { STYLE, TableEventBuffer, chatEvent, doorEvent, moveEvent, turnEvent } from './table-watch-utils.js';
++
++const users: Record<string, { name: string; isGM: boolean }> = {
++  gm: { name: 'Gamemaster', isGM: true },
++  p1: { name: 'Claudio', isGM: false },
++  p2: { name: 'Marta', isGM: false },
++};
++const ctx = { moduleId: 'foundry-mcp-bridge-scenes', userName: (id: string) => users[id]?.name, isGMUser: (id: string) => !!users[id]?.isGM };
++const author = (id: string) => ({ id, ...users[id] });
++
++function msg(over: Record<string, any>): any {
++  return { id: 'm', author: author('p1'), content: '<p>I kick the door</p>', speaker: { actor: 'a1', alias: 'Randal' }, style: STYLE.IC, whisper: [], rolls: [], flags: {}, type: 'base', ...over };
++}
++
++describe('chatEvent: the table chat rule', () => {
++  it('wakes on in-character lines and emotes', () => {
++    expect(chatEvent(msg({}), ctx)).toMatchObject({ kind: 'say', wake: true, text: 'Randal (Claudio): "I kick the door"', user: 'Claudio', actor: 'Randal' });
++    expect(chatEvent(msg({ style: STYLE.EMOTE, content: 'draws his sword' }), ctx)).toMatchObject({ kind: 'emote', wake: true, text: '*Randal draws his sword* (Claudio)' });
++  });
++
++  it('wakes on a message private to the GM, also when out of character', () => {
++    const e = chatEvent(msg({ style: STYLE.OOC, speaker: { alias: 'Claudio' }, whisper: ['gm'], content: 'Can I sneak past?' }), ctx);
++    expect(e).toMatchObject({ kind: 'whisper', wake: true, text: 'Claudio to the GM, privately: "Can I sneak past?"' });
++  });
++
++  it('ignores public out-of-character talk, blind messages and whispers between players', () => {
++    expect(chatEvent(msg({ style: STYLE.OOC, speaker: { alias: 'Claudio' } }), ctx)).toBeNull();
++    expect(chatEvent(msg({ blind: true, whisper: ['gm'] }), ctx)).toBeNull();
++    expect(chatEvent(msg({ whisper: ['p2'] }), ctx)).toBeNull();
++  });
++
++  it('keeps player rolls and cards as background, blind rolls marked', () => {
++    const roll = { total: 14, formula: '1d20 + 1' };
++    expect(chatEvent(msg({ rolls: [roll], flavor: 'Wisdom (Perception) Check', content: '14', flags: { dnd5e: {} } }), ctx)).toMatchObject({
++      kind: 'roll',
++      wake: false,
++      text: 'Randal (Claudio) rolled Wisdom (Perception) Check: 14 (1d20 + 1)',
++      user: 'Claudio',
++      actor: 'Randal',
++    });
++    expect(chatEvent(msg({ rolls: [roll], blind: true, flavor: 'Stealth' }), ctx)?.text).toMatch(/\[blind\]$/);
++    expect(chatEvent(msg({ flags: { dnd5e: { item: {} } }, flavor: 'Second Wind', content: '<div>card</div>' }), ctx)).toMatchObject({ kind: 'card', wake: false, text: 'Randal (Claudio) used Second Wind' });
++  });
++
++  it("ignores the bridge's own posts and the GM's tool rolls and cards, but not the GM typing", () => {
++    expect(chatEvent(msg({ flags: { 'foundry-mcp-bridge-scenes': { bridge: true } } }), ctx)).toBeNull();
++    expect(chatEvent(msg({ author: author('gm'), rolls: [{ total: 20, formula: '1d20+4' }] }), ctx)).toBeNull();
++    expect(chatEvent(msg({ author: author('gm'), flags: { dnd5e: {} } }), ctx)).toBeNull();
++    expect(chatEvent(msg({ author: author('gm'), speaker: { actor: 'a1', alias: 'Randal' } }), ctx)).toMatchObject({ kind: 'say', wake: true });
++  });
++});
++
++describe('other table events', () => {
++  it("wakes on a GM-run creature's turn, not on a player's", () => {
++    expect(turnEvent({ round: 2, combatant: { name: 'Goblin 2', hasPlayerOwner: false } }, 'Randal')).toMatchObject({
++      kind: 'turn',
++      wake: true,
++      text: "Randal ended their turn. Round 2: Goblin 2's turn",
++    });
++    expect(turnEvent({ round: 2, combatant: { name: 'Randal', actor: { hasPlayerOwner: true } } })).toMatchObject({ wake: false, text: "Round 2: Randal's turn (a player)" });
++    expect(turnEvent({ round: 3, combatant: { name: 'Goblin 1', hasPlayerOwner: false, isDefeated: true } })?.wake).toBe(false);
++    expect(turnEvent({ round: 1, combatant: null })).toBeNull();
++  });
++
++  it('notes moves and doors; opening a door wakes when the setting is on', () => {
++    expect(moveEvent('Randal', 'Claudio', { x: 12, y: 8.04 }, 't1')).toMatchObject({ wake: false, text: 'Randal moved to square (12, 8)', key: 'move:t1' });
++    expect(doorEvent(1, 'Claudio', { x: 14.5, y: 6 }, true)).toMatchObject({ wake: true, text: 'Claudio opened a door at square (14.5, 6)' });
++    expect(doorEvent(1, 'Claudio', undefined, false).wake).toBe(false);
++    expect(doorEvent(0, 'Claudio', undefined, true)).toMatchObject({ wake: false, text: 'Claudio closed a door' });
++  });
++
++  it('buffers events with sequence numbers and a capacity', () => {
++    const buf = new TableEventBuffer(3, 'abc');
++    for (let i = 0; i < 5; i++) buf.push({ kind: 'move', wake: false, text: `m${i}` }, i);
++    expect(buf.since().events.map(e => e.text)).toEqual(['m2', 'm3', 'm4']);
++    expect(buf.since(4)).toMatchObject({ seq: 5, events: [{ seq: 5, text: 'm4' }] });
++    expect(buf.session).toBe('abc');
++  });
++});
+diff --git a/packages/foundry-module/src/table-watch-utils.ts b/packages/foundry-module/src/table-watch-utils.ts
+new file mode 100644
+index 0000000..023b07e
+--- /dev/null
++++ b/packages/foundry-module/src/table-watch-utils.ts
+@@ -0,0 +1,169 @@
++/**
++ * Table watch: turning what happens at the table (chat, rolls, combat turns, token moves, doors,
++ * hit points, players joining) into short events, each marked as one that should wake the AI GM
++ * or as background it reads the next time it is woken. Pure: no Foundry globals.
++ *
++ * The chat rule follows how the table uses Foundry's chat: messages sent as a character (in
++ * character or emote) and messages sent privately to the GM are for the AI GM and wake it;
++ * public out-of-character messages and blind messages do not.
++ */
++import { htmlToText } from './rules-utils.js';
++
++export type TableEventKind = 'say' | 'emote' | 'whisper' | 'roll' | 'card' | 'turn' | 'combat' | 'move' | 'door' | 'hp' | 'presence';
++
++export interface TableEvent {
++  seq: number;
++  /** ms since epoch */
++  at: number;
++  kind: TableEventKind;
++  /** one short line, ready to read */
++  text: string;
++  /** this event should wake the AI GM (subject to the server's bundling) */
++  wake: boolean;
++  /** player (user) name, when a player caused it */
++  user?: string;
++  /** character name, when it concerns one */
++  actor?: string;
++  /** events with the same key replace each other inside one bundle (a token's moves, an actor's hp) */
++  key?: string;
++}
++
++export type NewTableEvent = Omit<TableEvent, 'seq' | 'at'>;
++
++const MAX_TEXT = 300;
++const cut = (s: string, max = MAX_TEXT): string => (s.length > max ? `${s.slice(0, max - 3)}...` : s);
++const oneLine = (html: unknown): string => htmlToText(String(html ?? '')).replace(/\s+/g, ' ').trim();
++
++/** Foundry's chat message styles (CONST.CHAT_MESSAGE_STYLES): OTHER 0, OOC 1, IC 2, EMOTE 3. */
++export const STYLE = { OTHER: 0, OOC: 1, IC: 2, EMOTE: 3 } as const;
++
++export interface ChatContext {
++  /** the module's id, to recognise what the bridge posted */
++  moduleId: string;
++  userName: (id: string) => string | undefined;
++  isGMUser: (id: string) => boolean;
++}
++
++/**
++ * One chat message as a table event, or null when it is not something the AI GM should see:
++ * the bridge's own posts, the GM's tool rolls and cards, public out-of-character talk, blind
++ * messages, and whispers between players.
++ */
++export function chatEvent(message: any, ctx: ChatContext): NewTableEvent | null {
++  const flags = message?.flags ?? {};
++  if (flags[ctx.moduleId]?.bridge || flags[ctx.moduleId]?.tts) return null;
++  const author = message.author ?? message.user;
++  const authorId: string | undefined = author?.id ?? (typeof message.user === 'string' ? message.user : undefined);
++  const user = author?.name ?? (authorId ? ctx.userName(authorId) : undefined) ?? 'someone';
++  const fromGM = !!(author?.isGM ?? (authorId ? ctx.isGMUser(authorId) : false));
++  const rolls: any[] = Array.isArray(message.rolls) ? message.rolls : [];
++  const systemCard = !!flags.dnd5e || (typeof message.type === 'string' && message.type !== 'base');
++  // What the GM side posts with rolls or system cards is the bridge's or the GM's own doing.
++  if (fromGM && (rolls.length || systemCard)) return null;
++
++  const alias: string | undefined = message.speaker?.alias || undefined;
++  const asActor = !!(message.speaker?.actor || message.speaker?.token);
++  const who = alias && alias !== user ? `${alias} (${user})` : user;
++  const whisper: string[] = Array.isArray(message.whisper) ? message.whisper : [];
++  const blind = !!message.blind;
++  const text = cut(oneLine(message.content));
++  const actor = asActor && alias ? alias : undefined;
++  const base = { user, ...(actor ? { actor } : {}) };
++
++  if (rolls.length) {
++    const flavor = cut(oneLine(message.flavor), 80);
++    const totals = rolls.map(r => r?.total).filter(t => t !== undefined && t !== null);
++    const formula = String(rolls[0]?.formula ?? '');
++    const label = flavor || formula || 'a roll';
++    const vis = blind ? ' [blind]' : whisper.length ? ' [private]' : '';
++    return { kind: 'roll', wake: false, text: cut(`${who} rolled ${label}: ${totals.join(', ')}${formula && flavor ? ` (${formula})` : ''}${vis}`, 160), ...base };
++  }
++  if (systemCard) {
++    const flavor = oneLine(message.flavor);
++    const summary = cut(flavor || text, 100);
++    return summary ? { kind: 'card', wake: false, text: `${who} used ${summary}`, ...base } : null;
++  }
++  if (!text) return null;
++  // Blind to the GM: not for the AI GM.
++  if (blind) return null;
++  if (whisper.length) {
++    const toGM = whisper.some(id => ctx.isGMUser(id));
++    if (!toGM) return null; // between players
++    return { kind: 'whisper', wake: true, text: `${who} to the GM, privately: "${text}"`, ...base };
++  }
++  const style = Number(message.style ?? (typeof message.type === 'number' ? message.type : STYLE.OTHER));
++  if (style === STYLE.EMOTE) return { kind: 'emote', wake: true, text: `*${alias ?? user} ${text}*${alias && alias !== user ? ` (${user})` : ''}`, ...base };
++  if (style === STYLE.IC || (style === STYLE.OTHER && asActor)) return { kind: 'say', wake: true, text: `${who}: "${text}"`, ...base };
++  // Public, as the user (out of character): table talk, not for the AI GM.
++  return null;
++}
++
++export interface CombatantLike {
++  name?: string;
++  hasPlayerOwner?: boolean;
++  isDefeated?: boolean;
++  defeated?: boolean;
++  hidden?: boolean;
++  actor?: { hasPlayerOwner?: boolean; name?: string } | null;
++}
++
++/** The turn passing to a combatant: a monster's (or other GM-run) turn wakes the AI GM, a player's does not. */
++export function turnEvent(combat: { round?: number; combatant?: CombatantLike | null } | null | undefined, previous?: string): NewTableEvent | null {
++  const current = combat?.combatant;
++  if (!current) return null;
++  const playerRun = !!(current.hasPlayerOwner ?? current.actor?.hasPlayerOwner);
++  const defeated = !!(current.isDefeated ?? current.defeated);
++  const name = current.name ?? current.actor?.name ?? 'someone';
++  const ended = previous ? `${previous} ended their turn. ` : '';
++  const text = `${ended}Round ${combat?.round ?? '?'}: ${name}'s turn${playerRun ? ' (a player)' : ''}${defeated ? ' (defeated)' : ''}`;
++  return { kind: 'turn', wake: !playerRun && !defeated, text, actor: name, key: 'turn' };
++}
++
++/** A token moved by a player, in grid squares. */
++export function moveEvent(tokenName: string, user: string, squares: { x: number; y: number }, tokenId: string): NewTableEvent {
++  const round = (v: number) => Math.round(v * 10) / 10;
++  return { kind: 'move', wake: false, text: `${tokenName} moved to square (${round(squares.x)}, ${round(squares.y)})`, user, actor: tokenName, key: `move:${tokenId}` };
++}
++
++const DOOR_STATES: Record<number, string> = { 0: 'closed', 1: 'opened', 2: 'locked' };
++
++/** A door opened, closed or locked by a player; opening one wakes the AI GM (the room beyond may need describing). */
++export function doorEvent(state: number, user: string, squares: { x: number; y: number } | undefined, wakeOnOpen: boolean): NewTableEvent {
++  const what = DOOR_STATES[state] ?? 'changed';
++  const where = squares ? ` at square (${Math.round(squares.x * 2) / 2}, ${Math.round(squares.y * 2) / 2})` : '';
++  return { kind: 'door', wake: wakeOnOpen && state === 1, text: `${user} ${what} a door${where}`, user };
++}
++
++/** Hit points a player changed on a character. */
++export function hpEvent(actorName: string, user: string, hp: { value?: number; max?: number }, actorId: string): NewTableEvent {
++  return { kind: 'hp', wake: false, text: `${actorName} now has ${hp.value ?? '?'}${hp.max !== undefined ? `/${hp.max}` : ''} hp (changed by ${user})`, user, actor: actorName, key: `hp:${actorId}` };
++}
++
++export function presenceEvent(user: string, connected: boolean): NewTableEvent {
++  return { kind: 'presence', wake: false, text: `${user} ${connected ? 'joined' : 'left'} the game`, user, key: `presence:${user}` };
++}
++
++/** A ring buffer of table events with increasing sequence numbers. */
++export class TableEventBuffer {
++  private events: TableEvent[] = [];
++  private nextSeq = 1;
++  /** changes when the buffer is made anew (a page reload), so a reader knows its marker is stale */
++  readonly session: string;
++
++  constructor(private capacity = 500, session?: string) {
++    this.session = session ?? Math.random().toString(36).slice(2, 10);
++  }
++
++  push(event: NewTableEvent, at = Date.now()): TableEvent {
++    const full: TableEvent = { ...event, seq: this.nextSeq++, at };
++    this.events.push(full);
++    if (this.events.length > this.capacity) this.events.splice(0, this.events.length - this.capacity);
++    return full;
++  }
++
++  /** Events after a sequence number (all kept events when since is missing), and the latest number. */
++  since(seq?: number): { events: TableEvent[]; seq: number } {
++    const events = typeof seq === 'number' ? this.events.filter(e => e.seq > seq) : this.events.slice();
++    return { events, seq: this.nextSeq - 1 };
++  }
++}
+diff --git a/packages/foundry-module/src/table-watcher.ts b/packages/foundry-module/src/table-watcher.ts
+new file mode 100644
+index 0000000..54b6ce2
+--- /dev/null
++++ b/packages/foundry-module/src/table-watcher.ts
+@@ -0,0 +1,171 @@
++/**
++ * Listens to the table on the GM's client and records short events (see table-watch-utils) that
++ * the MCP server reads with the table-events query, bundles, and hands to the AI GM. Recording is
++ * cheap and local; nothing is sent anywhere until the server asks.
++ */
++import { MODULE_ID } from './constants.js';
++import { getGridGeometry, pixelsToSquares } from './scene-objects-utils.js';
++import { combatSummary, partySummary } from './table-utils.js';
++import { TableEventBuffer, chatEvent, doorEvent, hpEvent, moveEvent, presenceEvent, turnEvent, type NewTableEvent } from './table-watch-utils.js';
++
++export const TABLE_WATCH_MUTED = 'tableWatchMuted';
++export const TABLE_WATCH_DOORS = 'tableWatchWakeOnDoors';
++
++class TableWatcher {
++  readonly buffer = new TableEventBuffer();
++  private registered = false;
++  private lastCombatant: string | undefined;
++
++  private get g(): any {
++    return (globalThis as any).game;
++  }
++
++  private userName = (id: string): string | undefined => this.g?.users?.get?.(id)?.name;
++  private isGMUser = (id: string): boolean => !!this.g?.users?.get?.(id)?.isGM;
++
++  private setting(key: string, fallback: any): any {
++    try {
++      return this.g?.settings?.get?.(MODULE_ID, key) ?? fallback;
++    } catch {
++      return fallback;
++    }
++  }
++
++  private record(event: NewTableEvent | null): void {
++    if (event) this.buffer.push(event);
++  }
++
++  /** Changes made by a player (not a GM, so never the bridge or the GM's own tools). */
++  private byPlayer(userId: string | undefined): string | undefined {
++    if (!userId || this.isGMUser(userId)) return undefined;
++    return this.userName(userId) ?? 'a player';
++  }
++
++  private safely(what: string, fn: () => void): void {
++    try {
++      fn();
++    } catch (error) {
++      console.warn(`[${MODULE_ID}] table watch: could not record ${what}`, error);
++    }
++  }
++
++  /** Hook into Foundry; call once, on the GM's client. */
++  register(): void {
++    if (this.registered) return;
++    this.registered = true;
++    const Hooks = (globalThis as any).Hooks;
++    const ctx = { moduleId: MODULE_ID, userName: this.userName, isGMUser: this.isGMUser };
++
++    Hooks.on('createChatMessage', (message: any) => this.safely('a chat message', () => this.record(chatEvent(message, ctx))));
++
++    Hooks.on('updateCombat', (combat: any, changed: any) =>
++      this.safely('a turn', () => {
++        if (!combat?.started) return;
++        if (!('turn' in (changed ?? {})) && !('round' in (changed ?? {}))) return;
++        const previous = this.lastCombatant;
++        this.lastCombatant = combat.combatant?.name;
++        this.record(turnEvent(combat, previous && previous !== this.lastCombatant ? previous : undefined));
++      })
++    );
++    Hooks.on('combatStart', (combat: any) =>
++      this.safely('combat start', () => {
++        this.lastCombatant = combat?.combatant?.name;
++        this.record({ kind: 'combat', wake: false, text: 'Combat started', key: 'combat' });
++      })
++    );
++    Hooks.on('deleteCombat', () =>
++      this.safely('combat end', () => {
++        this.lastCombatant = undefined;
++        this.record({ kind: 'combat', wake: false, text: 'Combat ended', key: 'combat' });
++      })
++    );
++
++    Hooks.on('updateToken', (token: any, changed: any, _options: any, userId: string) =>
++      this.safely('a move', () => {
++        const user = this.byPlayer(userId);
++        if (!user || !changed || (!('x' in changed) && !('y' in changed))) return;
++        const scene = token.parent;
++        const geom = getGridGeometry(scene);
++        const squares = pixelsToSquares(geom, Number(token.x), Number(token.y));
++        this.record(moveEvent(token.name ?? 'A token', user, squares, token.id));
++      })
++    );
++
++    Hooks.on('updateWall', (wall: any, changed: any, _options: any, userId: string) =>
++      this.safely('a door', () => {
++        const user = this.byPlayer(userId);
++        if (!user || !changed || !('ds' in changed)) return;
++        let squares: { x: number; y: number } | undefined;
++        try {
++          const c = wall.c ?? [];
++          const geom = getGridGeometry(wall.parent);
++          squares = pixelsToSquares(geom, (Number(c[0]) + Number(c[2])) / 2, (Number(c[1]) + Number(c[3])) / 2);
++        } catch {
++          squares = undefined;
++        }
++        this.record(doorEvent(Number(changed.ds), user, squares, this.setting(TABLE_WATCH_DOORS, true) !== false));
++      })
++    );
++
++    Hooks.on('updateActor', (actor: any, changed: any, _options: any, userId: string) =>
++      this.safely('hit points', () => {
++        const user = this.byPlayer(userId);
++        if (!user || changed?.system?.attributes?.hp?.value === undefined) return;
++        const hp = actor.system?.attributes?.hp ?? {};
++        this.record(hpEvent(actor.name ?? 'Someone', user, { value: Number(hp.value), max: Number(hp.max) }, actor.id));
++      })
++    );
++
++    Hooks.on('userConnected', (user: any, connected: boolean) =>
++      this.safely('a player joining', () => {
++        if (!user || user.isGM) return;
++        this.record(presenceEvent(user.name ?? 'A player', !!connected));
++      })
++    );
++  }
++
++  /** What the table looks like now: the combat (if any) and the party, compactly. */
++  snapshot(): Record<string, any> {
++    const g = this.g;
++    const out: Record<string, any> = {};
++    const combat = g?.combat ?? g?.combats?.active ?? null;
++    const summary = combatSummary(combat);
++    if (summary?.started) {
++      out.combat = {
++        round: summary.round,
++        turn: summary.current,
++        order: (summary.combatants as any[]).map(c =>
++          [c.active ? '>' : '', c.initiative ?? '--', c.name, c.hp ? `hp ${c.hp}` : '', c.conditions?.length ? `[${c.conditions.join(', ')}]` : '', c.defeated ? '(defeated)' : '', c.hidden ? '(hidden)' : '']
++            .filter(Boolean)
++            .join(' ')
++        ),
++      };
++    }
++    const users = (g?.users?.contents ?? []) as any[];
++    const actors = ((g?.actors?.contents ?? []) as any[]).filter(a => a.type === 'character' && a.hasPlayerOwner);
++    const party = partySummary(actors, this.userName);
++    if (party.length) {
++      out.party = party.map(p => [p.name, p.hp ? `hp ${p.hp}` : '', p.ac !== undefined ? `AC ${p.ac}` : '', p.conditions?.length ? `[${p.conditions.join(', ')}]` : ''].filter(Boolean).join(' '));
++    }
++    out.online = users.filter(u => u.active && !u.isGM).map(u => u.name);
++    const scene = g?.scenes?.active;
++    if (scene) out.scene = scene.name;
++    return out;
++  }
++
++  read(data: { since?: number; session?: string; snapshot?: boolean }): Record<string, any> {
++    const sameSession = !data?.session || data.session === this.buffer.session;
++    const { events, seq } = this.buffer.since(sameSession ? data?.since : undefined);
++    return {
++      success: true,
++      session: this.buffer.session,
++      seq,
++      events,
++      muted: this.setting(TABLE_WATCH_MUTED, false) === true,
++      ...(sameSession ? {} : { restarted: true }),
++      ...(data?.snapshot ? { table: this.snapshot() } : {}),
++    };
++  }
++}
++
++export const tableWatcher = new TableWatcher();
 diff --git a/packages/foundry-module/src/upload-utils.test.ts b/packages/foundry-module/src/upload-utils.test.ts
 new file mode 100644
 index 0000000..909b7f5
@@ -22350,15 +23532,17 @@ index 096f27b..903a94e 100644
      "@vitest/coverage-v8": "^3.2.4",
      "esbuild": "^0.19.0",
 diff --git a/packages/mcp-server/src/backend.ts b/packages/mcp-server/src/backend.ts
-index 8967e33..6ca37c5 100644
+index 8967e33..419d644 100644
 --- a/packages/mcp-server/src/backend.ts
 +++ b/packages/mcp-server/src/backend.ts
-@@ -48,6 +48,44 @@ import { DnD5eAddFeatureTool } from './tools/dnd5e/add-feature.js';
+@@ -48,6 +48,46 @@ import { DnD5eAddFeatureTool } from './tools/dnd5e/add-feature.js';
  import { DnD5eNpcTools } from './tools/dnd5e/npc.js';
  import { DnD5eFeaturesFromCompendiumTools } from './tools/dnd5e/features.js';
  import { ChatTools } from './tools/chat.js';
 +import { ChatControlTools } from './tools/chat-control.js';
 +import { ChatFeed, DEFAULT_CHAT_FEED_PORT } from './chat-feed.js';
++import { TableFeed, DEFAULT_TABLE_FEED_PORT } from './table-feed.js';
++import { TableWatchTools } from './tools/table-watch-tools.js';
 +import { UploadTools } from './tools/upload.js';
 +import { ImageGenerationTools } from './tools/image-generation.js';
 +import { SpeechTools } from './tools/speech-tools.js';
@@ -22398,7 +23582,7 @@ index 8967e33..6ca37c5 100644
  
  const CONTROL_HOST = '127.0.0.1';
  
-@@ -174,6 +212,22 @@ let comfyuiProcess: ChildProcess | null = null;
+@@ -174,6 +214,22 @@ let comfyuiProcess: ChildProcess | null = null;
  
  let comfyuiStatus: 'stopped' | 'starting' | 'running' | 'error' = 'stopped';
  
@@ -22421,7 +23605,7 @@ index 8967e33..6ca37c5 100644
  let lockFd: number | null = null;
  
  function acquireLock(): boolean {
-@@ -350,6 +404,18 @@ async function waitForComfyUIReady(timeoutMs: number = 60000): Promise<void> {
+@@ -350,6 +406,18 @@ async function waitForComfyUIReady(timeoutMs: number = 60000): Promise<void> {
  }
  
  async function startComfyUIService(logger: Logger): Promise<any> {
@@ -22440,7 +23624,7 @@ index 8967e33..6ca37c5 100644
    if (comfyuiStatus === 'running') {
      return { status: 'already_running', message: 'ComfyUI service is already running' };
    }
-@@ -472,6 +538,14 @@ async function startComfyUIService(logger: Logger): Promise<any> {
+@@ -472,6 +540,14 @@ async function startComfyUIService(logger: Logger): Promise<any> {
  }
  
  async function stopComfyUIService(logger: Logger): Promise<any> {
@@ -22455,7 +23639,7 @@ index 8967e33..6ca37c5 100644
    if (comfyuiStatus === 'stopped') {
      return { status: 'already_stopped', message: 'ComfyUI service is already stopped' };
    }
-@@ -510,7 +584,7 @@ async function checkComfyUIStatus(): Promise<any> {
+@@ -510,7 +586,7 @@ async function checkComfyUIStatus(): Promise<any> {
    // This handles both spawned processes and externally-started instances
  
    try {
@@ -22464,7 +23648,7 @@ index 8967e33..6ca37c5 100644
        signal: AbortSignal.timeout(5000),
      });
  
-@@ -520,16 +594,23 @@ async function checkComfyUIStatus(): Promise<any> {
+@@ -520,16 +596,23 @@ async function checkComfyUIStatus(): Promise<any> {
        comfyuiStatus = 'error';
      }
    } catch (error) {
@@ -22490,7 +23674,7 @@ index 8967e33..6ca37c5 100644
    };
  }
  
-@@ -1131,7 +1212,7 @@ async function processMapGenerationInBackend(
+@@ -1131,7 +1214,7 @@ async function processMapGenerationInBackend(
      );
  
      logger.error('Background map generation processing failed', { jobId, error });
@@ -22499,7 +23683,7 @@ index 8967e33..6ca37c5 100644
  
      // Emit failure to Foundry module
      foundryClient.sendMessage({
-@@ -1195,6 +1276,81 @@ async function startBackend(): Promise<void> {
+@@ -1195,6 +1278,89 @@ async function startBackend(): Promise<void> {
    const compendiumTools = new CompendiumTools({ foundryClient, logger, systemRegistry });
  
    const sceneTools = new SceneTools({ foundryClient, logger });
@@ -22555,6 +23739,14 @@ index 8967e33..6ca37c5 100644
 +  const auditTools = new AuditTools({ foundryClient, logger });
 +  const lootTools = new LootTools({ foundryClient, logger });
 +  const shareTools = new ShareTools({ foundryClient, logger });
++  // The table feed: bundled "beats" of what happens at the table, for the Monitor tool (started below).
++  const tableFeed = new TableFeed({
++    query: (method, data, timeoutMs) => foundryClient.query(method, data, timeoutMs),
++    isConnected: () => foundryClient.isConnected(),
++    logger,
++    port: Number(process.env.FOUNDRY_MCP_TABLE_FEED_PORT) || DEFAULT_TABLE_FEED_PORT,
++  });
++  const tableWatchTools = new TableWatchTools({ foundryClient, logger, feed: tableFeed });
 +  const campaignMemoryTools = new CampaignMemoryTools({ foundryClient, logger });
 +  const tableTools = new TableTools({ foundryClient, logger });
 +  const revealTools = new RevealTools({ foundryClient, logger });
@@ -22581,7 +23773,7 @@ index 8967e33..6ca37c5 100644
    const playlistTools = new PlaylistTools({ foundryClient, logger });
  
    const actorCreationTools = new ActorCreationTools({ foundryClient, logger });
-@@ -1214,6 +1370,7 @@ async function startBackend(): Promise<void> {
+@@ -1214,6 +1380,7 @@ async function startBackend(): Promise<void> {
    const questCreationTools = new QuestCreationTools({ foundryClient, logger });
  
    const chatTools = new ChatTools({ foundryClient, logger });
@@ -22589,7 +23781,7 @@ index 8967e33..6ca37c5 100644
  
    const diceRollTools = new DiceRollTools({ foundryClient, logger });
  
-@@ -1301,6 +1458,13 @@ async function startBackend(): Promise<void> {
+@@ -1301,6 +1468,13 @@ async function startBackend(): Promise<void> {
  
          let result: any;
  
@@ -22603,7 +23795,7 @@ index 8967e33..6ca37c5 100644
          switch (message.type) {
            case 'start-comfyui-service':
              result = await startComfyUIService(logger);
-@@ -1317,6 +1481,19 @@ async function startBackend(): Promise<void> {
+@@ -1317,6 +1491,19 @@ async function startBackend(): Promise<void> {
  
              break;
  
@@ -22623,7 +23815,7 @@ index 8967e33..6ca37c5 100644
            // Map generation handlers (following existing tool pattern)
            case 'generate-map-request':
              await fs.appendFile(
-@@ -1429,6 +1606,33 @@ async function startBackend(): Promise<void> {
+@@ -1429,6 +1616,34 @@ async function startBackend(): Promise<void> {
  
      ...sceneTools.getToolDefinitions(),
  
@@ -22640,6 +23832,7 @@ index 8967e33..6ca37c5 100644
 +    ...shareTools.getToolDefinitions(),
 +    ...campaignMemoryTools.getToolDefinitions(),
 +    ...tableTools.getToolDefinitions(),
++    ...tableWatchTools.getToolDefinitions(),
 +    ...revealTools.getToolDefinitions(),
 +    ...combatTools.getToolDefinitions(),
 +    ...rulesTools.getToolDefinitions(),
@@ -22657,7 +23850,7 @@ index 8967e33..6ca37c5 100644
      ...actorCreationTools.getToolDefinitions(),
      ...actorManagementTools.getToolDefinitions(),
      ...effectManagementTools.getToolDefinitions(),
-@@ -1442,7 +1646,7 @@ async function startBackend(): Promise<void> {
+@@ -1442,7 +1657,7 @@ async function startBackend(): Promise<void> {
  
      ...questCreationTools.getToolDefinitions(),
  
@@ -22666,7 +23859,7 @@ index 8967e33..6ca37c5 100644
  
      ...diceRollTools.getToolDefinitions(),
  
-@@ -1456,7 +1660,11 @@ async function startBackend(): Promise<void> {
+@@ -1456,7 +1671,11 @@ async function startBackend(): Promise<void> {
  
      ...tokenManipulationTools.getToolDefinitions(),
  
@@ -22679,7 +23872,7 @@ index 8967e33..6ca37c5 100644
  
      ...playlistTools.getToolDefinitions(),
    ];
-@@ -1467,6 +1675,15 @@ async function startBackend(): Promise<void> {
+@@ -1467,6 +1686,16 @@ async function startBackend(): Promise<void> {
      logger.error('Foundry connector failed to start', e);
    });
  
@@ -22691,11 +23884,12 @@ index 8967e33..6ca37c5 100644
 +    port: Number(process.env.FOUNDRY_MCP_CHAT_FEED_PORT) || DEFAULT_CHAT_FEED_PORT,
 +  });
 +  void chatFeed.start();
++  void tableFeed.start();
 +
    const autoStartComfyUI = async () => {
      try {
        logger.info('Auto-starting ComfyUI service...');
-@@ -1661,6 +1878,10 @@ async function startBackend(): Promise<void> {
+@@ -1661,6 +1890,10 @@ async function startBackend(): Promise<void> {
  
                  // Chat tools
  
@@ -22706,7 +23900,18 @@ index 8967e33..6ca37c5 100644
                  case 'create-chat-message':
                    result = await chatTools.handleCreateChatMessage(args);
  
-@@ -1764,19 +1985,11 @@ async function startBackend(): Promise<void> {
+@@ -1702,6 +1935,10 @@ async function startBackend(): Promise<void> {
+ 
+                 case 'request-player-rolls':
+                   result = await diceRollTools.handleRequestPlayerRolls(args);
++                  // The table feed holds its next beat until this roll comes in (or times out).
++                  if (typeof result === 'string' && result.startsWith('Roll request sent successfully') && typeof (args as any)?.targetPlayer === 'string') {
++                    tableFeed.expect([(args as any).targetPlayer], 90_000);
++                  }
+ 
+                   break;
+ 
+@@ -1764,19 +2001,11 @@ async function startBackend(): Promise<void> {
                  // Map generation tools
  
                  case 'generate-map':
@@ -22729,7 +23934,7 @@ index 8967e33..6ca37c5 100644
  
                  case 'list-scenes':
                    result = await mapGenerationTools.listScenes(args);
-@@ -1805,6 +2018,152 @@ async function startBackend(): Promise<void> {
+@@ -1805,6 +2034,156 @@ async function startBackend(): Promise<void> {
  
                    break;
  
@@ -22832,6 +24037,10 @@ index 8967e33..6ca37c5 100644
 +
 +                case 'read-table':
 +                  result = await tableTools.handleReadTable(args);
++                  break;
++
++                case 'table-watch':
++                  result = await tableWatchTools.handle(args);
 +                  break;
 +
 +                case 'campaign-memory':
@@ -25179,6 +26388,625 @@ index 0000000..c300b4b
 +  }
 +  return Math.max(0, Math.round((delay + (delay > 0 ? 0.4 : 0)) * 1000));
 +}
+diff --git a/packages/mcp-server/src/table-bundler.test.ts b/packages/mcp-server/src/table-bundler.test.ts
+new file mode 100644
+index 0000000..5617a0a
+--- /dev/null
++++ b/packages/mcp-server/src/table-bundler.test.ts
+@@ -0,0 +1,89 @@
++import { describe, expect, it } from 'vitest';
++import { TableBundler, type TableEventIn } from './table-bundler.js';
++
++let seq = 0;
++const ev = (over: Partial<TableEventIn>): TableEventIn => ({ seq: ++seq, at: 0, kind: 'move', text: 'x', wake: false, ...over });
++
++describe('TableBundler', () => {
++  it('holds background events until something wakes, then waits for quiet', () => {
++    const b = new TableBundler({ quietMs: 5000, minIntervalMs: 10000, maxWaitMs: 25000 });
++    b.add([ev({ text: 'Randal moved to square (3, 4)' })], 0);
++    expect(b.due(60_000)).toBe(false); // nothing to wake for
++    b.add([ev({ kind: 'say', wake: true, text: 'Randal: "I open the chest"' })], 1000);
++    expect(b.due(4000)).toBe(false);
++    b.add([ev({ kind: 'say', wake: true, text: 'Mira: "Careful!"' })], 4000); // still talking
++    expect(b.due(8000)).toBe(false);
++    expect(b.due(9000)).toBe(true);
++    expect(b.flush(9000)).toEqual({
++      why: ['a player spoke in character'],
++      events: ['Randal moved to square (3, 4)', 'Randal: "I open the chest"', 'Mira: "Careful!"'],
++    });
++    expect(b.flush(9001)).toBeUndefined();
++  });
++
++  it('acts fast on a monster turn but keeps a minimum gap between beats', () => {
++    const b = new TableBundler({ turnQuietMs: 1500, minIntervalMs: 10000 });
++    b.add([ev({ kind: 'turn', wake: true, text: "Goblin 1's turn" })], 0);
++    expect(b.due(1500)).toBe(true);
++    b.flush(1500);
++    b.add([ev({ kind: 'turn', wake: true, text: "Goblin 2's turn" })], 2000);
++    expect(b.due(3500)).toBe(false);
++    expect(b.nextCheck(3500)).toBe(11500);
++    expect(b.due(11500)).toBe(true);
++  });
++
++  it('sends at the latest after the maximum wait while the table keeps talking', () => {
++    const b = new TableBundler({ quietMs: 5000, minIntervalMs: 0, maxWaitMs: 20000 });
++    for (let t = 0; t <= 20000; t += 2000) b.add([ev({ kind: 'say', wake: true })], t);
++    expect(b.due(19000)).toBe(false);
++    expect(b.due(20000)).toBe(true);
++  });
++
++  it('coalesces moves and hp per key and caps the background, never dropping waking events', () => {
++    const b = new TableBundler({ maxBackground: 2, minIntervalMs: 0 });
++    b.add(
++      [
++        ev({ text: 'Randal to (1,1)', key: 'move:t1' }),
++        ev({ text: 'Mira to (2,2)', key: 'move:t2' }),
++        ev({ text: 'Randal to (5,5)', key: 'move:t1' }),
++        ev({ kind: 'roll', text: 'Mira rolled 12' }),
++        ev({ kind: 'say', wake: true, text: 'Randal: "Hi"' }),
++      ],
++      0
++    );
++    expect(b.flush(10)).toEqual({ why: ['a player spoke in character'], events: ['Randal to (5,5)', 'Mira rolled 12', 'Randal: "Hi"'], dropped: 1 });
++  });
++
++  it('waits for the rolls it asked for, matching player or character, then wakes', () => {
++    const b = new TableBundler({ quietMs: 0, minIntervalMs: 0 });
++    b.expect(['Claudio', 'Mira'], 0, 90_000);
++    b.add([ev({ kind: 'say', wake: true, text: 'Randal: "ok rolling"' })], 100);
++    expect(b.due(200)).toBe(false); // held: rolls are awaited
++    b.add([ev({ kind: 'roll', user: 'Claudio', actor: 'Randal', text: 'Randal rolled 14' })], 300);
++    expect(b.awaiting).toEqual(['Mira']);
++    b.add([ev({ kind: 'roll', user: 'Marta', actor: 'Mira', text: 'Mira rolled 9' })], 400);
++    expect(b.awaiting).toBeUndefined();
++    expect(b.due(400)).toBe(true);
++    expect(b.flush(400)?.why).toEqual(['every roll asked for is in', 'a player spoke in character']);
++  });
++
++  it('times out awaited rolls and says who is missing', () => {
++    const b = new TableBundler({ quietMs: 0, minIntervalMs: 0 });
++    b.expect(['Marta'], 0, 60_000);
++    b.tick(59_000);
++    expect(b.due(59_000)).toBe(false);
++    b.tick(60_000);
++    expect(b.due(60_000)).toBe(true);
++    expect(b.flush(60_000)?.why).toEqual(['rolls asked for timed out; not rolled: Marta']);
++  });
++
++  it('sends nothing while muted, and everything at once when unmuted', () => {
++    const b = new TableBundler({ quietMs: 0, minIntervalMs: 0 });
++    b.muted = true;
++    b.add([ev({ kind: 'say', wake: true, text: 'one' }), ev({ kind: 'whisper', wake: true, text: 'two' })], 0);
++    expect(b.due(100_000)).toBe(false);
++    b.muted = false;
++    expect(b.due(100_000)).toBe(true);
++    expect(b.flush(100_000)?.events).toEqual(['one', 'two']);
++  });
++});
+diff --git a/packages/mcp-server/src/table-bundler.ts b/packages/mcp-server/src/table-bundler.ts
+new file mode 100644
+index 0000000..23c607a
+--- /dev/null
++++ b/packages/mcp-server/src/table-bundler.ts
+@@ -0,0 +1,198 @@
++/**
++ * Bundles table events (recorded by the Foundry module) into "beats": one message that wakes the
++ * AI GM only when something needs it, carrying everything that happened since the last one.
++ *
++ * - Events marked wake (a player speaking in character or privately to the GM, a monster's turn,
++ *   a door opening) start a bundle; background events (moves, rolls, hp, cards) ride along.
++ * - A bundle is sent once the table has been quiet for a moment (players finishing their lines),
++ *   but never sooner than a minimum gap after the last one, and never later than a maximum wait.
++ * - Rolls the GM asked for are awaited: the bundle comes when everyone named has rolled, or when
++ *   the wait times out (saying who did not roll).
++ * - While muted nothing is sent; events keep collecting and come in one bundle when unmuted.
++ * Pure: time is passed in, so it is easy to test.
++ */
++
++export interface TableEventIn {
++  seq: number;
++  at: number;
++  kind: string;
++  text: string;
++  wake: boolean;
++  user?: string;
++  actor?: string;
++  key?: string;
++}
++
++export interface BundlerSettings {
++  /** quiet time after the last waking event before the bundle goes (ms) */
++  quietMs: number;
++  /** quiet time when the last waking event was a turn change: monsters act at once (ms) */
++  turnQuietMs: number;
++  /** minimum gap between two bundles (ms) */
++  minIntervalMs: number;
++  /** longest a waking event waits while the table keeps talking (ms) */
++  maxWaitMs: number;
++  /** most background events kept per bundle (the newest are kept) */
++  maxBackground: number;
++}
++
++export const DEFAULT_BUNDLER_SETTINGS: BundlerSettings = {
++  quietMs: 5000,
++  turnQuietMs: 1500,
++  minIntervalMs: 10000,
++  maxWaitMs: 25000,
++  maxBackground: 40,
++};
++
++export interface Expectation {
++  /** names still to roll (player or character names, lower case) */
++  waiting: Set<string>;
++  /** as given, for messages */
++  names: Map<string, string>;
++  deadline: number;
++}
++
++export interface Beat {
++  why: string[];
++  events: string[];
++  /** background events left out because there were too many */
++  dropped?: number;
++}
++
++const lower = (s: string | undefined) => String(s ?? '').trim().toLowerCase();
++
++export class TableBundler {
++  settings: BundlerSettings;
++  private pending: TableEventIn[] = [];
++  private firstWakeAt: number | undefined;
++  private lastWakeAt: number | undefined;
++  private lastWakeKind: string | undefined;
++  private lastBeatAt = -Infinity;
++  private expectation: Expectation | undefined;
++  private reasons: string[] = [];
++  muted = false;
++
++  constructor(settings: Partial<BundlerSettings> = {}) {
++    this.settings = { ...DEFAULT_BUNDLER_SETTINGS, ...settings };
++  }
++
++  get pendingCount(): number {
++    return this.pending.length;
++  }
++
++  get hasWake(): boolean {
++    return this.firstWakeAt !== undefined;
++  }
++
++  get awaiting(): string[] | undefined {
++    return this.expectation ? [...this.expectation.waiting].map(k => this.expectation!.names.get(k) ?? k) : undefined;
++  }
++
++  /** Wait for these players or characters to roll; the bundle comes when all have, or at the deadline. */
++  expect(names: string[], now: number, timeoutMs: number): void {
++    const list = names.map(n => n.trim()).filter(Boolean);
++    if (!list.length) return;
++    const exp = this.expectation ?? { waiting: new Set<string>(), names: new Map<string, string>(), deadline: now + timeoutMs };
++    for (const n of list) {
++      exp.waiting.add(lower(n));
++      exp.names.set(lower(n), n);
++    }
++    exp.deadline = Math.max(exp.deadline, now + timeoutMs);
++    this.expectation = exp;
++  }
++
++  cancelExpectation(): void {
++    this.expectation = undefined;
++  }
++
++  add(events: TableEventIn[], now: number): void {
++    for (const e of events) {
++      this.pending.push(e);
++      if (e.kind === 'roll' && this.expectation) {
++        const hit = [lower(e.user), lower(e.actor)].find(k => k && this.expectation!.waiting.has(k));
++        if (hit) {
++          // one roll answers for both the player and their character
++          for (const k of [lower(e.user), lower(e.actor)]) this.expectation.waiting.delete(k);
++          if (this.expectation.waiting.size === 0) {
++            this.expectation = undefined;
++            this.markWake('every roll asked for is in', 'rolls', now);
++          }
++        }
++      }
++      if (e.wake) this.markWake(undefined, e.kind, now);
++    }
++  }
++
++  private markWake(reason: string | undefined, kind: string, now: number): void {
++    if (reason) this.reasons.push(reason);
++    this.firstWakeAt ??= now;
++    this.lastWakeAt = now;
++    this.lastWakeKind = kind;
++  }
++
++  /** Called on a timer: the awaited rolls time out here. */
++  tick(now: number): void {
++    if (this.expectation && now >= this.expectation.deadline) {
++      const missing = this.awaiting ?? [];
++      this.expectation = undefined;
++      this.markWake(`rolls asked for timed out; not rolled: ${missing.join(', ')}`, 'rolls', now);
++    }
++  }
++
++  /** Whether a bundle should go now. */
++  due(now: number): boolean {
++    if (this.muted || this.firstWakeAt === undefined || this.lastWakeAt === undefined) return false;
++    if (now - this.lastBeatAt < this.settings.minIntervalMs) return false;
++    // While rolls are awaited, hold the bundle (up to the max wait) so they arrive together.
++    const quiet = this.lastWakeKind === 'turn' ? this.settings.turnQuietMs : this.settings.quietMs;
++    const quietEnough = now - this.lastWakeAt >= quiet && !this.expectation;
++    const waitedEnough = now - this.firstWakeAt >= this.settings.maxWaitMs;
++    return quietEnough || waitedEnough;
++  }
++
++  /** Earliest time due() can become true, for scheduling (undefined: nothing to wait for). */
++  nextCheck(now: number): number | undefined {
++    const times: number[] = [];
++    if (this.expectation) times.push(this.expectation.deadline);
++    if (!this.muted && this.firstWakeAt !== undefined && this.lastWakeAt !== undefined) {
++      const quiet = this.lastWakeKind === 'turn' ? this.settings.turnQuietMs : this.settings.quietMs;
++      const earliest = this.lastBeatAt + this.settings.minIntervalMs;
++      times.push(Math.max(earliest, Math.min(this.lastWakeAt + quiet, this.firstWakeAt + this.settings.maxWaitMs)));
++    }
++    return times.length ? Math.max(now, Math.min(...times)) : undefined;
++  }
++
++  /** Force a bundle out of whatever is pending (also with no waking event). */
++  flush(now: number, extraReason?: string): Beat | undefined {
++    if (!this.pending.length && !this.reasons.length && !extraReason) return undefined;
++    const why = [...this.reasons];
++    if (extraReason) why.push(extraReason);
++    const wakeKinds = new Set(this.pending.filter(e => e.wake).map(e => e.kind));
++    const LABEL: Record<string, string> = {
++      say: 'a player spoke in character',
++      emote: 'a player acted (emote)',
++      whisper: 'a player wrote to the GM privately',
++      turn: "a GM-run creature's turn",
++      door: 'a player opened a door',
++    };
++    for (const k of wakeKinds) why.push(LABEL[k] ?? k);
++
++    // Coalesce: events with the same key keep only their last occurrence.
++    const lastByKey = new Map<string, number>();
++    this.pending.forEach((e, i) => e.key && lastByKey.set(e.key, i));
++    const kept = this.pending.filter((e, i) => !e.key || lastByKey.get(e.key) === i);
++    // Keep every waking event; cap the background, newest first.
++    const background = kept.filter(e => !e.wake);
++    const overflow = Math.max(0, background.length - this.settings.maxBackground);
++    const dropSet = new Set(background.slice(0, overflow));
++    const events = kept.filter(e => !dropSet.has(e)).map(e => e.text);
++
++    this.pending = [];
++    this.reasons = [];
++    this.firstWakeAt = undefined;
++    this.lastWakeAt = undefined;
++    this.lastWakeKind = undefined;
++    this.lastBeatAt = now;
++    return { why: [...new Set(why)], events, ...(overflow ? { dropped: overflow } : {}) };
++  }
++}
+diff --git a/packages/mcp-server/src/table-feed.test.ts b/packages/mcp-server/src/table-feed.test.ts
+new file mode 100644
+index 0000000..538a5f4
+--- /dev/null
++++ b/packages/mcp-server/src/table-feed.test.ts
+@@ -0,0 +1,97 @@
++import { afterEach, describe, expect, it, vi } from 'vitest';
++import WebSocket from 'ws';
++import { TableFeed } from './table-feed.js';
++
++const logger = { info: vi.fn(), warn: vi.fn(), debug: vi.fn() };
++
++/** A stand-in for the module's table-events query: a list of events and a muted flag. */
++function fakeModule() {
++  const state = { events: [] as any[], muted: false, session: 's1', snapshots: 0 };
++  const query = vi.fn(async (_method: string, data: any) => {
++    if (data?.snapshot) state.snapshots += 1;
++    const since = typeof data?.since === 'number' ? data.since : undefined;
++    const events = since === undefined ? state.events : state.events.filter(e => e.seq > since);
++    return {
++      success: true,
++      session: state.session,
++      seq: state.events.length,
++      events,
++      muted: state.muted,
++      ...(data?.snapshot ? { table: { scene: 'Trail', party: ['Randal hp 20/20 AC 19'] } } : {}),
++    };
++  });
++  const push = (e: any) => state.events.push({ seq: state.events.length + 1, at: 0, ...e });
++  return { state, query, push };
++}
++
++let feed: TableFeed | undefined;
++afterEach(() => {
++  feed?.stop();
++  feed = undefined;
++});
++
++async function connect(port: number): Promise<{ lines: any[]; ws: WebSocket }> {
++  const ws = new WebSocket(`ws://127.0.0.1:${port}`);
++  const lines: any[] = [];
++  ws.on('message', d => lines.push(JSON.parse(String(d))));
++  await new Promise(r => ws.once('open', r));
++  return { lines, ws };
++}
++
++const until = async (check: () => boolean, ms = 3000) => {
++  const end = Date.now() + ms;
++  while (!check() && Date.now() < end) await new Promise(r => setTimeout(r, 20));
++};
++
++describe('TableFeed', () => {
++  it('starts from now, then sends one beat with the events and a table snapshot', async () => {
++    const mod = fakeModule();
++    mod.push({ kind: 'say', wake: true, text: 'old line, before anyone listened' });
++    feed = new TableFeed({ query: mod.query, isConnected: () => true, logger, port: 0, pollMs: 20 });
++    feed.configure({ quietMs: 50, minIntervalMs: 0 });
++    await feed.start();
++    const { lines, ws } = await connect(feed.port!);
++    await until(() => mod.query.mock.calls.length > 1);
++    mod.push({ kind: 'move', wake: false, text: 'Randal moved to square (3, 4)' });
++    mod.push({ kind: 'say', wake: true, text: 'Randal (Claudio): "I open the door"' });
++    await until(() => lines.length > 0);
++    expect(lines[0]).toEqual({
++      type: 'beat',
++      n: 1,
++      why: ['a player spoke in character'],
++      events: ['Randal moved to square (3, 4)', 'Randal (Claudio): "I open the door"'],
++      table: { scene: 'Trail', party: ['Randal hp 20/20 AC 19'] },
++    });
++    expect(feed.status()).toMatchObject({ listeners: 1, beatsSent: 1, pendingEvents: 0 });
++    ws.close();
++  });
++
++  it('tells the listener when the GM mutes, and sends nothing while muted', async () => {
++    const mod = fakeModule();
++    feed = new TableFeed({ query: mod.query, isConnected: () => true, logger, port: 0, pollMs: 20 });
++    feed.configure({ quietMs: 0, minIntervalMs: 0 });
++    await feed.start();
++    const { lines, ws } = await connect(feed.port!);
++    await until(() => mod.query.mock.calls.length > 1);
++    mod.state.muted = true;
++    mod.push({ kind: 'say', wake: true, text: 'muted line' });
++    await until(() => lines.length > 0);
++    await new Promise(r => setTimeout(r, 150));
++    expect(lines).toEqual([{ type: 'notice', text: 'The GM muted the AI GM: events are kept and come in one bundle when unmuted' }]);
++    mod.state.muted = false;
++    await until(() => lines.some(l => l.type === 'beat'));
++    expect(lines.find(l => l.type === 'beat')?.events).toEqual(['muted line']);
++    ws.close();
++  });
++
++  it('says when Foundry is not connected', async () => {
++    const mod = fakeModule();
++    feed = new TableFeed({ query: mod.query, isConnected: () => false, logger, port: 0, pollMs: 20 });
++    await feed.start();
++    const { lines, ws } = await connect(feed.port!);
++    await until(() => lines.length > 0);
++    expect(lines[0]).toEqual({ type: 'notice', text: 'Foundry is not connected; the table feed resumes when it is' });
++    expect(mod.query).not.toHaveBeenCalled();
++    ws.close();
++  });
++});
+diff --git a/packages/mcp-server/src/table-feed.ts b/packages/mcp-server/src/table-feed.ts
+new file mode 100644
+index 0000000..aac20eb
+--- /dev/null
++++ b/packages/mcp-server/src/table-feed.ts
+@@ -0,0 +1,211 @@
++import { WebSocketServer, type WebSocket } from 'ws';
++import { TableBundler, type BundlerSettings, type TableEventIn } from './table-bundler.js';
++
++/**
++ * The table feed: a WebSocket on this computer (default ws://127.0.0.1:31418) that sends one JSON
++ * line per "beat", a bundle of what happened at the table, only when the AI GM is needed (see
++ * table-bundler). In Claude Code, watch it with the Monitor tool: each line arrives as one
++ * notification. It reads the events the Foundry module records (the table-events query) while
++ * someone is connected; with nobody connected it does nothing.
++ *
++ * Lines: {type:"beat", n, why:[...], events:[...], dropped?, table:{scene, combat?, party, online}}
++ * and {type:"notice", text} for changes such as the GM muting the feed or Foundry disconnecting.
++ */
++
++export interface TableFeedOptions {
++  query: (method: string, data?: any, timeoutMs?: number) => Promise<any>;
++  isConnected: () => boolean;
++  logger: { info: (m: string, d?: any) => void; warn: (m: string, d?: any) => void; debug: (m: string, d?: any) => void };
++  port: number;
++  /** how often the module's events are read while a client is connected */
++  pollMs?: number;
++  now?: () => number;
++}
++
++export const DEFAULT_TABLE_FEED_PORT = 31418;
++const QUERY = 'foundry-mcp-bridge.table-events';
++
++export class TableFeed {
++  readonly bundler = new TableBundler();
++  private options: TableFeedOptions;
++  private wss: WebSocketServer | undefined;
++  private clients = new Set<WebSocket>();
++  private timer: ReturnType<typeof setTimeout> | undefined;
++  private polling = false;
++  private seq: number | undefined;
++  private session: string | undefined;
++  private lastNotice: string | undefined;
++  private beats = 0;
++  private lastBeatAt: number | undefined;
++
++  constructor(options: TableFeedOptions) {
++    this.options = options;
++  }
++
++  private now(): number {
++    return this.options.now?.() ?? Date.now();
++  }
++
++  get port(): number | undefined {
++    const address = this.wss?.address();
++    return address && typeof address === 'object' ? address.port : undefined;
++  }
++
++  get listeners(): number {
++    return this.clients.size;
++  }
++
++  start(): Promise<void> {
++    return new Promise(resolve => {
++      const wss = new WebSocketServer({ host: '127.0.0.1', port: this.options.port });
++      wss.once('listening', () => {
++        this.wss = wss;
++        wss.on('connection', socket => this.onConnection(socket));
++        this.options.logger.info('Table feed listening', { port: this.port });
++        resolve();
++      });
++      wss.once('error', error => {
++        this.options.logger.warn('Table feed could not start', { error: error.message });
++        resolve();
++      });
++    });
++  }
++
++  stop(): void {
++    if (this.timer) clearTimeout(this.timer);
++    this.timer = undefined;
++    for (const client of this.clients) client.terminate();
++    this.clients.clear();
++    this.wss?.close();
++    this.wss = undefined;
++  }
++
++  private onConnection(socket: WebSocket): void {
++    this.clients.add(socket);
++    socket.on('close', () => {
++      this.clients.delete(socket);
++      if (this.clients.size === 0) {
++        if (this.timer) clearTimeout(this.timer);
++        this.timer = undefined;
++        this.seq = undefined; // the next listener starts from what is new then
++      }
++    });
++    socket.on('error', () => socket.terminate());
++    if (!this.timer && !this.polling) void this.tick();
++  }
++
++  private send(line: Record<string, unknown>): void {
++    const text = JSON.stringify(line);
++    for (const client of this.clients) if (client.readyState === 1) client.send(text);
++  }
++
++  private notice(text: string): void {
++    if (this.lastNotice === text) return;
++    this.lastNotice = text;
++    this.send({ type: 'notice', text });
++  }
++
++  /** Read new events from the module; on the first read only note where "now" is. */
++  private async pull(snapshot = false): Promise<Record<string, any> | undefined> {
++    const first = this.seq === undefined;
++    const result = await this.options.query(QUERY, {
++      ...(first ? {} : { since: this.seq, session: this.session }),
++      ...(snapshot ? { snapshot: true } : {}),
++    });
++    if (result?.success === false) throw new Error(result.error || 'table events refused');
++    const restarted = !!result?.restarted || (this.session !== undefined && result?.session !== this.session);
++    this.session = result?.session;
++    this.seq = typeof result?.seq === 'number' ? result.seq : this.seq;
++    if (!first && !restarted) this.bundler.add((result?.events ?? []) as TableEventIn[], this.now());
++    if (restarted && !first) this.notice('The Foundry page was reloaded; the table feed starts again from now');
++    const muted = result?.muted === true;
++    if (muted !== this.bundler.muted) {
++      this.bundler.muted = muted;
++      if (!first) this.notice(muted ? 'The GM muted the AI GM: events are kept and come in one bundle when unmuted' : 'The GM unmuted the AI GM');
++    }
++    return result;
++  }
++
++  private async beat(reason?: string): Promise<boolean> {
++    let table: Record<string, any> | undefined;
++    try {
++      // The snapshot read also brings any events that came in meanwhile, so none are lost.
++      const result = await this.pull(true);
++      table = result?.table;
++    } catch {
++      table = undefined;
++    }
++    const now = this.now();
++    const beat = this.bundler.flush(now, reason);
++    if (!beat) return false;
++    this.beats += 1;
++    this.lastBeatAt = now;
++    this.send({ type: 'beat', n: this.beats, ...beat, ...(table ? { table } : {}) });
++    return true;
++  }
++
++  private async tick(): Promise<void> {
++    if (this.clients.size === 0) return;
++    this.polling = true;
++    try {
++      if (!this.options.isConnected()) {
++        this.notice('Foundry is not connected; the table feed resumes when it is');
++      } else {
++        await this.pull();
++        if (this.lastNotice?.startsWith('Foundry is not connected')) this.notice('Foundry is connected again; the table feed is live');
++        const now = this.now();
++        this.bundler.tick(now);
++        if (this.bundler.due(now)) await this.beat();
++      }
++    } catch (error) {
++      this.notice(`Cannot read the table: ${error instanceof Error ? error.message : String(error)}`);
++    } finally {
++      this.polling = false;
++      if (this.clients.size > 0) this.timer = setTimeout(() => void this.tick(), this.options.pollMs ?? 1000);
++      else this.timer = undefined;
++    }
++  }
++
++  // ----- control, for the table-watch tool -----
++
++  status(): Record<string, any> {
++    const s = this.bundler.settings;
++    return {
++      listening: this.port !== undefined,
++      url: this.port !== undefined ? `ws://127.0.0.1:${this.port}` : undefined,
++      listeners: this.clients.size,
++      foundryConnected: this.options.isConnected(),
++      muted: this.bundler.muted,
++      beatsSent: this.beats,
++      ...(this.lastBeatAt ? { lastBeatSecondsAgo: Math.round((this.now() - this.lastBeatAt) / 1000) } : {}),
++      pendingEvents: this.bundler.pendingCount,
++      wakePending: this.bundler.hasWake,
++      ...(this.bundler.awaiting ? { awaitingRolls: this.bundler.awaiting } : {}),
++      settings: {
++        quiet_seconds: s.quietMs / 1000,
++        turn_quiet_seconds: s.turnQuietMs / 1000,
++        min_interval_seconds: s.minIntervalMs / 1000,
++        max_wait_seconds: s.maxWaitMs / 1000,
++        max_background: s.maxBackground,
++      },
++    };
++  }
++
++  configure(patch: Partial<BundlerSettings>): void {
++    this.bundler.settings = { ...this.bundler.settings, ...patch };
++  }
++
++  expect(names: string[], timeoutMs: number): void {
++    this.bundler.expect(names, this.now(), timeoutMs);
++  }
++
++  cancelExpectation(): void {
++    this.bundler.cancelExpectation();
++  }
++
++  /** Send what is pending now as a beat. */
++  async flushNow(reason: string): Promise<boolean> {
++    if (this.clients.size === 0) return false;
++    return this.beat(reason);
++  }
++}
 diff --git a/packages/mcp-server/src/tools/actor-art-tools.test.ts b/packages/mcp-server/src/tools/actor-art-tools.test.ts
 new file mode 100644
 index 0000000..771b1d1
@@ -26396,6 +28224,27 @@ index 0000000..2185d13
 +    return { success: true, journal: { id, name }, ...done, ...(result?.warnings?.length ? { warnings: result.warnings } : {}) };
 +  }
 +}
+diff --git a/packages/mcp-server/src/tools/character.ts b/packages/mcp-server/src/tools/character.ts
+index 6742796..d21902f 100644
+--- a/packages/mcp-server/src/tools/character.ts
++++ b/packages/mcp-server/src/tools/character.ts
+@@ -62,7 +62,7 @@ export class CharacterTools {
+       {
+         name: 'get-character',
+         description:
+-          'Retrieve character information optimized for minimal token usage. Returns: full stats (abilities, skills, saves, AC, HP), action names, active effects/conditions (name only), and ALL items with minimal metadata (name, type, equipped status) without descriptions. PF2e-specific: includes traits arrays for items/actions, action costs, rarity, and level. D&D 5e-specific: includes attunement status. Perfect for filtering (e.g., "deviant" trait feats, "fire" trait spells in PF2e), checking equipment, or identifying what to investigate further. Use get-character-entity to fetch full details for specific items, actions, spells, or effects. For an unlinked token (e.g. a summon or a copy of a shared NPC) pass its token ID or token UUID to get that token\'s own effective stats and effects rather than the base actor\'s.',
++          'Retrieve character information optimized for minimal token usage. Returns: full stats (abilities, skills, saves, AC, HP), action names, active effects/conditions (name only), and ALL items with minimal metadata (name, type, equipped status) without descriptions. PF2e-specific: includes traits arrays for items/actions, action costs, rarity, and level. D&D 5e-specific: includes attunement status, and playState: classes, proficiency bonus, initiative, speed, senses, saving throw totals, spell DC and attack, spell slots left, hit dice left, feature and item uses left with their recovery (Second Wind, Action Surge, charges), death saves at 0 hp, exhaustion, concentration and legendary actions. Perfect for filtering (e.g., "deviant" trait feats, "fire" trait spells in PF2e), checking equipment, or identifying what to investigate further. Use get-character-entity to fetch full details for specific items, actions, spells, or effects. For an unlinked token (e.g. a summon or a copy of a shared NPC) pass its token ID or token UUID to get that token\'s own effective stats and effects rather than the base actor\'s.',
+         inputSchema: {
+           type: 'object',
+           properties: {
+@@ -809,6 +809,7 @@ export class CharacterTools {
+       type: characterData.type,
+       basicInfo: await this.extractBasicInfo(characterData),
+       stats: await this.extractStats(characterData),
++      ...(characterData.playState ? { playState: characterData.playState } : {}),
+       items: this.formatItems(characterData.items || []),
+       effects: this.formatEffects(characterData.effects || []),
+       hasImage: !!characterData.img,
 diff --git a/packages/mcp-server/src/tools/chat-control.test.ts b/packages/mcp-server/src/tools/chat-control.test.ts
 new file mode 100644
 index 0000000..c5c09fa
@@ -26451,7 +28300,7 @@ index 0000000..c5c09fa
 +});
 diff --git a/packages/mcp-server/src/tools/chat-control.ts b/packages/mcp-server/src/tools/chat-control.ts
 new file mode 100644
-index 0000000..aae26bc
+index 0000000..827bf7c
 --- /dev/null
 +++ b/packages/mcp-server/src/tools/chat-control.ts
 @@ -0,0 +1,95 @@
@@ -26507,7 +28356,7 @@ index 0000000..aae26bc
 +          'read {since?, from?: players|all, rolls?, limit?(15)} returns the latest messages as short rows (who, as, kind say|roll|whisper|card, text, roll total, whisper recipients) and a marker: pass it as since next time to get only what is new. ' +
 +          'narrate {content, speaker?("Narrator"), whisperTo?} posts narration to everyone, or only to the named players when whisperTo is given. ' +
 +          'say {actorIdentifier | tokenId, content, whisperTo?, language?, chatLog?} speaks as an actor or token: a speech bubble by default, or a chat-log line, optionally whispered or in a language (Polyglot). ' +
-+          `Live chat: nothing in the chat can wake you up, so follow the table by watching the chat feed, a WebSocket on this computer (ws://127.0.0.1:${DEFAULT_CHAT_FEED_PORT}) that sends one JSON line per new message typed by a person ({id, who, as?, kind, text?, roll?, flavor?, to?, gm?}): the players' and the GM's own typed lines, not what the bridge or the game system posts; ?from=players leaves out the GM. In Claude Code, start it once with the Monitor tool (ws: {url}); each message then arrives as its own notification, to answer one at a time. Without such a tool, poll read with the marker. ` +
++          `Live chat: nothing in the chat can wake you up. To run a session, prefer the table-watch feed (one bundled line only when the GM is needed: in-character and private-to-GM lines, monster turns, doors, awaited rolls). Otherwise follow every message with the chat feed, a WebSocket on this computer (ws://127.0.0.1:${DEFAULT_CHAT_FEED_PORT}) that sends one JSON line per new message typed by a person ({id, who, as?, kind, text?, roll?, flavor?, to?, gm?}): the players' and the GM's own typed lines, not what the bridge or the game system posts; ?from=players leaves out the GM. In Claude Code, start it once with the Monitor tool (ws: {url}); each message then arrives as its own notification, to answer one at a time. Without such a tool, poll read with the marker. ` +
 +          "Reading is GM-only and shows whispers; never repeat a whisper to other players. A player's chat is their action: respond to what they said, do not act for them. Needs the Foundry GM tab open and not minimized; narrate and say need Allow Write Operations.",
 +        inputSchema: {
 +          type: 'object',
@@ -26587,10 +28436,10 @@ index 0000000..ef4d95e
 +});
 diff --git a/packages/mcp-server/src/tools/combat-tools.ts b/packages/mcp-server/src/tools/combat-tools.ts
 new file mode 100644
-index 0000000..922cb3f
+index 0000000..4f61ad9
 --- /dev/null
 +++ b/packages/mcp-server/src/tools/combat-tools.ts
-@@ -0,0 +1,93 @@
+@@ -0,0 +1,95 @@
 +import { z } from 'zod';
 +import { FoundryClient } from '../foundry-client.js';
 +import { Logger } from '../logger.js';
@@ -26625,6 +28474,7 @@ index 0000000..922cb3f
 +    dc: z.number().min(0).max(40).optional(),
 +    public: z.boolean().optional(),
 +    consume: z.boolean().optional(),
++    ignore_range: z.boolean().optional(),
 +  })
 +  .strict();
 +
@@ -26643,7 +28493,7 @@ index 0000000..922cb3f
 +        name: 'combat',
 +        description:
 +          'Run the combat tracker (Foundry\'s own, so tracker modules keep working). Every action returns a short readout: round, whose turn, and one line per combatant in order (initiative, name, hp, conditions). ' +
-+          'ACTIONS: status; start {scene?, who?, roll?, begin?} makes the encounter from tokens on the scene (who = list of: "all" (default), "hostile", "friendly", "neutral", "players", "npcs", or token/actor names; hidden tokens are included), rolls initiative for the ones without one (roll: missing (default) | npcs | all | none) and begins it (begin:false to only set it up); add {who, roll?} adds more tokens mid-fight; remove {names}; roll {names? | roll?} rolls initiative (default for everyone still without one); set_initiative {initiative:[{name, value}]}; next, previous, next_round move the turn (the first next begins the combat); damage / heal {amounts:[{target, amount}]} apply to combatants (or scene tokens) by name, through the system rules (temp HP, resistances are the system\'s job) and report hp before and after; defeat {names, defeated?(true)} marks defeated or not; end ends and deletes the encounter. ATTACK AND CHECK (the dnd5e system does the maths: modifiers, advantage, critical hits, resistances, chat cards): attack {attacker, item?, targets?, advantage?, disadvantage?, apply?(true)} uses an item of the attacker (default its first attack or save): spends its charges or slot, rolls the attack against each target (the target is targeted first, so the roll uses its AC and the card shows hit or miss), rolls damage on a hit (double dice on a crit) and applies it, reporting roll, natural, hit, damage and hp before and after; a save item (a breath weapon) rolls damage once and each target rolls a saving throw against its DC; apply:false rolls without applying. check {who:[names], skill | ability | save, dc?, advantage?, disadvantage?} rolls a skill (perception or prc), an ability check or a saving throw (dex or dexterity) for each name and reports totals and success against dc. Rolls are posted to the GM only unless public:true. attacker, targets and who match combatants, then scene tokens, then actors. Names match exactly, else part of a name or the actor name. Needs the Foundry tab open in a browser.',
++          'ACTIONS: status; start {scene?, who?, roll?, begin?} makes the encounter from tokens on the scene (who = list of: "all" (default), "hostile", "friendly", "neutral", "players", "npcs", or token/actor names; hidden tokens are included), rolls initiative for the ones without one (roll: missing (default) | npcs | all | none) and begins it (begin:false to only set it up); add {who, roll?} adds more tokens mid-fight; remove {names}; roll {names? | roll?} rolls initiative (default for everyone still without one); set_initiative {initiative:[{name, value}]}; next, previous, next_round move the turn (the first next begins the combat); damage / heal {amounts:[{target, amount}]} apply to combatants (or scene tokens) by name, through the system rules (temp HP, resistances are the system\'s job) and report hp before and after; defeat {names, defeated?(true)} marks defeated or not; end ends and deletes the encounter. ATTACK AND CHECK (the dnd5e system does the maths: modifiers, advantage, critical hits, resistances, chat cards): attack {attacker, item?, targets?, advantage?, disadvantage?, apply?(true)} uses an item of the attacker (default its first attack or save): spends its charges or slot, rolls the attack against each target (the target is targeted first, so the roll uses its AC and the card shows hit or miss), rolls damage on a hit (double dice on a crit) and applies it, reporting roll, natural, hit, damage and hp before and after; a save item (a breath weapon) rolls damage once and each target rolls a saving throw against its DC; apply:false rolls without applying. Before rolling, the distance from attacker to each target token is checked against the weapon reach or the range: out of range is refused (ignore_range:true rolls anyway), beyond normal range rolls with disadvantage; the result lists warnings, such as an attack made outside the attacker turn or a target already at 0 hp. check {who:[names], skill | ability | save, dc?, advantage?, disadvantage?} rolls a skill (perception or prc), an ability check or a saving throw (dex or dexterity) for each name and reports totals and success against dc. Rolls are posted to the GM only unless public:true. attacker, targets and who match combatants, then scene tokens, then actors. Names match exactly, else part of a name or the actor name. Needs the Foundry tab open in a browser.',
 +        inputSchema: {
 +          type: 'object',
 +          properties: {
@@ -26667,6 +28517,7 @@ index 0000000..922cb3f
 +            save: { type: 'string', description: 'check: a saving throw, e.g. wis' },
 +            dc: { type: 'number', description: 'check: the difficulty; success is reported against it' },
 +            consume: { type: 'boolean', description: 'attack: spend the item charges, ammunition or spell slot (default true)' },
++            ignore_range: { type: 'boolean', description: 'attack: roll even when a target is out of range' },
 +            public: { type: 'boolean', description: 'attack, check: post the rolls for everyone (default: GM only, so hidden monsters are not given away)' },
 +          },
 +          required: ['action'],
@@ -26685,7 +28536,7 @@ index 0000000..922cb3f
 +  }
 +}
 diff --git a/packages/mcp-server/src/tools/compendium.ts b/packages/mcp-server/src/tools/compendium.ts
-index 4a2846c..49c680a 100644
+index 4a2846c..6b19bcd 100644
 --- a/packages/mcp-server/src/tools/compendium.ts
 +++ b/packages/mcp-server/src/tools/compendium.ts
 @@ -56,7 +56,7 @@ export class CompendiumTools {
@@ -26697,6 +28548,60 @@ index 4a2846c..49c680a 100644
          inputSchema: {
            type: 'object',
            properties: {
+@@ -1102,8 +1102,14 @@ export class CompendiumTools {
+     }
+ 
+     if (gameSystem) {
+-      // System-specific extraction using detection utilities
+-      const level = getCreatureLevel(creature, gameSystem);
++      // System-specific extraction using detection utilities. Entries from the
++      // module's enhanced creature index are flat (challengeRating, level,
++      // creatureType, traits, hitPoints, armorClass at the top level, no
++      // `system`), so fall back to those fields.
++      const flatLevel = gameSystem === 'pf2e' ? creature.level : creature.challengeRating;
++      const level =
++        getCreatureLevel(creature, gameSystem) ??
++        (typeof flatLevel === 'number' ? flatLevel : undefined);
+       if (level !== undefined) {
+         if (gameSystem === 'dnd5e') {
+           formatted.challengeRating = level;
+@@ -1112,7 +1118,11 @@ export class CompendiumTools {
+         }
+       }
+ 
+-      const creatureType = getCreatureType(creature, gameSystem);
++      const creatureType =
++        getCreatureType(creature, gameSystem) ??
++        (gameSystem === 'pf2e' && Array.isArray(creature.traits)
++          ? creature.traits
++          : creature.creatureType);
+       if (creatureType) {
+         if (gameSystem === 'pf2e' && Array.isArray(creatureType)) {
+           formatted.traits = creatureType;
+@@ -1157,8 +1167,14 @@ export class CompendiumTools {
+         if (rarity) formatted.rarity = rarity;
+       }
+ 
++      // Hit points and armour class, for encounter building
++      const hp = creature.hitPoints ?? system.attributes?.hp?.max;
++      const ac = creature.armorClass ?? system.attributes?.ac?.value;
++      if (typeof hp === 'number' && hp > 0) formatted.hitPoints = hp;
++      if (typeof ac === 'number' && ac > 0) formatted.armorClass = ac;
++
+       // Feature flags
+-      const hasSpells = hasSpellcasting(creature, gameSystem);
++      const hasSpells = hasSpellcasting(creature, gameSystem) || creature.hasSpells === true;
+       formatted.flags = {
+         spellcaster: hasSpells,
+       };
+@@ -1166,6 +1182,7 @@ export class CompendiumTools {
+       // D&D 5e specific flags
+       if (gameSystem === 'dnd5e') {
+         const hasLegendary = !!(
++          creature.hasLegendaryActions ||
+           system.resources?.legact ||
+           system.legendary ||
+           (system.resources?.legres && system.resources.legres.value > 0)
 diff --git a/packages/mcp-server/src/tools/file-backup-tools.test.ts b/packages/mcp-server/src/tools/file-backup-tools.test.ts
 new file mode 100644
 index 0000000..e96bd2f
@@ -30027,10 +31932,10 @@ index 0000000..bd7d3ef
 +}
 diff --git a/packages/mcp-server/src/tools/layout-doc.ts b/packages/mcp-server/src/tools/layout-doc.ts
 new file mode 100644
-index 0000000..15642c3
+index 0000000..a55921f
 --- /dev/null
 +++ b/packages/mcp-server/src/tools/layout-doc.ts
-@@ -0,0 +1,602 @@
+@@ -0,0 +1,659 @@
 +/**
 + * Layout documents: a map layout that is built up in steps. Shapes get ids, can be added,
 + * moved, changed and removed, and every change can be seen at once as a text map. Shapes
@@ -30110,12 +32015,65 @@ index 0000000..15642c3
 +
 +// ===== Storage =====
 +
++/**
++ * Where layouts are kept unless a folder is given: a per-user data folder that survives temp
++ * clean-ups (FOUNDRY_MCP_LAYOUTS_DIR overrides it). Older versions kept them in the temp folder.
++ */
++export function defaultLayoutsDir(): string {
++  const override = process.env.FOUNDRY_MCP_LAYOUTS_DIR;
++  if (override) return override;
++  const home = os.homedir();
++  if (process.platform === 'win32') {
++    const local = process.env.LOCALAPPDATA || path.join(home, 'AppData', 'Local');
++    return path.join(local, 'FoundryMCPServer', 'layouts');
++  }
++  if (process.platform === 'darwin') {
++    return path.join(home, 'Library', 'Application Support', 'FoundryMCPServer', 'layouts');
++  }
++  const data = process.env.XDG_DATA_HOME || path.join(home, '.local', 'share');
++  return path.join(data, 'foundry-mcp', 'layouts');
++}
++
++/** The temp folder older versions used; its layouts are copied over once. */
++export const LEGACY_LAYOUTS_DIR = path.join(os.tmpdir(), 'foundry-mcp-layouts');
++
 +export class LayoutStore {
 +  private dir: string;
++  private legacyDir: string | undefined;
++  private migrated: Promise<void> | undefined;
 +  private cache = new Map<string, LayoutDoc>();
 +
-+  constructor(dir?: string) {
-+    this.dir = dir ?? path.join(os.tmpdir(), 'foundry-mcp-layouts');
++  /** legacyDir: a folder whose layouts are copied into dir (once) when dir does not have them. */
++  constructor(dir?: string, legacyDir?: string) {
++    this.dir = dir ?? defaultLayoutsDir();
++    this.legacyDir = dir === undefined ? (legacyDir ?? LEGACY_LAYOUTS_DIR) : legacyDir;
++  }
++
++  /** Copy layouts from the old temp folder that are not in the folder yet. Never deletes. */
++  private migrate(): Promise<void> {
++    if (!this.migrated) {
++      this.migrated = (async () => {
++        const from = this.legacyDir;
++        if (!from || path.resolve(from) === path.resolve(this.dir)) return;
++        let files: string[];
++        try {
++          files = (await fs.readdir(from)).filter(f => f.endsWith('.layout.json'));
++        } catch {
++          return;
++        }
++        if (!files.length) return;
++        await fs.mkdir(this.dir, { recursive: true });
++        for (const f of files) {
++          const target = path.join(this.dir, f);
++          try {
++            await fs.access(target);
++          } catch {
++            await fs.copyFile(path.join(from, f), target).catch(() => undefined);
++          }
++        }
++      })().catch(() => undefined);
++    }
++    return this.migrated;
 +  }
 +
 +  get folder(): string {
@@ -30127,6 +32085,7 @@ index 0000000..15642c3
 +  }
 +
 +  async load(id: string): Promise<LayoutDoc> {
++    await this.migrate();
 +    const key = slug(id);
 +    const hit = this.cache.get(key);
 +    if (hit) return hit;
@@ -30140,12 +32099,14 @@ index 0000000..15642c3
 +  }
 +
 +  async save(doc: LayoutDoc): Promise<void> {
++    await this.migrate();
 +    await fs.mkdir(this.dir, { recursive: true });
 +    this.cache.set(doc.id, doc);
 +    await fs.writeFile(this.file(doc.id), JSON.stringify(doc));
 +  }
 +
 +  async exists(id: string): Promise<boolean> {
++    await this.migrate();
 +    try {
 +      await fs.access(this.file(slug(id)));
 +      return true;
@@ -30155,6 +32116,7 @@ index 0000000..15642c3
 +  }
 +
 +  async list(): Promise<Array<{ id: string; name: string; columns: number; rows: number; shapes: number }>> {
++    await this.migrate();
 +    try {
 +      const files = (await fs.readdir(this.dir)).filter(f => f.endsWith('.layout.json'));
 +      const out = [];
@@ -30775,6 +32737,65 @@ index 0000000..5df82b5
 +    const result = alignToImage(layout, { width: sketch.width, height: sketch.height, data });
 +    expect(result.quality).toBe('good');
 +    expect(result.shift).toEqual([0, 0]);
++  });
++});
+diff --git a/packages/mcp-server/src/tools/layout-store.test.ts b/packages/mcp-server/src/tools/layout-store.test.ts
+new file mode 100644
+index 0000000..050b841
+--- /dev/null
++++ b/packages/mcp-server/src/tools/layout-store.test.ts
+@@ -0,0 +1,53 @@
++import { afterAll, describe, expect, it } from 'vitest';
++import { promises as fs } from 'fs';
++import os from 'os';
++import path from 'path';
++import { LayoutStore, defaultLayoutsDir } from './layout-doc.js';
++
++const root = path.join(os.tmpdir(), `layout-store-test-${Date.now()}`);
++afterAll(async () => {
++  await fs.rm(root, { recursive: true, force: true });
++});
++
++function doc(id: string, name: string): any {
++  return { id, name, columns: 10, rows: 8, size: 64, background: 'rock', shapes: [] };
++}
++
++describe('LayoutStore', () => {
++  it('copies layouts from the legacy folder once, without overwriting or deleting', async () => {
++    const legacy = path.join(root, 'legacy');
++    const dir = path.join(root, 'new');
++    await fs.mkdir(legacy, { recursive: true });
++    await fs.mkdir(dir, { recursive: true });
++    await fs.writeFile(path.join(legacy, 'cave.layout.json'), JSON.stringify(doc('cave', 'Old Cave')));
++    await fs.writeFile(path.join(legacy, 'town.layout.json'), JSON.stringify(doc('town', 'Legacy Town')));
++    // Already in the new folder: must win over the legacy copy.
++    await fs.writeFile(path.join(dir, 'town.layout.json'), JSON.stringify(doc('town', 'New Town')));
++
++    const store = new LayoutStore(dir, legacy);
++    const list = await store.list();
++    expect(list.map(l => l.name).sort()).toEqual(['New Town', 'Old Cave']);
++    expect((await store.load('cave')).name).toBe('Old Cave');
++    // The legacy files stay where they were.
++    expect(await fs.readdir(legacy)).toEqual(expect.arrayContaining(['cave.layout.json', 'town.layout.json']));
++  });
++
++  it('does not migrate when an explicit folder is given without a legacy folder', async () => {
++    const dir = path.join(root, 'explicit');
++    const store = new LayoutStore(dir);
++    expect(await store.list()).toEqual([]);
++  });
++
++  it('keeps layouts out of the temp folder by default, and honours the override', () => {
++    const before = process.env.FOUNDRY_MCP_LAYOUTS_DIR;
++    try {
++      delete process.env.FOUNDRY_MCP_LAYOUTS_DIR;
++      expect(path.resolve(defaultLayoutsDir()).startsWith(path.resolve(os.tmpdir()))).toBe(false);
++      process.env.FOUNDRY_MCP_LAYOUTS_DIR = path.join(root, 'custom');
++      expect(defaultLayoutsDir()).toBe(path.join(root, 'custom'));
++    } finally {
++      if (before === undefined) delete process.env.FOUNDRY_MCP_LAYOUTS_DIR;
++      else process.env.FOUNDRY_MCP_LAYOUTS_DIR = before;
++    }
 +  });
 +});
 diff --git a/packages/mcp-server/src/tools/layout-tool.test.ts b/packages/mcp-server/src/tools/layout-tool.test.ts
@@ -32165,7 +34186,7 @@ index 0000000..5b5d028
 +
 diff --git a/packages/mcp-server/src/tools/layout.ts b/packages/mcp-server/src/tools/layout.ts
 new file mode 100644
-index 0000000..9a340bf
+index 0000000..29b95dc
 --- /dev/null
 +++ b/packages/mcp-server/src/tools/layout.ts
 @@ -0,0 +1,907 @@
@@ -32210,7 +34231,7 @@ index 0000000..9a340bf
 +  logger: Logger;
 +  /** Needed for apply_walls, which places the walls on a scene. */
 +  foundryClient?: FoundryClient;
-+  /** Where layouts and pictures are kept (default: a folder in the temp directory). */
++  /** Where layouts and pictures are kept (default: a per-user data folder, see defaultLayoutsDir). */
 +  folder?: string;
 +  /** generate-image, for the build action. */
 +  generate?: (args: any) => Promise<any>;
@@ -38789,6 +40810,119 @@ index 0000000..540c53c
 +    return result;
 +  }
 +}
+diff --git a/packages/mcp-server/src/tools/table-watch-tools.ts b/packages/mcp-server/src/tools/table-watch-tools.ts
+new file mode 100644
+index 0000000..ba694ec
+--- /dev/null
++++ b/packages/mcp-server/src/tools/table-watch-tools.ts
+@@ -0,0 +1,107 @@
++import { z } from 'zod';
++import type { FoundryClient } from '../foundry-client.js';
++import type { Logger } from '../logger.js';
++import type { TableFeed } from '../table-feed.js';
++
++export interface TableWatchToolsOptions {
++  foundryClient: FoundryClient;
++  logger: Logger;
++  feed: TableFeed;
++}
++
++const seconds = (min: number, max: number) => z.number().min(min).max(max).optional();
++
++const schema = z
++  .object({
++    action: z.enum(['status', 'settings', 'expect', 'cancel_expect', 'flush']),
++    quiet_seconds: seconds(0, 60),
++    turn_quiet_seconds: seconds(0, 30),
++    min_interval_seconds: seconds(0, 300),
++    max_wait_seconds: seconds(1, 300),
++    max_background: z.number().int().min(0).max(200).optional(),
++    muted: z.boolean().optional(),
++    wake_on_doors: z.boolean().optional(),
++    who: z.array(z.string().min(1)).min(1).max(20).optional(),
++    timeout_seconds: seconds(5, 600),
++  })
++  .strict();
++
++export class TableWatchTools {
++  private foundryClient: FoundryClient;
++  private logger: Logger;
++  private feed: TableFeed;
++
++  constructor({ foundryClient, logger, feed }: TableWatchToolsOptions) {
++    this.foundryClient = foundryClient;
++    this.logger = logger.child({ component: 'TableWatchTools' });
++    this.feed = feed;
++  }
++
++  getToolDefinitions() {
++    return [
++      {
++        name: 'table-watch',
++        description:
++          'Follow the table in real time without being woken by every message. The table feed is a WebSocket on this computer (status gives its url, default ws://127.0.0.1:31418): in Claude Code start it once per session with the Monitor tool; each line it sends is one notification. It sends a line only when the GM is needed, as a "beat": {type:"beat", n, why, events, table}, where events lists everything since the last beat (oldest first) and table gives the scene, the combat order with hp and conditions, the party and who is online, so no further reads are usually needed. WAKES: a player chatting as their character (in character or emote) or privately to the GM; a GM-run creature\'s turn in combat; a player opening a door (setting); all awaited rolls coming in. NOT WAKING, but listed in the next beat: rolls, item and spell cards, token moves by players, hp changed by players, players joining or leaving, combat start and end, a player\'s turn. IGNORED: public out-of-character chat, blind messages, whispers between players, and what the bridge or the GM\'s tools post. A beat goes once the table has been quiet for quiet_seconds after the last waking event (turn_quiet_seconds after a turn change), at most every min_interval_seconds, and at the latest max_wait_seconds after the first waking event. {type:"notice"} lines report the GM muting or unmuting, Foundry disconnecting or reloading. ACTIONS: status; settings {quiet_seconds?, turn_quiet_seconds?, min_interval_seconds?, max_wait_seconds?, max_background?, muted?, wake_on_doors?} (muted and wake_on_doors are also Foundry module settings the GM can toggle; while muted nothing is sent and everything comes in one beat when unmuted); expect {who:[player or character names], timeout_seconds?(90)} holds the next beat until each of them has rolled, or the timeout (request-player-rolls does this automatically for its target); cancel_expect; flush sends what is pending now. A player\'s chat is their action: answer it, never act for them; never repeat a private message to other players.',
++        inputSchema: {
++          type: 'object',
++          properties: {
++            action: { type: 'string', enum: ['status', 'settings', 'expect', 'cancel_expect', 'flush'] },
++            quiet_seconds: { type: 'number', description: 'settings: quiet time after the last waking event (default 5)' },
++            turn_quiet_seconds: { type: 'number', description: 'settings: quiet time after a turn change (default 1.5)' },
++            min_interval_seconds: { type: 'number', description: 'settings: minimum gap between beats (default 10)' },
++            max_wait_seconds: { type: 'number', description: 'settings: longest a waking event waits (default 25)' },
++            max_background: { type: 'number', description: 'settings: most background events per beat (default 40)' },
++            muted: { type: 'boolean', description: 'settings: mute (true) or unmute (false) the feed for everyone' },
++            wake_on_doors: { type: 'boolean', description: 'settings: wake when a player opens a door (default true)' },
++            who: { type: 'array', items: { type: 'string' }, description: 'expect: players or characters whose rolls to wait for' },
++            timeout_seconds: { type: 'number', description: 'expect: how long to wait (default 90)' },
++          },
++          required: ['action'],
++          additionalProperties: false,
++        },
++      },
++    ];
++  }
++
++  async handle(args: unknown): Promise<any> {
++    const a = schema.parse(args);
++    switch (a.action) {
++      case 'status':
++        return { success: true, ...this.feed.status() };
++      case 'settings': {
++        const patch: Record<string, number> = {};
++        if (a.quiet_seconds !== undefined) patch.quietMs = a.quiet_seconds * 1000;
++        if (a.turn_quiet_seconds !== undefined) patch.turnQuietMs = a.turn_quiet_seconds * 1000;
++        if (a.min_interval_seconds !== undefined) patch.minIntervalMs = a.min_interval_seconds * 1000;
++        if (a.max_wait_seconds !== undefined) patch.maxWaitMs = a.max_wait_seconds * 1000;
++        if (a.max_background !== undefined) patch.maxBackground = a.max_background;
++        this.feed.configure(patch);
++        let module: Record<string, any> | undefined;
++        if (a.muted !== undefined || a.wake_on_doors !== undefined) {
++          module = await this.foundryClient.query('foundry-mcp-bridge.table-events', {
++            action: 'settings',
++            ...(a.muted !== undefined ? { muted: a.muted } : {}),
++            ...(a.wake_on_doors !== undefined ? { wake_on_doors: a.wake_on_doors } : {}),
++          });
++          if (module?.success === false) throw new Error(module.error || 'Could not change the table watch settings');
++          if (typeof module?.muted === 'boolean') this.feed.bundler.muted = module.muted;
++        }
++        this.logger.info('Table watch settings changed', { patch, muted: a.muted, wake_on_doors: a.wake_on_doors });
++        return { success: true, ...this.feed.status(), ...(module ? { wake_on_doors: module.wake_on_doors } : {}) };
++      }
++      case 'expect': {
++        if (!a.who?.length) throw new Error('expect needs who: the players or characters whose rolls to wait for');
++        this.feed.expect(a.who, (a.timeout_seconds ?? 90) * 1000);
++        return { success: true, awaitingRolls: this.feed.bundler.awaiting };
++      }
++      case 'cancel_expect':
++        this.feed.cancelExpectation();
++        return { success: true };
++      case 'flush': {
++        const sent = await this.feed.flushNow('asked for by the GM (flush)');
++        return { success: true, sent, ...(sent ? {} : { note: 'Nobody is listening to the feed; start it with the Monitor tool first' }) };
++      }
++    }
++  }
++}
 diff --git a/packages/mcp-server/src/tools/token-manipulation.test.ts b/packages/mcp-server/src/tools/token-manipulation.test.ts
 new file mode 100644
 index 0000000..75481f8
@@ -38837,10 +40971,10 @@ index 0000000..75481f8
 +  });
 +});
 diff --git a/packages/mcp-server/src/tools/token-manipulation.ts b/packages/mcp-server/src/tools/token-manipulation.ts
-index 6afedf1..0f9dc84 100644
+index 6afedf1..2962d4c 100644
 --- a/packages/mcp-server/src/tools/token-manipulation.ts
 +++ b/packages/mcp-server/src/tools/token-manipulation.ts
-@@ -24,7 +24,7 @@ export class TokenManipulationTools {
+@@ -24,27 +24,33 @@ export class TokenManipulationTools {
        {
          name: 'move-token',
          description:
@@ -38849,7 +40983,10 @@ index 6afedf1..0f9dc84 100644
          inputSchema: {
            type: 'object',
            properties: {
-@@ -34,17 +34,23 @@ export class TokenManipulationTools {
+             tokenId: {
+               type: 'string',
+-              description: 'The ID of the token to move',
++              description: 'The token ID, or its name (exact token name, else actor name; an ambiguous name is refused with the ids)',
              },
              x: {
                type: 'number',
@@ -38875,7 +41012,7 @@ index 6afedf1..0f9dc84 100644
            },
            required: ['tokenId', 'x', 'y'],
          },
-@@ -52,7 +58,7 @@ export class TokenManipulationTools {
+@@ -52,13 +58,13 @@ export class TokenManipulationTools {
        {
          name: 'update-token',
          description:
@@ -38884,6 +41021,13 @@ index 6afedf1..0f9dc84 100644
          inputSchema: {
            type: 'object',
            properties: {
+             tokenId: {
+               type: 'string',
+-              description: 'The ID of the token to update',
++              description: 'The token ID, or its name (exact token name, else actor name; an ambiguous name is refused with the ids)',
+             },
+             updates: {
+               type: 'object',
 @@ -107,8 +113,14 @@ export class TokenManipulationTools {
                  },
                },
@@ -38900,9 +41044,12 @@ index 6afedf1..0f9dc84 100644
          },
        },
        {
-@@ -140,6 +152,7 @@ export class TokenManipulationTools {
+@@ -138,8 +150,9 @@ export class TokenManipulationTools {
+           properties: {
+             tokenId: {
                type: 'string',
-               description: 'The ID of the token to get details for',
+-              description: 'The ID of the token to get details for',
++              description: 'The token ID, or its name (exact token name, else actor name; an ambiguous name is refused with the ids)',
              },
 +            scene: { type: 'string', description: 'Scene id or exact name (default: found on any scene)' },
            },

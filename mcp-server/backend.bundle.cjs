@@ -647,30 +647,30 @@ function floatSafeRemainder(val, step) {
   const stepInt = Number.parseInt(step.toFixed(decCount).replace(".", ""));
   return valInt % stepInt / 10 ** decCount;
 }
-function deepPartialify(schema19) {
-  if (schema19 instanceof ZodObject) {
+function deepPartialify(schema20) {
+  if (schema20 instanceof ZodObject) {
     const newShape = {};
-    for (const key in schema19.shape) {
-      const fieldSchema = schema19.shape[key];
+    for (const key in schema20.shape) {
+      const fieldSchema = schema20.shape[key];
       newShape[key] = ZodOptional.create(deepPartialify(fieldSchema));
     }
     return new ZodObject({
-      ...schema19._def,
+      ...schema20._def,
       shape: () => newShape
     });
-  } else if (schema19 instanceof ZodArray) {
+  } else if (schema20 instanceof ZodArray) {
     return new ZodArray({
-      ...schema19._def,
-      type: deepPartialify(schema19.element)
+      ...schema20._def,
+      type: deepPartialify(schema20.element)
     });
-  } else if (schema19 instanceof ZodOptional) {
-    return ZodOptional.create(deepPartialify(schema19.unwrap()));
-  } else if (schema19 instanceof ZodNullable) {
-    return ZodNullable.create(deepPartialify(schema19.unwrap()));
-  } else if (schema19 instanceof ZodTuple) {
-    return ZodTuple.create(schema19.items.map((item) => deepPartialify(item)));
+  } else if (schema20 instanceof ZodOptional) {
+    return ZodOptional.create(deepPartialify(schema20.unwrap()));
+  } else if (schema20 instanceof ZodNullable) {
+    return ZodNullable.create(deepPartialify(schema20.unwrap()));
+  } else if (schema20 instanceof ZodTuple) {
+    return ZodTuple.create(schema20.items.map((item) => deepPartialify(item)));
   } else {
-    return schema19;
+    return schema20;
   }
 }
 function mergeValues(a, b) {
@@ -2397,9 +2397,9 @@ var init_types = __esm({
         return this.min(1, message);
       }
     };
-    ZodArray.create = (schema19, params) => {
+    ZodArray.create = (schema20, params) => {
       return new ZodArray({
-        type: schema19,
+        type: schema20,
         minLength: null,
         maxLength: null,
         exactLength: null,
@@ -2620,8 +2620,8 @@ var init_types = __esm({
       //   }) as any;
       //   return merged;
       // }
-      setKey(key, schema19) {
-        return this.augment({ [key]: schema19 });
+      setKey(key, schema20) {
+        return this.augment({ [key]: schema20 });
       }
       // merge<Incoming extends AnyZodObject>(
       //   merging: Incoming
@@ -3029,10 +3029,10 @@ var init_types = __esm({
           status.dirty();
         }
         const items2 = [...ctx.data].map((item, itemIndex) => {
-          const schema19 = this._def.items[itemIndex] || this._def.rest;
-          if (!schema19)
+          const schema20 = this._def.items[itemIndex] || this._def.rest;
+          if (!schema20)
             return null;
-          return schema19._parse(new ParseInputLazyPath(ctx, item, ctx.path, itemIndex));
+          return schema20._parse(new ParseInputLazyPath(ctx, item, ctx.path, itemIndex));
         }).filter((x) => !!x);
         if (ctx.common.async) {
           return Promise.all(items2).then((results) => {
@@ -3539,9 +3539,9 @@ var init_types = __esm({
         }));
       }
     };
-    ZodPromise.create = (schema19, params) => {
+    ZodPromise.create = (schema20, params) => {
       return new ZodPromise({
-        type: schema19,
+        type: schema20,
         typeName: ZodFirstPartyTypeKind.ZodPromise,
         ...processCreateParams(params)
       });
@@ -3669,17 +3669,17 @@ var init_types = __esm({
         util.assertNever(effect);
       }
     };
-    ZodEffects.create = (schema19, effect, params) => {
+    ZodEffects.create = (schema20, effect, params) => {
       return new ZodEffects({
-        schema: schema19,
+        schema: schema20,
         typeName: ZodFirstPartyTypeKind.ZodEffects,
         effect,
         ...processCreateParams(params)
       });
     };
-    ZodEffects.createWithPreprocess = (preprocess, schema19, params) => {
+    ZodEffects.createWithPreprocess = (preprocess, schema20, params) => {
       return new ZodEffects({
-        schema: schema19,
+        schema: schema20,
         effect: { type: "preprocess", transform: preprocess },
         typeName: ZodFirstPartyTypeKind.ZodEffects,
         ...processCreateParams(params)
@@ -45790,11 +45790,11 @@ var require_converters = __commonJS({
         if (value === null) {
           return new asn1js.Null();
         }
-        const schema19 = asn1js.fromBER(value);
-        if (schema19.result.error) {
-          throw new Error(schema19.result.error);
+        const schema20 = asn1js.fromBER(value);
+        if (schema20.result.error) {
+          throw new Error(schema20.result.error);
         }
-        return schema19.result;
+        return schema20.result;
       }
     };
     exports2.AsnIntegerConverter = {
@@ -45984,35 +45984,35 @@ var require_schema = __commonJS({
         return this.items.has(target2);
       }
       get(target2, checkSchema = false) {
-        const schema19 = this.items.get(target2);
-        if (!schema19) {
+        const schema20 = this.items.get(target2);
+        if (!schema20) {
           throw new Error(`Cannot get schema for '${target2.prototype.constructor.name}' target`);
         }
-        if (checkSchema && !schema19.schema) {
+        if (checkSchema && !schema20.schema) {
           throw new Error(`Schema '${target2.prototype.constructor.name}' doesn't contain ASN.1 schema. Call 'AsnSchemaStorage.cache'.`);
         }
-        return schema19;
+        return schema20;
       }
       cache(target2) {
-        const schema19 = this.get(target2);
-        if (!schema19.schema) {
-          schema19.schema = this.create(target2, true);
+        const schema20 = this.get(target2);
+        if (!schema20.schema) {
+          schema20.schema = this.create(target2, true);
         }
       }
       createDefault(target2) {
-        const schema19 = { type: enums_1.AsnTypeTypes.Sequence, items: {} };
+        const schema20 = { type: enums_1.AsnTypeTypes.Sequence, items: {} };
         const parentSchema = this.findParentSchema(target2);
         if (parentSchema) {
-          Object.assign(schema19, parentSchema);
-          schema19.items = Object.assign({}, schema19.items, parentSchema.items);
+          Object.assign(schema20, parentSchema);
+          schema20.items = Object.assign({}, schema20.items, parentSchema.items);
         }
-        return schema19;
+        return schema20;
       }
       create(target2, useNames) {
-        const schema19 = this.items.get(target2) || this.createDefault(target2);
+        const schema20 = this.items.get(target2) || this.createDefault(target2);
         const asn1Value = [];
-        for (const key in schema19.items) {
-          const item = schema19.items[key];
+        for (const key in schema20.items) {
+          const item = schema20.items[key];
           const name = useNames ? key : "";
           let asn1Item;
           if (typeof item.type === "number") {
@@ -46074,7 +46074,7 @@ var require_schema = __commonJS({
             asn1Value.push(asn1Item);
           }
         }
-        switch (schema19.type) {
+        switch (schema20.type) {
           case enums_1.AsnTypeTypes.Sequence:
             return new asn1js.Sequence({ value: asn1Value, name: "" });
           case enums_1.AsnTypeTypes.Set:
@@ -46085,15 +46085,15 @@ var require_schema = __commonJS({
             throw new Error(`Unsupported ASN1 type in use`);
         }
       }
-      set(target2, schema19) {
-        this.items.set(target2, schema19);
+      set(target2, schema20) {
+        this.items.set(target2, schema20);
         return this;
       }
       findParentSchema(target2) {
         const parent = Object.getPrototypeOf(target2);
         if (parent) {
-          const schema19 = this.items.get(parent);
-          return schema19 || this.findParentSchema(parent);
+          const schema20 = this.items.get(parent);
+          return schema20 || this.findParentSchema(parent);
         }
         return null;
       }
@@ -46123,14 +46123,14 @@ var require_decorators = __commonJS({
     var enums_1 = require_enums();
     var storage_1 = require_storage();
     var AsnType = (options) => (target2) => {
-      let schema19;
+      let schema20;
       if (!storage_1.schemaStorage.has(target2)) {
-        schema19 = storage_1.schemaStorage.createDefault(target2);
-        storage_1.schemaStorage.set(target2, schema19);
+        schema20 = storage_1.schemaStorage.createDefault(target2);
+        storage_1.schemaStorage.set(target2, schema20);
       } else {
-        schema19 = storage_1.schemaStorage.get(target2);
+        schema20 = storage_1.schemaStorage.get(target2);
       }
-      Object.assign(schema19, options);
+      Object.assign(schema20, options);
     };
     exports2.AsnType = AsnType;
     var AsnChoiceType = () => (0, exports2.AsnType)({ type: enums_1.AsnTypeTypes.Choice });
@@ -46140,12 +46140,12 @@ var require_decorators = __commonJS({
     var AsnSequenceType = (options) => (0, exports2.AsnType)({ type: enums_1.AsnTypeTypes.Sequence, ...options });
     exports2.AsnSequenceType = AsnSequenceType;
     var AsnProp = (options) => (target2, propertyKey) => {
-      let schema19;
+      let schema20;
       if (!storage_1.schemaStorage.has(target2.constructor)) {
-        schema19 = storage_1.schemaStorage.createDefault(target2.constructor);
-        storage_1.schemaStorage.set(target2.constructor, schema19);
+        schema20 = storage_1.schemaStorage.createDefault(target2.constructor);
+        storage_1.schemaStorage.set(target2.constructor, schema20);
       } else {
-        schema19 = storage_1.schemaStorage.get(target2.constructor);
+        schema20 = storage_1.schemaStorage.get(target2.constructor);
       }
       const copyOptions = Object.assign({}, options);
       if (typeof copyOptions.type === "number" && !copyOptions.converter) {
@@ -46156,7 +46156,7 @@ var require_decorators = __commonJS({
         copyOptions.converter = defaultConverter;
       }
       copyOptions.raw = options.raw;
-      schema19.items[propertyKey] = copyOptions;
+      schema20.items[propertyKey] = copyOptions;
     };
     exports2.AsnProp = AsnProp;
   }
@@ -46215,26 +46215,26 @@ var require_parser = __commonJS({
             const value = new target2();
             return value.fromASN(asn1Schema);
           }
-          const schema19 = storage_1.schemaStorage.get(target2);
+          const schema20 = storage_1.schemaStorage.get(target2);
           storage_1.schemaStorage.cache(target2);
-          let targetSchema2 = schema19.schema;
-          const choiceResult = this.handleChoiceTypes(asn1Schema, schema19, target2, targetSchema2);
+          let targetSchema2 = schema20.schema;
+          const choiceResult = this.handleChoiceTypes(asn1Schema, schema20, target2, targetSchema2);
           if (choiceResult === null || choiceResult === void 0 ? void 0 : choiceResult.result) {
             return choiceResult.result;
           }
           if (choiceResult === null || choiceResult === void 0 ? void 0 : choiceResult.targetSchema) {
             targetSchema2 = choiceResult.targetSchema;
           }
-          const sequenceResult = this.handleSequenceTypes(asn1Schema, schema19, target2, targetSchema2);
+          const sequenceResult = this.handleSequenceTypes(asn1Schema, schema20, target2, targetSchema2);
           if (sequenceResult && "isManualMapping" in sequenceResult) {
             return sequenceResult.result;
           }
           const asn1ComparedSchema = sequenceResult;
           const res = new target2();
           if ((0, helper_1.isTypeOfArray)(target2)) {
-            return this.handleArrayTypes(asn1Schema, schema19, target2);
+            return this.handleArrayTypes(asn1Schema, schema20, target2);
           }
-          this.processSchemaItems(schema19, asn1ComparedSchema, res);
+          this.processSchemaItems(schema20, asn1ComparedSchema, res);
           return res;
         } catch (error) {
           if (error instanceof errors_1.AsnSchemaValidationError) {
@@ -46243,10 +46243,10 @@ var require_parser = __commonJS({
           throw error;
         }
       }
-      static handleChoiceTypes(asn1Schema, schema19, target2, targetSchema2) {
-        if (asn1Schema.constructor === asn1js.Constructed && schema19.type === enums_1.AsnTypeTypes.Choice && asn1Schema.idBlock.tagClass === 3) {
-          for (const key in schema19.items) {
-            const schemaItem = schema19.items[key];
+      static handleChoiceTypes(asn1Schema, schema20, target2, targetSchema2) {
+        if (asn1Schema.constructor === asn1js.Constructed && schema20.type === enums_1.AsnTypeTypes.Choice && asn1Schema.idBlock.tagClass === 3) {
+          for (const key in schema20.items) {
+            const schemaItem = schema20.items[key];
             if (schemaItem.context === asn1Schema.idBlock.tagNumber && schemaItem.implicit) {
               if (typeof schemaItem.type === "function" && storage_1.schemaStorage.has(schemaItem.type)) {
                 const fieldSchema = storage_1.schemaStorage.get(schemaItem.type);
@@ -46263,29 +46263,29 @@ var require_parser = __commonJS({
               }
             }
           }
-        } else if (asn1Schema.constructor === asn1js.Constructed && schema19.type !== enums_1.AsnTypeTypes.Choice) {
+        } else if (asn1Schema.constructor === asn1js.Constructed && schema20.type !== enums_1.AsnTypeTypes.Choice) {
           const newTargetSchema = new asn1js.Constructed({
             idBlock: {
               tagClass: 3,
               tagNumber: asn1Schema.idBlock.tagNumber
             },
-            value: schema19.schema.valueBlock.value
+            value: schema20.schema.valueBlock.value
           });
-          for (const key in schema19.items) {
+          for (const key in schema20.items) {
             delete asn1Schema[key];
           }
           return { targetSchema: newTargetSchema };
         }
         return null;
       }
-      static handleSequenceTypes(asn1Schema, schema19, target2, targetSchema2) {
-        if (schema19.type === enums_1.AsnTypeTypes.Sequence) {
-          const optionalChoiceFields = Object.keys(schema19.items).filter((key) => {
-            const item = schema19.items[key];
+      static handleSequenceTypes(asn1Schema, schema20, target2, targetSchema2) {
+        if (schema20.type === enums_1.AsnTypeTypes.Sequence) {
+          const optionalChoiceFields = Object.keys(schema20.items).filter((key) => {
+            const item = schema20.items[key];
             return item.optional && typeof item.type === "function" && storage_1.schemaStorage.has(item.type) && storage_1.schemaStorage.get(item.type).type === enums_1.AsnTypeTypes.Choice;
           });
           if (optionalChoiceFields.length > 0 && "value" in asn1Schema.valueBlock && Array.isArray(asn1Schema.valueBlock.value) && target2.name === "CertReqMsg") {
-            return this.handleManualMapping(asn1Schema, schema19, target2);
+            return this.handleManualMapping(asn1Schema, schema20, target2);
           }
           const asn1ComparedSchema = asn1js.compareSchema({}, asn1Schema, targetSchema2);
           if (!asn1ComparedSchema.verified) {
@@ -46300,14 +46300,14 @@ var require_parser = __commonJS({
           return asn1ComparedSchema;
         }
       }
-      static handleManualMapping(asn1Schema, schema19, target2) {
+      static handleManualMapping(asn1Schema, schema20, target2) {
         const res = new target2();
         const asn1Elements = asn1Schema.valueBlock.value;
-        const schemaKeys = Object.keys(schema19.items);
+        const schemaKeys = Object.keys(schema20.items);
         let asn1Index = 0;
         for (let i = 0; i < schemaKeys.length; i++) {
           const key = schemaKeys[i];
-          const schemaItem = schema19.items[key];
+          const schemaItem = schema20.items[key];
           if (asn1Index >= asn1Elements.length)
             break;
           if (schemaItem.repeated) {
@@ -46378,11 +46378,11 @@ var require_parser = __commonJS({
           throw err;
         }
       }
-      static handleArrayTypes(asn1Schema, schema19, target2) {
+      static handleArrayTypes(asn1Schema, schema20, target2) {
         if (!("value" in asn1Schema.valueBlock && Array.isArray(asn1Schema.valueBlock.value))) {
           throw new Error(`Cannot get items from the ASN.1 parsed value. ASN.1 object is not constructed.`);
         }
-        const itemType = schema19.itemType;
+        const itemType = schema20.itemType;
         if (typeof itemType === "number") {
           const converter = converters.defaultConverter(itemType);
           if (!converter) {
@@ -46393,13 +46393,13 @@ var require_parser = __commonJS({
           return target2.from(asn1Schema.valueBlock.value, (element) => this.fromASN(element, itemType));
         }
       }
-      static processSchemaItems(schema19, asn1ComparedSchema, res) {
-        for (const key in schema19.items) {
+      static processSchemaItems(schema20, asn1ComparedSchema, res) {
+        for (const key in schema20.items) {
           const asn1SchemaValue = asn1ComparedSchema.result[key];
           if (!asn1SchemaValue) {
             continue;
           }
-          const schemaItem = schema19.items[key];
+          const schemaItem = schema20.items[key];
           const schemaItemType = schemaItem.type;
           let parsedValue;
           if (typeof schemaItemType === "number" || (0, helper_1.isConvertible)(schemaItemType)) {
@@ -46495,14 +46495,14 @@ var require_parser = __commonJS({
       }
       static handleImplicitTagging(asn1SchemaValue, schemaItem, schemaItemType) {
         if (schemaItem.implicit && typeof schemaItem.context === "number") {
-          const schema19 = storage_1.schemaStorage.get(schemaItemType);
-          if (schema19.type === enums_1.AsnTypeTypes.Sequence) {
+          const schema20 = storage_1.schemaStorage.get(schemaItemType);
+          if (schema20.type === enums_1.AsnTypeTypes.Sequence) {
             const newSeq = new asn1js.Sequence();
             if ("value" in asn1SchemaValue.valueBlock && Array.isArray(asn1SchemaValue.valueBlock.value) && "value" in newSeq.valueBlock) {
               newSeq.valueBlock.value = asn1SchemaValue.valueBlock.value;
               return newSeq;
             }
-          } else if (schema19.type === enums_1.AsnTypeTypes.Set) {
+          } else if (schema20.type === enums_1.AsnTypeTypes.Set) {
             const newSet = new asn1js.Set();
             if ("value" in asn1SchemaValue.valueBlock && Array.isArray(asn1SchemaValue.valueBlock.value) && "value" in newSet.valueBlock) {
               newSet.valueBlock.value = asn1SchemaValue.valueBlock.value;
@@ -46543,25 +46543,25 @@ var require_serializer = __commonJS({
           throw new TypeError("Parameter 1 should be type of Object.");
         }
         const target2 = obj.constructor;
-        const schema19 = storage_1.schemaStorage.get(target2);
+        const schema20 = storage_1.schemaStorage.get(target2);
         storage_1.schemaStorage.cache(target2);
         let asn1Value = [];
-        if (schema19.itemType) {
+        if (schema20.itemType) {
           if (!Array.isArray(obj)) {
             throw new TypeError("Parameter 1 should be type of Array.");
           }
-          if (typeof schema19.itemType === "number") {
-            const converter = converters.defaultConverter(schema19.itemType);
+          if (typeof schema20.itemType === "number") {
+            const converter = converters.defaultConverter(schema20.itemType);
             if (!converter) {
               throw new Error(`Cannot get default converter for array item of ${target2.name} ASN1 schema`);
             }
             asn1Value = obj.map((o) => converter.toASN(o));
           } else {
-            asn1Value = obj.map((o) => this.toAsnItem({ type: schema19.itemType }, "[]", target2, o));
+            asn1Value = obj.map((o) => this.toAsnItem({ type: schema20.itemType }, "[]", target2, o));
           }
         } else {
-          for (const key in schema19.items) {
-            const schemaItem = schema19.items[key];
+          for (const key in schema20.items) {
+            const schemaItem = schema20.items[key];
             const objProp = obj[key];
             if (objProp === void 0 || schemaItem.defaultValue === objProp || typeof schemaItem.defaultValue === "object" && typeof objProp === "object" && (0, helper_1.isArrayEqual)(this.serialize(schemaItem.defaultValue), this.serialize(objProp))) {
               continue;
@@ -46608,7 +46608,7 @@ var require_serializer = __commonJS({
           }
         }
         let asnSchema;
-        switch (schema19.type) {
+        switch (schema20.type) {
           case enums_1.AsnTypeTypes.Sequence:
             asnSchema = new asn1js.Sequence({ value: asn1Value });
             break;
@@ -46775,14 +46775,14 @@ var require_build5 = __commonJS({
       }
     };
     var TransformError = class extends JsonError {
-      constructor(schema19, message, innerError) {
+      constructor(schema20, message, innerError) {
         super(message, innerError);
-        this.schema = schema19;
+        this.schema = schema20;
       }
     };
     var ParserError = class extends TransformError {
-      constructor(schema19, message, innerError) {
-        super(schema19, `JSON doesn't match to '${schema19.target.name}' schema. ${message}`, innerError);
+      constructor(schema20, message, innerError) {
+        super(schema20, `JSON doesn't match to '${schema20.target.name}' schema. ${message}`, innerError);
       }
     };
     var ValidationError = class extends JsonError {
@@ -46794,8 +46794,8 @@ var require_build5 = __commonJS({
       }
     };
     var KeyError = class extends ParserError {
-      constructor(schema19, keys, errors = {}) {
-        super(schema19, "Some keys doesn't match to schema");
+      constructor(schema20, keys, errors = {}) {
+        super(schema20, "Some keys doesn't match to schema");
         this.keys = keys;
         this.errors = errors;
       }
@@ -46841,34 +46841,34 @@ var require_build5 = __commonJS({
         return this.items.has(target2) || !!this.findParentSchema(target2);
       }
       get(target2) {
-        const schema19 = this.items.get(target2) || this.findParentSchema(target2);
-        if (!schema19) {
+        const schema20 = this.items.get(target2) || this.findParentSchema(target2);
+        if (!schema20) {
           throw new Error("Cannot get schema for current target");
         }
-        return schema19;
+        return schema20;
       }
       create(target2) {
-        const schema19 = { names: {} };
+        const schema20 = { names: {} };
         const parentSchema = this.findParentSchema(target2);
         if (parentSchema) {
-          Object.assign(schema19, parentSchema);
-          schema19.names = {};
+          Object.assign(schema20, parentSchema);
+          schema20.names = {};
           for (const name in parentSchema.names) {
-            schema19.names[name] = Object.assign({}, parentSchema.names[name]);
+            schema20.names[name] = Object.assign({}, parentSchema.names[name]);
           }
         }
-        schema19.target = target2;
-        return schema19;
+        schema20.target = target2;
+        return schema20;
       }
-      set(target2, schema19) {
-        this.items.set(target2, schema19);
+      set(target2, schema20) {
+        this.items.set(target2, schema20);
         return this;
       }
       findParentSchema(target2) {
         const parent = target2.__proto__;
         if (parent) {
-          const schema19 = this.items.get(parent);
-          return schema19 || this.findParentSchema(parent);
+          const schema20 = this.items.get(parent);
+          return schema20 || this.findParentSchema(parent);
         }
         return null;
       }
@@ -46977,8 +46977,8 @@ var require_build5 = __commonJS({
           }
         }
       }
-      static getSchemaByName(schema19, name = DEFAULT_SCHEMA) {
-        return { ...schema19.names[DEFAULT_SCHEMA], ...schema19.names[name] };
+      static getSchemaByName(schema20, name = DEFAULT_SCHEMA) {
+        return { ...schema20.names[DEFAULT_SCHEMA], ...schema20.names[name] };
       }
     };
     var JsonSerializer = class extends JsonTransform {
@@ -47004,9 +47004,9 @@ var require_build5 = __commonJS({
           }
           targetSchema2 = targetSchema2 || obj.constructor;
           if (schemaStorage.has(targetSchema2)) {
-            const schema19 = schemaStorage.get(targetSchema2);
+            const schema20 = schemaStorage.get(targetSchema2);
             res = {};
-            const namedSchema = this.getSchemaByName(schema19, schemaName);
+            const namedSchema = this.getSchemaByName(schema20, schemaName);
             for (const key in namedSchema) {
               try {
                 const item = namedSchema[key];
@@ -47042,7 +47042,7 @@ var require_build5 = __commonJS({
                 if (e instanceof SerializerError) {
                   throw e;
                 } else {
-                  throw new SerializerError(schema19.target.name, `Property '${key}' is wrong. ${e.message}`, e);
+                  throw new SerializerError(schema20.target.name, `Property '${key}' is wrong. ${e.message}`, e);
                 }
               }
             }
@@ -47070,11 +47070,11 @@ var require_build5 = __commonJS({
         if (isConvertible(obj)) {
           return obj.fromJSON(target2);
         }
-        const schema19 = schemaStorage.get(targetSchema2);
-        const namedSchema = this.getSchemaByName(schema19, schemaName);
+        const schema20 = schemaStorage.get(targetSchema2);
+        const namedSchema = this.getSchemaByName(schema20, schemaName);
         const keyErrors = {};
         if (options.strictProperty && !Array.isArray(target2)) {
-          _JsonParser.checkStrictProperty(target2, namedSchema, schema19);
+          _JsonParser.checkStrictProperty(target2, namedSchema, schema20);
         }
         for (const key in namedSchema) {
           try {
@@ -47085,7 +47085,7 @@ var require_build5 = __commonJS({
               continue;
             }
             if (!item.optional && value === void 0) {
-              throw new ParserError(schema19, `Property '${name}' is required.`);
+              throw new ParserError(schema20, `Property '${name}' is required.`);
             }
             this.checkTypes(value, item);
             this.checkValues(value, item);
@@ -47113,7 +47113,7 @@ var require_build5 = __commonJS({
             }
           } catch (e) {
             if (!(e instanceof ParserError)) {
-              e = new ParserError(schema19, `Property '${key}' is wrong. ${e.message}`, e);
+              e = new ParserError(schema20, `Property '${key}' is wrong. ${e.message}`, e);
             }
             if (options.strictAllKeys) {
               keyErrors[key] = e;
@@ -47124,11 +47124,11 @@ var require_build5 = __commonJS({
         }
         const keys = Object.keys(keyErrors);
         if (keys.length) {
-          throw new KeyError(schema19, keys, keyErrors);
+          throw new KeyError(schema20, keys, keyErrors);
         }
         return obj;
       }
-      static checkStrictProperty(target2, namedSchema, schema19) {
+      static checkStrictProperty(target2, namedSchema, schema20) {
         const jsonProps = Object.keys(target2);
         const schemaProps = Object.keys(namedSchema);
         const keys = [];
@@ -47138,7 +47138,7 @@ var require_build5 = __commonJS({
           }
         }
         if (keys.length) {
-          throw new KeyError(schema19, keys);
+          throw new KeyError(schema20, keys);
         }
       }
     };
@@ -47167,15 +47167,15 @@ var require_build5 = __commonJS({
     }
     var JsonProp = (options = {}) => (target2, propertyKey) => {
       const errorMessage = `Cannot set type for ${propertyKey} property of ${target2.constructor.name} schema`;
-      let schema19;
+      let schema20;
       if (!schemaStorage.has(target2.constructor)) {
-        schema19 = schemaStorage.create(target2.constructor);
-        schemaStorage.set(target2.constructor, schema19);
+        schema20 = schemaStorage.create(target2.constructor);
+        schemaStorage.set(target2.constructor, schema20);
       } else {
-        schema19 = schemaStorage.get(target2.constructor);
-        if (schema19.target !== target2.constructor) {
-          schema19 = schemaStorage.create(target2.constructor);
-          schemaStorage.set(target2.constructor, schema19);
+        schema20 = schemaStorage.get(target2.constructor);
+        if (schema20.target !== target2.constructor) {
+          schema20 = schemaStorage.create(target2.constructor);
+          schemaStorage.set(target2.constructor, schema20);
         }
       }
       const defaultSchema = {
@@ -47196,10 +47196,10 @@ var require_build5 = __commonJS({
         schemaNames = [options.schema || DEFAULT_SCHEMA];
       }
       for (const schemaName of schemaNames) {
-        if (!schema19.names[schemaName]) {
-          schema19.names[schemaName] = {};
+        if (!schema20.names[schemaName]) {
+          schema20.names[schemaName] = {};
         }
-        const namedSchema = schema19.names[schemaName];
+        const namedSchema = schema20.names[schemaName];
         namedSchema[propertyKey] = copyOptions;
       }
     };
@@ -62900,8 +62900,8 @@ var require_decode = __commonJS({
       }
       return decodeSchema(rstream, typeOrSchema, meta);
     }
-    function decodeSchema(rstream, schema19, meta) {
-      assertSchema(schema19);
+    function decodeSchema(rstream, schema20, meta) {
+      assertSchema(schema20);
       const node = /* @__PURE__ */ Object.create(null);
       if (meta.node === void 0) {
         meta.node = node;
@@ -62909,10 +62909,10 @@ var require_decode = __commonJS({
       } else {
         meta.current = node;
       }
-      const keys = Object.keys(schema19);
+      const keys = Object.keys(schema20);
       for (let i = 0; i < keys.length; i += 1) {
         const key = keys[i];
-        const type = schema19[key];
+        const type = schema20[key];
         if (!isDecodeType(type)) {
           node[key] = decodeSchema(rstream, type, meta);
           meta.current = node;
@@ -62927,8 +62927,8 @@ var require_decode = __commonJS({
       }
       return node;
     }
-    function assertSchema(schema19) {
-      if (!isUserType(schema19)) {
+    function assertSchema(schema20) {
+      if (!isUserType(schema20)) {
         throw new TypeError("Argument #2 should be a plain object.");
       }
     }
@@ -62970,18 +62970,18 @@ var require_encode = __commonJS({
         encodeSchema(object, wstream, typeOrSchema, context);
       }
     }
-    function encodeSchema(object, wstream, schema19, context) {
-      assertSchema(schema19);
+    function encodeSchema(object, wstream, schema20, context) {
+      assertSchema(schema20);
       if (context.node === void 0) {
         context.node = object;
         context.current = object;
       } else {
         context.current = object;
       }
-      const keys = Object.keys(schema19);
+      const keys = Object.keys(schema20);
       for (let i = 0; i < keys.length; i += 1) {
         const key = keys[i];
-        const type = schema19[key];
+        const type = schema20[key];
         const value = object[key];
         if (!isEncodeType(type)) {
           encodeSchema(value, wstream, type, context);
@@ -62992,8 +62992,8 @@ var require_encode = __commonJS({
         context[symbols.bytes] += type.encode.bytes;
       }
     }
-    function assertSchema(schema19) {
-      if (!isUserType(schema19)) {
+    function assertSchema(schema20) {
+      if (!isUserType(schema20)) {
         throw new TypeError("Argument `schema` should be a plain object.");
       }
     }
@@ -63011,9 +63011,9 @@ var require_encoding_length = __commonJS({
       encodingLength,
       encodingLengthCommon
     };
-    function encodingLength(obj, schema19) {
+    function encodingLength(obj, schema20) {
       const context = new Metadata();
-      encodingLengthCommon(obj, schema19, context);
+      encodingLengthCommon(obj, schema20, context);
       Metadata.clean(context);
       return context.bytes;
     }
@@ -63024,8 +63024,8 @@ var require_encoding_length = __commonJS({
         encodingLengthSchema(item, typeOrSchema, context);
       }
     }
-    function encodingLengthSchema(item, schema19, context) {
-      if (!isUserType(schema19)) {
+    function encodingLengthSchema(item, schema20, context) {
+      if (!isUserType(schema20)) {
         throw new TypeError("Argument `schema` should be a plain object.");
       }
       if (context.node === void 0) {
@@ -63034,10 +63034,10 @@ var require_encoding_length = __commonJS({
       } else {
         context.current = item;
       }
-      const keys = Object.keys(schema19);
+      const keys = Object.keys(schema20);
       for (let i = 0; i < keys.length; i += 1) {
         const key = keys[i];
-        const type = schema19[key];
+        const type = schema20[key];
         const value = item[key];
         if (!isType(type)) {
           encodingLengthSchema(value, type, context);
@@ -63890,27 +63890,27 @@ var require_src5 = __commonJS({
       types[type] = numbers[type];
     }
     var kschema = Symbol("schema");
-    function createEncodeStream(schema19) {
+    function createEncodeStream(schema20) {
       const stream4 = new BinaryStream({
         readableObjectMode: false,
         writableObjectMode: true,
         transform: transformEncode
       });
-      stream4[kschema] = schema19;
+      stream4[kschema] = schema20;
       return stream4;
     }
     function createDecodeStream(bufOrSchema) {
-      let schema19 = null;
+      let schema20 = null;
       const isBuffer2 = Buffer.isBuffer(bufOrSchema);
       if (!isBuffer2) {
-        schema19 = bufOrSchema;
+        schema20 = bufOrSchema;
       }
       const stream4 = new BinaryStream({
         transform: transformDecode,
         readableObjectMode: true,
         writableObjectMode: false
       });
-      stream4[kschema] = schema19;
+      stream4[kschema] = schema20;
       if (isBuffer2) {
         stream4.append(bufOrSchema);
       }
@@ -74047,8 +74047,8 @@ var require_utils6 = __commonJS({
     exports2.timestampSeconds = timestampSeconds;
     var ntpTime = () => {
       const now2 = perf_hooks_1.performance.timeOrigin + perf_hooks_1.performance.now() - Date.UTC(1900, 0, 1);
-      const seconds = now2 / 1e3;
-      const [sec, msec] = seconds.toString().split(".").map(Number);
+      const seconds2 = now2 / 1e3;
+      const [sec, msec] = seconds2.toString().split(".").map(Number);
       const buf = (0, src_1.bufferWriter)([4, 4], [sec, msec]);
       return buf.readBigUInt64BE();
     };
@@ -91611,9 +91611,9 @@ var init_adapter3 = __esm({
         if (charSource && typeof charSource === "object") {
           const normalized = {};
           for (const [key, raw] of Object.entries(charSource)) {
-            const lower = key.toLowerCase();
-            if (_DSA5Adapter.EIGENSCHAFT_KEYS.includes(lower)) {
-              normalized[lower] = this.normalizeEigenschaft(raw);
+            const lower2 = key.toLowerCase();
+            if (_DSA5Adapter.EIGENSCHAFT_KEYS.includes(lower2)) {
+              normalized[lower2] = this.normalizeEigenschaft(raw);
             }
           }
           if (Object.keys(normalized).length > 0) {
@@ -107512,7 +107512,7 @@ var init_dispatchRequest = __esm({
 });
 
 // ../../node_modules/axios/lib/helpers/validator.js
-function assertOptions(options, schema19, allowUnknown) {
+function assertOptions(options, schema20, allowUnknown) {
   if (typeof options !== "object") {
     throw new AxiosError_default("options must be an object", AxiosError_default.ERR_BAD_OPTION_VALUE);
   }
@@ -107520,7 +107520,7 @@ function assertOptions(options, schema19, allowUnknown) {
   let i = keys.length;
   while (i-- > 0) {
     const opt = keys[i];
-    const validator = schema19[opt];
+    const validator = schema20[opt];
     if (validator) {
       const value = options[opt];
       const result = value === void 0 || validator(value, opt, options);
@@ -110079,7 +110079,7 @@ var CharacterTools = class {
     return [
       {
         name: "get-character",
-        description: `Retrieve character information optimized for minimal token usage. Returns: full stats (abilities, skills, saves, AC, HP), action names, active effects/conditions (name only), and ALL items with minimal metadata (name, type, equipped status) without descriptions. PF2e-specific: includes traits arrays for items/actions, action costs, rarity, and level. D&D 5e-specific: includes attunement status. Perfect for filtering (e.g., "deviant" trait feats, "fire" trait spells in PF2e), checking equipment, or identifying what to investigate further. Use get-character-entity to fetch full details for specific items, actions, spells, or effects. For an unlinked token (e.g. a summon or a copy of a shared NPC) pass its token ID or token UUID to get that token's own effective stats and effects rather than the base actor's.`,
+        description: `Retrieve character information optimized for minimal token usage. Returns: full stats (abilities, skills, saves, AC, HP), action names, active effects/conditions (name only), and ALL items with minimal metadata (name, type, equipped status) without descriptions. PF2e-specific: includes traits arrays for items/actions, action costs, rarity, and level. D&D 5e-specific: includes attunement status, and playState: classes, proficiency bonus, initiative, speed, senses, saving throw totals, spell DC and attack, spell slots left, hit dice left, feature and item uses left with their recovery (Second Wind, Action Surge, charges), death saves at 0 hp, exhaustion, concentration and legendary actions. Perfect for filtering (e.g., "deviant" trait feats, "fire" trait spells in PF2e), checking equipment, or identifying what to investigate further. Use get-character-entity to fetch full details for specific items, actions, spells, or effects. For an unlinked token (e.g. a summon or a copy of a shared NPC) pass its token ID or token UUID to get that token's own effective stats and effects rather than the base actor's.`,
         inputSchema: {
           type: "object",
           properties: {
@@ -110287,10 +110287,10 @@ var CharacterTools = class {
     ];
   }
   async handleGetCharacter(args) {
-    const schema19 = external_exports.object({
+    const schema20 = external_exports.object({
       identifier: external_exports.string().min(1, "Character identifier cannot be empty")
     });
-    const { identifier } = schema19.parse(args);
+    const { identifier } = schema20.parse(args);
     this.logger.info("Getting character information", { identifier });
     try {
       const characterData = await this.foundryClient.query("foundry-mcp-bridge.getCharacterInfo", {
@@ -110307,11 +110307,11 @@ var CharacterTools = class {
     }
   }
   async handleGetCharacterEntity(args) {
-    const schema19 = external_exports.object({
+    const schema20 = external_exports.object({
       characterIdentifier: external_exports.string().min(1, "Character identifier cannot be empty"),
       entityIdentifier: external_exports.string().min(1, "Entity identifier cannot be empty")
     });
-    const { characterIdentifier, entityIdentifier } = schema19.parse(args);
+    const { characterIdentifier, entityIdentifier } = schema20.parse(args);
     this.logger.info("Getting character entity", { characterIdentifier, entityIdentifier });
     try {
       const result = await this.foundryClient.query("foundry-mcp-bridge.getCharacterEntity", {
@@ -110376,10 +110376,10 @@ var CharacterTools = class {
     }
   }
   async handleListCharacters(args) {
-    const schema19 = external_exports.object({
+    const schema20 = external_exports.object({
       type: external_exports.string().optional()
     });
-    const { type } = schema19.parse(args);
+    const { type } = schema20.parse(args);
     this.logger.info("Listing characters", { type });
     try {
       const actors = await this.foundryClient.query("foundry-mcp-bridge.listActors", { type });
@@ -110400,7 +110400,7 @@ var CharacterTools = class {
     }
   }
   async handleUseItem(args) {
-    const schema19 = external_exports.object({
+    const schema20 = external_exports.object({
       actorIdentifier: external_exports.string().min(1, "Actor identifier cannot be empty"),
       itemIdentifier: external_exports.string().min(1, "Item identifier cannot be empty"),
       targets: external_exports.array(external_exports.string()).optional(),
@@ -110408,7 +110408,7 @@ var CharacterTools = class {
       spellLevel: external_exports.number().optional(),
       skipDialog: external_exports.boolean().optional()
     });
-    const { actorIdentifier, itemIdentifier, targets, consume, spellLevel, skipDialog } = schema19.parse(args);
+    const { actorIdentifier, itemIdentifier, targets, consume, spellLevel, skipDialog } = schema20.parse(args);
     this.logger.info("Using item", {
       actorIdentifier,
       itemIdentifier,
@@ -110447,11 +110447,11 @@ var CharacterTools = class {
       img: external_exports.string().optional(),
       system: external_exports.record(external_exports.any()).optional()
     });
-    const schema19 = external_exports.object({
+    const schema20 = external_exports.object({
       actorIdentifier: external_exports.string().min(1, "Actor identifier cannot be empty"),
       items: external_exports.array(itemSchema2).min(1, "At least one item is required")
     });
-    const { actorIdentifier, items: items2 } = schema19.parse(args);
+    const { actorIdentifier, items: items2 } = schema20.parse(args);
     this.logger.info("Adding items to actor", {
       actorIdentifier,
       count: items2.length,
@@ -110480,10 +110480,10 @@ var CharacterTools = class {
       system: external_exports.record(external_exports.any()).optional(),
       folder: external_exports.string().optional()
     });
-    const schema19 = external_exports.object({
+    const schema20 = external_exports.object({
       updates: external_exports.array(updateEntrySchema).min(1, "At least one update entry is required")
     });
-    const { updates } = schema19.parse(args);
+    const { updates } = schema20.parse(args);
     this.logger.info("Updating world items", {
       count: updates.length,
       ids: updates.map((u) => u.id)
@@ -110500,12 +110500,12 @@ var CharacterTools = class {
     }
   }
   async handleListWorldItems(args) {
-    const schema19 = external_exports.object({
+    const schema20 = external_exports.object({
       type: external_exports.string().optional(),
       folder: external_exports.string().optional(),
       nameFilter: external_exports.string().optional()
     });
-    const { type, folder, nameFilter } = schema19.parse(args);
+    const { type, folder, nameFilter } = schema20.parse(args);
     this.logger.info("Listing world items", {
       type: type ?? null,
       folder: folder ?? null,
@@ -110548,11 +110548,11 @@ var CharacterTools = class {
       effects: external_exports.array(external_exports.record(external_exports.any())).optional(),
       flags: external_exports.record(external_exports.any()).optional()
     });
-    const schema19 = external_exports.object({
+    const schema20 = external_exports.object({
       items: external_exports.array(itemSchema2).min(1, "At least one item is required"),
       folder: external_exports.string().optional()
     });
-    const { items: items2, folder } = schema19.parse(args);
+    const { items: items2, folder } = schema20.parse(args);
     this.logger.info("Creating world items", {
       count: items2.length,
       folder: folder ?? null,
@@ -110603,7 +110603,7 @@ var CharacterTools = class {
     }
   }
   async handleRemoveActorItems(args) {
-    const schema19 = external_exports.object({
+    const schema20 = external_exports.object({
       actorIdentifier: external_exports.string().min(1, "Actor identifier cannot be empty"),
       itemIds: external_exports.array(external_exports.string().min(1)).optional(),
       itemNames: external_exports.array(external_exports.string().min(1)).optional(),
@@ -110611,7 +110611,7 @@ var CharacterTools = class {
     }).refine((v) => (v.itemIds?.length ?? 0) + (v.itemNames?.length ?? 0) > 0, {
       message: "Provide itemIds and/or itemNames identifying the items to remove"
     });
-    const { actorIdentifier, itemIds, itemNames, type } = schema19.parse(args);
+    const { actorIdentifier, itemIds, itemNames, type } = schema20.parse(args);
     this.logger.info("Removing items from actor", {
       actorIdentifier,
       ids: itemIds?.length ?? 0,
@@ -110643,14 +110643,14 @@ var CharacterTools = class {
     }
   }
   async handleSearchCharacterItems(args) {
-    const schema19 = external_exports.object({
+    const schema20 = external_exports.object({
       characterIdentifier: external_exports.string().min(1, "Character identifier cannot be empty"),
       query: external_exports.string().optional(),
       type: external_exports.string().optional(),
       category: external_exports.string().optional(),
       limit: external_exports.number().optional()
     });
-    const { characterIdentifier, query, type, category, limit } = schema19.parse(args);
+    const { characterIdentifier, query, type, category, limit } = schema20.parse(args);
     this.logger.info("Searching character items", {
       characterIdentifier,
       query,
@@ -110687,6 +110687,7 @@ var CharacterTools = class {
       type: characterData.type,
       basicInfo: await this.extractBasicInfo(characterData),
       stats: await this.extractStats(characterData),
+      ...characterData.playState ? { playState: characterData.playState } : {},
       items: this.formatItems(characterData.items || []),
       effects: this.formatEffects(characterData.effects || []),
       hasImage: !!characterData.img
@@ -111393,7 +111394,7 @@ var CompendiumTools = class {
   }
   async handleSearchCompendium(args) {
     const gameSystem = await this.getGameSystem();
-    const schema19 = external_exports.object({
+    const schema20 = external_exports.object({
       query: external_exports.string().min(2, "Search query must be at least 2 characters"),
       packType: external_exports.string().optional(),
       filters: GenericFiltersSchema.optional(),
@@ -111401,14 +111402,14 @@ var CompendiumTools = class {
     });
     let parsedArgs;
     try {
-      parsedArgs = schema19.parse(args);
+      parsedArgs = schema20.parse(args);
     } catch (zodError) {
       if (typeof args === "string") {
-        parsedArgs = schema19.parse({ query: args });
+        parsedArgs = schema20.parse({ query: args });
       } else if (args && typeof args.query === "undefined" && typeof args === "object") {
         const firstKey = Object.keys(args)[0];
         if (firstKey && typeof args[firstKey] === "string") {
-          parsedArgs = schema19.parse({ query: args[firstKey] });
+          parsedArgs = schema20.parse({ query: args[firstKey] });
         } else {
           throw zodError;
         }
@@ -111455,12 +111456,12 @@ var CompendiumTools = class {
     }
   }
   async handleGetCompendiumItem(args) {
-    const schema19 = external_exports.object({
+    const schema20 = external_exports.object({
       packId: external_exports.string().min(1, "Pack ID cannot be empty"),
       itemId: external_exports.string().min(1, "Item ID cannot be empty"),
       compact: external_exports.boolean().default(false)
     });
-    const { packId, itemId, compact } = schema19.parse(args);
+    const { packId, itemId, compact } = schema20.parse(args);
     try {
       const item = await this.foundryClient.query("foundry-mcp-bridge.getCompendiumDocumentFull", {
         packId,
@@ -111510,7 +111511,7 @@ var CompendiumTools = class {
   }
   async handleListCreaturesByCriteria(args) {
     const gameSystem = await this.getGameSystem();
-    const schema19 = external_exports.object({
+    const schema20 = external_exports.object({
       // D&D 5e: challengeRating
       challengeRating: external_exports.union([
         external_exports.object({
@@ -111640,7 +111641,7 @@ var CompendiumTools = class {
     });
     let params;
     try {
-      params = schema19.parse(args);
+      params = schema20.parse(args);
       this.logger.debug("Parsed creature criteria parameters successfully", params);
     } catch (parseError) {
       this.logger.error("Failed to parse creature criteria parameters", { args, parseError });
@@ -111690,10 +111691,10 @@ var CompendiumTools = class {
     }
   }
   async handleListCompendiumPacks(args) {
-    const schema19 = external_exports.object({
+    const schema20 = external_exports.object({
       type: external_exports.string().optional()
     });
-    const { type } = schema19.parse(args);
+    const { type } = schema20.parse(args);
     this.logger.info("Listing compendium packs", { type });
     try {
       const packs = await this.foundryClient.query("foundry-mcp-bridge.getAvailablePacks");
@@ -111958,7 +111959,8 @@ var CompendiumTools = class {
       return formatted;
     }
     if (gameSystem) {
-      const level = getCreatureLevel(creature, gameSystem);
+      const flatLevel = gameSystem === "pf2e" ? creature.level : creature.challengeRating;
+      const level = getCreatureLevel(creature, gameSystem) ?? (typeof flatLevel === "number" ? flatLevel : void 0);
       if (level !== void 0) {
         if (gameSystem === "dnd5e") {
           formatted.challengeRating = level;
@@ -111966,7 +111968,7 @@ var CompendiumTools = class {
           formatted.level = level;
         }
       }
-      const creatureType = getCreatureType(creature, gameSystem);
+      const creatureType = getCreatureType(creature, gameSystem) ?? (gameSystem === "pf2e" && Array.isArray(creature.traits) ? creature.traits : creature.creatureType);
       if (creatureType) {
         if (gameSystem === "pf2e" && Array.isArray(creatureType)) {
           formatted.traits = creatureType;
@@ -112001,12 +112003,18 @@ var CompendiumTools = class {
         if (rarity)
           formatted.rarity = rarity;
       }
-      const hasSpells = hasSpellcasting(creature, gameSystem);
+      const hp = creature.hitPoints ?? system.attributes?.hp?.max;
+      const ac = creature.armorClass ?? system.attributes?.ac?.value;
+      if (typeof hp === "number" && hp > 0)
+        formatted.hitPoints = hp;
+      if (typeof ac === "number" && ac > 0)
+        formatted.armorClass = ac;
+      const hasSpells = hasSpellcasting(creature, gameSystem) || creature.hasSpells === true;
       formatted.flags = {
         spellcaster: hasSpells
       };
       if (gameSystem === "dnd5e") {
-        const hasLegendary = !!(system.resources?.legact || system.legendary || system.resources?.legres && system.resources.legres.value > 0);
+        const hasLegendary = !!(creature.hasLegendaryActions || system.resources?.legact || system.legendary || system.resources?.legres && system.resources.legres.value > 0);
         formatted.flags.legendary = hasLegendary;
         const typeStr = typeof creatureType === "string" ? creatureType.toLowerCase() : "";
         formatted.flags.undead = typeStr === "undead";
@@ -112412,11 +112420,11 @@ var SceneTools = class {
     ];
   }
   async handleGetCurrentScene(args) {
-    const schema19 = external_exports.object({
+    const schema20 = external_exports.object({
       includeTokens: external_exports.boolean().default(true),
       includeHidden: external_exports.boolean().default(false)
     });
-    const { includeTokens, includeHidden } = schema19.parse(args);
+    const { includeTokens, includeHidden } = schema20.parse(args);
     this.logger.info("Getting current scene information", { includeTokens, includeHidden });
     try {
       const sceneData = await this.foundryClient.query("foundry-mcp-bridge.getActiveScene");
@@ -112446,12 +112454,12 @@ var SceneTools = class {
     }
   }
   async handleUpdateSceneMusic(args) {
-    const schema19 = external_exports.object({
+    const schema20 = external_exports.object({
       scene_identifier: external_exports.string().min(1),
       playlist: external_exports.string().nullable().optional(),
       playlist_sound: external_exports.string().nullable().optional()
     });
-    const parsed = schema19.parse(withSceneAlias(args));
+    const parsed = schema20.parse(withSceneAlias(args));
     this.logger.info("Updating scene music", { scene_identifier: parsed.scene_identifier });
     try {
       const result = await this.foundryClient.query("foundry-mcp-bridge.update-scene-music", parsed);
@@ -112463,7 +112471,7 @@ var SceneTools = class {
     }
   }
   async handleManageScenes(args) {
-    const schema19 = external_exports.object({
+    const schema20 = external_exports.object({
       action: external_exports.enum(["create", "update", "describe"]),
       scene_identifier: external_exports.string().min(1).optional(),
       name: external_exports.string().min(1).optional(),
@@ -112494,7 +112502,7 @@ var SceneTools = class {
       }).strict().optional(),
       activate: external_exports.boolean().optional()
     }).strict();
-    const parsed = schema19.parse(withSceneAlias(args, true));
+    const parsed = schema20.parse(withSceneAlias(args, true));
     if (parsed.action === "create" && !parsed.name) {
       throw new Error("name is required for create");
     }
@@ -112782,7 +112790,7 @@ var PlaylistTools = class {
     ];
   }
   async handleManagePlaylists(args) {
-    const schema19 = external_exports.object({
+    const schema20 = external_exports.object({
       action: external_exports.enum(["create", "update", "delete", "describe"]),
       playlist: external_exports.string().nullable().optional(),
       name: external_exports.string().optional(),
@@ -112797,7 +112805,7 @@ var PlaylistTools = class {
       remove_sounds: external_exports.array(external_exports.string().min(1)).max(100).optional(),
       updates: external_exports.record(external_exports.any()).optional()
     });
-    const parsed = schema19.parse(args);
+    const parsed = schema20.parse(args);
     this.logger.info("Managing playlists", { action: parsed.action, playlist: parsed.playlist });
     try {
       const result = await this.foundryClient.query("foundry-mcp-bridge.manage-playlists", parsed);
@@ -112808,13 +112816,13 @@ var PlaylistTools = class {
     }
   }
   async handleControlPlaylist(args) {
-    const schema19 = external_exports.object({
+    const schema20 = external_exports.object({
       playlist: external_exports.string().min(1).optional(),
       command: external_exports.enum(COMMANDS),
       sound: external_exports.string().optional(),
       volume: external_exports.number().min(0).max(1).optional()
     });
-    const parsed = schema19.parse(args);
+    const parsed = schema20.parse(args);
     if (!parsed.playlist && parsed.command !== "now-playing" && parsed.command !== "stop-all") {
       throw new Error(`command ${parsed.command} requires "playlist"`);
     }
@@ -113177,7 +113185,7 @@ var ActorCreationTools = class {
    * Handle actor creation from specific compendium entry
    */
   async handleCreateActorFromCompendium(args) {
-    const schema19 = external_exports.object({
+    const schema20 = external_exports.object({
       packId: external_exports.string().min(1, "Pack ID cannot be empty"),
       itemId: external_exports.string().min(1, "Item ID cannot be empty"),
       names: external_exports.array(external_exports.string().min(1)).min(1, "At least one name is required"),
@@ -113196,7 +113204,7 @@ var ActorCreationTools = class {
         })).optional()
       }).optional()
     });
-    const { packId, itemId, names, quantity, addToScene, placement, folder, hp, token, img, tokenImg } = schema19.parse(args);
+    const { packId, itemId, names, quantity, addToScene, placement, folder, hp, token, img, tokenImg } = schema20.parse(args);
     const finalQuantity = quantity || names.length;
     this.logger.info("Creating actors from specific compendium entry", {
       packId,
@@ -113242,11 +113250,11 @@ var ActorCreationTools = class {
    * Handle getting full compendium entry data
    */
   async handleGetCompendiumEntryFull(args) {
-    const schema19 = external_exports.object({
+    const schema20 = external_exports.object({
       packId: external_exports.string().min(1, "Pack ID cannot be empty"),
       entryId: external_exports.string().min(1, "Entry ID cannot be empty")
     });
-    const { packId, entryId } = schema19.parse(args);
+    const { packId, entryId } = schema20.parse(args);
     this.logger.info("Getting full compendium entry", { packId, entryId });
     try {
       const fullEntry = await this.foundryClient.query("foundry-mcp-bridge.getCompendiumDocumentFull", {
@@ -113536,12 +113544,12 @@ var ActorManagementTools = class {
   }
   // ── place ─────────────────────────────────────────────────────────────────
   async handlePlace(args) {
-    const schema19 = external_exports.object({
+    const schema20 = external_exports.object({
       actorIds: external_exports.array(external_exports.string().min(1)).min(1),
       placement: external_exports.enum(["random", "grid", "center"]).default("random"),
       hidden: external_exports.boolean().default(false)
     });
-    const { actorIds, placement, hidden } = schema19.parse(args);
+    const { actorIds, placement, hidden } = schema20.parse(args);
     this.logger.info("Placing existing actors on scene", {
       count: actorIds.length,
       placement,
@@ -113562,7 +113570,7 @@ var ActorManagementTools = class {
   }
   // ── create ────────────────────────────────────────────────────────────────
   async handleCreate(args) {
-    const schema19 = external_exports.object({
+    const schema20 = external_exports.object({
       actors: external_exports.array(external_exports.object({
         name: external_exports.string().min(1),
         type: external_exports.string().min(1),
@@ -113574,7 +113582,7 @@ var ActorManagementTools = class {
       })).min(1),
       folder: external_exports.string().optional()
     });
-    const { actors, folder } = schema19.parse(args);
+    const { actors, folder } = schema20.parse(args);
     this.logger.info("Creating actors", {
       count: actors.length,
       types: actors.map((a) => a.type)
@@ -113589,7 +113597,7 @@ var ActorManagementTools = class {
   }
   // ── update ────────────────────────────────────────────────────────────────
   async handleUpdate(args) {
-    const schema19 = external_exports.object({
+    const schema20 = external_exports.object({
       updates: external_exports.array(external_exports.object({
         id: external_exports.string().min(1),
         name: external_exports.string().optional(),
@@ -113601,7 +113609,7 @@ var ActorManagementTools = class {
         folder: external_exports.string().min(1).optional()
       })).min(1)
     });
-    const { updates } = schema19.parse(args);
+    const { updates } = schema20.parse(args);
     this.logger.info("Updating actors", { count: updates.length });
     const adapter2 = await this.getAdapter();
     const normalizedUpdates = adapter2?.normalizePayload ? updates.map((u) => u.system !== void 0 ? { ...u, system: adapter2.normalizePayload(u.system) } : u) : updates;
@@ -113612,17 +113620,17 @@ var ActorManagementTools = class {
   }
   // ── delete ────────────────────────────────────────────────────────────────
   async handleDelete(args) {
-    const schema19 = external_exports.object({
+    const schema20 = external_exports.object({
       ids: external_exports.array(external_exports.string().min(1)).min(1)
     });
-    const { ids } = schema19.parse(args);
+    const { ids } = schema20.parse(args);
     this.logger.info("Deleting actors", { count: ids.length });
     const result = await this.foundryClient.query("foundry-mcp-bridge.deleteActors", { ids });
     return result;
   }
   // ── update-items ────────────────────────────────────────────────────────────
   async handleUpdateItems(args) {
-    const schema19 = external_exports.object({
+    const schema20 = external_exports.object({
       actorIdentifier: external_exports.string().min(1),
       itemUpdates: external_exports.array(external_exports.object({
         id: external_exports.string().min(1),
@@ -113640,7 +113648,7 @@ var ActorManagementTools = class {
         }
       })).min(1)
     });
-    const { actorIdentifier, itemUpdates } = schema19.parse(args);
+    const { actorIdentifier, itemUpdates } = schema20.parse(args);
     this.logger.info("Updating actor embedded items", {
       actorIdentifier,
       count: itemUpdates.length
@@ -113653,11 +113661,11 @@ var ActorManagementTools = class {
   }
   // ── delete-items ────────────────────────────────────────────────────────────
   async handleDeleteItems(args) {
-    const schema19 = external_exports.object({
+    const schema20 = external_exports.object({
       actorIdentifier: external_exports.string().min(1),
       itemIds: external_exports.array(external_exports.string().min(1)).min(1)
     });
-    const { actorIdentifier, itemIds } = schema19.parse(args);
+    const { actorIdentifier, itemIds } = schema20.parse(args);
     this.logger.info("Deleting actor embedded items", {
       actorIdentifier,
       count: itemIds.length
@@ -115010,7 +115018,7 @@ var DiceRollTools = class {
     ];
   }
   async handleRequestPlayerRolls(args) {
-    const schema19 = external_exports.object({
+    const schema20 = external_exports.object({
       rollType: external_exports.enum(["ability", "skill", "save", "attack", "initiative", "custom"]),
       rollTarget: external_exports.string(),
       targetPlayer: external_exports.string(),
@@ -115020,7 +115028,7 @@ var DiceRollTools = class {
       flavor: external_exports.string().default("")
     });
     try {
-      const params = schema19.parse(args);
+      const params = schema20.parse(args);
       if (typeof params.isPublic !== "boolean") {
         return 'Please specify whether you want this to be a PUBLIC roll (visible to all players) or PRIVATE roll (visible only to the target player and GM). You must provide either "true" for public or "false" for private.';
       }
@@ -116672,7 +116680,7 @@ var TokenManipulationTools = class {
           properties: {
             tokenId: {
               type: "string",
-              description: "The ID of the token to move"
+              description: "The token ID, or its name (exact token name, else actor name; an ambiguous name is refused with the ids)"
             },
             x: {
               type: "number",
@@ -116705,7 +116713,7 @@ var TokenManipulationTools = class {
           properties: {
             tokenId: {
               type: "string",
-              description: "The ID of the token to update"
+              description: "The token ID, or its name (exact token name, else actor name; an ambiguous name is refused with the ids)"
             },
             updates: {
               type: "object",
@@ -116790,7 +116798,7 @@ var TokenManipulationTools = class {
           properties: {
             tokenId: {
               type: "string",
-              description: "The ID of the token to get details for"
+              description: "The token ID, or its name (exact token name, else actor name; an ambiguous name is refused with the ids)"
             },
             scene: { type: "string", description: "Scene id or exact name (default: found on any scene)" }
           },
@@ -116830,7 +116838,7 @@ var TokenManipulationTools = class {
     ];
   }
   async handleMoveToken(args) {
-    const schema19 = external_exports.object({
+    const schema20 = external_exports.object({
       tokenId: external_exports.string(),
       x: external_exports.number(),
       y: external_exports.number(),
@@ -116842,7 +116850,7 @@ var TokenManipulationTools = class {
       used: external_exports.number().min(0).optional(),
       ignore_speed: external_exports.boolean().optional()
     });
-    const { tokenId, x, y, animate, scene, units, mode, dash, used, ignore_speed } = schema19.parse(args);
+    const { tokenId, x, y, animate, scene, units, mode, dash, used, ignore_speed } = schema20.parse(args);
     this.logger.info("Moving token", { tokenId, x, y, animate });
     try {
       const result = await this.foundryClient.query("foundry-mcp-bridge.move-token", {
@@ -116878,7 +116886,7 @@ var TokenManipulationTools = class {
     }
   }
   async handleUpdateToken(args) {
-    const schema19 = external_exports.object({
+    const schema20 = external_exports.object({
       tokenId: external_exports.string(),
       scene: external_exports.string().min(1).optional(),
       options: external_exports.record(external_exports.any()).optional(),
@@ -116895,7 +116903,7 @@ var TokenManipulationTools = class {
         lockRotation: external_exports.boolean().optional()
       }).default({})
     });
-    const { tokenId, updates, options, scene } = schema19.parse(args);
+    const { tokenId, updates, options, scene } = schema20.parse(args);
     if (Object.keys(updates).length === 0 && !options)
       throw new Error("Give updates or options");
     this.logger.info("Updating token", { tokenId, updates });
@@ -116919,10 +116927,10 @@ var TokenManipulationTools = class {
     }
   }
   async handleDeleteTokens(args) {
-    const schema19 = external_exports.object({
+    const schema20 = external_exports.object({
       tokenIds: external_exports.array(external_exports.string()).min(1)
     });
-    const { tokenIds } = schema19.parse(args);
+    const { tokenIds } = schema20.parse(args);
     this.logger.info("Deleting tokens", { count: tokenIds.length, tokenIds });
     try {
       const result = await this.foundryClient.query("foundry-mcp-bridge.delete-tokens", {
@@ -116944,11 +116952,11 @@ var TokenManipulationTools = class {
     }
   }
   async handleGetTokenDetails(args) {
-    const schema19 = external_exports.object({
+    const schema20 = external_exports.object({
       tokenId: external_exports.string(),
       scene: external_exports.string().min(1).optional()
     });
-    const { tokenId, scene } = schema19.parse(args);
+    const { tokenId, scene } = schema20.parse(args);
     this.logger.info("Getting token details", { tokenId });
     try {
       const tokenData = await this.foundryClient.query("foundry-mcp-bridge.get-token-details", {
@@ -117011,12 +117019,12 @@ var TokenManipulationTools = class {
     }
   }
   async handleToggleTokenCondition(args) {
-    const schema19 = external_exports.object({
+    const schema20 = external_exports.object({
       tokenId: external_exports.string(),
       conditionId: external_exports.string(),
       active: external_exports.boolean().optional()
     });
-    const { tokenId, conditionId, active } = schema19.parse(args);
+    const { tokenId, conditionId, active } = schema20.parse(args);
     this.logger.info("Toggling token condition", { tokenId, conditionId, active });
     try {
       const result = await this.foundryClient.query("foundry-mcp-bridge.toggle-token-condition", {
@@ -117173,7 +117181,7 @@ var DSA5CharacterCreator = class {
    * Handle DSA5 character creation from archetype
    */
   async handleCreateCharacterFromArchetype(args) {
-    const schema19 = external_exports.object({
+    const schema20 = external_exports.object({
       archetypePackId: external_exports.string().min(1, "Archetype pack ID cannot be empty"),
       archetypeId: external_exports.string().min(1, "Archetype ID cannot be empty"),
       characterName: external_exports.string().min(1, "Character name cannot be empty"),
@@ -117191,7 +117199,7 @@ var DSA5CharacterCreator = class {
       }).optional(),
       addToWorld: external_exports.boolean().default(true)
     });
-    const { archetypePackId, archetypeId, characterName, customization, addToWorld } = schema19.parse(args);
+    const { archetypePackId, archetypeId, characterName, customization, addToWorld } = schema20.parse(args);
     this.logger.info("Creating DSA5 character from archetype", {
       archetypePackId,
       archetypeId,
@@ -117231,12 +117239,12 @@ var DSA5CharacterCreator = class {
    * Handle listing DSA5 archetypes
    */
   async handleListArchetypes(args) {
-    const schema19 = external_exports.object({
+    const schema20 = external_exports.object({
       packId: external_exports.string().optional(),
       filterBySpecies: external_exports.string().optional(),
       filterByProfession: external_exports.string().optional()
     });
-    const { packId, filterBySpecies, filterByProfession } = schema19.parse(args);
+    const { packId, filterBySpecies, filterByProfession } = schema20.parse(args);
     this.logger.info("Listing DSA5 archetypes", { packId, filterBySpecies, filterByProfession });
     try {
       const packs = await this.foundryClient.query("foundry-mcp-bridge.getAvailablePacks");
@@ -118287,7 +118295,7 @@ var DSA5JsonActorImporter = class {
     ];
   }
   async handleImportActorFromJson(args) {
-    const schema19 = external_exports.object({
+    const schema20 = external_exports.object({
       jsonPayload: external_exports.union([external_exports.string(), external_exports.record(external_exports.unknown())]).optional(),
       filePath: external_exports.string().optional(),
       strategy: external_exports.enum(["auto", "custom_dsa5", "optolith_like", "raw_foundry", "darkaid"]).default("auto"),
@@ -118299,7 +118307,7 @@ var DSA5JsonActorImporter = class {
     }).refine((value) => Boolean(value.jsonPayload) || Boolean(value.filePath), {
       message: "Either jsonPayload or filePath is required."
     });
-    const { jsonPayload, filePath, strategy, resolveItems, addToScene, updateExisting, existingActorIdentifier, strict } = schema19.parse(args);
+    const { jsonPayload, filePath, strategy, resolveItems, addToScene, updateExisting, existingActorIdentifier, strict } = schema20.parse(args);
     try {
       await this.assertDsa5World();
       const payload = await extractPayload(jsonPayload, filePath);
@@ -118852,7 +118860,7 @@ var DnD5eAddFeatureTool = class {
   // passive
   // ---------------------------------------------------------------------------
   async handlePassive(args) {
-    const schema19 = external_exports.object({
+    const schema20 = external_exports.object({
       featureType: external_exports.literal("passive"),
       actorIdentifier: external_exports.string().min(1, "actorIdentifier cannot be empty"),
       featureName: external_exports.string().min(1, "featureName cannot be empty"),
@@ -118862,7 +118870,7 @@ var DnD5eAddFeatureTool = class {
       sourceBook: external_exports.string().default(""),
       sourcePage: external_exports.string().default("")
     });
-    const parsed = schema19.parse(args);
+    const parsed = schema20.parse(args);
     this.logger.info("Adding passive feature to D&D 5e actor", {
       actorIdentifier: parsed.actorIdentifier,
       featureName: parsed.featureName
@@ -118904,7 +118912,7 @@ ${details}`
   // save
   // ---------------------------------------------------------------------------
   async handleSave(args) {
-    const schema19 = external_exports.object({
+    const schema20 = external_exports.object({
       featureType: external_exports.literal("save"),
       actorIdentifier: external_exports.string().min(1, "actorIdentifier cannot be empty"),
       featureName: external_exports.string().min(1, "featureName cannot be empty"),
@@ -118928,7 +118936,7 @@ ${details}`
         });
       }
     });
-    const parsed = schema19.parse(args);
+    const parsed = schema20.parse(args);
     this.logger.info("Adding save feature to D&D 5e actor", {
       actorIdentifier: parsed.actorIdentifier,
       featureName: parsed.featureName,
@@ -118978,7 +118986,7 @@ ${details}`
   // attack
   // ---------------------------------------------------------------------------
   async handleAttack(args) {
-    const schema19 = external_exports.object({
+    const schema20 = external_exports.object({
       featureType: external_exports.literal("attack"),
       actorIdentifier: external_exports.string().min(1, "actorIdentifier cannot be empty"),
       featureName: external_exports.string().min(1, "featureName cannot be empty"),
@@ -119015,7 +119023,7 @@ ${details}`
         });
       }
     });
-    const parsed = schema19.parse(args);
+    const parsed = schema20.parse(args);
     const effectiveAbility = parsed.abilityModifier ?? (parsed.attackType === "melee" ? "str" : "dex");
     const warnings = [];
     for (const part of parsed.damageParts) {
@@ -119089,7 +119097,7 @@ ${details}${warningSection}`
   // attack-with-save
   // ---------------------------------------------------------------------------
   async handleAttackWithSave(args) {
-    const schema19 = external_exports.object({
+    const schema20 = external_exports.object({
       featureType: external_exports.literal("attack-with-save"),
       actorIdentifier: external_exports.string().min(1, "actorIdentifier cannot be empty"),
       featureName: external_exports.string().min(1, "featureName cannot be empty"),
@@ -119130,7 +119138,7 @@ ${details}${warningSection}`
         });
       }
     });
-    const parsed = schema19.parse(args);
+    const parsed = schema20.parse(args);
     const effectiveAbility = parsed.abilityModifier ?? (parsed.attackType === "melee" ? "str" : "dex");
     const warnings = [];
     for (const part of [...parsed.damageParts, ...parsed.saveDamageParts]) {
@@ -119199,7 +119207,7 @@ ${details}${warningSection}`
   // aura
   // ---------------------------------------------------------------------------
   async handleAura(args) {
-    const schema19 = external_exports.object({
+    const schema20 = external_exports.object({
       featureType: external_exports.literal("aura"),
       actorIdentifier: external_exports.string().min(1, "actorIdentifier cannot be empty"),
       featureName: external_exports.string().min(1, "featureName cannot be empty"),
@@ -119215,7 +119223,7 @@ ${details}${warningSection}`
       sourceBook: external_exports.string().default(""),
       sourcePage: external_exports.string().default("")
     });
-    const parsed = schema19.parse(args);
+    const parsed = schema20.parse(args);
     const warnings = [];
     for (const part of parsed.damageParts) {
       if (!DAMAGE_CANONICAL.has(part.type)) {
@@ -119276,7 +119284,7 @@ ${details}${warningSection}`
   // spellcasting
   // ---------------------------------------------------------------------------
   async handleSpellcasting(args) {
-    const schema19 = external_exports.object({
+    const schema20 = external_exports.object({
       featureType: external_exports.literal("spellcasting"),
       actorIdentifier: external_exports.string().min(1, "actorIdentifier cannot be empty"),
       spellcastingClass: external_exports.enum([
@@ -119294,7 +119302,7 @@ ${details}${warningSection}`
       spellcastingAbility: external_exports.enum(["str", "dex", "con", "int", "wis", "cha"]).optional(),
       sourceRules: external_exports.enum(["2014", "2024"]).default("2014")
     });
-    const parsed = schema19.parse(args);
+    const parsed = schema20.parse(args);
     const effectiveAbility = parsed.spellcastingAbility ?? CLASS_DEFAULT_ABILITY[parsed.spellcastingClass];
     this.logger.info("Setting actor spellcasting", {
       actorIdentifier: parsed.actorIdentifier,
@@ -119346,13 +119354,13 @@ ${details}${warningSection}`
   // spells
   // ---------------------------------------------------------------------------
   async handleSpells(args) {
-    const schema19 = external_exports.object({
+    const schema20 = external_exports.object({
       featureType: external_exports.literal("spells"),
       actorIdentifier: external_exports.string().min(1, "actorIdentifier cannot be empty"),
       spellNames: external_exports.array(external_exports.string().min(1)).min(1).max(50),
       compendiumPacks: external_exports.array(external_exports.string().min(1)).default(["dnd5e.spells"])
     });
-    const parsed = schema19.parse(args);
+    const parsed = schema20.parse(args);
     this.logger.info("Adding spells to D&D 5e actor", {
       actorIdentifier: parsed.actorIdentifier,
       spellCount: parsed.spellNames.length,
@@ -119785,7 +119793,7 @@ var DnD5eNpcTools = class {
     ];
   }
   async handleCreateNpc(args) {
-    const schema19 = external_exports.object({
+    const schema20 = external_exports.object({
       // Identity
       name: external_exports.string().min(1, "name cannot be empty"),
       creatureType: external_exports.enum([
@@ -119887,7 +119895,7 @@ var DnD5eNpcTools = class {
         });
       }
     });
-    const parsed = schema19.parse(args);
+    const parsed = schema20.parse(args);
     const warnings = [];
     const allDamageValues = [
       ...parsed.damageImmunities.map((v) => ({ field: "damageImmunities", value: v })),
@@ -120002,12 +120010,12 @@ var DnD5eFeaturesFromCompendiumTools = class {
     ];
   }
   async handleAddFeaturesFromCompendium(args) {
-    const schema19 = external_exports.object({
+    const schema20 = external_exports.object({
       actorIdentifier: external_exports.string().min(1, "actorIdentifier cannot be empty"),
       featureNames: external_exports.array(external_exports.string().min(1)).min(1).max(50),
       compendiumPacks: external_exports.array(external_exports.string().min(1)).default(["dnd5e.monsterfeatures", "dnd5e.classfeatures"])
     });
-    const parsed = schema19.parse(args);
+    const parsed = schema20.parse(args);
     this.logger.info("Adding features to D&D 5e actor from compendium", {
       actorIdentifier: parsed.actorIdentifier,
       featureCount: parsed.featureNames.length,
@@ -120149,7 +120157,7 @@ var ChatTools = class {
     ];
   }
   async handleCreateChatMessage(args) {
-    const schema19 = external_exports.object({
+    const schema20 = external_exports.object({
       actorIdentifier: external_exports.string().optional(),
       tokenId: external_exports.string().optional(),
       content: external_exports.string().min(1),
@@ -120159,7 +120167,7 @@ var ChatTools = class {
     }).refine((v) => v.actorIdentifier || v.tokenId, {
       message: "Either actorIdentifier or tokenId is required"
     });
-    const parsed = schema19.parse(args);
+    const parsed = schema20.parse(args);
     this.logger.info("Creating chat message", {
       speaker: parsed.tokenId ?? parsed.actorIdentifier,
       whispered: !!parsed.whisperTo?.length
@@ -120341,7 +120349,7 @@ var ChatControlTools = class {
     return [
       {
         name: "chat",
-        description: `Talk with the players through the chat. read {since?, from?: players|all, rolls?, limit?(15)} returns the latest messages as short rows (who, as, kind say|roll|whisper|card, text, roll total, whisper recipients) and a marker: pass it as since next time to get only what is new. narrate {content, speaker?("Narrator"), whisperTo?} posts narration to everyone, or only to the named players when whisperTo is given. say {actorIdentifier | tokenId, content, whisperTo?, language?, chatLog?} speaks as an actor or token: a speech bubble by default, or a chat-log line, optionally whispered or in a language (Polyglot). Live chat: nothing in the chat can wake you up, so follow the table by watching the chat feed, a WebSocket on this computer (ws://127.0.0.1:${DEFAULT_CHAT_FEED_PORT}) that sends one JSON line per new message typed by a person ({id, who, as?, kind, text?, roll?, flavor?, to?, gm?}): the players' and the GM's own typed lines, not what the bridge or the game system posts; ?from=players leaves out the GM. In Claude Code, start it once with the Monitor tool (ws: {url}); each message then arrives as its own notification, to answer one at a time. Without such a tool, poll read with the marker. Reading is GM-only and shows whispers; never repeat a whisper to other players. A player's chat is their action: respond to what they said, do not act for them. Needs the Foundry GM tab open and not minimized; narrate and say need Allow Write Operations.`,
+        description: `Talk with the players through the chat. read {since?, from?: players|all, rolls?, limit?(15)} returns the latest messages as short rows (who, as, kind say|roll|whisper|card, text, roll total, whisper recipients) and a marker: pass it as since next time to get only what is new. narrate {content, speaker?("Narrator"), whisperTo?} posts narration to everyone, or only to the named players when whisperTo is given. say {actorIdentifier | tokenId, content, whisperTo?, language?, chatLog?} speaks as an actor or token: a speech bubble by default, or a chat-log line, optionally whispered or in a language (Polyglot). Live chat: nothing in the chat can wake you up. To run a session, prefer the table-watch feed (one bundled line only when the GM is needed: in-character and private-to-GM lines, monster turns, doors, awaited rolls). Otherwise follow every message with the chat feed, a WebSocket on this computer (ws://127.0.0.1:${DEFAULT_CHAT_FEED_PORT}) that sends one JSON line per new message typed by a person ({id, who, as?, kind, text?, roll?, flavor?, to?, gm?}): the players' and the GM's own typed lines, not what the bridge or the game system posts; ?from=players leaves out the GM. In Claude Code, start it once with the Monitor tool (ws: {url}); each message then arrives as its own notification, to answer one at a time. Without such a tool, poll read with the marker. Reading is GM-only and shows whispers; never repeat a whisper to other players. A player's chat is their action: respond to what they said, do not act for them. Needs the Foundry GM tab open and not minimized; narrate and say need Allow Write Operations.`,
         inputSchema: {
           type: "object",
           properties: {
@@ -120385,6 +120393,432 @@ var ChatControlTools = class {
     if (result?.success === false)
       throw new Error(result.error || "Request was refused");
     return result;
+  }
+};
+
+// dist/table-feed.js
+init_wrapper();
+
+// dist/table-bundler.js
+var DEFAULT_BUNDLER_SETTINGS = {
+  quietMs: 5e3,
+  turnQuietMs: 1500,
+  minIntervalMs: 1e4,
+  maxWaitMs: 25e3,
+  maxBackground: 40
+};
+var lower = (s) => String(s ?? "").trim().toLowerCase();
+var TableBundler = class {
+  settings;
+  pending = [];
+  firstWakeAt;
+  lastWakeAt;
+  lastWakeKind;
+  lastBeatAt = -Infinity;
+  expectation;
+  reasons = [];
+  muted = false;
+  constructor(settings = {}) {
+    this.settings = { ...DEFAULT_BUNDLER_SETTINGS, ...settings };
+  }
+  get pendingCount() {
+    return this.pending.length;
+  }
+  get hasWake() {
+    return this.firstWakeAt !== void 0;
+  }
+  get awaiting() {
+    return this.expectation ? [...this.expectation.waiting].map((k) => this.expectation.names.get(k) ?? k) : void 0;
+  }
+  /** Wait for these players or characters to roll; the bundle comes when all have, or at the deadline. */
+  expect(names, now, timeoutMs) {
+    const list = names.map((n) => n.trim()).filter(Boolean);
+    if (!list.length)
+      return;
+    const exp = this.expectation ?? { waiting: /* @__PURE__ */ new Set(), names: /* @__PURE__ */ new Map(), deadline: now + timeoutMs };
+    for (const n of list) {
+      exp.waiting.add(lower(n));
+      exp.names.set(lower(n), n);
+    }
+    exp.deadline = Math.max(exp.deadline, now + timeoutMs);
+    this.expectation = exp;
+  }
+  cancelExpectation() {
+    this.expectation = void 0;
+  }
+  add(events, now) {
+    for (const e of events) {
+      this.pending.push(e);
+      if (e.kind === "roll" && this.expectation) {
+        const hit = [lower(e.user), lower(e.actor)].find((k) => k && this.expectation.waiting.has(k));
+        if (hit) {
+          for (const k of [lower(e.user), lower(e.actor)])
+            this.expectation.waiting.delete(k);
+          if (this.expectation.waiting.size === 0) {
+            this.expectation = void 0;
+            this.markWake("every roll asked for is in", "rolls", now);
+          }
+        }
+      }
+      if (e.wake)
+        this.markWake(void 0, e.kind, now);
+    }
+  }
+  markWake(reason, kind, now) {
+    if (reason)
+      this.reasons.push(reason);
+    this.firstWakeAt ??= now;
+    this.lastWakeAt = now;
+    this.lastWakeKind = kind;
+  }
+  /** Called on a timer: the awaited rolls time out here. */
+  tick(now) {
+    if (this.expectation && now >= this.expectation.deadline) {
+      const missing = this.awaiting ?? [];
+      this.expectation = void 0;
+      this.markWake(`rolls asked for timed out; not rolled: ${missing.join(", ")}`, "rolls", now);
+    }
+  }
+  /** Whether a bundle should go now. */
+  due(now) {
+    if (this.muted || this.firstWakeAt === void 0 || this.lastWakeAt === void 0)
+      return false;
+    if (now - this.lastBeatAt < this.settings.minIntervalMs)
+      return false;
+    const quiet = this.lastWakeKind === "turn" ? this.settings.turnQuietMs : this.settings.quietMs;
+    const quietEnough = now - this.lastWakeAt >= quiet && !this.expectation;
+    const waitedEnough = now - this.firstWakeAt >= this.settings.maxWaitMs;
+    return quietEnough || waitedEnough;
+  }
+  /** Earliest time due() can become true, for scheduling (undefined: nothing to wait for). */
+  nextCheck(now) {
+    const times = [];
+    if (this.expectation)
+      times.push(this.expectation.deadline);
+    if (!this.muted && this.firstWakeAt !== void 0 && this.lastWakeAt !== void 0) {
+      const quiet = this.lastWakeKind === "turn" ? this.settings.turnQuietMs : this.settings.quietMs;
+      const earliest = this.lastBeatAt + this.settings.minIntervalMs;
+      times.push(Math.max(earliest, Math.min(this.lastWakeAt + quiet, this.firstWakeAt + this.settings.maxWaitMs)));
+    }
+    return times.length ? Math.max(now, Math.min(...times)) : void 0;
+  }
+  /** Force a bundle out of whatever is pending (also with no waking event). */
+  flush(now, extraReason) {
+    if (!this.pending.length && !this.reasons.length && !extraReason)
+      return void 0;
+    const why = [...this.reasons];
+    if (extraReason)
+      why.push(extraReason);
+    const wakeKinds = new Set(this.pending.filter((e) => e.wake).map((e) => e.kind));
+    const LABEL = {
+      say: "a player spoke in character",
+      emote: "a player acted (emote)",
+      whisper: "a player wrote to the GM privately",
+      turn: "a GM-run creature's turn",
+      door: "a player opened a door"
+    };
+    for (const k of wakeKinds)
+      why.push(LABEL[k] ?? k);
+    const lastByKey = /* @__PURE__ */ new Map();
+    this.pending.forEach((e, i) => e.key && lastByKey.set(e.key, i));
+    const kept = this.pending.filter((e, i) => !e.key || lastByKey.get(e.key) === i);
+    const background = kept.filter((e) => !e.wake);
+    const overflow = Math.max(0, background.length - this.settings.maxBackground);
+    const dropSet = new Set(background.slice(0, overflow));
+    const events = kept.filter((e) => !dropSet.has(e)).map((e) => e.text);
+    this.pending = [];
+    this.reasons = [];
+    this.firstWakeAt = void 0;
+    this.lastWakeAt = void 0;
+    this.lastWakeKind = void 0;
+    this.lastBeatAt = now;
+    return { why: [...new Set(why)], events, ...overflow ? { dropped: overflow } : {} };
+  }
+};
+
+// dist/table-feed.js
+var DEFAULT_TABLE_FEED_PORT = 31418;
+var QUERY = "foundry-mcp-bridge.table-events";
+var TableFeed = class {
+  bundler = new TableBundler();
+  options;
+  wss;
+  clients = /* @__PURE__ */ new Set();
+  timer;
+  polling = false;
+  seq;
+  session;
+  lastNotice;
+  beats = 0;
+  lastBeatAt;
+  constructor(options) {
+    this.options = options;
+  }
+  now() {
+    return this.options.now?.() ?? Date.now();
+  }
+  get port() {
+    const address = this.wss?.address();
+    return address && typeof address === "object" ? address.port : void 0;
+  }
+  get listeners() {
+    return this.clients.size;
+  }
+  start() {
+    return new Promise((resolve) => {
+      const wss = new import_websocket_server.default({ host: "127.0.0.1", port: this.options.port });
+      wss.once("listening", () => {
+        this.wss = wss;
+        wss.on("connection", (socket) => this.onConnection(socket));
+        this.options.logger.info("Table feed listening", { port: this.port });
+        resolve();
+      });
+      wss.once("error", (error) => {
+        this.options.logger.warn("Table feed could not start", { error: error.message });
+        resolve();
+      });
+    });
+  }
+  stop() {
+    if (this.timer)
+      clearTimeout(this.timer);
+    this.timer = void 0;
+    for (const client of this.clients)
+      client.terminate();
+    this.clients.clear();
+    this.wss?.close();
+    this.wss = void 0;
+  }
+  onConnection(socket) {
+    this.clients.add(socket);
+    socket.on("close", () => {
+      this.clients.delete(socket);
+      if (this.clients.size === 0) {
+        if (this.timer)
+          clearTimeout(this.timer);
+        this.timer = void 0;
+        this.seq = void 0;
+      }
+    });
+    socket.on("error", () => socket.terminate());
+    if (!this.timer && !this.polling)
+      void this.tick();
+  }
+  send(line) {
+    const text3 = JSON.stringify(line);
+    for (const client of this.clients)
+      if (client.readyState === 1)
+        client.send(text3);
+  }
+  notice(text3) {
+    if (this.lastNotice === text3)
+      return;
+    this.lastNotice = text3;
+    this.send({ type: "notice", text: text3 });
+  }
+  /** Read new events from the module; on the first read only note where "now" is. */
+  async pull(snapshot = false) {
+    const first = this.seq === void 0;
+    const result = await this.options.query(QUERY, {
+      ...first ? {} : { since: this.seq, session: this.session },
+      ...snapshot ? { snapshot: true } : {}
+    });
+    if (result?.success === false)
+      throw new Error(result.error || "table events refused");
+    const restarted = !!result?.restarted || this.session !== void 0 && result?.session !== this.session;
+    this.session = result?.session;
+    this.seq = typeof result?.seq === "number" ? result.seq : this.seq;
+    if (!first && !restarted)
+      this.bundler.add(result?.events ?? [], this.now());
+    if (restarted && !first)
+      this.notice("The Foundry page was reloaded; the table feed starts again from now");
+    const muted = result?.muted === true;
+    if (muted !== this.bundler.muted) {
+      this.bundler.muted = muted;
+      if (!first)
+        this.notice(muted ? "The GM muted the AI GM: events are kept and come in one bundle when unmuted" : "The GM unmuted the AI GM");
+    }
+    return result;
+  }
+  async beat(reason) {
+    let table;
+    try {
+      const result = await this.pull(true);
+      table = result?.table;
+    } catch {
+      table = void 0;
+    }
+    const now = this.now();
+    const beat = this.bundler.flush(now, reason);
+    if (!beat)
+      return false;
+    this.beats += 1;
+    this.lastBeatAt = now;
+    this.send({ type: "beat", n: this.beats, ...beat, ...table ? { table } : {} });
+    return true;
+  }
+  async tick() {
+    if (this.clients.size === 0)
+      return;
+    this.polling = true;
+    try {
+      if (!this.options.isConnected()) {
+        this.notice("Foundry is not connected; the table feed resumes when it is");
+      } else {
+        await this.pull();
+        if (this.lastNotice?.startsWith("Foundry is not connected"))
+          this.notice("Foundry is connected again; the table feed is live");
+        const now = this.now();
+        this.bundler.tick(now);
+        if (this.bundler.due(now))
+          await this.beat();
+      }
+    } catch (error) {
+      this.notice(`Cannot read the table: ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      this.polling = false;
+      if (this.clients.size > 0)
+        this.timer = setTimeout(() => void this.tick(), this.options.pollMs ?? 1e3);
+      else
+        this.timer = void 0;
+    }
+  }
+  // ----- control, for the table-watch tool -----
+  status() {
+    const s = this.bundler.settings;
+    return {
+      listening: this.port !== void 0,
+      url: this.port !== void 0 ? `ws://127.0.0.1:${this.port}` : void 0,
+      listeners: this.clients.size,
+      foundryConnected: this.options.isConnected(),
+      muted: this.bundler.muted,
+      beatsSent: this.beats,
+      ...this.lastBeatAt ? { lastBeatSecondsAgo: Math.round((this.now() - this.lastBeatAt) / 1e3) } : {},
+      pendingEvents: this.bundler.pendingCount,
+      wakePending: this.bundler.hasWake,
+      ...this.bundler.awaiting ? { awaitingRolls: this.bundler.awaiting } : {},
+      settings: {
+        quiet_seconds: s.quietMs / 1e3,
+        turn_quiet_seconds: s.turnQuietMs / 1e3,
+        min_interval_seconds: s.minIntervalMs / 1e3,
+        max_wait_seconds: s.maxWaitMs / 1e3,
+        max_background: s.maxBackground
+      }
+    };
+  }
+  configure(patch) {
+    this.bundler.settings = { ...this.bundler.settings, ...patch };
+  }
+  expect(names, timeoutMs) {
+    this.bundler.expect(names, this.now(), timeoutMs);
+  }
+  cancelExpectation() {
+    this.bundler.cancelExpectation();
+  }
+  /** Send what is pending now as a beat. */
+  async flushNow(reason) {
+    if (this.clients.size === 0)
+      return false;
+    return this.beat(reason);
+  }
+};
+
+// dist/tools/table-watch-tools.js
+init_zod();
+var seconds = (min, max) => external_exports.number().min(min).max(max).optional();
+var schema2 = external_exports.object({
+  action: external_exports.enum(["status", "settings", "expect", "cancel_expect", "flush"]),
+  quiet_seconds: seconds(0, 60),
+  turn_quiet_seconds: seconds(0, 30),
+  min_interval_seconds: seconds(0, 300),
+  max_wait_seconds: seconds(1, 300),
+  max_background: external_exports.number().int().min(0).max(200).optional(),
+  muted: external_exports.boolean().optional(),
+  wake_on_doors: external_exports.boolean().optional(),
+  who: external_exports.array(external_exports.string().min(1)).min(1).max(20).optional(),
+  timeout_seconds: seconds(5, 600)
+}).strict();
+var TableWatchTools = class {
+  foundryClient;
+  logger;
+  feed;
+  constructor({ foundryClient, logger, feed }) {
+    this.foundryClient = foundryClient;
+    this.logger = logger.child({ component: "TableWatchTools" });
+    this.feed = feed;
+  }
+  getToolDefinitions() {
+    return [
+      {
+        name: "table-watch",
+        description: `Follow the table in real time without being woken by every message. The table feed is a WebSocket on this computer (status gives its url, default ws://127.0.0.1:31418): in Claude Code start it once per session with the Monitor tool; each line it sends is one notification. It sends a line only when the GM is needed, as a "beat": {type:"beat", n, why, events, table}, where events lists everything since the last beat (oldest first) and table gives the scene, the combat order with hp and conditions, the party and who is online, so no further reads are usually needed. WAKES: a player chatting as their character (in character or emote) or privately to the GM; a GM-run creature's turn in combat; a player opening a door (setting); all awaited rolls coming in. NOT WAKING, but listed in the next beat: rolls, item and spell cards, token moves by players, hp changed by players, players joining or leaving, combat start and end, a player's turn. IGNORED: public out-of-character chat, blind messages, whispers between players, and what the bridge or the GM's tools post. A beat goes once the table has been quiet for quiet_seconds after the last waking event (turn_quiet_seconds after a turn change), at most every min_interval_seconds, and at the latest max_wait_seconds after the first waking event. {type:"notice"} lines report the GM muting or unmuting, Foundry disconnecting or reloading. ACTIONS: status; settings {quiet_seconds?, turn_quiet_seconds?, min_interval_seconds?, max_wait_seconds?, max_background?, muted?, wake_on_doors?} (muted and wake_on_doors are also Foundry module settings the GM can toggle; while muted nothing is sent and everything comes in one beat when unmuted); expect {who:[player or character names], timeout_seconds?(90)} holds the next beat until each of them has rolled, or the timeout (request-player-rolls does this automatically for its target); cancel_expect; flush sends what is pending now. A player's chat is their action: answer it, never act for them; never repeat a private message to other players.`,
+        inputSchema: {
+          type: "object",
+          properties: {
+            action: { type: "string", enum: ["status", "settings", "expect", "cancel_expect", "flush"] },
+            quiet_seconds: { type: "number", description: "settings: quiet time after the last waking event (default 5)" },
+            turn_quiet_seconds: { type: "number", description: "settings: quiet time after a turn change (default 1.5)" },
+            min_interval_seconds: { type: "number", description: "settings: minimum gap between beats (default 10)" },
+            max_wait_seconds: { type: "number", description: "settings: longest a waking event waits (default 25)" },
+            max_background: { type: "number", description: "settings: most background events per beat (default 40)" },
+            muted: { type: "boolean", description: "settings: mute (true) or unmute (false) the feed for everyone" },
+            wake_on_doors: { type: "boolean", description: "settings: wake when a player opens a door (default true)" },
+            who: { type: "array", items: { type: "string" }, description: "expect: players or characters whose rolls to wait for" },
+            timeout_seconds: { type: "number", description: "expect: how long to wait (default 90)" }
+          },
+          required: ["action"],
+          additionalProperties: false
+        }
+      }
+    ];
+  }
+  async handle(args) {
+    const a = schema2.parse(args);
+    switch (a.action) {
+      case "status":
+        return { success: true, ...this.feed.status() };
+      case "settings": {
+        const patch = {};
+        if (a.quiet_seconds !== void 0)
+          patch.quietMs = a.quiet_seconds * 1e3;
+        if (a.turn_quiet_seconds !== void 0)
+          patch.turnQuietMs = a.turn_quiet_seconds * 1e3;
+        if (a.min_interval_seconds !== void 0)
+          patch.minIntervalMs = a.min_interval_seconds * 1e3;
+        if (a.max_wait_seconds !== void 0)
+          patch.maxWaitMs = a.max_wait_seconds * 1e3;
+        if (a.max_background !== void 0)
+          patch.maxBackground = a.max_background;
+        this.feed.configure(patch);
+        let module2;
+        if (a.muted !== void 0 || a.wake_on_doors !== void 0) {
+          module2 = await this.foundryClient.query("foundry-mcp-bridge.table-events", {
+            action: "settings",
+            ...a.muted !== void 0 ? { muted: a.muted } : {},
+            ...a.wake_on_doors !== void 0 ? { wake_on_doors: a.wake_on_doors } : {}
+          });
+          if (module2?.success === false)
+            throw new Error(module2.error || "Could not change the table watch settings");
+          if (typeof module2?.muted === "boolean")
+            this.feed.bundler.muted = module2.muted;
+        }
+        this.logger.info("Table watch settings changed", { patch, muted: a.muted, wake_on_doors: a.wake_on_doors });
+        return { success: true, ...this.feed.status(), ...module2 ? { wake_on_doors: module2.wake_on_doors } : {} };
+      }
+      case "expect": {
+        if (!a.who?.length)
+          throw new Error("expect needs who: the players or characters whose rolls to wait for");
+        this.feed.expect(a.who, (a.timeout_seconds ?? 90) * 1e3);
+        return { success: true, awaitingRolls: this.feed.bundler.awaiting };
+      }
+      case "cancel_expect":
+        this.feed.cancelExpectation();
+        return { success: true };
+      case "flush": {
+        const sent = await this.feed.flushNow("asked for by the GM (flush)");
+        return { success: true, sent, ...sent ? {} : { note: "Nobody is listening to the feed; start it with the Monitor tool first" } };
+      }
+    }
   }
 };
 
@@ -120466,13 +120900,13 @@ var UploadTools = class {
     ];
   }
   async handleUploadFile(args) {
-    const schema19 = external_exports.object({
+    const schema20 = external_exports.object({
       file_path: external_exports.string().min(1),
       folder: external_exports.string().optional(),
       filename: external_exports.string().min(1).optional(),
       overwrite: external_exports.boolean().optional()
     }).strict();
-    const parsed = schema19.parse(args);
+    const parsed = schema20.parse(args);
     if (!import_path.default.isAbsolute(parsed.file_path)) {
       throw new Error("file_path must be an absolute path");
     }
@@ -121260,7 +121694,7 @@ var ImageGenerationTools = class {
       const message = error instanceof Error ? error.message : String(error);
       throw new Error(`Image generation failed: ${message}`);
     }
-    const seconds = Math.round((Date.now() - started) / 1e3);
+    const seconds2 = Math.round((Date.now() - started) / 1e3);
     let image = result.image;
     let shrunkTo;
     if (parsed.max_side) {
@@ -121284,7 +121718,7 @@ var ImageGenerationTools = class {
       ...generation.raisedFrom ? { raised_from: `${generation.raisedFrom.width}x${generation.raisedFrom.height}`, note: "MiniMax H3 needs about 2 megapixels, so the size was raised" } : {},
       ...shrunkTo ? { shrunk_to: shrunkTo } : {},
       seed: generation.seed,
-      seconds,
+      seconds: seconds2,
       local_path: localPath
     };
     if (parsed.upload === false) {
@@ -121560,13 +121994,13 @@ function startDelayMs(pieces, firstSeconds, firstReadyMs, gapMs = 120) {
     return 0;
   const perSecond = firstReadyMs / 1e3 / firstSeconds;
   const first = pieces[0].length;
-  const seconds = pieces.map((p) => firstSeconds * p.length / first);
+  const seconds2 = pieces.map((p) => firstSeconds * p.length / first);
   let ready = 0;
   let plays = 0;
   let delay = 0;
   for (let k = 1; k < pieces.length; k++) {
-    plays += seconds[k - 1] + gapMs / 1e3;
-    ready += seconds[k] * perSecond;
+    plays += seconds2[k - 1] + gapMs / 1e3;
+    ready += seconds2[k] * perSecond;
     delay = Math.max(delay, ready - plays);
   }
   return Math.max(0, Math.round((delay + (delay > 0 ? 0.4 : 0)) * 1e3));
@@ -121668,7 +122102,7 @@ function segmentPlan(rate) {
     growth: Math.min(1.4, Math.max(1, rate * 0.9))
   };
 }
-var schema2 = external_exports.object({
+var schema3 = external_exports.object({
   action: external_exports.enum(["say", "describe", "stop"]).optional(),
   text: external_exports.string().min(1).max(1500).optional(),
   voice: external_exports.string().min(1).max(300).optional(),
@@ -121724,7 +122158,7 @@ var SpeechTools = class {
     ];
   }
   async handleSpeak(args) {
-    const a = schema2.parse(args ?? {});
+    const a = schema3.parse(args ?? {});
     const action = a.action ?? "say";
     if (action === "stop")
       return this.foundryClient.query("foundry-mcp-bridge.speak", { action: "stop" });
@@ -121783,8 +122217,8 @@ var SpeechTools = class {
       const length = audioSeconds(result.audio);
       if (length === null)
         lengthsKnown = false;
-      const seconds = length ?? estimateSeconds(piece);
-      totalAudio += seconds;
+      const seconds2 = length ?? estimateSeconds(piece);
+      totalAudio += seconds2;
       const ext = result.filename.split(".").pop()?.toLowerCase() || "flac";
       const filename = `${slugify2(piece, 30)}-${utterance}-${index}.${ext}`;
       let uploaded;
@@ -121799,7 +122233,7 @@ var SpeechTools = class {
       lastPath = uploaded?.path;
       if (index === 0) {
         firstAudioMs = Date.now() - started;
-        bufferMs = startDelayMs(pieces, seconds, Date.now() - pieceStart);
+        bufferMs = startDelayMs(pieces, seconds2, Date.now() - pieceStart);
       }
       const queued = await this.foundryClient.query("foundry-mcp-bridge.speak", {
         action: "queue",
@@ -121807,7 +122241,7 @@ var SpeechTools = class {
         index,
         path: uploaded?.path,
         text: piece,
-        audioSeconds: seconds,
+        audioSeconds: seconds2,
         speaker,
         sync,
         ...index === 0 ? { startDelayMs: bufferMs } : {},
@@ -121868,9 +122302,9 @@ var SpeechTools = class {
     let sendChain = Promise.resolve();
     let sendError;
     const queue = (pcm, rate, segmentText) => {
-      const seconds = pcmSeconds(pcm, rate);
+      const seconds2 = pcmSeconds(pcm, rate);
       const index = segmentIndex++;
-      totalAudio += seconds;
+      totalAudio += seconds2;
       const filename = `${slugify2(text3, 30)}-${utterance}-${index}.wav`;
       sendChain = sendChain.then(async () => {
         if (sendError)
@@ -121891,7 +122325,7 @@ var SpeechTools = class {
             index,
             path: uploaded?.path,
             text: segmentText,
-            audioSeconds: seconds,
+            audioSeconds: seconds2,
             speaker,
             sync,
             ...index === 0 ? { startDelayMs: FAST_PREROLL_MS } : {},
@@ -121926,9 +122360,9 @@ var SpeechTools = class {
           pendingBytes = 0;
           if (pcm.length === 0)
             return;
-          const seconds = pcmSeconds(pcm, stream4.sampleRate);
+          const seconds2 = pcmSeconds(pcm, stream4.sampleRate);
           const from = spoken / expected;
-          spoken += seconds;
+          spoken += seconds2;
           queue(pcm, stream4.sampleRate, sliceWords(piece, from, final ? 1 : spoken / expected));
           target2 = nextSegmentSeconds(target2, plan.growth);
         };
@@ -123310,7 +123744,7 @@ var PlayTools = class {
 // dist/tools/module-tools.js
 init_zod();
 var id = external_exports.string().min(1).max(100);
-var schema3 = external_exports.object({
+var schema4 = external_exports.object({
   action: external_exports.enum(["list", "describe", "get_setting", "set_setting", "call", "set_active"]),
   module: id.optional(),
   modules: external_exports.array(id).min(1).max(40).optional(),
@@ -123359,7 +123793,7 @@ var ModuleTools = class {
     ];
   }
   async handleManageModules(args) {
-    const parsed = schema3.parse(args ?? {});
+    const parsed = schema4.parse(args ?? {});
     const needs = {
       describe: ["module"],
       get_setting: ["module", "key"],
@@ -123423,7 +123857,7 @@ var KEYS = {
   green: { hex: "#00FF00", words: "pure green (#00FF00)" },
   blue: { hex: "#0000FF", words: "pure blue (#0000FF)" }
 };
-var schema4 = external_exports.object({
+var schema5 = external_exports.object({
   name: external_exports.string().min(1).max(60),
   prompt: external_exports.string().min(3).max(2e3).optional(),
   image: external_exports.string().min(1).optional(),
@@ -123497,7 +123931,7 @@ var PropTools = class {
     ];
   }
   async handleMakeProp(args) {
-    const a = schema4.parse(args ?? {});
+    const a = schema5.parse(args ?? {});
     if (!a.prompt && !a.image)
       throw new Error("Give prompt (to generate the object) or image (a picture to remove the background from)");
     if (a.x === void 0 !== (a.y === void 0))
@@ -123683,7 +124117,7 @@ var FileBackupTools = class {
 
 // dist/tools/audit-tools.js
 init_zod();
-var schema5 = external_exports.object({
+var schema6 = external_exports.object({
   scene: external_exports.string().min(1).optional(),
   include_backups: external_exports.boolean().optional()
 }).strict();
@@ -123711,7 +124145,7 @@ var AuditTools = class {
     ];
   }
   async handleAuditWorld(args) {
-    const a = schema5.parse(args ?? {});
+    const a = schema6.parse(args ?? {});
     try {
       const result = await this.foundryClient.query("foundry-mcp-bridge.audit-world", a);
       if (result?.success === false)
@@ -123917,7 +124351,7 @@ var LootTools = class {
 
 // dist/tools/share-tools.js
 init_zod();
-var schema6 = external_exports.object({
+var schema7 = external_exports.object({
   image: external_exports.string().min(1).optional(),
   title: external_exports.string().min(1).max(200).optional(),
   journal: external_exports.string().min(1).optional(),
@@ -123951,7 +124385,7 @@ var ShareTools = class {
     ];
   }
   async handleShareWithPlayers(args) {
-    const a = schema6.parse(args ?? {});
+    const a = schema7.parse(args ?? {});
     this.logger.info("Sharing with players", { image: a.image, journal: a.journal });
     const result = await this.foundryClient.query("foundry-mcp-bridge.share-with-players", a);
     if (result?.success === false)
@@ -123965,7 +124399,7 @@ init_zod();
 var MEMORY_PAGES = ["Session Log", "Open Threads", "Player Knowledge", "NPC Notes", "Next Session"];
 var DEFAULT_JOURNAL = "Campaign Memory";
 var text2 = external_exports.string().min(1).max(2e3);
-var schema7 = external_exports.discriminatedUnion("action", [
+var schema8 = external_exports.discriminatedUnion("action", [
   external_exports.object({
     action: external_exports.literal("brief"),
     journal: external_exports.string().min(1).optional(),
@@ -124097,7 +124531,7 @@ var CampaignMemoryTools = class {
     return { id: described.journal.id, pages };
   }
   async handle(args) {
-    const a = schema7.parse(args ?? {});
+    const a = schema8.parse(args ?? {});
     const name = a.journal ?? DEFAULT_JOURNAL;
     this.logger.info("Campaign memory", { action: a.action });
     const { id: id2, pages } = await this.load(name);
@@ -124128,8 +124562,8 @@ var CampaignMemoryTools = class {
       for (const [pageName, p] of pages) {
         const chunks = p.content.split(/<\/(?:p|li|h[1-6])>/i).map(plain).filter(Boolean);
         for (const chunk2 of chunks) {
-          const lower = chunk2.toLowerCase();
-          if (wanted.every((w) => lower.includes(w)))
+          const lower2 = chunk2.toLowerCase();
+          if (wanted.every((w) => lower2.includes(w)))
             found.push({ page: pageName, text: chunk2 });
         }
       }
@@ -124203,7 +124637,7 @@ var chatSchema = external_exports.object({
   rolls_only: external_exports.boolean().optional(),
   whispers: external_exports.boolean().optional()
 }).strict();
-var schema8 = external_exports.object({
+var schema9 = external_exports.object({
   chat: external_exports.union([external_exports.boolean(), chatSchema]).optional(),
   combat: external_exports.boolean().optional(),
   party: external_exports.boolean().optional(),
@@ -124245,7 +124679,7 @@ var TableTools = class {
     ];
   }
   async handleReadTable(args) {
-    const a = schema8.parse(args ?? {});
+    const a = schema9.parse(args ?? {});
     this.logger.debug("Reading the table", { sections: Object.keys(a) });
     const result = await this.foundryClient.query("foundry-mcp-bridge.read-table", a);
     if (result?.success === false)
@@ -124266,7 +124700,7 @@ var target = external_exports.object({
   radius: external_exports.number().min(0).max(100).optional(),
   all: external_exports.boolean().optional()
 }).strict();
-var schema9 = external_exports.object({
+var schema10 = external_exports.object({
   scene: external_exports.string().min(1).optional(),
   reveal: external_exports.array(target).max(100).optional(),
   hide: external_exports.array(target).max(100).optional(),
@@ -124316,7 +124750,7 @@ var RevealTools = class {
     ];
   }
   async handleReveal(args) {
-    const a = schema9.parse(args ?? {});
+    const a = schema10.parse(args ?? {});
     this.logger.info("Reveal and hide", { reveal: a.reveal?.length ?? 0, hide: a.hide?.length ?? 0 });
     const result = await this.foundryClient.query("foundry-mcp-bridge.reveal", a);
     if (result?.success === false)
@@ -124328,7 +124762,7 @@ var RevealTools = class {
 // dist/tools/combat-tools.js
 init_zod();
 var ACTIONS = ["status", "start", "add", "remove", "roll", "set_initiative", "next", "previous", "next_round", "damage", "heal", "defeat", "end", "attack", "check"];
-var schema10 = external_exports.object({
+var schema11 = external_exports.object({
   action: external_exports.enum(ACTIONS),
   scene: external_exports.string().min(1).optional(),
   who: external_exports.array(external_exports.string().min(1)).max(60).optional(),
@@ -124349,7 +124783,8 @@ var schema10 = external_exports.object({
   save: external_exports.string().min(1).optional(),
   dc: external_exports.number().min(0).max(40).optional(),
   public: external_exports.boolean().optional(),
-  consume: external_exports.boolean().optional()
+  consume: external_exports.boolean().optional(),
+  ignore_range: external_exports.boolean().optional()
 }).strict();
 var CombatTools = class {
   foundryClient;
@@ -124362,7 +124797,7 @@ var CombatTools = class {
     return [
       {
         name: "combat",
-        description: `Run the combat tracker (Foundry's own, so tracker modules keep working). Every action returns a short readout: round, whose turn, and one line per combatant in order (initiative, name, hp, conditions). ACTIONS: status; start {scene?, who?, roll?, begin?} makes the encounter from tokens on the scene (who = list of: "all" (default), "hostile", "friendly", "neutral", "players", "npcs", or token/actor names; hidden tokens are included), rolls initiative for the ones without one (roll: missing (default) | npcs | all | none) and begins it (begin:false to only set it up); add {who, roll?} adds more tokens mid-fight; remove {names}; roll {names? | roll?} rolls initiative (default for everyone still without one); set_initiative {initiative:[{name, value}]}; next, previous, next_round move the turn (the first next begins the combat); damage / heal {amounts:[{target, amount}]} apply to combatants (or scene tokens) by name, through the system rules (temp HP, resistances are the system's job) and report hp before and after; defeat {names, defeated?(true)} marks defeated or not; end ends and deletes the encounter. ATTACK AND CHECK (the dnd5e system does the maths: modifiers, advantage, critical hits, resistances, chat cards): attack {attacker, item?, targets?, advantage?, disadvantage?, apply?(true)} uses an item of the attacker (default its first attack or save): spends its charges or slot, rolls the attack against each target (the target is targeted first, so the roll uses its AC and the card shows hit or miss), rolls damage on a hit (double dice on a crit) and applies it, reporting roll, natural, hit, damage and hp before and after; a save item (a breath weapon) rolls damage once and each target rolls a saving throw against its DC; apply:false rolls without applying. check {who:[names], skill | ability | save, dc?, advantage?, disadvantage?} rolls a skill (perception or prc), an ability check or a saving throw (dex or dexterity) for each name and reports totals and success against dc. Rolls are posted to the GM only unless public:true. attacker, targets and who match combatants, then scene tokens, then actors. Names match exactly, else part of a name or the actor name. Needs the Foundry tab open in a browser.`,
+        description: `Run the combat tracker (Foundry's own, so tracker modules keep working). Every action returns a short readout: round, whose turn, and one line per combatant in order (initiative, name, hp, conditions). ACTIONS: status; start {scene?, who?, roll?, begin?} makes the encounter from tokens on the scene (who = list of: "all" (default), "hostile", "friendly", "neutral", "players", "npcs", or token/actor names; hidden tokens are included), rolls initiative for the ones without one (roll: missing (default) | npcs | all | none) and begins it (begin:false to only set it up); add {who, roll?} adds more tokens mid-fight; remove {names}; roll {names? | roll?} rolls initiative (default for everyone still without one); set_initiative {initiative:[{name, value}]}; next, previous, next_round move the turn (the first next begins the combat); damage / heal {amounts:[{target, amount}]} apply to combatants (or scene tokens) by name, through the system rules (temp HP, resistances are the system's job) and report hp before and after; defeat {names, defeated?(true)} marks defeated or not; end ends and deletes the encounter. ATTACK AND CHECK (the dnd5e system does the maths: modifiers, advantage, critical hits, resistances, chat cards): attack {attacker, item?, targets?, advantage?, disadvantage?, apply?(true)} uses an item of the attacker (default its first attack or save): spends its charges or slot, rolls the attack against each target (the target is targeted first, so the roll uses its AC and the card shows hit or miss), rolls damage on a hit (double dice on a crit) and applies it, reporting roll, natural, hit, damage and hp before and after; a save item (a breath weapon) rolls damage once and each target rolls a saving throw against its DC; apply:false rolls without applying. Before rolling, the distance from attacker to each target token is checked against the weapon reach or the range: out of range is refused (ignore_range:true rolls anyway), beyond normal range rolls with disadvantage; the result lists warnings, such as an attack made outside the attacker turn or a target already at 0 hp. check {who:[names], skill | ability | save, dc?, advantage?, disadvantage?} rolls a skill (perception or prc), an ability check or a saving throw (dex or dexterity) for each name and reports totals and success against dc. Rolls are posted to the GM only unless public:true. attacker, targets and who match combatants, then scene tokens, then actors. Names match exactly, else part of a name or the actor name. Needs the Foundry tab open in a browser.`,
         inputSchema: {
           type: "object",
           properties: {
@@ -124386,6 +124821,7 @@ var CombatTools = class {
             save: { type: "string", description: "check: a saving throw, e.g. wis" },
             dc: { type: "number", description: "check: the difficulty; success is reported against it" },
             consume: { type: "boolean", description: "attack: spend the item charges, ammunition or spell slot (default true)" },
+            ignore_range: { type: "boolean", description: "attack: roll even when a target is out of range" },
             public: { type: "boolean", description: "attack, check: post the rolls for everyone (default: GM only, so hidden monsters are not given away)" }
           },
           required: ["action"],
@@ -124395,7 +124831,7 @@ var CombatTools = class {
     ];
   }
   async handleCombat(args) {
-    const a = schema10.parse(args ?? {});
+    const a = schema11.parse(args ?? {});
     this.logger.info("Combat", { action: a.action });
     const result = await this.foundryClient.query("foundry-mcp-bridge.combat", a);
     if (result?.success === false)
@@ -124406,7 +124842,7 @@ var CombatTools = class {
 
 // dist/tools/rules-tools.js
 init_zod();
-var schema11 = external_exports.object({
+var schema12 = external_exports.object({
   action: external_exports.enum(["search", "read", "sources"]).optional(),
   query: external_exports.string().min(2).max(200).optional(),
   uuid: external_exports.string().min(1).optional(),
@@ -124444,7 +124880,7 @@ var RulesTools = class {
     ];
   }
   async handleRules(args) {
-    const a = schema11.parse(args ?? {});
+    const a = schema12.parse(args ?? {});
     this.logger.info("Rules lookup", { action: a.action ?? "search" });
     const result = await this.foundryClient.query("foundry-mcp-bridge.rules", a, 6e4);
     if (result?.success === false)
@@ -124455,7 +124891,7 @@ var RulesTools = class {
 
 // dist/tools/pause-tools.js
 init_zod();
-var schema12 = external_exports.object({ paused: external_exports.boolean().optional() }).strict();
+var schema13 = external_exports.object({ paused: external_exports.boolean().optional() }).strict();
 var PauseTools = class {
   foundryClient;
   logger;
@@ -124477,7 +124913,7 @@ var PauseTools = class {
     ];
   }
   async handlePause(args) {
-    const a = schema12.parse(args ?? {});
+    const a = schema13.parse(args ?? {});
     this.logger.info("Pause request", { paused: a.paused });
     const result = await this.foundryClient.query("foundry-mcp-bridge.pause", a);
     if (result?.success === false)
@@ -124570,7 +125006,7 @@ var PlutoniumTools = class {
 // dist/tools/party-tools.js
 init_zod();
 var ACTIONS2 = ["status", "rest", "xp", "level_up"];
-var schema13 = external_exports.object({
+var schema14 = external_exports.object({
   action: external_exports.enum(ACTIONS2),
   who: external_exports.array(external_exports.string().min(1)).max(30).optional(),
   type: external_exports.enum(["short", "long"]).optional(),
@@ -124613,7 +125049,7 @@ var PartyTools = class {
     ];
   }
   async handleParty(args) {
-    const a = schema13.parse(args ?? {});
+    const a = schema14.parse(args ?? {});
     this.logger.info("Party", { action: a.action });
     const result = await this.foundryClient.query("foundry-mcp-bridge.party", a);
     if (result?.success === false)
@@ -124624,7 +125060,7 @@ var PartyTools = class {
 
 // dist/tools/annotation-tools.js
 init_zod();
-var schema14 = external_exports.discriminatedUnion("action", [
+var schema15 = external_exports.discriminatedUnion("action", [
   external_exports.object({
     action: external_exports.literal("list"),
     scene: external_exports.string().min(1).optional(),
@@ -124669,7 +125105,7 @@ var AnnotationTools = class {
     ];
   }
   async handle(args) {
-    const a = schema14.parse(args ?? {});
+    const a = schema15.parse(args ?? {});
     this.logger.info("Annotations", { action: a.action });
     const result = await this.foundryClient.query("foundry-mcp-bridge.annotations", a);
     if (result?.success === false)
@@ -124861,7 +125297,7 @@ var areaSchema = external_exports.object({
   polygon: external_exports.array(external_exports.tuple([external_exports.number(), external_exports.number()])).min(3).max(200).optional(),
   units: external_exports.enum(["squares", "percent", "pixels"]).optional()
 }).strict();
-var schema15 = external_exports.discriminatedUnion("action", [
+var schema16 = external_exports.discriminatedUnion("action", [
   external_exports.object({
     action: external_exports.literal("edit"),
     annotation: external_exports.string().min(1).optional(),
@@ -125099,7 +125535,7 @@ var ImageEditTools = class {
     return out;
   }
   async handle(args) {
-    const a = schema15.parse(args ?? {});
+    const a = schema16.parse(args ?? {});
     this.logger.info("Edit image area", { action: a.action });
     return a.action === "edit" ? this.edit(a) : this.commit(a);
   }
@@ -125112,7 +125548,7 @@ var import_path6 = __toESM(require("path"), 1);
 var import_pngjs5 = __toESM(require_png(), 1);
 init_zod();
 var MAX_ACTORS = 2;
-var schema16 = external_exports.object({
+var schema17 = external_exports.object({
   actors: external_exports.array(external_exports.object({
     actor: external_exports.string().min(1),
     prompt: external_exports.string().min(3).max(1500).optional(),
@@ -125245,7 +125681,7 @@ var ActorArtTools = class {
     return result;
   }
   async handleMakeActorArt(args) {
-    const a = schema16.parse(args ?? {});
+    const a = schema17.parse(args ?? {});
     const options = {
       style: a.style,
       portraitSize: a.portrait_size ?? 1024,
@@ -125293,7 +125729,7 @@ var musicSchema = external_exports.object({
   clear: external_exports.boolean().optional(),
   play: external_exports.boolean().optional()
 }).strict();
-var schema17 = external_exports.object({
+var schema18 = external_exports.object({
   scene: external_exports.string().min(1),
   action: external_exports.enum(["apply", "describe"]).optional(),
   music: musicSchema.optional(),
@@ -125387,7 +125823,7 @@ var SceneSoundTools = class {
     };
   }
   async handleSetupSceneSound(args) {
-    const a = schema17.parse(args ?? {});
+    const a = schema18.parse(args ?? {});
     const action = a.action ?? "apply";
     if (action === "describe") {
       try {
@@ -126615,11 +127051,59 @@ var MAX_HISTORY = 40;
 function slug(name) {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 50) || "layout";
 }
+function defaultLayoutsDir() {
+  const override = process.env.FOUNDRY_MCP_LAYOUTS_DIR;
+  if (override)
+    return override;
+  const home = import_os6.default.homedir();
+  if (process.platform === "win32") {
+    const local = process.env.LOCALAPPDATA || import_path7.default.join(home, "AppData", "Local");
+    return import_path7.default.join(local, "FoundryMCPServer", "layouts");
+  }
+  if (process.platform === "darwin") {
+    return import_path7.default.join(home, "Library", "Application Support", "FoundryMCPServer", "layouts");
+  }
+  const data = process.env.XDG_DATA_HOME || import_path7.default.join(home, ".local", "share");
+  return import_path7.default.join(data, "foundry-mcp", "layouts");
+}
+var LEGACY_LAYOUTS_DIR = import_path7.default.join(import_os6.default.tmpdir(), "foundry-mcp-layouts");
 var LayoutStore = class {
   dir;
+  legacyDir;
+  migrated;
   cache = /* @__PURE__ */ new Map();
-  constructor(dir) {
-    this.dir = dir ?? import_path7.default.join(import_os6.default.tmpdir(), "foundry-mcp-layouts");
+  /** legacyDir: a folder whose layouts are copied into dir (once) when dir does not have them. */
+  constructor(dir, legacyDir) {
+    this.dir = dir ?? defaultLayoutsDir();
+    this.legacyDir = dir === void 0 ? legacyDir ?? LEGACY_LAYOUTS_DIR : legacyDir;
+  }
+  /** Copy layouts from the old temp folder that are not in the folder yet. Never deletes. */
+  migrate() {
+    if (!this.migrated) {
+      this.migrated = (async () => {
+        const from = this.legacyDir;
+        if (!from || import_path7.default.resolve(from) === import_path7.default.resolve(this.dir))
+          return;
+        let files;
+        try {
+          files = (await import_fs8.promises.readdir(from)).filter((f) => f.endsWith(".layout.json"));
+        } catch {
+          return;
+        }
+        if (!files.length)
+          return;
+        await import_fs8.promises.mkdir(this.dir, { recursive: true });
+        for (const f of files) {
+          const target2 = import_path7.default.join(this.dir, f);
+          try {
+            await import_fs8.promises.access(target2);
+          } catch {
+            await import_fs8.promises.copyFile(import_path7.default.join(from, f), target2).catch(() => void 0);
+          }
+        }
+      })().catch(() => void 0);
+    }
+    return this.migrated;
   }
   get folder() {
     return this.dir;
@@ -126628,6 +127112,7 @@ var LayoutStore = class {
     return import_path7.default.join(this.dir, `${id2}.layout.json`);
   }
   async load(id2) {
+    await this.migrate();
     const key = slug(id2);
     const hit = this.cache.get(key);
     if (hit)
@@ -126641,11 +127126,13 @@ var LayoutStore = class {
     }
   }
   async save(doc) {
+    await this.migrate();
     await import_fs8.promises.mkdir(this.dir, { recursive: true });
     this.cache.set(doc.id, doc);
     await import_fs8.promises.writeFile(this.file(doc.id), JSON.stringify(doc));
   }
   async exists(id2) {
+    await this.migrate();
     try {
       await import_fs8.promises.access(this.file(slug(id2)));
       return true;
@@ -126654,6 +127141,7 @@ var LayoutStore = class {
     }
   }
   async list() {
+    await this.migrate();
     try {
       const files = (await import_fs8.promises.readdir(this.dir)).filter((f) => f.endsWith(".layout.json"));
       const out = [];
@@ -127098,7 +127586,7 @@ var region = external_exports.object({
   width: external_exports.number().min(1),
   height: external_exports.number().min(1)
 }).strict();
-var schema18 = external_exports.object({
+var schema19 = external_exports.object({
   action: external_exports.enum(["new", "add", "update", "remove", "show", "render", "walls", "apply_walls", "check", "place", "lights", "align", "build", "portals", "set", "undo", "redo", "list", "delete"]),
   layout: external_exports.string().min(1).optional(),
   name: external_exports.string().min(1).max(60).optional(),
@@ -127281,7 +127769,7 @@ var LayoutTools = class {
     ];
   }
   async handleLayout(args) {
-    const a = schema18.parse(args ?? {});
+    const a = schema19.parse(args ?? {});
     switch (a.action) {
       case "list":
         return { success: true, layouts: await this.store.list(), folder: this.store.folder };
@@ -128855,6 +129343,13 @@ async function startBackend() {
   const auditTools = new AuditTools({ foundryClient, logger });
   const lootTools = new LootTools({ foundryClient, logger });
   const shareTools = new ShareTools({ foundryClient, logger });
+  const tableFeed = new TableFeed({
+    query: (method, data, timeoutMs) => foundryClient.query(method, data, timeoutMs),
+    isConnected: () => foundryClient.isConnected(),
+    logger,
+    port: Number(process.env.FOUNDRY_MCP_TABLE_FEED_PORT) || DEFAULT_TABLE_FEED_PORT
+  });
+  const tableWatchTools = new TableWatchTools({ foundryClient, logger, feed: tableFeed });
   const campaignMemoryTools = new CampaignMemoryTools({ foundryClient, logger });
   const tableTools = new TableTools({ foundryClient, logger });
   const revealTools = new RevealTools({ foundryClient, logger });
@@ -129052,6 +129547,7 @@ async function startBackend() {
     ...shareTools.getToolDefinitions(),
     ...campaignMemoryTools.getToolDefinitions(),
     ...tableTools.getToolDefinitions(),
+    ...tableWatchTools.getToolDefinitions(),
     ...revealTools.getToolDefinitions(),
     ...combatTools.getToolDefinitions(),
     ...rulesTools.getToolDefinitions(),
@@ -129096,6 +129592,7 @@ async function startBackend() {
     port: Number(process.env.FOUNDRY_MCP_CHAT_FEED_PORT) || DEFAULT_CHAT_FEED_PORT
   });
   void chatFeed.start();
+  void tableFeed.start();
   const autoStartComfyUI = async () => {
     try {
       logger.info("Auto-starting ComfyUI service...");
@@ -129231,6 +129728,9 @@ async function startBackend() {
                   break;
                 case "request-player-rolls":
                   result = await diceRollTools.handleRequestPlayerRolls(args);
+                  if (typeof result === "string" && result.startsWith("Roll request sent successfully") && typeof args?.targetPlayer === "string") {
+                    tableFeed.expect([args.targetPlayer], 9e4);
+                  }
                   break;
                 case "create-campaign-dashboard":
                   result = await campaignManagementTools.handleCreateCampaignDashboard(args);
@@ -129355,6 +129855,9 @@ async function startBackend() {
                   break;
                 case "read-table":
                   result = await tableTools.handleReadTable(args);
+                  break;
+                case "table-watch":
+                  result = await tableWatchTools.handle(args);
                   break;
                 case "campaign-memory":
                   result = await campaignMemoryTools.handle(args);
