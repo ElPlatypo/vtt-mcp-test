@@ -21954,10 +21954,10 @@ index 0000000..209e405
 +}
 diff --git a/packages/foundry-module/src/table-watch-utils.test.ts b/packages/foundry-module/src/table-watch-utils.test.ts
 new file mode 100644
-index 0000000..f74d99d
+index 0000000..d615d90
 --- /dev/null
 +++ b/packages/foundry-module/src/table-watch-utils.test.ts
-@@ -0,0 +1,102 @@
+@@ -0,0 +1,112 @@
 +import { describe, expect, it } from 'vitest';
 +import { STYLE, TableEventBuffer, chatEvent, doorEvent, moveEvent, turnEvent } from './table-watch-utils.js';
 +
@@ -22060,12 +22060,22 @@ index 0000000..f74d99d
 +    expect(chatEvent(msg({ style: STYLE.OTHER, emote: true, content: 'waves' }), ctx)).toMatchObject({ kind: 'emote', wake: true });
 +  });
 +});
++
++describe('v14 message details', () => {
++  it('does not repeat the name Foundry already put in an emote', () => {
++    expect(chatEvent(msg({ emote: true, style: STYLE.OTHER, content: 'Randal draws his sword' }), ctx)?.text).toBe('*Randal draws his sword* (Claudio)');
++    expect(chatEvent(msg({ emote: true, style: STYLE.OTHER, content: 'draws his sword' }), ctx)?.text).toBe('*Randal draws his sword* (Claudio)');
++  });
++  it('names the item on a use card that has no text', () => {
++    expect(chatEvent(msg({ type: 'usage', content: '', flavor: '', system: { item: { name: 'Longsword' } } }), ctx)).toMatchObject({ kind: 'card', text: 'Randal (Claudio) used Longsword' });
++  });
++});
 diff --git a/packages/foundry-module/src/table-watch-utils.ts b/packages/foundry-module/src/table-watch-utils.ts
 new file mode 100644
-index 0000000..ee5436e
+index 0000000..7c018e2
 --- /dev/null
 +++ b/packages/foundry-module/src/table-watch-utils.ts
-@@ -0,0 +1,192 @@
+@@ -0,0 +1,199 @@
 +/**
 + * Table watch: turning what happens at the table (chat, rolls, combat turns, token moves, doors,
 + * hit points, players joining) into short events, each marked as one that should wake the AI GM
@@ -22169,8 +22179,10 @@ index 0000000..ee5436e
 +    return { kind: 'roll', wake: false, text: cut(`${who} rolled ${label}: ${totals.join(', ')}${formula && flavor ? ` (${formula})` : ''}${rollTargets(message, rolls)}${vis}`, 220), ...base };
 +  }
 +  if (systemCard) {
++    // dnd5e 4+ keeps the item on the message (system.item), older versions only in the flavor.
++    const itemName = message.system?.item?.name ?? message.flags?.dnd5e?.item?.name;
 +    const flavor = oneLine(message.flavor);
-+    const summary = cut(flavor || text, 100);
++    const summary = cut(itemName || flavor || text, 100);
 +    return summary ? { kind: 'card', wake: false, text: `${who} used ${summary}`, ...base } : null;
 +  }
 +  if (!text) return null;
@@ -22183,7 +22195,12 @@ index 0000000..ee5436e
 +  }
 +  const style = Number(message.style ?? (typeof message.type === 'number' ? message.type : STYLE.OTHER));
 +  // Foundry v14 marks an emote with its own emote flag; older versions use the EMOTE style.
-+  if (style === STYLE.EMOTE || message.emote === true) return { kind: 'emote', wake: true, text: `*${alias ?? user} ${text}*${alias && alias !== user ? ` (${user})` : ''}`, ...base };
++  if (style === STYLE.EMOTE || message.emote === true) {
++    // Foundry v14 already writes the speaker's name into the emote ("Randal draws his sword").
++    const name = alias ?? user;
++    const line = text.toLowerCase().startsWith(name.toLowerCase()) ? text : `${name} ${text}`;
++    return { kind: 'emote', wake: true, text: `*${line}*${alias && alias !== user ? ` (${user})` : ''}`, ...base };
++  }
 +  if (style === STYLE.IC || (style === STYLE.OTHER && asActor)) return { kind: 'say', wake: true, text: `${who}: "${text}"`, ...base };
 +  // Public, as the user (out of character): table talk, not for the AI GM.
 +  return null;
