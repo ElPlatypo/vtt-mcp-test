@@ -8731,7 +8731,7 @@ index 0000000..07712cf
 +  });
 +});
 diff --git a/packages/foundry-module/src/data-access.ts b/packages/foundry-module/src/data-access.ts
-index eecda7e..e5282f9 100644
+index eecda7e..66500da 100644
 --- a/packages/foundry-module/src/data-access.ts
 +++ b/packages/foundry-module/src/data-access.ts
 @@ -1,6 +1,153 @@
@@ -8873,7 +8873,7 @@ index eecda7e..e5282f9 100644
 +import { diceSettle } from './dice-settle.js';
 +import { blockedMessage, initiativeBlockers, monksActive } from './monks-combat-utils.js';
 +import { fxmasterApi, isNoAtmosphere, resolvePreset } from './atmosphere-utils.js';
-+import { decorEffectName, resolveEffectEntry, searchEffects } from './decor-utils.js';
++import { browseEffects, decorEffectName, resolveEffectEntry, searchEffects } from './decor-utils.js';
 +import { BOSSBAR_ID, bossEntries, bossbarActive, bossbarStyles, resolveBarStyle } from './bossbar-utils.js';
 +import { healthLooks } from './health-estimate-utils.js';
 +import { markDownIfZero, markSurprised, performAttack, setDeathSaves, stabilize, performCheck, pickActivity, type NamedActor } from './combat-actions.js';
@@ -9301,7 +9301,7 @@ index eecda7e..e5282f9 100644
          dimensions: {
            width: (targetScene.dimensions as any)?.width || (targetScene as any).width || 0,
            height: (targetScene.dimensions as any)?.height || (targetScene as any).height || 0,
-@@ -8101,200 +8410,4916 @@ export class FoundryDataAccess {
+@@ -8101,200 +8410,4925 @@ export class FoundryDataAccess {
      }
    }
  
@@ -12507,6 +12507,7 @@ index eecda7e..e5282f9 100644
 +    ids?: string[];
 +    all_mine?: boolean;
 +    search?: string;
++    browse?: string;
 +    kind?: 'token' | 'light' | 'wall' | 'note' | 'tile' | 'sound';
 +  }): Promise<any> {
 +    this.validateFoundryState();
@@ -12518,6 +12519,14 @@ index eecda7e..e5282f9 100644
 +      }
 +      const scene = this.resolveSceneForObjects(options.scene);
 +      const geom = getGridGeometry(scene);
++
++      if (action === 'describe' && typeof options.browse === 'string') {
++        const entries: string[] = (globalThis as any).Sequencer?.Database?.publicFlattenedEntries ?? [];
++        if (entries.length === 0) throw new Error('The Sequencer module is not active, so there are no effects to browse');
++        const tree = browseEffects(entries, options.browse);
++        if ('error' in tree) throw new Error(tree.error);
++        return { success: true, ...tree };
++      }
 +
 +      if (action === 'describe' && options.search) {
 +        const entries: string[] = (globalThis as any).Sequencer?.Database?.publicFlattenedEntries ?? [];
@@ -14392,7 +14401,7 @@ index eecda7e..e5282f9 100644
            return { success: true, action: 'play', playlist: info };
          case 'stop':
            await pl.stopAll();
-@@ -8304,20 +13329,48 @@ export class FoundryDataAccess {
+@@ -8304,20 +13338,48 @@ export class FoundryDataAccess {
            return { success: true, action: 'cycle-mode', playlist: info, mode: pl.mode as number };
          case 'play-sound':
          case 'stop-sound': {
@@ -14447,7 +14456,7 @@ index eecda7e..e5282f9 100644
        }
      } catch (error) {
        throw new Error(
-@@ -8468,6 +13521,59 @@ export class FoundryDataAccess {
+@@ -8468,6 +13530,59 @@ export class FoundryDataAccess {
      }
    }
  
@@ -14507,7 +14516,7 @@ index eecda7e..e5282f9 100644
    /**
     * Move a token to a new position on the scene
     */
-@@ -8476,6 +13582,12 @@ export class FoundryDataAccess {
+@@ -8476,6 +13591,12 @@ export class FoundryDataAccess {
      x: number;
      y: number;
      animate?: boolean;
@@ -14520,7 +14529,7 @@ index eecda7e..e5282f9 100644
    }): Promise<any> {
      this.validateFoundryState();
  
-@@ -8489,33 +13601,79 @@ export class FoundryDataAccess {
+@@ -8489,33 +13610,79 @@ export class FoundryDataAccess {
      }
  
      try {
@@ -14617,7 +14626,7 @@ index eecda7e..e5282f9 100644
        };
      } catch (error) {
        this.auditLog(
-@@ -8530,10 +13688,95 @@ export class FoundryDataAccess {
+@@ -8530,10 +13697,95 @@ export class FoundryDataAccess {
      }
    }
  
@@ -14714,7 +14723,7 @@ index eecda7e..e5282f9 100644
      this.validateFoundryState();
  
      // Use permission system
-@@ -8546,23 +13789,21 @@ export class FoundryDataAccess {
+@@ -8546,23 +13798,21 @@ export class FoundryDataAccess {
      }
  
      try {
@@ -14748,7 +14757,7 @@ index eecda7e..e5282f9 100644
  
        this.auditLog('updateToken', { tokenId: data.tokenId, updates: cleanUpdates }, 'success');
  
-@@ -8570,7 +13811,8 @@ export class FoundryDataAccess {
+@@ -8570,7 +13820,8 @@ export class FoundryDataAccess {
          success: true,
          tokenId: token.id,
          tokenName: token.name,
@@ -14758,7 +14767,7 @@ index eecda7e..e5282f9 100644
        };
      } catch (error) {
        this.auditLog(
-@@ -8651,19 +13893,12 @@ export class FoundryDataAccess {
+@@ -8651,19 +13902,12 @@ export class FoundryDataAccess {
    /**
     * Get detailed information about a token
     */
@@ -14781,7 +14790,7 @@ index eecda7e..e5282f9 100644
  
        // Return flat structure that matches MCP server expectations
        return {
-@@ -9664,6 +14899,7 @@ export class FoundryDataAccess {
+@@ -9664,6 +14908,7 @@ export class FoundryDataAccess {
        }
  
        // 10. Create actor
@@ -14789,7 +14798,7 @@ index eecda7e..e5282f9 100644
        const actor = await Actor.create(actorData);
        if (!actor) {
          throw new Error(`Failed to create NPC actor "${data.name}"`);
-@@ -11274,7 +16510,10 @@ export class FoundryDataAccess {
+@@ -11274,7 +16519,10 @@ export class FoundryDataAccess {
        name: string;
        type: string;
        img?: string;
@@ -14800,7 +14809,7 @@ index eecda7e..e5282f9 100644
      }>;
      folder?: string;
    }): Promise<{ created: Array<{ id: string; name: string; type: string }>; total: number }> {
-@@ -11286,6 +16525,19 @@ export class FoundryDataAccess {
+@@ -11286,6 +16534,19 @@ export class FoundryDataAccess {
      const docs = params.actors.map(a => {
        const doc: Record<string, any> = { name: a.name, type: a.type };
        if (a.img) doc.img = a.img;
@@ -14820,7 +14829,7 @@ index eecda7e..e5282f9 100644
  
        // Merge system data, adding safe defaults for systems that require certain
        // fields to exist during data preparation (avoids non-fatal init errors).
-@@ -11423,6 +16675,15 @@ export class FoundryDataAccess {
+@@ -11423,6 +16684,15 @@ export class FoundryDataAccess {
          };
        }
  
@@ -14836,7 +14845,7 @@ index eecda7e..e5282f9 100644
        doc.system = systemData;
        if (folderId) doc.folder = folderId;
        return doc;
-@@ -11471,7 +16732,16 @@ export class FoundryDataAccess {
+@@ -11471,7 +16741,16 @@ export class FoundryDataAccess {
     * Merges supplied fields into the actor (top-level keys overwrite).
     */
    async updateActors(
@@ -14854,7 +14863,7 @@ index eecda7e..e5282f9 100644
    ): Promise<{ updated: Array<{ id: string; name: string }>; total: number }> {
      const updatedActors: Array<{ id: string; name: string }> = [];
  
-@@ -11481,7 +16751,12 @@ export class FoundryDataAccess {
+@@ -11481,7 +16760,12 @@ export class FoundryDataAccess {
  
        const patch: Record<string, any> = {};
        if (u.name !== undefined) patch.name = u.name;
@@ -14867,7 +14876,7 @@ index eecda7e..e5282f9 100644
        if (u.system !== undefined) {
          // Build a single patch.system nested object so Foundry deep-merges everything
          // in one pass without flat-key vs nested-key conflicts.
-@@ -11504,6 +16779,19 @@ export class FoundryDataAccess {
+@@ -11504,6 +16788,19 @@ export class FoundryDataAccess {
          }
          patch.system = systemPatch;
        }
@@ -14887,7 +14896,7 @@ index eecda7e..e5282f9 100644
  
        await actor.update(patch);
        updatedActors.push({ id: actor.id, name: u.name ?? actor.name });
-@@ -11706,6 +16994,199 @@ export class FoundryDataAccess {
+@@ -11706,6 +17003,199 @@ export class FoundryDataAccess {
      return { deleted: existing, total: existing.length };
    }
  
@@ -15551,10 +15560,10 @@ index 0000000..55aec33
 +});
 diff --git a/packages/foundry-module/src/decor-utils.test.ts b/packages/foundry-module/src/decor-utils.test.ts
 new file mode 100644
-index 0000000..b525cc2
+index 0000000..a89f77a
 --- /dev/null
 +++ b/packages/foundry-module/src/decor-utils.test.ts
-@@ -0,0 +1,36 @@
+@@ -0,0 +1,64 @@
 +import { describe, expect, it } from 'vitest';
 +import { decorEffectName, resolveEffectEntry, searchEffects } from './decor-utils.js';
 +
@@ -15591,12 +15600,40 @@ index 0000000..b525cc2
 +    expect(searchEffects(entries, '').total).toBe(0);
 +  });
 +});
++
++import { browseEffects } from './decor-utils.js';
++
++describe('browseEffects', () => {
++  const many = [
++    ...Array.from({ length: 30 }, (_, i) => `jb2a.campfire.01.v${i}`),
++    ...Array.from({ length: 20 }, (_, i) => `jb2a.bonfire.01.v${i}`),
++    'ggg-sfx.melee.torch.01.01',
++    'ggg-sfx.melee.torch.01.02',
++  ];
++  it('shows the top groups with counts, biggest first', () => {
++    const top = browseEffects(many, '') as any;
++    expect(top.total).toBe(52);
++    expect(top.groups.map((g: any) => [g.name, g.count])).toEqual([['jb2a', 50], ['ggg-sfx', 2]]);
++  });
++  it('goes down a level and lists effects once a group is small', () => {
++    const jb = browseEffects(many, 'jb2a') as any;
++    expect(jb.groups.map((g: any) => g.path)).toEqual(['jb2a.campfire', 'jb2a.bonfire']);
++    const camp = browseEffects(many, 'jb2a.campfire') as any;
++    expect(camp.effects).toHaveLength(30);
++    expect(camp.groups).toBeUndefined();
++  });
++  it('is case-insensitive, flags a leaf and refuses an unknown group', () => {
++    expect((browseEffects(many, 'JB2A.Bonfire') as any).total).toBe(20);
++    expect((browseEffects(many, 'ggg-sfx.melee.torch.01.01') as any).note).toContain('effect');
++    expect(browseEffects(many, 'nothing')).toHaveProperty('error');
++  });
++});
 diff --git a/packages/foundry-module/src/decor-utils.ts b/packages/foundry-module/src/decor-utils.ts
 new file mode 100644
-index 0000000..7b61b7e
+index 0000000..14029ea
 --- /dev/null
 +++ b/packages/foundry-module/src/decor-utils.ts
-@@ -0,0 +1,39 @@
+@@ -0,0 +1,70 @@
 +/**
 + * Map decor: Sequencer effects (torches, braziers, campfires, fog...) kept on an invisible tile so they survive a reload.
 + * (Sequencer 4.3.0 saves an effect fine but never replays one filed directly under the scene; one attached to a tile,
@@ -15635,6 +15672,37 @@ index 0000000..7b61b7e
 +  if (words.length === 0) return { total: 0, effects: [] };
 +  const all = entries.filter(e => words.every(w => e.toLowerCase().includes(w)));
 +  return { total: all.length, effects: all.slice(0, limit) };
++}
++
++export interface EffectBrowse {
++  path: string;
++  total: number;
++  groups?: Array<{ name: string; path: string; count: number }>;
++  effects?: string[];
++  note?: string;
++}
++
++/**
++ * Walk the effect database like folders: browse('') gives the top groups, browse('jb2a') its groups, and so on.
++ * A group with few enough effects (at most `listAt`) lists them instead of splitting further.
++ */
++export function browseEffects(entries: string[], prefix = '', listAt = 40): EffectBrowse | { error: string } {
++  const clean = prefix.trim().replace(/^\.+|\.+$/g, '');
++  const lowerPrefix = clean.toLowerCase();
++  const inside = lowerPrefix ? entries.filter(e => e.toLowerCase() === lowerPrefix || e.toLowerCase().startsWith(lowerPrefix + '.')) : entries;
++  if (inside.length === 0) return { error: `Nothing under "${prefix}". Browse from the top with browse "" to see the groups.` };
++  if (inside.length === 1 && inside[0]!.toLowerCase() === lowerPrefix) return { path: inside[0]!, total: 1, effects: [inside[0]!], note: 'This is an effect, not a group: use it as the effect.' };
++  if (inside.length <= listAt) return { path: clean, total: inside.length, effects: inside };
++  const depth = clean ? clean.split('.').length : 0;
++  const groups = new Map<string, number>();
++  for (const e of inside) {
++    const segment = e.split('.')[depth] ?? e;
++    groups.set(segment, (groups.get(segment) ?? 0) + 1);
++  }
++  const rows = [...groups.entries()]
++    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
++    .map(([name, count]) => ({ name, path: clean ? `${clean}.${name}` : name, count }));
++  return { path: clean, total: inside.length, groups: rows.slice(0, 120), ...(rows.length > 120 ? { note: `${rows.length - 120} more groups not shown: browse deeper or search` } : {}) };
 +}
 diff --git a/packages/foundry-module/src/dice-settle.test.ts b/packages/foundry-module/src/dice-settle.test.ts
 new file mode 100644
@@ -41668,10 +41736,10 @@ index 0000000..054630f
 +});
 diff --git a/packages/mcp-server/src/tools/scene-objects.ts b/packages/mcp-server/src/tools/scene-objects.ts
 new file mode 100644
-index 0000000..fa651fd
+index 0000000..94478a1
 --- /dev/null
 +++ b/packages/mcp-server/src/tools/scene-objects.ts
-@@ -0,0 +1,909 @@
+@@ -0,0 +1,911 @@
 +import { promises as fs } from 'fs';
 +import { checkWalls, planFixes, type CheckWall } from './wall-check-utils.js';
 +import os from 'os';
@@ -41894,6 +41962,7 @@ index 0000000..fa651fd
 +    ids: z.array(z.string().min(1)).max(500).optional(),
 +    all_mine: z.boolean().optional(),
 +    search: z.string().min(2).max(60).optional(),
++    browse: z.string().max(120).optional(),
 +    kind: z.enum(['token', 'light', 'wall', 'note', 'tile', 'sound']).optional(),
 +  })
 +  .strict();
@@ -42031,7 +42100,7 @@ index 0000000..fa651fd
 +          'Place tokens, lights, walls, map pins, tiles (pictures laid on the map: rugs, furniture, props), animated effects (torches, braziers, campfires, fog, via Sequencer) and ambient sounds on a scene by grid square, describe what is on a scene, or remove objects this tool created (it never removes anything else). ' +
 +          'Positions are in GRID SQUARES from the top-left corner of the map image: (0, 0) is the top-left corner of the first square, (2.5, 1.5) the centre of the square in column 2, row 1 (counting from 0). ' +
 +          'Use preview-scene first to see the numbered grid. describe returns the scene grid size so you know the valid range. ' +
-+          'place takes objects (up to 200): {kind:"token", actor, x, y} puts the actor\'s token with its top-left corner at that square (use whole numbers; actor is an id or exact name); {kind:"light", x, y, bright, dim} makes a light at that point with radii in squares (optional color, alpha, angle, rotation, animation, hidden); {kind:"wall", points:[[x1,y1],[x2,y2],...]} draws walls along a chain of points (add closed:true to join the ends) or {kind:"wall", rect:[x,y,width,height]} draws the four walls of a rectangle, with preset wall (default), door, secret_door, invisible (blocks movement only) or window (blocks movement, lets light and sight through), and for doors door_state closed, open or locked; {kind:"note", x, y, journal, page?, text?} puts a map pin (the label text defaults to the journal name) that opens that journal or page when clicked; pins are only seen by players who may read the journal unless global is true. {kind:"tile", x, y, width, height, src, rotation?, alpha?, hidden?, elevation?} lays an image (a path in the Foundry files, e.g. an uploaded prop) over the map with its top-left corner at x, y and the given size in squares; {kind:"tile", x, y, effect, width?, height?} places an animated decor effect (a Sequencer effect, e.g. effect "jb2a.braziers.orange.bordered.01.05x05ft", or a few words such as "campfire" when only one effect matches) on an invisible tile at that square (size in squares, default 1); it keeps burning after reloads and is removed with the tile (remove or all_mine), and it can only be placed on the scene being viewed; find names with describe {search: "brazier"}; use decor to bring a room to life (braziers, campfires, bats in a cave), not on every map; {kind:"sound", x, y, radius, path, volume?, repeat?, walls?, easing?, hidden?} places a looping ambient sound audible within radius squares (path is an audio file in the Foundry files); tokens also accept width and height in squares (e.g. 2 for a Large creature) to override the actor\'s size. Use whole or half squares for wall points and make wall ends meet exactly, otherwise light and sight leak through gaps. ' +
++          'place takes objects (up to 200): {kind:"token", actor, x, y} puts the actor\'s token with its top-left corner at that square (use whole numbers; actor is an id or exact name); {kind:"light", x, y, bright, dim} makes a light at that point with radii in squares (optional color, alpha, angle, rotation, animation, hidden); {kind:"wall", points:[[x1,y1],[x2,y2],...]} draws walls along a chain of points (add closed:true to join the ends) or {kind:"wall", rect:[x,y,width,height]} draws the four walls of a rectangle, with preset wall (default), door, secret_door, invisible (blocks movement only) or window (blocks movement, lets light and sight through), and for doors door_state closed, open or locked; {kind:"note", x, y, journal, page?, text?} puts a map pin (the label text defaults to the journal name) that opens that journal or page when clicked; pins are only seen by players who may read the journal unless global is true. {kind:"tile", x, y, width, height, src, rotation?, alpha?, hidden?, elevation?} lays an image (a path in the Foundry files, e.g. an uploaded prop) over the map with its top-left corner at x, y and the given size in squares; {kind:"tile", x, y, effect, width?, height?} places an animated decor effect (a Sequencer effect, e.g. effect "jb2a.braziers.orange.bordered.01.05x05ft", or a few words such as "campfire" when only one effect matches) on an invisible tile at that square (size in squares, default 1); it keeps burning after reloads and is removed with the tile (remove or all_mine), and it can only be placed on the scene being viewed; find names with describe {search: "brazier"} or walk the groups with describe {browse: ""} (top groups with counts), then describe {browse: "jb2a.campfire"} and so on until it lists the effects; use decor to bring a room to life (braziers, campfires, bats in a cave), not on every map; {kind:"sound", x, y, radius, path, volume?, repeat?, walls?, easing?, hidden?} places a looping ambient sound audible within radius squares (path is an audio file in the Foundry files); tokens also accept width and height in squares (e.g. 2 for a Large creature) to override the actor\'s size. Use whole or half squares for wall points and make wall ends meet exactly, otherwise light and sight leak through gaps. ' +
 +          'update takes updates (up to 200): [{id, ...fields}] to change objects this tool placed, without removing them: x and y move it (grid squares; give one to keep the other), and per kind: token name, width, height, hidden, disposition, elevation; light bright, dim, color, alpha, angle, rotation, animation (null stops it), hidden; note text, font_size, icon_size, icon, global; tile width, height, src, rotation, alpha, elevation, hidden; sound radius, path, volume, repeat, walls, easing, hidden; wall door_state (closed, open, locked; doors only, walls cannot be moved). ' +
 +          'check_walls {scene?, fix?, tolerance?} reads the scene walls and reports ends that stop just short of another wall (gaps; with the square they should join), loose ends, doors touching no wall, duplicates, tiny and diagonal walls; fix:true repairs the gaps and duplicates of walls this tool placed (moves ends so they join) and reports the rest. Run it after placing or changing walls, then look at preview-scene. remove needs ids or all_mine:true (optionally with kind) and only removes objects created by this tool. scene is an id or exact name; it defaults to the scene the GM is viewing.',
 +        inputSchema: {
@@ -42158,6 +42227,7 @@ index 0000000..fa651fd
 +              description: 'remove: every object on the scene that this tool created',
 +            },
 +            search: { type: 'string', description: 'describe: list the animated effects whose names contain these words (e.g. "brazier", "campfire", "fog"), instead of describing the scene' },
++            browse: { type: 'string', description: 'describe: walk the animated effects like folders: "" gives the top groups with counts, "jb2a" the groups inside, down to the effects themselves (a group with 40 effects or fewer lists them)' },
 +            kind: {
 +              type: 'string',
 +              enum: ['token', 'light', 'wall', 'note', 'tile', 'sound'],
