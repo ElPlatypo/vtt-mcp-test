@@ -123335,6 +123335,17 @@ var tileSchema = external_exports.object({
   hidden: external_exports.boolean().optional(),
   elevation: external_exports.number().finite().optional()
 }).strict();
+var effectTileSchema = external_exports.object({
+  kind: external_exports.literal("tile"),
+  x: external_exports.number().finite(),
+  y: external_exports.number().finite(),
+  effect: external_exports.string().min(2).max(120),
+  width: external_exports.number().positive().max(400).optional(),
+  height: external_exports.number().positive().max(400).optional(),
+  alpha: external_exports.number().min(0).max(1).optional(),
+  hidden: external_exports.boolean().optional(),
+  elevation: external_exports.number().finite().optional()
+}).strict();
 var soundSchema = external_exports.object({
   kind: external_exports.literal("sound"),
   x: external_exports.number().finite(),
@@ -123353,6 +123364,7 @@ var objectSchema = external_exports.union([
   wallSchema,
   noteSchema,
   tileSchema,
+  effectTileSchema,
   soundSchema
 ]);
 function slimPreviewInfo(info, sent, wantLegend) {
@@ -123403,6 +123415,7 @@ var sceneObjectsSchema = external_exports.object({
   updates: external_exports.array(external_exports.record(external_exports.any())).min(1).max(200).optional(),
   ids: external_exports.array(external_exports.string().min(1)).max(500).optional(),
   all_mine: external_exports.boolean().optional(),
+  search: external_exports.string().min(2).max(60).optional(),
   kind: external_exports.enum(["token", "light", "wall", "note", "tile", "sound"]).optional()
 }).strict();
 var behaviorSchema = external_exports.object({
@@ -123505,7 +123518,7 @@ var SceneObjectTools = class {
     return [
       {
         name: "manage-scene-objects",
-        description: `Place tokens, lights, walls, map pins, tiles (pictures laid on the map: rugs, furniture, props) and ambient sounds on a scene by grid square, describe what is on a scene, or remove objects this tool created (it never removes anything else). Positions are in GRID SQUARES from the top-left corner of the map image: (0, 0) is the top-left corner of the first square, (2.5, 1.5) the centre of the square in column 2, row 1 (counting from 0). Use preview-scene first to see the numbered grid. describe returns the scene grid size so you know the valid range. place takes objects (up to 200): {kind:"token", actor, x, y} puts the actor's token with its top-left corner at that square (use whole numbers; actor is an id or exact name); {kind:"light", x, y, bright, dim} makes a light at that point with radii in squares (optional color, alpha, angle, rotation, animation, hidden); {kind:"wall", points:[[x1,y1],[x2,y2],...]} draws walls along a chain of points (add closed:true to join the ends) or {kind:"wall", rect:[x,y,width,height]} draws the four walls of a rectangle, with preset wall (default), door, secret_door, invisible (blocks movement only) or window (blocks movement, lets light and sight through), and for doors door_state closed, open or locked; {kind:"note", x, y, journal, page?, text?} puts a map pin (the label text defaults to the journal name) that opens that journal or page when clicked; pins are only seen by players who may read the journal unless global is true. {kind:"tile", x, y, width, height, src, rotation?, alpha?, hidden?, elevation?} lays an image (a path in the Foundry files, e.g. an uploaded prop) over the map with its top-left corner at x, y and the given size in squares; {kind:"sound", x, y, radius, path, volume?, repeat?, walls?, easing?, hidden?} places a looping ambient sound audible within radius squares (path is an audio file in the Foundry files); tokens also accept width and height in squares (e.g. 2 for a Large creature) to override the actor's size. Use whole or half squares for wall points and make wall ends meet exactly, otherwise light and sight leak through gaps. update takes updates (up to 200): [{id, ...fields}] to change objects this tool placed, without removing them: x and y move it (grid squares; give one to keep the other), and per kind: token name, width, height, hidden, disposition, elevation; light bright, dim, color, alpha, angle, rotation, animation (null stops it), hidden; note text, font_size, icon_size, icon, global; tile width, height, src, rotation, alpha, elevation, hidden; sound radius, path, volume, repeat, walls, easing, hidden; wall door_state (closed, open, locked; doors only, walls cannot be moved). check_walls {scene?, fix?, tolerance?} reads the scene walls and reports ends that stop just short of another wall (gaps; with the square they should join), loose ends, doors touching no wall, duplicates, tiny and diagonal walls; fix:true repairs the gaps and duplicates of walls this tool placed (moves ends so they join) and reports the rest. Run it after placing or changing walls, then look at preview-scene. remove needs ids or all_mine:true (optionally with kind) and only removes objects created by this tool. scene is an id or exact name; it defaults to the scene the GM is viewing.`,
+        description: `Place tokens, lights, walls, map pins, tiles (pictures laid on the map: rugs, furniture, props), animated effects (torches, braziers, campfires, fog, via Sequencer) and ambient sounds on a scene by grid square, describe what is on a scene, or remove objects this tool created (it never removes anything else). Positions are in GRID SQUARES from the top-left corner of the map image: (0, 0) is the top-left corner of the first square, (2.5, 1.5) the centre of the square in column 2, row 1 (counting from 0). Use preview-scene first to see the numbered grid. describe returns the scene grid size so you know the valid range. place takes objects (up to 200): {kind:"token", actor, x, y} puts the actor's token with its top-left corner at that square (use whole numbers; actor is an id or exact name); {kind:"light", x, y, bright, dim} makes a light at that point with radii in squares (optional color, alpha, angle, rotation, animation, hidden); {kind:"wall", points:[[x1,y1],[x2,y2],...]} draws walls along a chain of points (add closed:true to join the ends) or {kind:"wall", rect:[x,y,width,height]} draws the four walls of a rectangle, with preset wall (default), door, secret_door, invisible (blocks movement only) or window (blocks movement, lets light and sight through), and for doors door_state closed, open or locked; {kind:"note", x, y, journal, page?, text?} puts a map pin (the label text defaults to the journal name) that opens that journal or page when clicked; pins are only seen by players who may read the journal unless global is true. {kind:"tile", x, y, width, height, src, rotation?, alpha?, hidden?, elevation?} lays an image (a path in the Foundry files, e.g. an uploaded prop) over the map with its top-left corner at x, y and the given size in squares; {kind:"tile", x, y, effect, width?, height?} places an animated decor effect (a Sequencer effect, e.g. effect "jb2a.braziers.orange.bordered.01.05x05ft", or a few words such as "campfire" when only one effect matches) on an invisible tile at that square (size in squares, default 1); it keeps burning after reloads and is removed with the tile (remove or all_mine), and it can only be placed on the scene being viewed; find names with describe {search: "brazier"}; use decor to bring a room to life (braziers, campfires, bats in a cave), not on every map; {kind:"sound", x, y, radius, path, volume?, repeat?, walls?, easing?, hidden?} places a looping ambient sound audible within radius squares (path is an audio file in the Foundry files); tokens also accept width and height in squares (e.g. 2 for a Large creature) to override the actor's size. Use whole or half squares for wall points and make wall ends meet exactly, otherwise light and sight leak through gaps. update takes updates (up to 200): [{id, ...fields}] to change objects this tool placed, without removing them: x and y move it (grid squares; give one to keep the other), and per kind: token name, width, height, hidden, disposition, elevation; light bright, dim, color, alpha, angle, rotation, animation (null stops it), hidden; note text, font_size, icon_size, icon, global; tile width, height, src, rotation, alpha, elevation, hidden; sound radius, path, volume, repeat, walls, easing, hidden; wall door_state (closed, open, locked; doors only, walls cannot be moved). check_walls {scene?, fix?, tolerance?} reads the scene walls and reports ends that stop just short of another wall (gaps; with the square they should join), loose ends, doors touching no wall, duplicates, tiny and diagonal walls; fix:true repairs the gaps and duplicates of walls this tool placed (moves ends so they join) and reports the rest. Run it after placing or changing walls, then look at preview-scene. remove needs ids or all_mine:true (optionally with kind) and only removes objects created by this tool. scene is an id or exact name; it defaults to the scene the GM is viewing.`,
         inputSchema: {
           type: "object",
           properties: {
@@ -123554,6 +123567,7 @@ var SceneObjectTools = class {
                     description: "token: size in squares (default the actor's); tile: height in squares"
                   },
                   src: { type: "string", description: "tile: image or video path in the Foundry files" },
+                  effect: { type: "string", description: "tile: an animated Sequencer effect instead of a picture (full path or a few words); needs no src" },
                   radius: { type: "number", description: "sound: audible radius in squares" },
                   path: { type: "string", description: "sound: audio file path in the Foundry files" },
                   volume: { type: "number", description: "sound: 0 to 1 (default 0.5)" },
@@ -123627,6 +123641,7 @@ var SceneObjectTools = class {
               type: "boolean",
               description: "remove: every object on the scene that this tool created"
             },
+            search: { type: "string", description: 'describe: list the animated effects whose names contain these words (e.g. "brazier", "campfire", "fog"), instead of describing the scene' },
             kind: {
               type: "string",
               enum: ["token", "light", "wall", "note", "tile", "sound"],

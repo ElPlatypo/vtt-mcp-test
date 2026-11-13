@@ -8731,10 +8731,10 @@ index 0000000..07712cf
 +  });
 +});
 diff --git a/packages/foundry-module/src/data-access.ts b/packages/foundry-module/src/data-access.ts
-index eecda7e..58c4b68 100644
+index eecda7e..e5282f9 100644
 --- a/packages/foundry-module/src/data-access.ts
 +++ b/packages/foundry-module/src/data-access.ts
-@@ -1,6 +1,152 @@
+@@ -1,6 +1,153 @@
  import { MODULE_ID, ERROR_MESSAGES, TOKEN_DISPOSITIONS } from './constants.js';
  import { permissionManager } from './permissions.js';
 +import {
@@ -8873,6 +8873,7 @@ index eecda7e..58c4b68 100644
 +import { diceSettle } from './dice-settle.js';
 +import { blockedMessage, initiativeBlockers, monksActive } from './monks-combat-utils.js';
 +import { fxmasterApi, isNoAtmosphere, resolvePreset } from './atmosphere-utils.js';
++import { decorEffectName, resolveEffectEntry, searchEffects } from './decor-utils.js';
 +import { BOSSBAR_ID, bossEntries, bossbarActive, bossbarStyles, resolveBarStyle } from './bossbar-utils.js';
 +import { healthLooks } from './health-estimate-utils.js';
 +import { markDownIfZero, markSurprised, performAttack, setDeathSaves, stabilize, performCheck, pickActivity, type NamedActor } from './combat-actions.js';
@@ -8887,7 +8888,7 @@ index eecda7e..58c4b68 100644
  
  // The same five characters foundry.utils.escapeHTML replaces in v14, kept local because
  // that helper isn't confirmed in v13, this module's minimum.
-@@ -33,6 +179,7 @@ interface CharacterInfo {
+@@ -33,6 +180,7 @@ interface CharacterInfo {
    itemVariants?: any[]; // Item rule element variants (ChoiceSet, etc.)
    itemToggles?: any[]; // Item rule element toggles (RollOption, ToggleProperty, equipped)
    spellcasting?: SpellcastingEntry[]; // PF2e/D&D 5e spellcasting entries
@@ -8895,7 +8896,7 @@ index eecda7e..58c4b68 100644
  }
  
  interface SpellcastingEntry {
-@@ -363,7 +510,8 @@ interface ItemTargetingResult {
+@@ -363,7 +511,8 @@ interface ItemTargetingResult {
   */
  class PersistentCreatureIndex {
    private moduleId: string = MODULE_ID;
@@ -8905,7 +8906,7 @@ index eecda7e..58c4b68 100644
    private readonly INDEX_FILENAME = 'enhanced-creature-index.json';
    private buildInProgress = false;
    private hooksRegistered = false;
-@@ -979,26 +1127,9 @@ class PersistentCreatureIndex {
+@@ -979,26 +1128,9 @@ class PersistentCreatureIndex {
          alignment = String(alignment || 'unaligned');
        }
  
@@ -8935,7 +8936,7 @@ index eecda7e..58c4b68 100644
  
        // DEBUG: Log what we extracted for comparison
  
-@@ -1714,6 +1845,92 @@ const DND5E_SIZE: Record<string, string> = {
+@@ -1714,6 +1846,92 @@ const DND5E_SIZE: Record<string, string> = {
    gargantuan: 'gargantuan',
  };
  
@@ -9028,7 +9029,7 @@ index eecda7e..58c4b68 100644
  export class FoundryDataAccess {
    private moduleId: string = MODULE_ID;
    private persistentIndex: PersistentCreatureIndex = new PersistentCreatureIndex();
-@@ -1951,6 +2168,16 @@ export class FoundryDataAccess {
+@@ -1951,6 +2169,16 @@ export class FoundryDataAccess {
        characterData.spellcasting = spellcastingEntries;
      }
  
@@ -9045,7 +9046,7 @@ index eecda7e..58c4b68 100644
      return characterData;
    }
  
-@@ -3151,11 +3378,7 @@ export class FoundryDataAccess {
+@@ -3151,11 +3379,7 @@ export class FoundryDataAccess {
  
      // Legendary Actions filter
      if (filters.hasLegendaryActions !== undefined) {
@@ -9058,7 +9059,7 @@ index eecda7e..58c4b68 100644
        if (hasLegendary !== filters.hasLegendaryActions) {
          return false;
        }
-@@ -4681,12 +4904,28 @@ export class FoundryDataAccess {
+@@ -4681,12 +4905,28 @@ export class FoundryDataAccess {
        type: 'random' | 'grid' | 'center' | 'coordinates';
        coordinates?: { x: number; y: number }[];
      };
@@ -9087,7 +9088,7 @@ index eecda7e..58c4b68 100644
        // Validate inputs
        if (!packId || !itemId) {
          throw new Error('Both packId and itemId are required');
-@@ -4747,16 +4986,41 @@ export class FoundryDataAccess {
+@@ -4747,16 +4987,41 @@ export class FoundryDataAccess {
              prototypeToken: sourceData.prototypeToken, // Include prototype token
            };
  
@@ -9130,7 +9131,7 @@ index eecda7e..58c4b68 100644
  
            // Create the actor
            const newActor = await Actor.create(actorData);
-@@ -5064,6 +5328,7 @@ export class FoundryDataAccess {
+@@ -5064,6 +5329,7 @@ export class FoundryDataAccess {
          }
          resultActor = existingActor;
        } else {
@@ -9138,7 +9139,7 @@ index eecda7e..58c4b68 100644
          resultActor = await Actor.create(actorData as any);
          if (!resultActor) {
            throw new Error(`Failed to create actor "${actorData.name}"`);
-@@ -5865,6 +6130,7 @@ export class FoundryDataAccess {
+@@ -5865,6 +6131,7 @@ export class FoundryDataAccess {
  
        // Apply customizations
        actorData.name = customName;
@@ -9146,7 +9147,7 @@ index eecda7e..58c4b68 100644
  
        // Fix only token texture - leave portrait (actor.img) alone
        if (actorData.prototypeToken?.texture?.src?.startsWith('http')) {
-@@ -6021,21 +6287,22 @@ export class FoundryDataAccess {
+@@ -6021,21 +6288,22 @@ export class FoundryDataAccess {
        // For now, we'll just create the button and let the rendering logic handle the state restoration
  
        const rollButtonHtml = `
@@ -9173,7 +9174,7 @@ index eecda7e..58c4b68 100644
              </button>
            </div>
          </div>
-@@ -6074,6 +6341,8 @@ export class FoundryDataAccess {
+@@ -6074,6 +6342,8 @@ export class FoundryDataAccess {
          whisper: whisperTargets,
          flags: {
            [MODULE_ID]: {
@@ -9182,7 +9183,7 @@ index eecda7e..58c4b68 100644
              rollButtons: {
                [buttonId]: {
                  rolled: false,
-@@ -6399,6 +6668,8 @@ export class FoundryDataAccess {
+@@ -6399,6 +6669,8 @@ export class FoundryDataAccess {
          return `${rollTarget} Attack (${visibility})`;
        case 'initiative':
          return `Initiative Roll (${visibility})`;
@@ -9191,7 +9192,7 @@ index eecda7e..58c4b68 100644
        case 'custom':
          return `Custom Roll (${visibility})`;
        default:
-@@ -6498,6 +6769,7 @@ export class FoundryDataAccess {
+@@ -6498,6 +6770,7 @@ export class FoundryDataAccess {
  
        const rollFormula = button.data('roll-formula');
        const rollLabel = button.data('roll-label');
@@ -9199,7 +9200,7 @@ index eecda7e..58c4b68 100644
        const isPublicRaw = button.data('is-public');
        const isPublic = isPublicRaw === true || isPublicRaw === 'true'; // Convert to proper boolean
        const characterId = button.data('character-id');
-@@ -6515,13 +6787,22 @@ export class FoundryDataAccess {
+@@ -6515,13 +6788,22 @@ export class FoundryDataAccess {
        }
  
        try {
@@ -9225,7 +9226,7 @@ index eecda7e..58c4b68 100644
          // Use the modern Foundry v13 approach with roll.toMessage()
          const rollMode = isPublic ? 'publicroll' : 'whisper';
          const whisperTargets: string[] = [];
-@@ -6714,7 +6995,7 @@ export class FoundryDataAccess {
+@@ -6714,7 +6996,7 @@ export class FoundryDataAccess {
  
          // Send socket request to GM
          if (game.socket) {
@@ -9234,7 +9235,7 @@ index eecda7e..58c4b68 100644
              type: 'requestMessageUpdate',
              buttonId,
              userId,
-@@ -6744,7 +7025,7 @@ export class FoundryDataAccess {
+@@ -6744,7 +7026,7 @@ export class FoundryDataAccess {
  
        // Create the rolled state HTML
        const rolledHtml = `
@@ -9243,7 +9244,7 @@ index eecda7e..58c4b68 100644
            <p><strong>Roll Request:</strong> ${rollLabel}</p>
            <p><strong>Status:</strong> ✅ <strong>Completed by ${rolledByName}</strong> at ${timestamp}</p>
          </div>
-@@ -7603,6 +7884,7 @@ export class FoundryDataAccess {
+@@ -7603,6 +7885,7 @@ export class FoundryDataAccess {
      if (applyPolyglot) {
        messageData.flags = { polyglot: { language: data.language } };
      }
@@ -9251,7 +9252,7 @@ index eecda7e..58c4b68 100644
      if (whisperIds.length > 0) {
        messageData.whisper = whisperIds;
      }
-@@ -7897,7 +8179,22 @@ export class FoundryDataAccess {
+@@ -7897,7 +8180,22 @@ export class FoundryDataAccess {
    /**
     * Switch to a different scene
     */
@@ -9261,21 +9262,21 @@ index eecda7e..58c4b68 100644
 +    const api = fxmasterApi();
 +    if (!api) throw new Error('The FXMaster module is not active in this world');
 +    if (isNoAtmosphere(value)) {
-+      await api.stopSceneEffects({ scene: scene.id });
++      await api.stopSceneEffects({ scene });
 +    } else {
 +      const picked = resolvePreset(api.presets.list(), String(value));
 +      if ('error' in picked) throw new Error(picked.error);
-+      const ok = await api.presets.switch(picked.name, { scene: scene.id });
++      const ok = await api.presets.switch(picked.name, { scene });
 +      if (ok === false) throw new Error(`FXMaster could not play ${picked.name}`);
 +    }
-+    return { active: api.presets.listActive({ scene: scene.id }) };
++    return { active: api.presets.listActive({ scene }) };
 +  }
 +
 +  async switchScene(options: { scene_identifier: string; optimize_view?: boolean; atmosphere?: string | null }): Promise<any> {
      this.validateFoundryState();
  
      try {
-@@ -7915,6 +8212,15 @@ export class FoundryDataAccess {
+@@ -7915,6 +8213,15 @@ export class FoundryDataAccess {
  
        // Activate the scene
        await targetScene.activate();
@@ -9291,7 +9292,7 @@ index eecda7e..58c4b68 100644
  
        // Optimize view if requested (default true)
        if (options.optimize_view !== false && typeof canvas !== 'undefined' && canvas?.scene) {
-@@ -7943,6 +8249,8 @@ export class FoundryDataAccess {
+@@ -7943,6 +8250,8 @@ export class FoundryDataAccess {
          success: true,
          sceneId: targetScene.id,
          sceneName: targetScene.name,
@@ -9300,7 +9301,7 @@ index eecda7e..58c4b68 100644
          dimensions: {
            width: (targetScene.dimensions as any)?.width || (targetScene as any).width || 0,
            height: (targetScene.dimensions as any)?.height || (targetScene as any).height || 0,
-@@ -8101,200 +8409,4864 @@ export class FoundryDataAccess {
+@@ -8101,200 +8410,4916 @@ export class FoundryDataAccess {
      }
    }
  
@@ -9768,7 +9769,7 @@ index eecda7e..58c4b68 100644
 +        if (options.scene_identifier) {
 +          const scene = this.findSceneByIdentifier(options.scene_identifier);
 +          const fx = fxmasterApi();
-+          const atmosphere = fx ? { active: fx.presets.listActive({ scene: scene.id }), available: fx.presets.list() } : undefined;
++          const atmosphere = fx ? { active: fx.presets.listActive({ scene }), available: fx.presets.list() } : undefined;
 +          return { success: true, scene: this.summarizeScene(scene), ...(atmosphere ? { atmosphere } : {}) };
 +        }
 +        const scenes = (game.scenes?.contents || []) as any[];
@@ -12443,6 +12444,7 @@ index eecda7e..58c4b68 100644
 +        width: Math.round((t.width / geom.size) * 100) / 100,
 +        height: Math.round((t.height / geom.size) * 100) / 100,
 +        src: t.texture?.src ?? null,
++        ...((t.flags?.[this.moduleId] as any)?.effect ? { effect: (t.flags[this.moduleId] as any).effect } : {}),
 +        rotation: t.rotation ?? 0,
 +        alpha: t.alpha ?? 1,
 +        elevation: t.elevation ?? 0,
@@ -12471,6 +12473,32 @@ index eecda7e..58c4b68 100644
 +   * Place tokens, lights, walls and map pins by grid square, describe what is on a scene, or remove objects
 +   * this tool created (never anything else).
 +   */
++  /** A Sequencer effect path for map decor, from a full path or a few words. Effects play on the scene being viewed. */
++  private resolveDecorEffect(wanted: string, scene: any): string {
++    const seq = (globalThis as any).Sequencer;
++    const mod = (game as any).modules?.get?.('sequencer');
++    if (!mod?.active || !seq?.Database) throw new Error('The Sequencer module is not active, so effect tiles cannot be placed');
++    if ((globalThis as any).canvas?.scene?.id !== scene.id) throw new Error('Effect tiles can only be placed on the scene being viewed: switch-scene to it first');
++    const entries: string[] = seq.Database.publicFlattenedEntries ?? [];
++    const picked = resolveEffectEntry(entries, wanted);
++    if ('error' in picked) throw new Error(picked.error);
++    return picked.path;
++  }
++
++  /** Plays the effect on its decor tile and keeps it (Sequencer replays effects attached to a tile after a reload). */
++  private async playDecorEffect(tile: any, file: string): Promise<void> {
++    const Seq = (globalThis as any).Sequence;
++    await new Seq()
++      .effect()
++      .file(file)
++      .attachTo(tile, { bindVisibility: false, bindAlpha: false })
++      .size({ width: tile.width, height: tile.height }, { gridUnits: false })
++      .belowTokens()
++      .name(decorEffectName(tile.id))
++      .persist()
++      .play();
++  }
++
 +  async manageSceneObjects(options: {
 +    action: 'place' | 'describe' | 'remove' | 'update';
 +    scene?: string;
@@ -12478,6 +12506,7 @@ index eecda7e..58c4b68 100644
 +    updates?: Array<Record<string, any>>;
 +    ids?: string[];
 +    all_mine?: boolean;
++    search?: string;
 +    kind?: 'token' | 'light' | 'wall' | 'note' | 'tile' | 'sound';
 +  }): Promise<any> {
 +    this.validateFoundryState();
@@ -12489,6 +12518,12 @@ index eecda7e..58c4b68 100644
 +      }
 +      const scene = this.resolveSceneForObjects(options.scene);
 +      const geom = getGridGeometry(scene);
++
++      if (action === 'describe' && options.search) {
++        const entries: string[] = (globalThis as any).Sequencer?.Database?.publicFlattenedEntries ?? [];
++        if (entries.length === 0) throw new Error('The Sequencer module is not active, so there are no effects to search');
++        return { success: true, ...searchEffects(entries, options.search) };
++      }
 +
 +      if (action === 'describe') {
 +        const kinds = options.kind ? [options.kind] : ['token', 'light', 'wall', 'note', 'tile', 'sound'];
@@ -12514,6 +12549,7 @@ index eecda7e..58c4b68 100644
 +        const wallData: any[] = [];
 +        const noteData: any[] = [];
 +        const tileData: any[] = [];
++        const tileEffects: Array<string | undefined> = [];
 +        const soundData: any[] = [];
 +        const warnings: string[] = [];
 +
@@ -12610,7 +12646,10 @@ index eecda7e..58c4b68 100644
 +              flags: flagData,
 +            });
 +          } else if (spec.kind === 'tile') {
-+            tileData.push({ ...buildTileData(spec as any, geom, label), flags: flagData });
++            const wantedEffect = typeof (spec as any).effect === 'string' ? String((spec as any).effect).trim() : '';
++            const effectPath = wantedEffect ? this.resolveDecorEffect(wantedEffect, scene) : undefined;
++            tileData.push({ ...buildTileData(spec as any, geom, label), flags: effectPath ? { [this.moduleId]: { [CREATED_BY_FLAG]: true, effect: effectPath } } : flagData });
++            tileEffects.push(effectPath);
 +          } else if (spec.kind === 'sound') {
 +            soundData.push({ ...buildSoundData(spec as any, geom, label), flags: flagData });
 +          } else {
@@ -12648,8 +12687,10 @@ index eecda7e..58c4b68 100644
 +
 +        if (tileData.length > 0) {
 +          const docs = (await scene.createEmbeddedDocuments('Tile', tileData)) as any[];
-+          for (const doc of docs ?? []) {
-+            created.push({ kind: 'tile', id: doc.id, ...pixelsToSquares(geom, doc.x, doc.y) });
++          for (const [index, doc] of (docs ?? []).entries()) {
++            const effect = tileEffects[index];
++            created.push({ kind: 'tile', id: doc.id, ...pixelsToSquares(geom, doc.x, doc.y), ...(effect ? { effect } : {}) } as any);
++            if (effect) await this.playDecorEffect(doc, effect);
 +          }
 +        }
 +        if (soundData.length > 0) {
@@ -12742,6 +12783,18 @@ index eecda7e..58c4b68 100644
 +        });
 +        for (const doc of docs) found.add(doc.id);
 +        if (docs.length > 0) {
++          if (kind === 'tile') {
++            const manager = (globalThis as any).Sequencer?.EffectManager;
++            for (const d of docs) {
++              if (manager && (d.flags?.[this.moduleId] as any)?.effect) {
++                try {
++                  await manager.endEffects({ name: decorEffectName(d.id) });
++                } catch {
++                  /* the tile is going anyway */
++                }
++              }
++            }
++          }
 +          await scene.deleteEmbeddedDocuments(
 +            documentName,
 +            docs.map(d => d.id)
@@ -14339,7 +14392,7 @@ index eecda7e..58c4b68 100644
            return { success: true, action: 'play', playlist: info };
          case 'stop':
            await pl.stopAll();
-@@ -8304,20 +13276,48 @@ export class FoundryDataAccess {
+@@ -8304,20 +13329,48 @@ export class FoundryDataAccess {
            return { success: true, action: 'cycle-mode', playlist: info, mode: pl.mode as number };
          case 'play-sound':
          case 'stop-sound': {
@@ -14394,7 +14447,7 @@ index eecda7e..58c4b68 100644
        }
      } catch (error) {
        throw new Error(
-@@ -8468,6 +13468,59 @@ export class FoundryDataAccess {
+@@ -8468,6 +13521,59 @@ export class FoundryDataAccess {
      }
    }
  
@@ -14454,7 +14507,7 @@ index eecda7e..58c4b68 100644
    /**
     * Move a token to a new position on the scene
     */
-@@ -8476,6 +13529,12 @@ export class FoundryDataAccess {
+@@ -8476,6 +13582,12 @@ export class FoundryDataAccess {
      x: number;
      y: number;
      animate?: boolean;
@@ -14467,7 +14520,7 @@ index eecda7e..58c4b68 100644
    }): Promise<any> {
      this.validateFoundryState();
  
-@@ -8489,33 +13548,79 @@ export class FoundryDataAccess {
+@@ -8489,33 +13601,79 @@ export class FoundryDataAccess {
      }
  
      try {
@@ -14564,7 +14617,7 @@ index eecda7e..58c4b68 100644
        };
      } catch (error) {
        this.auditLog(
-@@ -8530,10 +13635,95 @@ export class FoundryDataAccess {
+@@ -8530,10 +13688,95 @@ export class FoundryDataAccess {
      }
    }
  
@@ -14661,7 +14714,7 @@ index eecda7e..58c4b68 100644
      this.validateFoundryState();
  
      // Use permission system
-@@ -8546,23 +13736,21 @@ export class FoundryDataAccess {
+@@ -8546,23 +13789,21 @@ export class FoundryDataAccess {
      }
  
      try {
@@ -14695,7 +14748,7 @@ index eecda7e..58c4b68 100644
  
        this.auditLog('updateToken', { tokenId: data.tokenId, updates: cleanUpdates }, 'success');
  
-@@ -8570,7 +13758,8 @@ export class FoundryDataAccess {
+@@ -8570,7 +13811,8 @@ export class FoundryDataAccess {
          success: true,
          tokenId: token.id,
          tokenName: token.name,
@@ -14705,7 +14758,7 @@ index eecda7e..58c4b68 100644
        };
      } catch (error) {
        this.auditLog(
-@@ -8651,19 +13840,12 @@ export class FoundryDataAccess {
+@@ -8651,19 +13893,12 @@ export class FoundryDataAccess {
    /**
     * Get detailed information about a token
     */
@@ -14728,7 +14781,7 @@ index eecda7e..58c4b68 100644
  
        // Return flat structure that matches MCP server expectations
        return {
-@@ -9664,6 +14846,7 @@ export class FoundryDataAccess {
+@@ -9664,6 +14899,7 @@ export class FoundryDataAccess {
        }
  
        // 10. Create actor
@@ -14736,7 +14789,7 @@ index eecda7e..58c4b68 100644
        const actor = await Actor.create(actorData);
        if (!actor) {
          throw new Error(`Failed to create NPC actor "${data.name}"`);
-@@ -11274,7 +16457,10 @@ export class FoundryDataAccess {
+@@ -11274,7 +16510,10 @@ export class FoundryDataAccess {
        name: string;
        type: string;
        img?: string;
@@ -14747,7 +14800,7 @@ index eecda7e..58c4b68 100644
      }>;
      folder?: string;
    }): Promise<{ created: Array<{ id: string; name: string; type: string }>; total: number }> {
-@@ -11286,6 +16472,19 @@ export class FoundryDataAccess {
+@@ -11286,6 +16525,19 @@ export class FoundryDataAccess {
      const docs = params.actors.map(a => {
        const doc: Record<string, any> = { name: a.name, type: a.type };
        if (a.img) doc.img = a.img;
@@ -14767,7 +14820,7 @@ index eecda7e..58c4b68 100644
  
        // Merge system data, adding safe defaults for systems that require certain
        // fields to exist during data preparation (avoids non-fatal init errors).
-@@ -11423,6 +16622,15 @@ export class FoundryDataAccess {
+@@ -11423,6 +16675,15 @@ export class FoundryDataAccess {
          };
        }
  
@@ -14783,7 +14836,7 @@ index eecda7e..58c4b68 100644
        doc.system = systemData;
        if (folderId) doc.folder = folderId;
        return doc;
-@@ -11471,7 +16679,16 @@ export class FoundryDataAccess {
+@@ -11471,7 +16732,16 @@ export class FoundryDataAccess {
     * Merges supplied fields into the actor (top-level keys overwrite).
     */
    async updateActors(
@@ -14801,7 +14854,7 @@ index eecda7e..58c4b68 100644
    ): Promise<{ updated: Array<{ id: string; name: string }>; total: number }> {
      const updatedActors: Array<{ id: string; name: string }> = [];
  
-@@ -11481,7 +16698,12 @@ export class FoundryDataAccess {
+@@ -11481,7 +16751,12 @@ export class FoundryDataAccess {
  
        const patch: Record<string, any> = {};
        if (u.name !== undefined) patch.name = u.name;
@@ -14814,7 +14867,7 @@ index eecda7e..58c4b68 100644
        if (u.system !== undefined) {
          // Build a single patch.system nested object so Foundry deep-merges everything
          // in one pass without flat-key vs nested-key conflicts.
-@@ -11504,6 +16726,19 @@ export class FoundryDataAccess {
+@@ -11504,6 +16779,19 @@ export class FoundryDataAccess {
          }
          patch.system = systemPatch;
        }
@@ -14834,7 +14887,7 @@ index eecda7e..58c4b68 100644
  
        await actor.update(patch);
        updatedActors.push({ id: actor.id, name: u.name ?? actor.name });
-@@ -11706,6 +16941,199 @@ export class FoundryDataAccess {
+@@ -11706,6 +16994,199 @@ export class FoundryDataAccess {
      return { deleted: existing, total: existing.length };
    }
  
@@ -15496,6 +15549,93 @@ index 0000000..55aec33
 +    await expect(da.manageWorld({ action: 'list_folders' })).resolves.toMatchObject({ success: true });
 +  });
 +});
+diff --git a/packages/foundry-module/src/decor-utils.test.ts b/packages/foundry-module/src/decor-utils.test.ts
+new file mode 100644
+index 0000000..b525cc2
+--- /dev/null
++++ b/packages/foundry-module/src/decor-utils.test.ts
+@@ -0,0 +1,36 @@
++import { describe, expect, it } from 'vitest';
++import { decorEffectName, resolveEffectEntry, searchEffects } from './decor-utils.js';
++
++const entries = [
++  'jb2a.braziers.orange.bordered.01.05x05ft',
++  'jb2a.braziers.orange.bordered.01.10x10ft',
++  'jb2a.braziers.extinguished.bordered.01.05x05ft',
++  'jb2a.campfire.01.orange',
++  'jb2a.bonfire.01.orange',
++  'ggg-sfx.melee.torch.01.01',
++];
++
++describe('decor helpers', () => {
++  it('names the effect after its tile', () => {
++    expect(decorEffectName('abc')).toBe('bridge-decor-abc');
++  });
++  it('takes an exact path in any case', () => {
++    expect(resolveEffectEntry(entries, 'JB2A.campfire.01.orange')).toEqual({ path: 'jb2a.campfire.01.orange' });
++  });
++  it('finds the one entry holding every word', () => {
++    expect(resolveEffectEntry(entries, 'bonfire')).toEqual({ path: 'jb2a.bonfire.01.orange' });
++    expect(resolveEffectEntry(entries, 'extinguished brazier')).toEqual({ path: 'jb2a.braziers.extinguished.bordered.01.05x05ft' });
++  });
++  it('lists candidates when several match and says when none do', () => {
++    const many = resolveEffectEntry(entries, 'brazier');
++    expect(many).toHaveProperty('error');
++    expect((many as any).error).toContain('3 effects');
++    expect(resolveEffectEntry(entries, 'unicorn')).toHaveProperty('error');
++    expect(resolveEffectEntry(entries, '  ')).toHaveProperty('error');
++  });
++  it('searches by words with a limit', () => {
++    expect(searchEffects(entries, 'orange').total).toBe(4);
++    expect(searchEffects(entries, 'orange', 2).effects).toHaveLength(2);
++    expect(searchEffects(entries, '').total).toBe(0);
++  });
++});
+diff --git a/packages/foundry-module/src/decor-utils.ts b/packages/foundry-module/src/decor-utils.ts
+new file mode 100644
+index 0000000..7b61b7e
+--- /dev/null
++++ b/packages/foundry-module/src/decor-utils.ts
+@@ -0,0 +1,39 @@
++/**
++ * Map decor: Sequencer effects (torches, braziers, campfires, fog...) kept on an invisible tile so they survive a reload.
++ * (Sequencer 4.3.0 saves an effect fine but never replays one filed directly under the scene; one attached to a tile,
++ * token, drawing, template or region is replayed. Checked on a live world.) Pure helpers.
++ */
++
++/** The name Sequencer gives the effect attached to a decor tile, so it can be found and ended. */
++export function decorEffectName(tileId: string): string {
++  return `bridge-decor-${tileId}`;
++}
++
++function norm(text: string): string {
++  return text.trim().toLowerCase().replace(/[\s_-]+/g, '.');
++}
++
++/** An effect database path from a full path or a few words: exact first, else the one entry containing every word. */
++export function resolveEffectEntry(entries: string[], wanted: string): { path: string } | { error: string } {
++  const key = norm(wanted);
++  if (!key) return { error: 'effect is empty' };
++  const exact = entries.find(e => e.toLowerCase() === wanted.trim().toLowerCase());
++  if (exact) return { path: exact };
++  const words = key.split('.').filter(Boolean);
++  const matches = entries.filter(e => {
++    const low = e.toLowerCase();
++    return words.every(w => low.includes(w));
++  });
++  if (matches.length === 1) return { path: matches[0]! };
++  if (matches.length === 0) return { error: `No effect matches "${wanted}". Search with manage-scene-objects describe {search: "brazier"}.` };
++  const shown = matches.slice(0, 12);
++  return { error: `"${wanted}" matches ${matches.length} effects, name one: ${shown.join(', ')}${matches.length > shown.length ? ', ...' : ''}` };
++}
++
++/** Entries containing every word of the search, for the describe search. */
++export function searchEffects(entries: string[], search: string, limit = 40): { total: number; effects: string[] } {
++  const words = norm(search).split('.').filter(Boolean);
++  if (words.length === 0) return { total: 0, effects: [] };
++  const all = entries.filter(e => words.every(w => e.toLowerCase().includes(w)));
++  return { total: all.length, effects: all.slice(0, limit) };
++}
 diff --git a/packages/foundry-module/src/dice-settle.test.ts b/packages/foundry-module/src/dice-settle.test.ts
 new file mode 100644
 index 0000000..c4894c3
@@ -21543,10 +21683,10 @@ index 0000000..ca7d8a6
 +}
 diff --git a/packages/foundry-module/src/scene-objects-utils.test.ts b/packages/foundry-module/src/scene-objects-utils.test.ts
 new file mode 100644
-index 0000000..29a6040
+index 0000000..1bf8a06
 --- /dev/null
 +++ b/packages/foundry-module/src/scene-objects-utils.test.ts
-@@ -0,0 +1,466 @@
+@@ -0,0 +1,481 @@
 +import { describe, expect, it } from 'vitest';
 +import {
 +  assertInsideScene,
@@ -22013,12 +22153,27 @@ index 0000000..29a6040
 +    expect(() => buildSoundData({ x: 4, y: 4, radius: 2, path: 'a.ogg', volume: 3 }, geom, 's')).toThrow('volume');
 +  });
 +});
++
++describe('buildTileData for a decor effect', () => {
++  const geom = getGridGeometry(scene());
++  it('builds an invisible one-square tile without a picture', () => {
++    const data = buildTileData({ x: 2, y: 1, effect: 'campfire' } as any, geom, 't');
++    expect(data.texture).toEqual({ src: null });
++    expect(data.alpha).toBe(0);
++    expect(data.width).toBe(geom.size);
++    expect(data.height).toBe(geom.size);
++  });
++  it('still checks the position and the size', () => {
++    expect(() => buildTileData({ x: 99, y: 1, effect: 'campfire' } as any, geom, 't')).toThrow('outside');
++    expect(() => buildTileData({ x: 1, y: 1, width: 0, effect: 'campfire' } as any, geom, 't')).toThrow('width');
++  });
++});
 diff --git a/packages/foundry-module/src/scene-objects-utils.ts b/packages/foundry-module/src/scene-objects-utils.ts
 new file mode 100644
-index 0000000..cd16bb0
+index 0000000..f7595db
 --- /dev/null
 +++ b/packages/foundry-module/src/scene-objects-utils.ts
-@@ -0,0 +1,468 @@
+@@ -0,0 +1,472 @@
 +/**
 + * Pure helpers for manage-scene-objects and preview-scene: grid geometry, converting grid
 + * squares to scene pixels, and building light data. No Foundry globals, so they can be tested.
@@ -22376,10 +22531,12 @@ index 0000000..cd16bb0
 +  x: number;
 +  y: number;
 +  /** Size in grid squares. */
-+  width: number;
-+  height: number;
-+  /** Image or video path in the Foundry files. */
-+  src: string;
++  width?: number;
++  height?: number;
++  /** Image or video path in the Foundry files (not for a decor tile). */
++  src?: string;
++  /** A Sequencer effect kept on an invisible tile instead of a picture (width and height default to 1). */
++  effect?: string;
 +  /** Degrees, clockwise. */
 +  rotation?: number;
 +  /** Opacity 0 to 1. */
@@ -22399,9 +22556,10 @@ index 0000000..cd16bb0
 +    }
 +    return value;
 +  };
-+  const width = size(spec.width, 'width');
-+  const height = size(spec.height, 'height');
-+  if (typeof spec.src !== 'string' || !spec.src.trim() || /^[a-z]+:\/\//i.test(spec.src)) {
++  const hasEffect = typeof spec.effect === 'string' && spec.effect.trim() !== '';
++  const width = size(hasEffect ? (spec.width ?? 1) : spec.width, 'width');
++  const height = size(hasEffect ? (spec.height ?? 1) : spec.height, 'height');
++  if (!hasEffect && (typeof spec.src !== 'string' || !spec.src.trim() || /^[a-z]+:\/\//i.test(spec.src))) {
 +    throw new Error(`${label}: src must be a path in the Foundry files, such as worlds/<world>/uploads/rug.png`);
 +  }
 +  const { x, y } = squaresToPixels(geom, spec.x, spec.y);
@@ -22410,7 +22568,7 @@ index 0000000..cd16bb0
 +    y,
 +    width: Math.round(width * geom.size),
 +    height: Math.round(height * geom.size),
-+    texture: { src: spec.src.trim() },
++    texture: { src: hasEffect ? null : (spec.src as string).trim() },
 +  };
 +  if (spec.rotation !== undefined) {
 +    if (typeof spec.rotation !== 'number' || !Number.isFinite(spec.rotation)) {
@@ -22424,6 +22582,7 @@ index 0000000..cd16bb0
 +    }
 +    data.alpha = spec.alpha;
 +  }
++  else if (hasEffect) data.alpha = 0;
 +  if (spec.elevation !== undefined) {
 +    if (typeof spec.elevation !== 'number' || !Number.isFinite(spec.elevation)) {
 +      throw new Error(`${label}: elevation must be a number`);
@@ -41052,10 +41211,10 @@ index 0000000..c403711
 +}
 diff --git a/packages/mcp-server/src/tools/scene-objects.test.ts b/packages/mcp-server/src/tools/scene-objects.test.ts
 new file mode 100644
-index 0000000..e6495af
+index 0000000..054630f
 --- /dev/null
 +++ b/packages/mcp-server/src/tools/scene-objects.test.ts
-@@ -0,0 +1,432 @@
+@@ -0,0 +1,451 @@
 +import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 +import { promises as fs } from 'fs';
 +import { SceneObjectTools } from './scene-objects.js';
@@ -41488,12 +41647,31 @@ index 0000000..e6495af
 +    expect(near.shown).toBe(1);
 +  });
 +});
++
++describe('animated decor tiles (Sequencer effects)', () => {
++  it('forwards an effect tile and an effect search', async () => {
++    const { tools, query } = makeTools();
++    const objects = [{ kind: 'tile', x: 8, y: 7, effect: 'jb2a.braziers.orange.bordered.01.05x05ft' }, { kind: 'tile', x: 2, y: 2, width: 2, height: 2, effect: 'campfire' }];
++    await tools.handleManageSceneObjects({ action: 'place', objects });
++    expect(query.mock.calls[0][1].objects).toEqual(objects);
++    await tools.handleManageSceneObjects({ action: 'describe', search: 'brazier' });
++    expect(query.mock.calls[1][1].search).toBe('brazier');
++  });
++  it.each([
++    ['an effect tile that also has a picture', { kind: 'tile', x: 1, y: 1, effect: 'campfire', src: 'a.png' }],
++    ['an effect tile without x', { kind: 'tile', y: 1, effect: 'campfire' }],
++  ])('rejects %s', async (_l, object) => {
++    const { tools, query } = makeTools();
++    await expect(tools.handleManageSceneObjects({ action: 'place', objects: [object] })).rejects.toThrow();
++    expect(query).not.toHaveBeenCalled();
++  });
++});
 diff --git a/packages/mcp-server/src/tools/scene-objects.ts b/packages/mcp-server/src/tools/scene-objects.ts
 new file mode 100644
-index 0000000..da1485a
+index 0000000..fa651fd
 --- /dev/null
 +++ b/packages/mcp-server/src/tools/scene-objects.ts
-@@ -0,0 +1,891 @@
+@@ -0,0 +1,909 @@
 +import { promises as fs } from 'fs';
 +import { checkWalls, planFixes, type CheckWall } from './wall-check-utils.js';
 +import os from 'os';
@@ -41621,6 +41799,20 @@ index 0000000..da1485a
 +  })
 +  .strict();
 +
++const effectTileSchema = z
++  .object({
++    kind: z.literal('tile'),
++    x: z.number().finite(),
++    y: z.number().finite(),
++    effect: z.string().min(2).max(120),
++    width: z.number().positive().max(400).optional(),
++    height: z.number().positive().max(400).optional(),
++    alpha: z.number().min(0).max(1).optional(),
++    hidden: z.boolean().optional(),
++    elevation: z.number().finite().optional(),
++  })
++  .strict();
++
 +const soundSchema = z
 +  .object({
 +    kind: z.literal('sound'),
@@ -41642,6 +41834,7 @@ index 0000000..da1485a
 +  wallSchema,
 +  noteSchema,
 +  tileSchema,
++  effectTileSchema,
 +  soundSchema,
 +]);
 +
@@ -41700,6 +41893,7 @@ index 0000000..da1485a
 +    updates: z.array(z.record(z.any())).min(1).max(200).optional(),
 +    ids: z.array(z.string().min(1)).max(500).optional(),
 +    all_mine: z.boolean().optional(),
++    search: z.string().min(2).max(60).optional(),
 +    kind: z.enum(['token', 'light', 'wall', 'note', 'tile', 'sound']).optional(),
 +  })
 +  .strict();
@@ -41834,10 +42028,10 @@ index 0000000..da1485a
 +      {
 +        name: 'manage-scene-objects',
 +        description:
-+          'Place tokens, lights, walls, map pins, tiles (pictures laid on the map: rugs, furniture, props) and ambient sounds on a scene by grid square, describe what is on a scene, or remove objects this tool created (it never removes anything else). ' +
++          'Place tokens, lights, walls, map pins, tiles (pictures laid on the map: rugs, furniture, props), animated effects (torches, braziers, campfires, fog, via Sequencer) and ambient sounds on a scene by grid square, describe what is on a scene, or remove objects this tool created (it never removes anything else). ' +
 +          'Positions are in GRID SQUARES from the top-left corner of the map image: (0, 0) is the top-left corner of the first square, (2.5, 1.5) the centre of the square in column 2, row 1 (counting from 0). ' +
 +          'Use preview-scene first to see the numbered grid. describe returns the scene grid size so you know the valid range. ' +
-+          'place takes objects (up to 200): {kind:"token", actor, x, y} puts the actor\'s token with its top-left corner at that square (use whole numbers; actor is an id or exact name); {kind:"light", x, y, bright, dim} makes a light at that point with radii in squares (optional color, alpha, angle, rotation, animation, hidden); {kind:"wall", points:[[x1,y1],[x2,y2],...]} draws walls along a chain of points (add closed:true to join the ends) or {kind:"wall", rect:[x,y,width,height]} draws the four walls of a rectangle, with preset wall (default), door, secret_door, invisible (blocks movement only) or window (blocks movement, lets light and sight through), and for doors door_state closed, open or locked; {kind:"note", x, y, journal, page?, text?} puts a map pin (the label text defaults to the journal name) that opens that journal or page when clicked; pins are only seen by players who may read the journal unless global is true. {kind:"tile", x, y, width, height, src, rotation?, alpha?, hidden?, elevation?} lays an image (a path in the Foundry files, e.g. an uploaded prop) over the map with its top-left corner at x, y and the given size in squares; {kind:"sound", x, y, radius, path, volume?, repeat?, walls?, easing?, hidden?} places a looping ambient sound audible within radius squares (path is an audio file in the Foundry files); tokens also accept width and height in squares (e.g. 2 for a Large creature) to override the actor\'s size. Use whole or half squares for wall points and make wall ends meet exactly, otherwise light and sight leak through gaps. ' +
++          'place takes objects (up to 200): {kind:"token", actor, x, y} puts the actor\'s token with its top-left corner at that square (use whole numbers; actor is an id or exact name); {kind:"light", x, y, bright, dim} makes a light at that point with radii in squares (optional color, alpha, angle, rotation, animation, hidden); {kind:"wall", points:[[x1,y1],[x2,y2],...]} draws walls along a chain of points (add closed:true to join the ends) or {kind:"wall", rect:[x,y,width,height]} draws the four walls of a rectangle, with preset wall (default), door, secret_door, invisible (blocks movement only) or window (blocks movement, lets light and sight through), and for doors door_state closed, open or locked; {kind:"note", x, y, journal, page?, text?} puts a map pin (the label text defaults to the journal name) that opens that journal or page when clicked; pins are only seen by players who may read the journal unless global is true. {kind:"tile", x, y, width, height, src, rotation?, alpha?, hidden?, elevation?} lays an image (a path in the Foundry files, e.g. an uploaded prop) over the map with its top-left corner at x, y and the given size in squares; {kind:"tile", x, y, effect, width?, height?} places an animated decor effect (a Sequencer effect, e.g. effect "jb2a.braziers.orange.bordered.01.05x05ft", or a few words such as "campfire" when only one effect matches) on an invisible tile at that square (size in squares, default 1); it keeps burning after reloads and is removed with the tile (remove or all_mine), and it can only be placed on the scene being viewed; find names with describe {search: "brazier"}; use decor to bring a room to life (braziers, campfires, bats in a cave), not on every map; {kind:"sound", x, y, radius, path, volume?, repeat?, walls?, easing?, hidden?} places a looping ambient sound audible within radius squares (path is an audio file in the Foundry files); tokens also accept width and height in squares (e.g. 2 for a Large creature) to override the actor\'s size. Use whole or half squares for wall points and make wall ends meet exactly, otherwise light and sight leak through gaps. ' +
 +          'update takes updates (up to 200): [{id, ...fields}] to change objects this tool placed, without removing them: x and y move it (grid squares; give one to keep the other), and per kind: token name, width, height, hidden, disposition, elevation; light bright, dim, color, alpha, angle, rotation, animation (null stops it), hidden; note text, font_size, icon_size, icon, global; tile width, height, src, rotation, alpha, elevation, hidden; sound radius, path, volume, repeat, walls, easing, hidden; wall door_state (closed, open, locked; doors only, walls cannot be moved). ' +
 +          'check_walls {scene?, fix?, tolerance?} reads the scene walls and reports ends that stop just short of another wall (gaps; with the square they should join), loose ends, doors touching no wall, duplicates, tiny and diagonal walls; fix:true repairs the gaps and duplicates of walls this tool placed (moves ends so they join) and reports the rest. Run it after placing or changing walls, then look at preview-scene. remove needs ids or all_mine:true (optionally with kind) and only removes objects created by this tool. scene is an id or exact name; it defaults to the scene the GM is viewing.',
 +        inputSchema: {
@@ -41888,6 +42082,7 @@ index 0000000..da1485a
 +                    description: 'token: size in squares (default the actor\'s); tile: height in squares',
 +                  },
 +                  src: { type: 'string', description: 'tile: image or video path in the Foundry files' },
++                  effect: { type: 'string', description: 'tile: an animated Sequencer effect instead of a picture (full path or a few words); needs no src' },
 +                  radius: { type: 'number', description: 'sound: audible radius in squares' },
 +                  path: { type: 'string', description: 'sound: audio file path in the Foundry files' },
 +                  volume: { type: 'number', description: 'sound: 0 to 1 (default 0.5)' },
@@ -41962,6 +42157,7 @@ index 0000000..da1485a
 +              type: 'boolean',
 +              description: 'remove: every object on the scene that this tool created',
 +            },
++            search: { type: 'string', description: 'describe: list the animated effects whose names contain these words (e.g. "brazier", "campfire", "fog"), instead of describing the scene' },
 +            kind: {
 +              type: 'string',
 +              enum: ['token', 'light', 'wall', 'note', 'tile', 'sound'],
