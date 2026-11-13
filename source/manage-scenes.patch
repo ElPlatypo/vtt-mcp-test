@@ -1960,6 +1960,100 @@ index 0000000..61d5487
 +  if (same) return undefined;
 +  return `It is ${current.name ?? 'someone else'}'s turn, not ${attacker.name}'s (fine for a reaction such as an opportunity attack)`;
 +}
+diff --git a/packages/foundry-module/src/bossbar-utils.test.ts b/packages/foundry-module/src/bossbar-utils.test.ts
+new file mode 100644
+index 0000000..3676463
+--- /dev/null
++++ b/packages/foundry-module/src/bossbar-utils.test.ts
+@@ -0,0 +1,33 @@
++import { describe, expect, it } from 'vitest';
++import { bossEntries, bossbarActive, bossbarStyles, resolveBarStyle } from './bossbar-utils.js';
++
++const styles = [
++  { id: 'default', name: 'Classic - Red' },
++  { id: 'evil', name: 'Evil' },
++  { id: 'royal', name: 'Royal' },
++];
++
++describe('bossbar helpers', () => {
++  it('knows whether the module is on', () => {
++    expect(bossbarActive({ modules: { get: () => ({ active: true }) } })).toBe(true);
++    expect(bossbarActive({ modules: { get: () => undefined } })).toBe(false);
++    expect(bossbarActive(undefined as any)).toBe(false);
++  });
++  it('reads the style list from the module setting', () => {
++    const g = { settings: { get: () => [{ id: 'evil', name: 'Evil' }, { nope: 1 }] } };
++    expect(bossbarStyles(g)).toEqual([{ id: 'evil', name: 'Evil' }]);
++    expect(bossbarStyles(undefined as any)).toEqual([]);
++  });
++  it('picks a style by id or name, default when none asked', () => {
++    expect(resolveBarStyle(styles)).toEqual({ id: 'default' });
++    expect(resolveBarStyle(styles, 'EVIL')).toEqual({ id: 'evil' });
++    expect(resolveBarStyle(styles, 'classic')).toEqual({ id: 'default' });
++    expect(resolveBarStyle(styles, 'neon')).toHaveProperty('error');
++  });
++  it('builds entries without duplicates', () => {
++    expect(bossEntries(['a', 'a', '', 'b'], 'evil', true)).toEqual([
++      { uuid: 'a', style: 'evil', hideName: true },
++      { uuid: 'b', style: 'evil', hideName: true },
++    ]);
++  });
++});
+diff --git a/packages/foundry-module/src/bossbar-utils.ts b/packages/foundry-module/src/bossbar-utils.ts
+new file mode 100644
+index 0000000..df1f22f
+--- /dev/null
++++ b/packages/foundry-module/src/bossbar-utils.ts
+@@ -0,0 +1,49 @@
++/**
++ * Bossbar integration (module id "bossbar"). The module keeps a scene flag `bossbar.actors`: a list of
++ * { uuid, style, hideName }, and draws a health bar at the top of the screen for each. Pure helpers.
++ */
++
++export const BOSSBAR_ID = 'bossbar';
++
++export function bossbarActive(g: any = (globalThis as any).game): boolean {
++  try {
++    return !!g?.modules?.get?.(BOSSBAR_ID)?.active;
++  } catch {
++    return false;
++  }
++}
++
++/** The bar styles the module offers (its world setting), as { id, name }. */
++export function bossbarStyles(g: any = (globalThis as any).game): Array<{ id: string; name: string }> {
++  try {
++    const list = g?.settings?.get?.(BOSSBAR_ID, 'barStyles');
++    return (Array.isArray(list) ? list : []).filter((s: any) => s?.id).map((s: any) => ({ id: String(s.id), name: String(s.name ?? s.id) }));
++  } catch {
++    return [];
++  }
++}
++
++/** A style by id or name (any case); no style asked for gives the default. */
++export function resolveBarStyle(styles: Array<{ id: string; name: string }>, wanted?: string): { id: string } | { error: string } {
++  if (!wanted) return { id: styles.find(s => s.id === 'default')?.id ?? styles[0]?.id ?? 'default' };
++  const k = wanted.trim().toLowerCase();
++  const hit = styles.find(s => s.id.toLowerCase() === k) ?? styles.find(s => s.name.toLowerCase() === k) ?? styles.find(s => s.name.toLowerCase().includes(k));
++  return hit ? { id: hit.id } : { error: `Unknown bar style "${wanted}". Styles: ${styles.map(s => s.id).join(', ')}` };
++}
++
++export interface BossEntry {
++  uuid: string;
++  style: string;
++  hideName: boolean;
++}
++
++export function bossEntries(uuids: string[], style: string, hideName: boolean): BossEntry[] {
++  const seen = new Set<string>();
++  const out: BossEntry[] = [];
++  for (const uuid of uuids) {
++    if (!uuid || seen.has(uuid)) continue;
++    seen.add(uuid);
++    out.push({ uuid, style, hideName });
++  }
++  return out;
++}
 diff --git a/packages/foundry-module/src/character-state-utils.test.ts b/packages/foundry-module/src/character-state-utils.test.ts
 new file mode 100644
 index 0000000..424321f
@@ -8542,10 +8636,10 @@ index 0000000..07712cf
 +  });
 +});
 diff --git a/packages/foundry-module/src/data-access.ts b/packages/foundry-module/src/data-access.ts
-index eecda7e..cd9e5f8 100644
+index eecda7e..a99dd29 100644
 --- a/packages/foundry-module/src/data-access.ts
 +++ b/packages/foundry-module/src/data-access.ts
-@@ -1,6 +1,148 @@
+@@ -1,6 +1,149 @@
  import { MODULE_ID, ERROR_MESSAGES, TOKEN_DISPOSITIONS } from './constants.js';
  import { permissionManager } from './permissions.js';
 +import {
@@ -8681,6 +8775,7 @@ index eecda7e..cd9e5f8 100644
 +import { moveCoins, pickItems, quantityToMove, type Purse } from './transfer-utils.js';
 +import { diceSettle } from './dice-settle.js';
 +import { blockedMessage, initiativeBlockers, monksActive } from './monks-combat-utils.js';
++import { BOSSBAR_ID, bossEntries, bossbarActive, bossbarStyles, resolveBarStyle } from './bossbar-utils.js';
 +import { healthLooks } from './health-estimate-utils.js';
 +import { markDownIfZero, markSurprised, performAttack, setDeathSaves, stabilize, performCheck, pickActivity, type NamedActor } from './combat-actions.js';
 +import { dnd5ePlayState, type PlayState } from './character-state-utils.js';
@@ -8694,7 +8789,7 @@ index eecda7e..cd9e5f8 100644
  
  // The same five characters foundry.utils.escapeHTML replaces in v14, kept local because
  // that helper isn't confirmed in v13, this module's minimum.
-@@ -33,6 +175,7 @@ interface CharacterInfo {
+@@ -33,6 +176,7 @@ interface CharacterInfo {
    itemVariants?: any[]; // Item rule element variants (ChoiceSet, etc.)
    itemToggles?: any[]; // Item rule element toggles (RollOption, ToggleProperty, equipped)
    spellcasting?: SpellcastingEntry[]; // PF2e/D&D 5e spellcasting entries
@@ -8702,7 +8797,7 @@ index eecda7e..cd9e5f8 100644
  }
  
  interface SpellcastingEntry {
-@@ -363,7 +506,8 @@ interface ItemTargetingResult {
+@@ -363,7 +507,8 @@ interface ItemTargetingResult {
   */
  class PersistentCreatureIndex {
    private moduleId: string = MODULE_ID;
@@ -8712,7 +8807,7 @@ index eecda7e..cd9e5f8 100644
    private readonly INDEX_FILENAME = 'enhanced-creature-index.json';
    private buildInProgress = false;
    private hooksRegistered = false;
-@@ -979,26 +1123,9 @@ class PersistentCreatureIndex {
+@@ -979,26 +1124,9 @@ class PersistentCreatureIndex {
          alignment = String(alignment || 'unaligned');
        }
  
@@ -8742,7 +8837,7 @@ index eecda7e..cd9e5f8 100644
  
        // DEBUG: Log what we extracted for comparison
  
-@@ -1714,6 +1841,89 @@ const DND5E_SIZE: Record<string, string> = {
+@@ -1714,6 +1842,92 @@ const DND5E_SIZE: Record<string, string> = {
    gargantuan: 'gargantuan',
  };
  
@@ -8756,6 +8851,9 @@ index eecda7e..cd9e5f8 100644
 +  initiative?: Array<{ name: string; value: number }>;
 +  amounts?: Array<{ target: string; amount: number }>;
 +  defeated?: boolean;
++  clear?: boolean;
++  style?: string;
++  hide_name?: boolean;
 +  attacker?: string;
 +  item?: string;
 +  targets?: string[];
@@ -8832,7 +8930,7 @@ index eecda7e..cd9e5f8 100644
  export class FoundryDataAccess {
    private moduleId: string = MODULE_ID;
    private persistentIndex: PersistentCreatureIndex = new PersistentCreatureIndex();
-@@ -1951,6 +2161,16 @@ export class FoundryDataAccess {
+@@ -1951,6 +2165,16 @@ export class FoundryDataAccess {
        characterData.spellcasting = spellcastingEntries;
      }
  
@@ -8849,7 +8947,7 @@ index eecda7e..cd9e5f8 100644
      return characterData;
    }
  
-@@ -3151,11 +3371,7 @@ export class FoundryDataAccess {
+@@ -3151,11 +3375,7 @@ export class FoundryDataAccess {
  
      // Legendary Actions filter
      if (filters.hasLegendaryActions !== undefined) {
@@ -8862,7 +8960,7 @@ index eecda7e..cd9e5f8 100644
        if (hasLegendary !== filters.hasLegendaryActions) {
          return false;
        }
-@@ -4681,12 +4897,28 @@ export class FoundryDataAccess {
+@@ -4681,12 +4901,28 @@ export class FoundryDataAccess {
        type: 'random' | 'grid' | 'center' | 'coordinates';
        coordinates?: { x: number; y: number }[];
      };
@@ -8891,7 +8989,7 @@ index eecda7e..cd9e5f8 100644
        // Validate inputs
        if (!packId || !itemId) {
          throw new Error('Both packId and itemId are required');
-@@ -4753,10 +4985,33 @@ export class FoundryDataAccess {
+@@ -4753,10 +4989,33 @@ export class FoundryDataAccess {
            }
  
            // Organize created actors in a folder - use "Foundry MCP Creatures" for generic monsters
@@ -8926,7 +9024,7 @@ index eecda7e..cd9e5f8 100644
  
            // Create the actor
            const newActor = await Actor.create(actorData);
-@@ -6021,21 +6276,22 @@ export class FoundryDataAccess {
+@@ -6021,21 +6280,22 @@ export class FoundryDataAccess {
        // For now, we'll just create the button and let the rendering logic handle the state restoration
  
        const rollButtonHtml = `
@@ -8953,7 +9051,7 @@ index eecda7e..cd9e5f8 100644
              </button>
            </div>
          </div>
-@@ -6074,6 +6330,8 @@ export class FoundryDataAccess {
+@@ -6074,6 +6334,8 @@ export class FoundryDataAccess {
          whisper: whisperTargets,
          flags: {
            [MODULE_ID]: {
@@ -8962,7 +9060,7 @@ index eecda7e..cd9e5f8 100644
              rollButtons: {
                [buttonId]: {
                  rolled: false,
-@@ -6399,6 +6657,8 @@ export class FoundryDataAccess {
+@@ -6399,6 +6661,8 @@ export class FoundryDataAccess {
          return `${rollTarget} Attack (${visibility})`;
        case 'initiative':
          return `Initiative Roll (${visibility})`;
@@ -8971,7 +9069,7 @@ index eecda7e..cd9e5f8 100644
        case 'custom':
          return `Custom Roll (${visibility})`;
        default:
-@@ -6498,6 +6758,7 @@ export class FoundryDataAccess {
+@@ -6498,6 +6762,7 @@ export class FoundryDataAccess {
  
        const rollFormula = button.data('roll-formula');
        const rollLabel = button.data('roll-label');
@@ -8979,7 +9077,7 @@ index eecda7e..cd9e5f8 100644
        const isPublicRaw = button.data('is-public');
        const isPublic = isPublicRaw === true || isPublicRaw === 'true'; // Convert to proper boolean
        const characterId = button.data('character-id');
-@@ -6515,13 +6776,22 @@ export class FoundryDataAccess {
+@@ -6515,13 +6780,22 @@ export class FoundryDataAccess {
        }
  
        try {
@@ -9005,7 +9103,7 @@ index eecda7e..cd9e5f8 100644
          // Use the modern Foundry v13 approach with roll.toMessage()
          const rollMode = isPublic ? 'publicroll' : 'whisper';
          const whisperTargets: string[] = [];
-@@ -6714,7 +6984,7 @@ export class FoundryDataAccess {
+@@ -6714,7 +6988,7 @@ export class FoundryDataAccess {
  
          // Send socket request to GM
          if (game.socket) {
@@ -9014,7 +9112,7 @@ index eecda7e..cd9e5f8 100644
              type: 'requestMessageUpdate',
              buttonId,
              userId,
-@@ -6744,7 +7014,7 @@ export class FoundryDataAccess {
+@@ -6744,7 +7018,7 @@ export class FoundryDataAccess {
  
        // Create the rolled state HTML
        const rolledHtml = `
@@ -9023,7 +9121,7 @@ index eecda7e..cd9e5f8 100644
            <p><strong>Roll Request:</strong> ${rollLabel}</p>
            <p><strong>Status:</strong> ✅ <strong>Completed by ${rolledByName}</strong> at ${timestamp}</p>
          </div>
-@@ -7603,6 +7873,7 @@ export class FoundryDataAccess {
+@@ -7603,6 +7877,7 @@ export class FoundryDataAccess {
      if (applyPolyglot) {
        messageData.flags = { polyglot: { language: data.language } };
      }
@@ -9031,7 +9129,7 @@ index eecda7e..cd9e5f8 100644
      if (whisperIds.length > 0) {
        messageData.whisper = whisperIds;
      }
-@@ -8101,223 +8372,4881 @@ export class FoundryDataAccess {
+@@ -8101,223 +8376,4908 @@ export class FoundryDataAccess {
      }
    }
  
@@ -10414,7 +10512,7 @@ index eecda7e..cd9e5f8 100644
 +  async controlCombat(data: CombatRequest): Promise<any> {
 +    this.validateFoundryState();
 +    const action = data?.action;
-+    const ACTIONS = ['status', 'start', 'add', 'remove', 'roll', 'set_initiative', 'next', 'previous', 'next_round', 'damage', 'heal', 'defeat', 'stabilize', 'death_saves', 'end', 'attack', 'check'];
++    const ACTIONS = ['status', 'start', 'add', 'remove', 'roll', 'set_initiative', 'next', 'previous', 'next_round', 'damage', 'heal', 'defeat', 'stabilize', 'death_saves', 'boss', 'end', 'attack', 'check'];
 +    if (!ACTIONS.includes(action as string)) throw new Error(`action must be one of: ${ACTIONS.join(', ')}`);
 +    if (action !== 'status') {
 +      const gate = permissionManager.checkWritePermission('modifyScene', {});
@@ -10759,6 +10857,33 @@ index eecda7e..cd9e5f8 100644
 +            for (const c of hit) await c.doc.update({ defeated: data.defeated !== false });
 +          }
 +          if (missing.length) out.notFound = missing;
++          break;
++        }
++
++        case 'boss': {
++          if (!bossbarActive()) throw new Error('The Bossbar module is not active in this world');
++          const scene = this.resolveSceneForObjects(data.scene);
++          const current = (): any[] => (scene.getFlag?.(BOSSBAR_ID, 'actors') as any[]) ?? [];
++          const names = data.names ?? [];
++          if (data.clear) {
++            await scene.unsetFlag(BOSSBAR_ID, 'actors');
++            out.cleared = current().length === 0;
++            out.bosses = [];
++            break;
++          }
++          if (names.length === 0) {
++            out.bosses = current().map(e => ({ name: (globalThis as any).fromUuidSync?.(e.uuid)?.name ?? e.uuid, style: e.style, hideName: !!e.hideName }));
++            break;
++          }
++          const style = resolveBarStyle(bossbarStyles(), data.style);
++          if ('error' in style) throw new Error(style.error);
++          const found = resolveNamed(names);
++          if (found.length === 0) throw new Error(`No creature found for: ${names.join(', ')}`);
++          const entries = bossEntries(found.map(f => String(f.actor?.uuid ?? '')), style.id, data.hide_name === true);
++          await scene.setFlag(BOSSBAR_ID, 'actors', entries);
++          out.scene = scene.name;
++          out.bosses = found.map(f => ({ name: f.name, style: style.id, hideName: data.hide_name === true, hp: `${Number(f.actor?.system?.attributes?.hp?.value ?? 0)}/${Number(f.actor?.system?.attributes?.hp?.max ?? 0)}` }));
++          out.note = 'Players see the bar with the real hit points proportion, for the scene being viewed. Use boss with clear:true when the fight is over.';
 +          break;
 +        }
 +
@@ -14096,7 +14221,7 @@ index eecda7e..cd9e5f8 100644
        }
      } catch (error) {
        throw new Error(
-@@ -8468,6 +13397,59 @@ export class FoundryDataAccess {
+@@ -8468,6 +13428,59 @@ export class FoundryDataAccess {
      }
    }
  
@@ -14156,7 +14281,7 @@ index eecda7e..cd9e5f8 100644
    /**
     * Move a token to a new position on the scene
     */
-@@ -8476,6 +13458,12 @@ export class FoundryDataAccess {
+@@ -8476,6 +13489,12 @@ export class FoundryDataAccess {
      x: number;
      y: number;
      animate?: boolean;
@@ -14169,7 +14294,7 @@ index eecda7e..cd9e5f8 100644
    }): Promise<any> {
      this.validateFoundryState();
  
-@@ -8489,33 +13477,79 @@ export class FoundryDataAccess {
+@@ -8489,33 +13508,79 @@ export class FoundryDataAccess {
      }
  
      try {
@@ -14266,7 +14391,7 @@ index eecda7e..cd9e5f8 100644
        };
      } catch (error) {
        this.auditLog(
-@@ -8530,10 +13564,95 @@ export class FoundryDataAccess {
+@@ -8530,10 +13595,95 @@ export class FoundryDataAccess {
      }
    }
  
@@ -14363,7 +14488,7 @@ index eecda7e..cd9e5f8 100644
      this.validateFoundryState();
  
      // Use permission system
-@@ -8546,23 +13665,21 @@ export class FoundryDataAccess {
+@@ -8546,23 +13696,21 @@ export class FoundryDataAccess {
      }
  
      try {
@@ -14397,7 +14522,7 @@ index eecda7e..cd9e5f8 100644
  
        this.auditLog('updateToken', { tokenId: data.tokenId, updates: cleanUpdates }, 'success');
  
-@@ -8570,7 +13687,8 @@ export class FoundryDataAccess {
+@@ -8570,7 +13718,8 @@ export class FoundryDataAccess {
          success: true,
          tokenId: token.id,
          tokenName: token.name,
@@ -14407,7 +14532,7 @@ index eecda7e..cd9e5f8 100644
        };
      } catch (error) {
        this.auditLog(
-@@ -8651,19 +13769,12 @@ export class FoundryDataAccess {
+@@ -8651,19 +13800,12 @@ export class FoundryDataAccess {
    /**
     * Get detailed information about a token
     */
@@ -14430,7 +14555,7 @@ index eecda7e..cd9e5f8 100644
  
        // Return flat structure that matches MCP server expectations
        return {
-@@ -11274,7 +16385,10 @@ export class FoundryDataAccess {
+@@ -11274,7 +16416,10 @@ export class FoundryDataAccess {
        name: string;
        type: string;
        img?: string;
@@ -14441,7 +14566,7 @@ index eecda7e..cd9e5f8 100644
      }>;
      folder?: string;
    }): Promise<{ created: Array<{ id: string; name: string; type: string }>; total: number }> {
-@@ -11286,6 +16400,19 @@ export class FoundryDataAccess {
+@@ -11286,6 +16431,19 @@ export class FoundryDataAccess {
      const docs = params.actors.map(a => {
        const doc: Record<string, any> = { name: a.name, type: a.type };
        if (a.img) doc.img = a.img;
@@ -14461,7 +14586,7 @@ index eecda7e..cd9e5f8 100644
  
        // Merge system data, adding safe defaults for systems that require certain
        // fields to exist during data preparation (avoids non-fatal init errors).
-@@ -11423,6 +16550,14 @@ export class FoundryDataAccess {
+@@ -11423,6 +16581,14 @@ export class FoundryDataAccess {
          };
        }
  
@@ -14476,7 +14601,7 @@ index eecda7e..cd9e5f8 100644
        doc.system = systemData;
        if (folderId) doc.folder = folderId;
        return doc;
-@@ -11471,7 +16606,16 @@ export class FoundryDataAccess {
+@@ -11471,7 +16637,16 @@ export class FoundryDataAccess {
     * Merges supplied fields into the actor (top-level keys overwrite).
     */
    async updateActors(
@@ -14494,7 +14619,7 @@ index eecda7e..cd9e5f8 100644
    ): Promise<{ updated: Array<{ id: string; name: string }>; total: number }> {
      const updatedActors: Array<{ id: string; name: string }> = [];
  
-@@ -11482,6 +16626,7 @@ export class FoundryDataAccess {
+@@ -11482,6 +16657,7 @@ export class FoundryDataAccess {
        const patch: Record<string, any> = {};
        if (u.name !== undefined) patch.name = u.name;
        if (u.img !== undefined) patch.img = u.img;
@@ -14502,7 +14627,7 @@ index eecda7e..cd9e5f8 100644
        if (u.system !== undefined) {
          // Build a single patch.system nested object so Foundry deep-merges everything
          // in one pass without flat-key vs nested-key conflicts.
-@@ -11504,6 +16649,19 @@ export class FoundryDataAccess {
+@@ -11504,6 +16680,19 @@ export class FoundryDataAccess {
          }
          patch.system = systemPatch;
        }
@@ -14522,7 +14647,7 @@ index eecda7e..cd9e5f8 100644
  
        await actor.update(patch);
        updatedActors.push({ id: actor.id, name: u.name ?? actor.name });
-@@ -11706,6 +16864,199 @@ export class FoundryDataAccess {
+@@ -11706,6 +16895,199 @@ export class FoundryDataAccess {
      return { deleted: existing, total: existing.length };
    }
  
@@ -14639,7 +14764,7 @@ index eecda7e..cd9e5f8 100644
 +        counters,
 +        items,
 +        stagedHidden: hidden.size,
-+        weight: { items: weight?.itemWeight ?? null, coins: weight?.coinSum ?? null, capacity: enforced ? Number((game as any).settings.get('quartermaster', 'capacityLimit')) : null },
++        weight: { items: weight?.itemWeight ?? items.reduce((sum, i) => sum + i.quantity * i.weight, 0), coins: weight?.coinSum ?? null, capacity: enforced ? Number((game as any).settings.get('quartermaster', 'capacityLimit')) : null },
 +      };
 +    };
 +
@@ -31353,10 +31478,10 @@ index 0000000..ef4d95e
 +});
 diff --git a/packages/mcp-server/src/tools/combat-tools.ts b/packages/mcp-server/src/tools/combat-tools.ts
 new file mode 100644
-index 0000000..35eb1eb
+index 0000000..233ccd3
 --- /dev/null
 +++ b/packages/mcp-server/src/tools/combat-tools.ts
-@@ -0,0 +1,101 @@
+@@ -0,0 +1,107 @@
 +import { z } from 'zod';
 +import { FoundryClient } from '../foundry-client.js';
 +import { Logger } from '../logger.js';
@@ -31366,7 +31491,7 @@ index 0000000..35eb1eb
 +  logger: Logger;
 +}
 +
-+const ACTIONS = ['status', 'start', 'add', 'remove', 'roll', 'set_initiative', 'next', 'previous', 'next_round', 'damage', 'heal', 'defeat', 'stabilize', 'death_saves', 'end', 'attack', 'check'] as const;
++const ACTIONS = ['status', 'start', 'add', 'remove', 'roll', 'set_initiative', 'next', 'previous', 'next_round', 'damage', 'heal', 'defeat', 'stabilize', 'death_saves', 'boss', 'end', 'attack', 'check'] as const;
 +
 +const schema = z
 +  .object({
@@ -31395,6 +31520,9 @@ index 0000000..35eb1eb
 +    surprised: z.array(z.string().min(1)).max(60).optional(),
 +    success: z.number().int().min(0).max(3).optional(),
 +    failure: z.number().int().min(0).max(3).optional(),
++    clear: z.boolean().optional(),
++    style: z.string().min(1).optional(),
++    hide_name: z.boolean().optional(),
 +  })
 +  .strict();
 +
@@ -31413,14 +31541,14 @@ index 0000000..35eb1eb
 +        name: 'combat',
 +        description:
 +          'Run the combat tracker (Foundry\'s own, so tracker modules keep working). Every action returns a short readout: round, whose turn, and one line per combatant in order (initiative, name, hp, conditions). ' +
-+          'ACTIONS: status; start {scene?, who?, roll?, begin?, surprised?} makes the encounter from tokens on the scene (who = list of: "all" (default), "hostile", "friendly", "neutral", "players", "npcs", or token/actor names; hidden tokens are included), rolls initiative for the ones without one (roll: missing (default) | npcs | all | none) and begins it (begin:false to only set it up); add {who, roll?} adds more tokens mid-fight; remove {names}; roll {names? | roll?} rolls initiative (default for everyone still without one); set_initiative {initiative:[{name, value}]}; next, previous, next_round move the turn (the first next begins the combat); damage / heal {amounts:[{target, amount}]} apply to combatants (or scene tokens) by name, through the system rules (temp HP, resistances are the system\'s job) and report hp before and after; defeat {names, defeated?(true)} marks defeated or not; stabilize {names} makes dying characters stable (3 death save successes, 0 failures); death_saves {names, success?, failure?} sets the death save counts (0 to 3; the sheet shows them; 3 failures mark the character dead and defeated); surprised (on start) lists creatures that get the Surprised status for the first round; a character reduced to 0 hp by damage here becomes unconscious and prone; with Monk\'s Combat Details on, NPCs are marked defeated automatically at 0 hp (no defeat call needed), a heal brings a defeated creature back (revived:true), and a start or next with someone lacking an initiative is refused with a clear message (roll or set_initiative first); end ends and deletes the encounter. ATTACK AND CHECK (the dnd5e system does the maths: modifiers, advantage, critical hits, resistances, chat cards): attack {attacker, item?, targets?, advantage?, disadvantage?, apply?(true)} uses an item of the attacker (default its first attack or save): spends its charges or slot, rolls the attack against each target (the target is targeted first, so the roll uses its AC and the card shows hit or miss), rolls damage on a hit (double dice on a crit) and applies it, reporting roll, natural, hit, damage and hp before and after; a save item (a breath weapon) rolls damage once and each target rolls a saving throw against its DC; apply:false rolls without applying. Before rolling, the distance from attacker to each target token is checked against the weapon reach or the range: out of range is refused (ignore_range:true rolls anyway), beyond normal range rolls with disadvantage; the result lists warnings, such as an attack made outside the attacker turn or a target already at 0 hp. check {who:[names], skill | ability | save, dc?, advantage?, disadvantage?} rolls a skill (perception or prc), an ability check or a saving throw (dex or dexterity) for each name and reports totals and success against dc. Rolls are posted to the GM only unless public:true. attacker, targets and who match combatants, then scene tokens, then actors. Names match exactly, else part of a name or the actor name. Needs the Foundry tab open in a browser.',
++          'ACTIONS: status; start {scene?, who?, roll?, begin?, surprised?} makes the encounter from tokens on the scene (who = list of: "all" (default), "hostile", "friendly", "neutral", "players", "npcs", or token/actor names; hidden tokens are included), rolls initiative for the ones without one (roll: missing (default) | npcs | all | none) and begins it (begin:false to only set it up); add {who, roll?} adds more tokens mid-fight; remove {names}; roll {names? | roll?} rolls initiative (default for everyone still without one); set_initiative {initiative:[{name, value}]}; next, previous, next_round move the turn (the first next begins the combat); damage / heal {amounts:[{target, amount}]} apply to combatants (or scene tokens) by name, through the system rules (temp HP, resistances are the system\'s job) and report hp before and after; defeat {names, defeated?(true)} marks defeated or not; stabilize {names} makes dying characters stable (3 death save successes, 0 failures); death_saves {names, success?, failure?} sets the death save counts (0 to 3; the sheet shows them; 3 failures mark the character dead and defeated); boss {names, style?, hide_name?} / boss {clear:true} puts the Bossbar health bar at the top of every player\'s screen for the creatures named (replacing the earlier ones; no names lists the current ones): ONLY for a dangerous mini-boss or boss, the moment you want the table to feel that an enemy is very strong (Klarg, Yeemik, a dragon), never for ordinary encounters or packs; it shows the true hit point proportion, and clear it when the fight ends; surprised (on start) lists creatures that get the Surprised status for the first round; a character reduced to 0 hp by damage here becomes unconscious and prone; with Monk\'s Combat Details on, NPCs are marked defeated automatically at 0 hp (no defeat call needed), a heal brings a defeated creature back (revived:true), and a start or next with someone lacking an initiative is refused with a clear message (roll or set_initiative first); end ends and deletes the encounter. ATTACK AND CHECK (the dnd5e system does the maths: modifiers, advantage, critical hits, resistances, chat cards): attack {attacker, item?, targets?, advantage?, disadvantage?, apply?(true)} uses an item of the attacker (default its first attack or save): spends its charges or slot, rolls the attack against each target (the target is targeted first, so the roll uses its AC and the card shows hit or miss), rolls damage on a hit (double dice on a crit) and applies it, reporting roll, natural, hit, damage and hp before and after; a save item (a breath weapon) rolls damage once and each target rolls a saving throw against its DC; apply:false rolls without applying. Before rolling, the distance from attacker to each target token is checked against the weapon reach or the range: out of range is refused (ignore_range:true rolls anyway), beyond normal range rolls with disadvantage; the result lists warnings, such as an attack made outside the attacker turn or a target already at 0 hp. check {who:[names], skill | ability | save, dc?, advantage?, disadvantage?} rolls a skill (perception or prc), an ability check or a saving throw (dex or dexterity) for each name and reports totals and success against dc. Rolls are posted to the GM only unless public:true. attacker, targets and who match combatants, then scene tokens, then actors. Names match exactly, else part of a name or the actor name. Needs the Foundry tab open in a browser.',
 +        inputSchema: {
 +          type: 'object',
 +          properties: {
 +            action: { type: 'string', enum: [...ACTIONS] },
 +            scene: { type: 'string', description: 'start, add, damage, heal: scene id or exact name (default the one being viewed)' },
 +            who: { type: 'array', items: { type: 'string' }, description: 'check: names to roll for. start, add: "all", "hostile", "friendly", "neutral", "players", "npcs" or token/actor names' },
-+            names: { type: 'array', items: { type: 'string' }, description: 'remove, roll, defeat, stabilize, death_saves: combatant names' },
++            names: { type: 'array', items: { type: 'string' }, description: 'remove, roll, defeat, stabilize, death_saves, boss: combatant (or scene token) names' },
 +            roll: { type: 'string', enum: ['none', 'missing', 'npcs', 'all'], description: 'start, add, roll: who to roll initiative for (default missing)' },
 +            begin: { type: 'boolean', description: 'start: begin the combat after setting it up (default true)' },
 +            initiative: { type: 'array', items: { type: 'object', properties: { name: { type: 'string' }, value: { type: 'number' } }, required: ['name', 'value'], additionalProperties: false }, description: 'set_initiative: [{name, value}]' },
@@ -31441,6 +31569,9 @@ index 0000000..35eb1eb
 +            surprised: { type: 'array', items: { type: 'string' }, description: 'start: creatures (names) surprised in the first round' },
 +            success: { type: 'number', description: 'death_saves: death save successes to set (0 to 3)' },
 +            failure: { type: 'number', description: 'death_saves: death save failures to set (0 to 3)' },
++            clear: { type: 'boolean', description: 'boss: take the boss bar down' },
++            style: { type: 'string', description: 'boss: bar style id or name (default, default-ice, default-grass, default-oak, evil, gears, ooze, royal, segmented, steampunk)' },
++            hide_name: { type: 'boolean', description: 'boss: hide the creature name on the bar (default false)' },
 +            public: { type: 'boolean', description: 'attack, check: post the rolls for everyone (default: GM only, so hidden monsters are not given away)' },
 +          },
 +          required: ['action'],
