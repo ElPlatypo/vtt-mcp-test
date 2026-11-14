@@ -445,8 +445,8 @@ var init_parseUtil = __esm({
     init_errors();
     init_en();
     makeIssue = (params) => {
-      const { data, path: path14, errorMaps, issueData } = params;
-      const fullPath = [...path14, ...issueData.path || []];
+      const { data, path: path13, errorMaps, issueData } = params;
+      const fullPath = [...path13, ...issueData.path || []];
       const fullIssue = {
         ...issueData,
         path: fullPath
@@ -754,11 +754,11 @@ var init_types = __esm({
     init_parseUtil();
     init_util();
     ParseInputLazyPath = class {
-      constructor(parent, value, path14, key) {
+      constructor(parent, value, path13, key) {
         this._cachedPath = [];
         this.parent = parent;
         this.data = value;
-        this._path = path14;
+        this._path = path13;
         this._key = key;
       }
       get path() {
@@ -4210,8 +4210,8 @@ var require_package = __commonJS({
 // ../../node_modules/dotenv/lib/main.js
 var require_main = __commonJS({
   "../../node_modules/dotenv/lib/main.js"(exports2, module2) {
-    var fs14 = require("fs");
-    var path14 = require("path");
+    var fs13 = require("fs");
+    var path13 = require("path");
     var os8 = require("os");
     var crypto7 = require("crypto");
     var packageJson = require_package();
@@ -4319,7 +4319,7 @@ var require_main = __commonJS({
       if (options && options.path && options.path.length > 0) {
         if (Array.isArray(options.path)) {
           for (const filepath of options.path) {
-            if (fs14.existsSync(filepath)) {
+            if (fs13.existsSync(filepath)) {
               possibleVaultPath = filepath.endsWith(".vault") ? filepath : `${filepath}.vault`;
             }
           }
@@ -4327,15 +4327,15 @@ var require_main = __commonJS({
           possibleVaultPath = options.path.endsWith(".vault") ? options.path : `${options.path}.vault`;
         }
       } else {
-        possibleVaultPath = path14.resolve(process.cwd(), ".env.vault");
+        possibleVaultPath = path13.resolve(process.cwd(), ".env.vault");
       }
-      if (fs14.existsSync(possibleVaultPath)) {
+      if (fs13.existsSync(possibleVaultPath)) {
         return possibleVaultPath;
       }
       return null;
     }
     function _resolveHome(envPath) {
-      return envPath[0] === "~" ? path14.join(os8.homedir(), envPath.slice(1)) : envPath;
+      return envPath[0] === "~" ? path13.join(os8.homedir(), envPath.slice(1)) : envPath;
     }
     function _configVault(options) {
       const debug = Boolean(options && options.debug);
@@ -4352,7 +4352,7 @@ var require_main = __commonJS({
       return { parsed };
     }
     function configDotenv(options) {
-      const dotenvPath = path14.resolve(process.cwd(), ".env");
+      const dotenvPath = path13.resolve(process.cwd(), ".env");
       let encoding = "utf8";
       const debug = Boolean(options && options.debug);
       const quiet = options && "quiet" in options ? options.quiet : true;
@@ -4376,13 +4376,13 @@ var require_main = __commonJS({
       }
       let lastError;
       const parsedAll = {};
-      for (const path15 of optionPaths) {
+      for (const path14 of optionPaths) {
         try {
-          const parsed = DotenvModule.parse(fs14.readFileSync(path15, { encoding }));
+          const parsed = DotenvModule.parse(fs13.readFileSync(path14, { encoding }));
           DotenvModule.populate(parsedAll, parsed, options);
         } catch (e) {
           if (debug) {
-            _debug(`Failed to load ${path15} ${e.message}`);
+            _debug(`Failed to load ${path14} ${e.message}`);
           }
           lastError = e;
         }
@@ -4397,7 +4397,7 @@ var require_main = __commonJS({
         const shortPaths = [];
         for (const filePath of optionPaths) {
           try {
-            const relative = path14.relative(process.cwd(), filePath);
+            const relative = path13.relative(process.cwd(), filePath);
             shortPaths.push(relative);
           } catch (e) {
             if (debug) {
@@ -9854,8 +9854,8 @@ var require_stream_writable = __commonJS({
       }
     }
     function finishMaybe(stream4, state) {
-      var need = needFinish(state);
-      if (need) {
+      var need2 = needFinish(state);
+      if (need2) {
         prefinish(stream4, state);
         if (state.pendingcb === 0) {
           state.finished = true;
@@ -9868,7 +9868,7 @@ var require_stream_writable = __commonJS({
           }
         }
       }
-      return need;
+      return need2;
     }
     function endWritable(stream4, state, cb) {
       state.ending = true;
@@ -12421,15 +12421,15 @@ var require_route = __commonJS({
       };
     }
     function wrapConversion(toModel, graph) {
-      var path14 = [graph[toModel].parent, toModel];
+      var path13 = [graph[toModel].parent, toModel];
       var fn = conversions[graph[toModel].parent][toModel];
       var cur = graph[toModel].parent;
       while (graph[cur].parent) {
-        path14.unshift(graph[cur].parent);
+        path13.unshift(graph[cur].parent);
         fn = link(conversions[graph[cur].parent][cur], fn);
         cur = graph[cur].parent;
       }
-      fn.conversion = path14;
+      fn.conversion = path13;
       return fn;
     }
     module2.exports = function(fromModel) {
@@ -13086,7 +13086,7 @@ var require_node2 = __commonJS({
 var require_tail_file = __commonJS({
   "../../node_modules/winston/lib/winston/tail-file.js"(exports2, module2) {
     "use strict";
-    var fs14 = require("fs");
+    var fs13 = require("fs");
     var { StringDecoder } = require("string_decoder");
     var { Stream } = require_readable();
     function noop2() {
@@ -13107,7 +13107,7 @@ var require_tail_file = __commonJS({
         stream4.emit("end");
         stream4.emit("close");
       };
-      fs14.open(options.file, "a+", "0644", (err, fd) => {
+      fs13.open(options.file, "a+", "0644", (err, fd) => {
         if (err) {
           if (!iter) {
             stream4.emit("error", err);
@@ -13119,10 +13119,10 @@ var require_tail_file = __commonJS({
         }
         (function read() {
           if (stream4.destroyed) {
-            fs14.close(fd, noop2);
+            fs13.close(fd, noop2);
             return;
           }
-          return fs14.read(fd, buffer, 0, buffer.length, pos, (error, bytes) => {
+          return fs13.read(fd, buffer, 0, buffer.length, pos, (error, bytes) => {
             if (error) {
               if (!iter) {
                 stream4.emit("error", error);
@@ -13181,8 +13181,8 @@ var require_tail_file = __commonJS({
 var require_file = __commonJS({
   "../../node_modules/winston/lib/winston/transports/file.js"(exports2, module2) {
     "use strict";
-    var fs14 = require("fs");
-    var path14 = require("path");
+    var fs13 = require("fs");
+    var path13 = require("path");
     var asyncSeries = require_series();
     var zlib3 = require("zlib");
     var { MESSAGE } = require_triple_beam();
@@ -13212,14 +13212,14 @@ var require_file = __commonJS({
         this._onError = this._onError.bind(this);
         if (options.filename || options.dirname) {
           throwIf("filename or dirname", "stream");
-          this._basename = this.filename = options.filename ? path14.basename(options.filename) : "winston.log";
-          this.dirname = options.dirname || path14.dirname(options.filename);
+          this._basename = this.filename = options.filename ? path13.basename(options.filename) : "winston.log";
+          this.dirname = options.dirname || path13.dirname(options.filename);
           this.options = options.options || { flags: "a" };
         } else if (options.stream) {
           console.warn("options.stream will be removed in winston@4. Use winston.transports.Stream");
           throwIf("stream", "filename", "maxsize");
           this._dest = this._stream.pipe(this._setupStream(options.stream));
-          this.dirname = path14.dirname(this._dest.path);
+          this.dirname = path13.dirname(this._dest.path);
         } else {
           throw new Error("Cannot log to file without filename or stream.");
         }
@@ -13362,11 +13362,11 @@ var require_file = __commonJS({
           options = {};
         }
         options = normalizeQuery(options);
-        const file = path14.join(this.dirname, this.filename);
+        const file = path13.join(this.dirname, this.filename);
         let buff = "";
         let results = [];
         let row2 = 0;
-        const stream4 = fs14.createReadStream(file, {
+        const stream4 = fs13.createReadStream(file, {
           encoding: "utf8"
         });
         stream4.on("error", (err) => {
@@ -13468,7 +13468,7 @@ var require_file = __commonJS({
        * TODO: Refactor me.
        */
       stream(options = {}) {
-        const file = path14.join(this.dirname, this.filename);
+        const file = path13.join(this.dirname, this.filename);
         const stream4 = new Stream();
         const tail = {
           file,
@@ -13520,8 +13520,8 @@ var require_file = __commonJS({
        */
       stat(callback) {
         const target2 = this._getFile();
-        const fullpath = path14.join(this.dirname, target2);
-        fs14.stat(fullpath, (err, stat) => {
+        const fullpath = path13.join(this.dirname, target2);
+        fs13.stat(fullpath, (err, stat) => {
           if (err && err.code === "ENOENT") {
             debug("ENOENT\xA0ok", fullpath);
             this.filename = target2;
@@ -13624,9 +13624,9 @@ var require_file = __commonJS({
        * @returns {WritableStream} Stream that writes to disk for the active file.
        */
       _createStream(source) {
-        const fullpath = path14.join(this.dirname, this.filename);
+        const fullpath = path13.join(this.dirname, this.filename);
         debug("create stream start", fullpath, this.options);
-        const dest = fs14.createWriteStream(fullpath, this.options).on("error", (err) => debug(err)).on("close", () => debug("close", dest.path, dest.bytesWritten)).on("open", () => {
+        const dest = fs13.createWriteStream(fullpath, this.options).on("error", (err) => debug(err)).on("close", () => debug("close", dest.path, dest.bytesWritten)).on("open", () => {
           debug("file open ok", fullpath);
           this.emit("open", fullpath);
           source.pipe(dest);
@@ -13649,16 +13649,16 @@ var require_file = __commonJS({
        */
       _incFile(callback) {
         debug("_incFile", this.filename);
-        const ext = path14.extname(this._basename);
-        const basename2 = path14.basename(this._basename, ext);
+        const ext = path13.extname(this._basename);
+        const basename2 = path13.basename(this._basename, ext);
         const tasks = [];
         if (this.zippedArchive) {
           tasks.push(
             function(cb) {
               const num3 = this._created > 0 && !this.tailable ? this._created : "";
               this._compressFile(
-                path14.join(this.dirname, `${basename2}${num3}${ext}`),
-                path14.join(this.dirname, `${basename2}${num3}${ext}.gz`),
+                path13.join(this.dirname, `${basename2}${num3}${ext}`),
+                path13.join(this.dirname, `${basename2}${num3}${ext}.gz`),
                 cb
               );
             }.bind(this)
@@ -13683,8 +13683,8 @@ var require_file = __commonJS({
        * @private
        */
       _getFile() {
-        const ext = path14.extname(this._basename);
-        const basename2 = path14.basename(this._basename, ext);
+        const ext = path13.extname(this._basename);
+        const basename2 = path13.basename(this._basename, ext);
         const isRotation = this.rotationFormat ? this.rotationFormat() : this._created;
         return !this.tailable && this._created ? `${basename2}${isRotation}${ext}` : `${basename2}${ext}`;
       }
@@ -13704,8 +13704,8 @@ var require_file = __commonJS({
         const isOldest = oldest !== 0 ? oldest : "";
         const isZipped = this.zippedArchive ? ".gz" : "";
         const filePath = `${basename2}${isOldest}${ext}${isZipped}`;
-        const target2 = path14.join(this.dirname, filePath);
-        fs14.unlink(target2, callback);
+        const target2 = path13.join(this.dirname, filePath);
+        fs13.unlink(target2, callback);
       }
       /**
        * Roll files forward based on integer, up to maxFiles. e.g. if base if
@@ -13727,20 +13727,20 @@ var require_file = __commonJS({
         for (let x = this.maxFiles - 1; x > 1; x--) {
           tasks.push(function(i, cb) {
             let fileName = `${basename2}${i - 1}${ext}${isZipped}`;
-            const tmppath = path14.join(this.dirname, fileName);
-            fs14.exists(tmppath, (exists) => {
+            const tmppath = path13.join(this.dirname, fileName);
+            fs13.exists(tmppath, (exists) => {
               if (!exists) {
                 return cb(null);
               }
               fileName = `${basename2}${i}${ext}${isZipped}`;
-              fs14.rename(tmppath, path14.join(this.dirname, fileName), cb);
+              fs13.rename(tmppath, path13.join(this.dirname, fileName), cb);
             });
           }.bind(this, x));
         }
         asyncSeries(tasks, () => {
-          fs14.rename(
-            path14.join(this.dirname, `${basename2}${ext}${isZipped}`),
-            path14.join(this.dirname, `${basename2}1${ext}${isZipped}`),
+          fs13.rename(
+            path13.join(this.dirname, `${basename2}${ext}${isZipped}`),
+            path13.join(this.dirname, `${basename2}1${ext}${isZipped}`),
             callback
           );
         });
@@ -13754,22 +13754,22 @@ var require_file = __commonJS({
        * @private
        */
       _compressFile(src, dest, callback) {
-        fs14.access(src, fs14.F_OK, (err) => {
+        fs13.access(src, fs13.F_OK, (err) => {
           if (err) {
             return callback();
           }
           var gzip = zlib3.createGzip();
-          var inp = fs14.createReadStream(src);
-          var out = fs14.createWriteStream(dest);
+          var inp = fs13.createReadStream(src);
+          var out = fs13.createWriteStream(dest);
           out.on("finish", () => {
-            fs14.unlink(src, callback);
+            fs13.unlink(src, callback);
           });
           inp.pipe(gzip).pipe(out);
         });
       }
       _createLogDirIfNotExist(dirPath) {
-        if (!fs14.existsSync(dirPath)) {
-          fs14.mkdirSync(dirPath, { recursive: true });
+        if (!fs13.existsSync(dirPath)) {
+          fs13.mkdirSync(dirPath, { recursive: true });
         }
       }
     };
@@ -13853,9 +13853,9 @@ var require_http = __commonJS({
         };
         const auth = options.params.auth || null;
         delete options.params.auth;
-        const path14 = options.params.path || null;
+        const path13 = options.params.path || null;
         delete options.params.path;
-        this._request(options, auth, path14, (err, res, body) => {
+        this._request(options, auth, path13, (err, res, body) => {
           if (res && res.statusCode !== 200) {
             err = new Error(`Invalid HTTP Status Code: ${res.statusCode}`);
           }
@@ -13883,12 +13883,12 @@ var require_http = __commonJS({
           method: "stream",
           params: options
         };
-        const path14 = options.params.path || null;
+        const path13 = options.params.path || null;
         delete options.params.path;
         const auth = options.params.auth || null;
         delete options.params.auth;
         let buff = "";
-        const req = this._request(options, auth, path14);
+        const req = this._request(options, auth, path13);
         stream4.destroy = () => req.destroy();
         req.on("data", (data) => {
           data = (buff + data).split(/\n+/);
@@ -13914,14 +13914,14 @@ var require_http = __commonJS({
        * @param {string} path - request path
        * @param {function} callback - Continuation to respond to when complete.
        */
-      _request(options, auth, path14, callback) {
+      _request(options, auth, path13, callback) {
         options = options || {};
         auth = auth || this.auth;
-        path14 = path14 || this.path || "";
+        path13 = path13 || this.path || "";
         if (this.batch) {
-          this._doBatch(options, callback, auth, path14);
+          this._doBatch(options, callback, auth, path13);
         } else {
-          this._doRequest(options, callback, auth, path14);
+          this._doRequest(options, callback, auth, path13);
         }
       }
       /**
@@ -13931,18 +13931,18 @@ var require_http = __commonJS({
        * @param {Object?} auth - authentication options
        * @param {string} path - request path
        */
-      _doBatch(options, callback, auth, path14) {
+      _doBatch(options, callback, auth, path13) {
         this.batchOptions.push(options);
         if (this.batchOptions.length === 1) {
           const me = this;
           this.batchCallback = callback;
           this.batchTimeoutID = setTimeout(function() {
             me.batchTimeoutID = -1;
-            me._doBatchRequest(me.batchCallback, auth, path14);
+            me._doBatchRequest(me.batchCallback, auth, path13);
           }, this.batchInterval);
         }
         if (this.batchOptions.length === this.batchCount) {
-          this._doBatchRequest(this.batchCallback, auth, path14);
+          this._doBatchRequest(this.batchCallback, auth, path13);
         }
       }
       /**
@@ -13951,14 +13951,14 @@ var require_http = __commonJS({
        * @param {Object?} auth - authentication options
        * @param {string} path - request path
        */
-      _doBatchRequest(callback, auth, path14) {
+      _doBatchRequest(callback, auth, path13) {
         if (this.batchTimeoutID > 0) {
           clearTimeout(this.batchTimeoutID);
           this.batchTimeoutID = -1;
         }
         const batchOptionsCopy = this.batchOptions.slice();
         this.batchOptions = [];
-        this._doRequest(batchOptionsCopy, callback, auth, path14);
+        this._doRequest(batchOptionsCopy, callback, auth, path13);
       }
       /**
        * Make a request to a winstond server or any http server which can
@@ -13968,7 +13968,7 @@ var require_http = __commonJS({
        * @param {Object?} auth - authentication options
        * @param {string} path - request path
        */
-      _doRequest(options, callback, auth, path14) {
+      _doRequest(options, callback, auth, path13) {
         const headers = Object.assign({}, this.headers);
         if (auth && auth.bearer) {
           headers.Authorization = `Bearer ${auth.bearer}`;
@@ -13978,7 +13978,7 @@ var require_http = __commonJS({
           method: "POST",
           host: this.host,
           port: this.port,
-          path: `/${path14.replace(/^\//, "")}`,
+          path: `/${path13.replace(/^\//, "")}`,
           headers,
           auth: auth && auth.username && auth.password ? `${auth.username}:${auth.password}` : "",
           agent: this.agent
@@ -21847,7 +21847,7 @@ var require_toNumber = __commonJS({
     var reIsBinary = /^0b[01]+$/i;
     var reIsOctal = /^0o[0-7]+$/i;
     var freeParseInt = parseInt;
-    function toNumber2(value) {
+    function toNumber(value) {
       if (typeof value == "number") {
         return value;
       }
@@ -21865,21 +21865,21 @@ var require_toNumber = __commonJS({
       var isBinary = reIsBinary.test(value);
       return isBinary || reIsOctal.test(value) ? freeParseInt(value.slice(2), isBinary ? 2 : 8) : reIsBadHex.test(value) ? NAN : +value;
     }
-    module2.exports = toNumber2;
+    module2.exports = toNumber;
   }
 });
 
 // ../../node_modules/lodash/toFinite.js
 var require_toFinite = __commonJS({
   "../../node_modules/lodash/toFinite.js"(exports2, module2) {
-    var toNumber2 = require_toNumber();
+    var toNumber = require_toNumber();
     var INFINITY = 1 / 0;
     var MAX_INTEGER = 17976931348623157e292;
     function toFinite(value) {
       if (!value) {
         return value === 0 ? value : 0;
       }
-      value = toNumber2(value);
+      value = toNumber(value);
       if (value === INFINITY || value === -INFINITY) {
         var sign = value < 0 ? -1 : 1;
         return sign * MAX_INTEGER;
@@ -22758,9 +22758,9 @@ var require_int64_buffer = __commonJS({
         proto.buffer = void 0;
         proto.offset = 0;
         proto[_isInt64] = true;
-        proto.toNumber = toNumber2;
+        proto.toNumber = toNumber;
         proto.toString = toString3;
-        proto.toJSON = toNumber2;
+        proto.toJSON = toNumber;
         proto.toArray = toArray2;
         if (BUFFER)
           proto.toBuffer = toBuffer;
@@ -22841,7 +22841,7 @@ var require_int64_buffer = __commonJS({
           writeInt32(buffer, offset + posH, high);
           writeInt32(buffer, offset + posL, low);
         }
-        function toNumber2() {
+        function toNumber() {
           var buffer = this.buffer;
           var offset = this.offset;
           var high = readInt32(buffer, offset + posH);
@@ -28182,8 +28182,8 @@ var require_depacketizer = __commonJS({
     var __1 = require_src4();
     var codec_1 = require_codec();
     var helper_1 = require_helper2();
-    var path14 = `werift-rtp : packages/rtp/src/processor/depacketizer.ts`;
-    var log = (0, debug_1.default)(path14);
+    var path13 = `werift-rtp : packages/rtp/src/processor/depacketizer.ts`;
+    var log = (0, debug_1.default)(path13);
     var DepacketizeBase = class {
       constructor(codec, options = {}) {
         Object.defineProperty(this, "codec", {
@@ -30812,14 +30812,14 @@ var require_webmCallback = __commonJS({
       }
     };
     exports2.WebmCallback = WebmCallback;
-    var saveToFileSystem = (path14) => async (value) => {
+    var saveToFileSystem = (path13) => async (value) => {
       if (value.saveToFile) {
-        await (0, promises_1.appendFile)(path14, value.saveToFile);
+        await (0, promises_1.appendFile)(path13, value.saveToFile);
       } else if (value.eol) {
         const { durationElement } = value.eol;
-        const handler = await (0, promises_1.open)(path14, "r+");
+        const handler = await (0, promises_1.open)(path13, "r+");
         await handler.write(durationElement, 0, durationElement.length, webm_1.DurationPosition);
-        const meta = await (0, promises_1.stat)(path14);
+        const meta = await (0, promises_1.stat)(path13);
         const resize = (0, webm_1.replaceSegmentSize)(meta.size);
         await handler.write(resize, 0, resize.length, webm_1.SegmentSizePosition);
         await handler.close();
@@ -35384,12 +35384,12 @@ var require_writer = __commonJS({
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.MediaWriter = void 0;
     var MediaWriter = class {
-      constructor(path14, options) {
+      constructor(path13, options) {
         Object.defineProperty(this, "path", {
           enumerable: true,
           configurable: true,
           writable: true,
-          value: path14
+          value: path13
         });
         Object.defineProperty(this, "options", {
           enumerable: true,
@@ -35529,7 +35529,7 @@ var require_recorder = __commonJS({
     exports2.MediaRecorder = void 0;
     var webm_1 = require_webm3();
     var MediaRecorder = class {
-      constructor(tracks, path14, options = {}) {
+      constructor(tracks, path13, options = {}) {
         Object.defineProperty(this, "tracks", {
           enumerable: true,
           configurable: true,
@@ -35540,7 +35540,7 @@ var require_recorder = __commonJS({
           enumerable: true,
           configurable: true,
           writable: true,
-          value: path14
+          value: path13
         });
         Object.defineProperty(this, "options", {
           enumerable: true,
@@ -35560,11 +35560,11 @@ var require_recorder = __commonJS({
           writable: true,
           value: void 0
         });
-        this.ext = path14.split(".").slice(-1)[0];
+        this.ext = path13.split(".").slice(-1)[0];
         this.writer = (() => {
           switch (this.ext) {
             case "webm":
-              return new webm_1.WebmFactory(path14, options);
+              return new webm_1.WebmFactory(path13, options);
             default:
               throw new Error();
           }
@@ -35597,18 +35597,18 @@ var require_userMedia = __commonJS({
     var src_1 = require_src();
     var src_2 = require_src4();
     var track_1 = require_track();
-    var getUserMedia = async (path14, loop) => {
+    var getUserMedia = async (path13, loop) => {
       const audioPort = await (0, src_1.randomPort)();
       const videoPort = await (0, src_1.randomPort)();
-      if (path14.endsWith(".mp4")) {
-        return new MediaPlayerMp4(audioPort, videoPort, path14, loop);
+      if (path13.endsWith(".mp4")) {
+        return new MediaPlayerMp4(audioPort, videoPort, path13, loop);
       } else {
-        return new MediaPlayerWebm(audioPort, videoPort, path14, loop);
+        return new MediaPlayerWebm(audioPort, videoPort, path13, loop);
       }
     };
     exports2.getUserMedia = getUserMedia;
     var MediaPlayerMp4 = class {
-      constructor(videoPort, audioPort, path14, loop) {
+      constructor(videoPort, audioPort, path13, loop) {
         Object.defineProperty(this, "videoPort", {
           enumerable: true,
           configurable: true,
@@ -35625,7 +35625,7 @@ var require_userMedia = __commonJS({
           enumerable: true,
           configurable: true,
           writable: true,
-          value: path14
+          value: path13
         });
         Object.defineProperty(this, "loop", {
           enumerable: true,
@@ -35711,7 +35711,7 @@ var require_userMedia = __commonJS({
     };
     exports2.MediaPlayerMp4 = MediaPlayerMp4;
     var MediaPlayerWebm = class {
-      constructor(videoPort, audioPort, path14, loop) {
+      constructor(videoPort, audioPort, path13, loop) {
         Object.defineProperty(this, "videoPort", {
           enumerable: true,
           configurable: true,
@@ -35728,7 +35728,7 @@ var require_userMedia = __commonJS({
           enumerable: true,
           configurable: true,
           writable: true,
-          value: path14
+          value: path13
         });
         Object.defineProperty(this, "loop", {
           enumerable: true,
@@ -42097,13 +42097,13 @@ function __disposeResources(env) {
   }
   return next();
 }
-function __rewriteRelativeImportExtension(path14, preserveJsx) {
-  if (typeof path14 === "string" && /^\.\.?\//.test(path14)) {
-    return path14.replace(/\.(tsx)$|((?:\.d)?)((?:\.[^./]+?)?)\.([cm]?)ts$/i, function(m, tsx, d, ext, cm) {
+function __rewriteRelativeImportExtension(path13, preserveJsx) {
+  if (typeof path13 === "string" && /^\.\.?\//.test(path13)) {
+    return path13.replace(/\.(tsx)$|((?:\.d)?)((?:\.[^./]+?)?)\.([cm]?)ts$/i, function(m, tsx, d, ext, cm) {
       return tsx ? preserveJsx ? ".jsx" : ".js" : d && (!ext || !cm) ? m : d + ext + "." + cm.toLowerCase() + "js";
     });
   }
-  return path14;
+  return path13;
 }
 var extendStatics, __assign, __createBinding, __setModuleDefault, ownKeys, _SuppressedError, tslib_es6_default;
 var init_tslib_es6 = __esm({
@@ -46026,8 +46026,8 @@ var require_schema = __commonJS({
             const instance = new item.type();
             asn1Item = instance.toSchema(name);
           } else if (item.optional) {
-            const itemSchema2 = this.get(item.type);
-            if (itemSchema2.type === enums_1.AsnTypeTypes.Choice) {
+            const itemSchema = this.get(item.type);
+            if (itemSchema.type === enums_1.AsnTypeTypes.Choice) {
               asn1Item = new asn1js.Any({ name });
             } else {
               asn1Item = this.create(item.type, false);
@@ -57288,14 +57288,14 @@ var require_dependency_container = __commonJS({
           provider = providerOrConstructor;
         }
         if (providers_1.isTokenProvider(provider)) {
-          const path14 = [token];
+          const path13 = [token];
           let tokenProvider = provider;
           while (tokenProvider != null) {
             const currentToken = tokenProvider.useToken;
-            if (path14.includes(currentToken)) {
-              throw new Error(`Token registration cycle detected! ${[...path14, currentToken].join(" -> ")}`);
+            if (path13.includes(currentToken)) {
+              throw new Error(`Token registration cycle detected! ${[...path13, currentToken].join(" -> ")}`);
             }
-            path14.push(currentToken);
+            path13.push(currentToken);
             const registration = this._registry.get(currentToken);
             if (registration && providers_1.isTokenProvider(registration.provider)) {
               tokenProvider = registration.provider;
@@ -64647,7 +64647,7 @@ var require_bn = __commonJS({
         }
         assert(false, "Base should be between 2 and 36");
       };
-      BN.prototype.toNumber = function toNumber2() {
+      BN.prototype.toNumber = function toNumber() {
         var ret = this.words[0];
         if (this.length === 2) {
           ret += this.words[1] * 67108864;
@@ -85659,37 +85659,6 @@ var require_src8 = __commonJS({
   }
 });
 
-// dist/systems/cosmere-rpg/constants.js
-function readDerived(field) {
-  if (field == null)
-    return void 0;
-  if (typeof field === "number")
-    return field;
-  if (typeof field === "object") {
-    if (field.useOverride === true && typeof field.override === "number") {
-      return field.override;
-    }
-    if (typeof field.value === "number")
-      return field.value;
-    if (typeof field.derived === "number")
-      return field.derived;
-  }
-  return void 0;
-}
-var COSMERE_ATTR_KEYS, COSMERE_DEFENSE_KEYS, COSMERE_RESOURCES;
-var init_constants = __esm({
-  "dist/systems/cosmere-rpg/constants.js"() {
-    "use strict";
-    COSMERE_ATTR_KEYS = ["str", "spd", "int", "wil", "awa", "pre"];
-    COSMERE_DEFENSE_KEYS = ["phy", "cog", "spi"];
-    COSMERE_RESOURCES = {
-      hea: "health",
-      foc: "focus",
-      inv: "investiture"
-    };
-  }
-});
-
 // ../../node_modules/pngjs/lib/chunkstream.js
 var require_chunkstream = __commonJS({
   "../../node_modules/pngjs/lib/chunkstream.js"(exports2, module2) {
@@ -89423,9 +89392,9 @@ var require_decoder = __commonJS({
         return a < 0 ? 0 : a > 255 ? 255 : a;
       }
       constructor.prototype = {
-        load: function load(path14) {
+        load: function load(path13) {
           var xhr = new XMLHttpRequest();
-          xhr.open("GET", path14, true);
+          xhr.open("GET", path13, true);
           xhr.responseType = "arraybuffer";
           xhr.onload = function() {
             var data = new Uint8Array(xhr.response || xhr.mozResponseArrayBuffer);
@@ -90501,2506 +90470,6 @@ var init_adapter = __esm({
           };
         }
         return stats;
-      }
-    };
-  }
-});
-
-// dist/systems/pf2e/filters.js
-function matchesPF2eFilters(creature, filters) {
-  if (filters.level !== void 0) {
-    const level = creature.systemData?.level;
-    if (level === void 0)
-      return false;
-    if (typeof filters.level === "number") {
-      if (level !== filters.level)
-        return false;
-    } else {
-      const min = filters.level.min ?? -1;
-      const max = filters.level.max ?? 30;
-      if (level < min || level > max)
-        return false;
-    }
-  }
-  if (filters.creatureType) {
-    const traits = creature.systemData?.traits;
-    if (!Array.isArray(traits))
-      return false;
-    const hasType = traits.some((trait) => trait.toLowerCase() === filters.creatureType.toLowerCase());
-    if (!hasType)
-      return false;
-  }
-  if (filters.traits && filters.traits.length > 0) {
-    const creatureTraits = creature.systemData?.traits;
-    if (!Array.isArray(creatureTraits))
-      return false;
-    const lowerTraits = creatureTraits.map((t) => t.toLowerCase());
-    for (const requiredTrait of filters.traits) {
-      if (!lowerTraits.includes(requiredTrait.toLowerCase())) {
-        return false;
-      }
-    }
-  }
-  if (filters.rarity) {
-    const rarity = creature.systemData?.rarity;
-    if (!rarity || rarity.toLowerCase() !== filters.rarity.toLowerCase()) {
-      return false;
-    }
-  }
-  if (filters.size) {
-    const size = creature.systemData?.size;
-    if (!size || size.toLowerCase() !== filters.size.toLowerCase()) {
-      return false;
-    }
-  }
-  if (filters.alignment) {
-    const alignment = creature.systemData?.alignment;
-    if (!alignment || !alignment.toLowerCase().includes(filters.alignment.toLowerCase())) {
-      return false;
-    }
-  }
-  if (filters.hasSpells !== void 0) {
-    const hasSpells = creature.systemData?.hasSpellcasting || false;
-    if (hasSpells !== filters.hasSpells) {
-      return false;
-    }
-  }
-  return true;
-}
-function describePF2eFilters(filters) {
-  const parts = [];
-  if (filters.level !== void 0) {
-    if (typeof filters.level === "number") {
-      parts.push(`Level ${filters.level}`);
-    } else {
-      const min = filters.level.min ?? -1;
-      const max = filters.level.max ?? 25;
-      parts.push(`Level ${min}-${max}`);
-    }
-  }
-  if (filters.creatureType)
-    parts.push(filters.creatureType);
-  if (filters.rarity)
-    parts.push(filters.rarity);
-  if (filters.size)
-    parts.push(filters.size);
-  if (filters.alignment)
-    parts.push(filters.alignment);
-  if (filters.traits && filters.traits.length > 0) {
-    parts.push(`traits: ${filters.traits.join(", ")}`);
-  }
-  if (filters.hasSpells)
-    parts.push("spellcaster");
-  return parts.length > 0 ? parts.join(", ") : "no filters";
-}
-var PF2eCreatureTypes2, PF2eRarities2, CreatureSizes3, PF2eFiltersSchema2;
-var init_filters2 = __esm({
-  "dist/systems/pf2e/filters.js"() {
-    "use strict";
-    init_zod();
-    PF2eCreatureTypes2 = [
-      "aberration",
-      "animal",
-      "beast",
-      "celestial",
-      "construct",
-      "dragon",
-      "elemental",
-      "fey",
-      "fiend",
-      "fungus",
-      "humanoid",
-      "monitor",
-      "ooze",
-      "plant",
-      "undead"
-    ];
-    PF2eRarities2 = ["common", "uncommon", "rare", "unique"];
-    CreatureSizes3 = ["tiny", "small", "medium", "large", "huge", "gargantuan"];
-    PF2eFiltersSchema2 = external_exports.object({
-      level: external_exports.union([
-        external_exports.number().min(-1).max(30),
-        // PF2e levels range from -1 to 25+ (accounting for higher levels)
-        external_exports.object({
-          min: external_exports.number().min(-1).optional(),
-          max: external_exports.number().max(30).optional()
-        })
-      ]).optional(),
-      creatureType: external_exports.enum(PF2eCreatureTypes2).optional(),
-      traits: external_exports.array(external_exports.string()).optional(),
-      // Array of trait names
-      rarity: external_exports.enum(PF2eRarities2).optional(),
-      size: external_exports.enum(CreatureSizes3).optional(),
-      alignment: external_exports.string().optional(),
-      hasSpells: external_exports.boolean().optional()
-      // PF2e uses spellcasting entries
-    });
-  }
-});
-
-// dist/systems/pf2e/adapter.js
-var adapter_exports2 = {};
-__export(adapter_exports2, {
-  PF2eAdapter: () => PF2eAdapter
-});
-var PF2eAdapter;
-var init_adapter2 = __esm({
-  "dist/systems/pf2e/adapter.js"() {
-    "use strict";
-    init_filters2();
-    PF2eAdapter = class {
-      getMetadata() {
-        return {
-          id: "pf2e",
-          name: "pf2e",
-          displayName: "Pathfinder 2nd Edition",
-          version: "1.0.0",
-          description: "Support for PF2e game system with Level, traits, rarity, and spellcasting entries",
-          supportedFeatures: {
-            creatureIndex: true,
-            characterStats: true,
-            spellcasting: true,
-            powerLevel: true
-            // Uses Level
-          }
-        };
-      }
-      canHandle(systemId) {
-        return systemId.toLowerCase() === "pf2e";
-      }
-      /**
-       * Extract creature data from Foundry document for indexing
-       * This is called by the index builder in Foundry's browser context
-       */
-      extractCreatureData(doc, pack) {
-        throw new Error("extractCreatureData should be called from PF2eIndexBuilder, not the adapter");
-      }
-      getFilterSchema() {
-        return PF2eFiltersSchema2;
-      }
-      matchesFilters(creature, filters) {
-        const validated = PF2eFiltersSchema2.safeParse(filters);
-        if (!validated.success) {
-          return false;
-        }
-        return matchesPF2eFilters(creature, validated.data);
-      }
-      getDataPaths() {
-        return {
-          // Pathfinder 2e specific paths
-          level: "system.details.level.value",
-          creatureType: "system.traits.value",
-          // Array of traits
-          size: "system.traits.size.value",
-          alignment: "system.details.alignment.value",
-          rarity: "system.traits.rarity",
-          traits: "system.traits.value",
-          // All traits as array
-          hitPoints: "system.attributes.hp",
-          armorClass: "system.attributes.ac.value",
-          abilities: "system.abilities",
-          skills: "system.skills",
-          perception: "system.perception",
-          saves: "system.saves",
-          // PF2e doesn't have CR or legendary actions
-          challengeRating: null,
-          legendaryActions: null,
-          legendaryResistances: null,
-          spells: null
-          // PF2e uses spellcasting entries instead
-        };
-      }
-      formatCreatureForList(creature) {
-        const pf2eCreature = creature;
-        const formatted = {
-          id: creature.id,
-          name: creature.name,
-          type: creature.type,
-          pack: {
-            id: creature.packName,
-            label: creature.packLabel
-          }
-        };
-        if (pf2eCreature.systemData) {
-          const stats = {};
-          if (pf2eCreature.systemData.level !== void 0) {
-            stats.level = pf2eCreature.systemData.level;
-          }
-          if (pf2eCreature.systemData.traits && pf2eCreature.systemData.traits.length > 0) {
-            stats.traits = pf2eCreature.systemData.traits;
-            const creatureTraits = [
-              "aberration",
-              "animal",
-              "beast",
-              "celestial",
-              "construct",
-              "dragon",
-              "elemental",
-              "fey",
-              "fiend",
-              "fungus",
-              "humanoid",
-              "monitor",
-              "ooze",
-              "plant",
-              "undead"
-            ];
-            const primaryType = pf2eCreature.systemData.traits.find((t) => creatureTraits.includes(t.toLowerCase()));
-            if (primaryType)
-              stats.creatureType = primaryType;
-          }
-          if (pf2eCreature.systemData.rarity) {
-            stats.rarity = pf2eCreature.systemData.rarity;
-          }
-          if (pf2eCreature.systemData.size) {
-            stats.size = pf2eCreature.systemData.size;
-          }
-          if (pf2eCreature.systemData.alignment) {
-            stats.alignment = pf2eCreature.systemData.alignment;
-          }
-          if (pf2eCreature.systemData.hitPoints) {
-            stats.hitPoints = pf2eCreature.systemData.hitPoints;
-          }
-          if (pf2eCreature.systemData.armorClass) {
-            stats.armorClass = pf2eCreature.systemData.armorClass;
-          }
-          if (pf2eCreature.systemData.hasSpellcasting) {
-            stats.spellcaster = true;
-          }
-          if (Object.keys(stats).length > 0) {
-            formatted.stats = stats;
-          }
-        }
-        if (creature.img) {
-          formatted.hasImage = true;
-        }
-        return formatted;
-      }
-      formatCreatureForDetails(creature) {
-        const pf2eCreature = creature;
-        const formatted = this.formatCreatureForList(creature);
-        if (pf2eCreature.systemData) {
-          formatted.detailedStats = {
-            level: pf2eCreature.systemData.level,
-            traits: pf2eCreature.systemData.traits,
-            size: pf2eCreature.systemData.size,
-            alignment: pf2eCreature.systemData.alignment,
-            rarity: pf2eCreature.systemData.rarity,
-            hitPoints: pf2eCreature.systemData.hitPoints,
-            armorClass: pf2eCreature.systemData.armorClass,
-            hasSpellcasting: pf2eCreature.systemData.hasSpellcasting
-          };
-        }
-        if (creature.img) {
-          formatted.img = creature.img;
-        }
-        return formatted;
-      }
-      describeFilters(filters) {
-        const validated = PF2eFiltersSchema2.safeParse(filters);
-        if (!validated.success) {
-          return "invalid filters";
-        }
-        return describePF2eFilters(validated.data);
-      }
-      getPowerLevel(creature) {
-        const pf2eCreature = creature;
-        if (pf2eCreature.systemData?.level !== void 0) {
-          return pf2eCreature.systemData.level;
-        }
-        return void 0;
-      }
-      /**
-       * Extract character statistics from actor data
-       */
-      extractCharacterStats(actorData) {
-        const system = actorData.system || {};
-        const stats = {};
-        stats.name = actorData.name;
-        stats.type = actorData.type;
-        const level = system.details?.level?.value ?? system.details?.level ?? system.level;
-        if (level !== void 0 && level !== null) {
-          stats.level = Number(level);
-        }
-        const hp = system.attributes?.hp;
-        if (hp) {
-          stats.hitPoints = {
-            current: hp.value ?? 0,
-            max: hp.max ?? 0,
-            temp: hp.temp ?? 0
-          };
-        }
-        const ac = system.attributes?.ac?.value ?? system.attributes?.ac;
-        if (ac !== void 0) {
-          stats.armorClass = ac;
-        }
-        if (system.abilities) {
-          stats.abilities = {};
-          for (const [key, ability] of Object.entries(system.abilities)) {
-            const abilityData = ability;
-            stats.abilities[key] = {
-              value: abilityData.value ?? abilityData.mod ?? 0,
-              modifier: abilityData.mod ?? 0
-            };
-          }
-        }
-        if (system.skills) {
-          stats.skills = {};
-          for (const [key, skill] of Object.entries(system.skills)) {
-            const skillData = skill;
-            stats.skills[key] = {
-              modifier: skillData.value ?? skillData.mod ?? 0,
-              rank: skillData.rank ?? 0,
-              proficient: (skillData.rank ?? 0) > 0
-            };
-          }
-        }
-        if (system.perception) {
-          stats.perception = {
-            modifier: system.perception.value ?? system.perception.mod ?? 0,
-            rank: system.perception.rank ?? 0
-          };
-        }
-        if (system.saves) {
-          stats.saves = {};
-          for (const [key, save] of Object.entries(system.saves)) {
-            const saveData = save;
-            stats.saves[key] = {
-              modifier: saveData.value ?? saveData.mod ?? 0,
-              rank: saveData.rank ?? 0
-            };
-          }
-        }
-        const languages = system.details?.languages;
-        if (languages) {
-          const known = Array.isArray(languages.value) ? languages.value : [];
-          const details = typeof languages.details === "string" ? languages.details.trim() : "";
-          if (known.length > 0 || details) {
-            stats.languages = { value: known, ...details ? { details } : {} };
-          }
-        }
-        if (actorData.type === "npc") {
-          const traits = system.traits?.value || [];
-          if (Array.isArray(traits) && traits.length > 0) {
-            stats.traits = traits;
-            const creatureTraits = [
-              "aberration",
-              "animal",
-              "beast",
-              "celestial",
-              "construct",
-              "dragon",
-              "elemental",
-              "fey",
-              "fiend",
-              "fungus",
-              "humanoid",
-              "monitor",
-              "ooze",
-              "plant",
-              "undead"
-            ];
-            const primaryType = traits.find((t) => creatureTraits.includes(t.toLowerCase()));
-            if (primaryType) {
-              stats.creatureType = primaryType;
-            }
-          }
-          const size = system.traits?.size?.value ?? system.traits?.size;
-          if (size) {
-            stats.size = size;
-          }
-          const alignment = system.details?.alignment?.value ?? system.details?.alignment;
-          if (alignment) {
-            stats.alignment = alignment;
-          }
-          const rarity = system.traits?.rarity;
-          if (rarity) {
-            stats.rarity = rarity;
-          }
-        }
-        const spellcasting = system.spellcasting || {};
-        const hasSpells = Object.keys(spellcasting).length > 0;
-        if (hasSpells) {
-          stats.spellcasting = {
-            hasSpells: true,
-            entries: Object.keys(spellcasting).length
-          };
-        }
-        return stats;
-      }
-    };
-  }
-});
-
-// dist/systems/dsa5/filters.js
-function matchesDSA5Filters(creature, filters) {
-  if (filters.level !== void 0) {
-    const level = creature.systemData?.level;
-    if (level === void 0)
-      return false;
-    if (typeof filters.level === "number") {
-      if (level !== filters.level)
-        return false;
-    } else {
-      const min = filters.level.min ?? 1;
-      const max = filters.level.max ?? 7;
-      if (level < min || level > max)
-        return false;
-    }
-  }
-  if (filters.species) {
-    const species = creature.systemData?.species;
-    if (!species || species.toLowerCase() !== filters.species.toLowerCase()) {
-      return false;
-    }
-  }
-  if (filters.culture) {
-    const culture = creature.systemData?.culture;
-    if (!culture || !culture.toLowerCase().includes(filters.culture.toLowerCase())) {
-      return false;
-    }
-  }
-  if (filters.size) {
-    const size = creature.systemData?.size;
-    if (!size || size.toLowerCase() !== filters.size.toLowerCase()) {
-      return false;
-    }
-  }
-  if (filters.hasSpells !== void 0) {
-    const hasSpells = creature.systemData?.hasSpells || false;
-    if (hasSpells !== filters.hasSpells) {
-      return false;
-    }
-  }
-  if (filters.experiencePoints !== void 0) {
-    const ap = creature.systemData?.experiencePoints;
-    if (ap === void 0)
-      return false;
-    if (typeof filters.experiencePoints === "number") {
-      if (ap !== filters.experiencePoints)
-        return false;
-    } else {
-      const min = filters.experiencePoints.min ?? 0;
-      const max = filters.experiencePoints.max ?? Infinity;
-      if (ap < min || ap > max)
-        return false;
-    }
-  }
-  return true;
-}
-function describeDSA5Filters(filters) {
-  const parts = [];
-  if (filters.level !== void 0) {
-    if (typeof filters.level === "number") {
-      parts.push(`Stufe ${filters.level}`);
-    } else {
-      const min = filters.level.min ?? 1;
-      const max = filters.level.max ?? 7;
-      parts.push(`Stufe ${min}-${max}`);
-    }
-  }
-  if (filters.species)
-    parts.push(filters.species);
-  if (filters.culture)
-    parts.push(filters.culture);
-  if (filters.size)
-    parts.push(filters.size);
-  if (filters.hasSpells)
-    parts.push("Zauberer");
-  if (filters.experiencePoints !== void 0) {
-    if (typeof filters.experiencePoints === "number") {
-      parts.push(`${filters.experiencePoints} AP`);
-    } else {
-      const min = filters.experiencePoints.min ?? 0;
-      const max = filters.experiencePoints.max ?? Infinity;
-      if (max === Infinity) {
-        parts.push(`${min}+ AP`);
-      } else {
-        parts.push(`${min}-${max} AP`);
-      }
-    }
-  }
-  return parts.length > 0 ? parts.join(", ") : "keine Filter";
-}
-var DSA5Species, CreatureSizes4, DSA5FiltersSchema;
-var init_filters3 = __esm({
-  "dist/systems/dsa5/filters.js"() {
-    "use strict";
-    init_zod();
-    DSA5Species = [
-      "mensch",
-      // Human
-      "elf",
-      // Elf
-      "halbelf",
-      // Half-Elf
-      "zwerg",
-      // Dwarf
-      "goblin",
-      // Goblin
-      "ork",
-      // Orc
-      "halborc",
-      // Half-Orc
-      "achaz",
-      // Achaz (lizard folk)
-      "troll",
-      // Troll
-      "oger",
-      // Ogre
-      "drache",
-      // Dragon
-      "d\xE4mon",
-      // Demon
-      "elementar",
-      // Elemental
-      "untot",
-      // Undead
-      "tier",
-      // Animal/Beast
-      "chim\xE4re"
-      // Chimera/Hybrid creature
-    ];
-    CreatureSizes4 = ["tiny", "small", "medium", "large", "huge", "gargantuan"];
-    DSA5FiltersSchema = external_exports.object({
-      // Level filter (1-7) - replaces D&D5e's Challenge Rating
-      level: external_exports.union([
-        external_exports.number().min(1).max(7),
-        external_exports.object({
-          min: external_exports.number().min(1).max(7).optional(),
-          max: external_exports.number().min(1).max(7).optional()
-        })
-      ]).optional(),
-      // Species filter (Spezies/Rasse)
-      species: external_exports.enum(DSA5Species).optional(),
-      // Culture filter (optional, string because there are many cultures)
-      culture: external_exports.string().optional(),
-      // Size filter
-      size: external_exports.enum(CreatureSizes4).optional(),
-      // Has spells (Zauber)
-      hasSpells: external_exports.boolean().optional(),
-      // Experience points range (AP) - detail filter
-      experiencePoints: external_exports.union([
-        external_exports.number(),
-        external_exports.object({
-          min: external_exports.number().optional(),
-          max: external_exports.number().optional()
-        })
-      ]).optional()
-    });
-  }
-});
-
-// dist/systems/dsa5/constants.js
-function getExperienceLevel(totalAP) {
-  for (const level of EXPERIENCE_LEVELS) {
-    if (totalAP >= level.min && totalAP <= level.max) {
-      return level;
-    }
-  }
-  return EXPERIENCE_LEVELS[6];
-}
-var EXPERIENCE_LEVELS, EXPERIENCE_LEVEL_NAMES_DE, EXPERIENCE_LEVEL_NAMES_EN, EIGENSCHAFT_NAMES, FIELD_PATHS;
-var init_constants2 = __esm({
-  "dist/systems/dsa5/constants.js"() {
-    "use strict";
-    EXPERIENCE_LEVELS = [
-      { name: "Unerfahren", nameEn: "Inexperienced", min: 0, max: 900, level: 1 },
-      { name: "Durchschnittlich", nameEn: "Average", min: 901, max: 1800, level: 2 },
-      { name: "Erfahren", nameEn: "Experienced", min: 1801, max: 2700, level: 3 },
-      { name: "Kompetent", nameEn: "Competent", min: 2701, max: 3600, level: 4 },
-      { name: "Meisterlich", nameEn: "Masterful", min: 3601, max: 4500, level: 5 },
-      { name: "Brillant", nameEn: "Brilliant", min: 4501, max: 5400, level: 6 },
-      { name: "Legend\xE4r", nameEn: "Legendary", min: 5401, max: Infinity, level: 7 }
-    ];
-    EXPERIENCE_LEVEL_NAMES_DE = EXPERIENCE_LEVELS.map((l) => l.name);
-    EXPERIENCE_LEVEL_NAMES_EN = EXPERIENCE_LEVELS.map((l) => l.nameEn);
-    EIGENSCHAFT_NAMES = {
-      MU: { short: "MU", german: "Mut", english: "Courage" },
-      KL: { short: "KL", german: "Klugheit", english: "Cleverness" },
-      IN: { short: "IN", german: "Intuition", english: "Intuition" },
-      CH: { short: "CH", german: "Charisma", english: "Charisma" },
-      FF: { short: "FF", german: "Fingerfertigkeit", english: "Dexterity" },
-      GE: { short: "GE", german: "Gewandtheit", english: "Agility" },
-      KO: { short: "KO", german: "Konstitution", english: "Constitution" },
-      KK: { short: "KK", german: "K\xF6rperkraft", english: "Strength" }
-    };
-    FIELD_PATHS = {
-      // Characteristics (Eigenschaften)
-      CHARACTERISTICS: "system.characteristics",
-      CHAR_MU: "system.characteristics.mu.value",
-      CHAR_KL: "system.characteristics.kl.value",
-      CHAR_IN: "system.characteristics.in.value",
-      CHAR_CH: "system.characteristics.ch.value",
-      CHAR_FF: "system.characteristics.ff.value",
-      CHAR_GE: "system.characteristics.ge.value",
-      CHAR_KO: "system.characteristics.ko.value",
-      CHAR_KK: "system.characteristics.kk.value",
-      // Status values
-      STATUS_WOUNDS: "system.status.wounds",
-      STATUS_WOUNDS_CURRENT: "system.status.wounds.current",
-      // ACTUAL current LeP
-      STATUS_WOUNDS_MAX: "system.status.wounds.max",
-      STATUS_ASTRAL: "system.status.astralenergy",
-      STATUS_KARMA: "system.status.karmaenergy",
-      STATUS_SPEED: "system.status.speed",
-      STATUS_INITIATIVE: "system.status.initiative",
-      STATUS_DODGE: "system.status.dodge",
-      STATUS_ARMOR: "system.status.armour",
-      // Details
-      DETAILS_SPECIES: "system.details.species.value",
-      DETAILS_CULTURE: "system.details.culture.value",
-      DETAILS_CAREER: "system.details.career.value",
-      // IMPORTANT: 'career' not 'profession'
-      DETAILS_EXPERIENCE: "system.details.experience",
-      DETAILS_EXPERIENCE_TOTAL: "system.details.experience.total",
-      DETAILS_EXPERIENCE_SPENT: "system.details.experience.spent",
-      // Size (in status, not details!)
-      STATUS_SIZE: "system.status.size.value",
-      // Tradition (magical/clerical)
-      TRADITION: "system.tradition",
-      TRADITION_MAGICAL: "system.tradition.magical",
-      TRADITION_CLERICAL: "system.tradition.clerical"
-    };
-  }
-});
-
-// dist/systems/dsa5/adapter.js
-var adapter_exports3 = {};
-__export(adapter_exports3, {
-  DSA5Adapter: () => DSA5Adapter
-});
-var DSA5Adapter;
-var init_adapter3 = __esm({
-  "dist/systems/dsa5/adapter.js"() {
-    "use strict";
-    init_filters3();
-    init_constants2();
-    DSA5Adapter = class _DSA5Adapter {
-      getMetadata() {
-        return {
-          id: "dsa5",
-          name: "dsa5",
-          displayName: "Das Schwarze Auge 5",
-          version: "1.0.0",
-          description: "Support for DSA5 (Das Schwarze Auge 5. Edition) with Eigenschaften, Talente, Erfahrungsgrade, and LeP/AsP/KaP resources",
-          supportedFeatures: {
-            creatureIndex: true,
-            characterStats: true,
-            spellcasting: true,
-            powerLevel: true
-            // Uses Experience Level (Erfahrungsgrad 1-7)
-          }
-        };
-      }
-      canHandle(systemId) {
-        return systemId.toLowerCase() === "dsa5";
-      }
-      /**
-       * Extract creature data from Foundry document for indexing
-       * This is called by the index builder in Foundry's browser context
-       */
-      extractCreatureData(doc, pack) {
-        throw new Error("extractCreatureData should be called from DSA5IndexBuilder, not the adapter");
-      }
-      getFilterSchema() {
-        return DSA5FiltersSchema;
-      }
-      matchesFilters(creature, filters) {
-        const validated = DSA5FiltersSchema.safeParse(filters);
-        if (!validated.success) {
-          return false;
-        }
-        return matchesDSA5Filters(creature, validated.data);
-      }
-      getDataPaths() {
-        return {
-          // DSA5 specific paths
-          level: FIELD_PATHS.DETAILS_EXPERIENCE_TOTAL,
-          // Level is calculated from AP
-          species: FIELD_PATHS.DETAILS_SPECIES,
-          culture: FIELD_PATHS.DETAILS_CULTURE,
-          profession: FIELD_PATHS.DETAILS_CAREER,
-          // IMPORTANT: 'career' not 'profession'
-          size: FIELD_PATHS.STATUS_SIZE,
-          // Characteristics (Eigenschaften)
-          characteristics: FIELD_PATHS.CHARACTERISTICS,
-          mu: FIELD_PATHS.CHAR_MU,
-          kl: FIELD_PATHS.CHAR_KL,
-          in: FIELD_PATHS.CHAR_IN,
-          ch: FIELD_PATHS.CHAR_CH,
-          ff: FIELD_PATHS.CHAR_FF,
-          ge: FIELD_PATHS.CHAR_GE,
-          ko: FIELD_PATHS.CHAR_KO,
-          kk: FIELD_PATHS.CHAR_KK,
-          // Status values
-          wounds: FIELD_PATHS.STATUS_WOUNDS,
-          lifePoints: FIELD_PATHS.STATUS_WOUNDS_CURRENT,
-          // wounds.current has actual LeP
-          astralenergy: FIELD_PATHS.STATUS_ASTRAL,
-          karmaenergy: FIELD_PATHS.STATUS_KARMA,
-          speed: FIELD_PATHS.STATUS_SPEED,
-          initiative: FIELD_PATHS.STATUS_INITIATIVE,
-          dodge: FIELD_PATHS.STATUS_DODGE,
-          armor: FIELD_PATHS.STATUS_ARMOR,
-          // Tradition
-          tradition: FIELD_PATHS.TRADITION,
-          // D&D5e-specific paths don't exist in DSA5
-          challengeRating: null,
-          creatureType: null,
-          alignment: null,
-          hitPoints: null,
-          armorClass: null,
-          legendaryActions: null,
-          legendaryResistances: null,
-          // PF2e-specific paths don't exist in DSA5
-          perception: null,
-          saves: null,
-          rarity: null
-        };
-      }
-      formatCreatureForList(creature) {
-        const dsa5Creature = creature;
-        const formatted = {
-          id: creature.id,
-          name: creature.name,
-          type: creature.type,
-          pack: {
-            id: creature.packName,
-            label: creature.packLabel
-          }
-        };
-        if (dsa5Creature.systemData) {
-          const stats = {};
-          if (dsa5Creature.systemData.level !== void 0) {
-            stats.level = dsa5Creature.systemData.level;
-            const expLevel = getExperienceLevel(dsa5Creature.systemData.experiencePoints ?? 0);
-            stats.experienceLevel = expLevel.name;
-          }
-          if (dsa5Creature.systemData.species) {
-            stats.species = dsa5Creature.systemData.species;
-          }
-          if (dsa5Creature.systemData.culture) {
-            stats.culture = dsa5Creature.systemData.culture;
-          }
-          if (dsa5Creature.systemData.size) {
-            stats.size = dsa5Creature.systemData.size;
-          }
-          if (dsa5Creature.systemData.lifePoints) {
-            stats.lifePoints = dsa5Creature.systemData.lifePoints;
-          }
-          if (dsa5Creature.systemData.meleeDefense) {
-            stats.meleeDefense = dsa5Creature.systemData.meleeDefense;
-          }
-          if (dsa5Creature.systemData.hasSpells) {
-            stats.spellcaster = true;
-          }
-          if (Object.keys(stats).length > 0) {
-            formatted.stats = stats;
-          }
-        }
-        if (creature.img) {
-          formatted.hasImage = true;
-        }
-        return formatted;
-      }
-      formatCreatureForDetails(creature) {
-        const dsa5Creature = creature;
-        const formatted = this.formatCreatureForList(creature);
-        if (dsa5Creature.systemData) {
-          const expLevel = getExperienceLevel(dsa5Creature.systemData.experiencePoints ?? 0);
-          formatted.detailedStats = {
-            level: dsa5Creature.systemData.level,
-            experienceLevel: {
-              name: expLevel.name,
-              nameEn: expLevel.nameEn,
-              level: expLevel.level,
-              apRange: `${expLevel.min}-${expLevel.max === Infinity ? "\u221E" : expLevel.max}`
-            },
-            experiencePoints: dsa5Creature.systemData.experiencePoints,
-            species: dsa5Creature.systemData.species,
-            culture: dsa5Creature.systemData.culture,
-            profession: dsa5Creature.systemData.profession,
-            size: dsa5Creature.systemData.size,
-            lifePoints: dsa5Creature.systemData.lifePoints,
-            meleeDefense: dsa5Creature.systemData.meleeDefense,
-            rangedDefense: dsa5Creature.systemData.rangedDefense,
-            armor: dsa5Creature.systemData.armor,
-            hasSpells: dsa5Creature.systemData.hasSpells,
-            hasAstralEnergy: dsa5Creature.systemData.hasAstralEnergy,
-            hasKarmaEnergy: dsa5Creature.systemData.hasKarmaEnergy,
-            traits: dsa5Creature.systemData.traits || [],
-            rarity: dsa5Creature.systemData.rarity
-          };
-        }
-        if (creature.img) {
-          formatted.img = creature.img;
-        }
-        return formatted;
-      }
-      describeFilters(filters) {
-        const validated = DSA5FiltersSchema.safeParse(filters);
-        if (!validated.success) {
-          return "ung\xFCltige Filter";
-        }
-        return describeDSA5Filters(validated.data);
-      }
-      getPowerLevel(creature) {
-        const dsa5Creature = creature;
-        if (dsa5Creature.systemData?.level !== void 0) {
-          return dsa5Creature.systemData.level;
-        }
-        return void 0;
-      }
-      /**
-       * Extract character statistics from actor data
-       */
-      extractCharacterStats(actorData) {
-        const system = actorData.system || {};
-        const stats = {};
-        stats.name = actorData.name;
-        stats.type = actorData.type;
-        const totalAP = system.details?.experience?.total ?? 0;
-        const spentAP = system.details?.experience?.spent ?? 0;
-        if (totalAP > 0) {
-          const expLevel = getExperienceLevel(totalAP);
-          stats.experience = {
-            total: totalAP,
-            spent: spentAP,
-            available: totalAP - spentAP,
-            level: expLevel.level,
-            levelName: expLevel.name,
-            levelNameEn: expLevel.nameEn
-          };
-        }
-        const wounds = system.status?.wounds;
-        if (wounds) {
-          stats.lifePoints = {
-            current: wounds.current ?? 0,
-            max: wounds.max ?? 0
-          };
-        }
-        const astral = system.status?.astralenergy;
-        if (astral && astral.max > 0) {
-          stats.astralEnergy = {
-            current: astral.value ?? 0,
-            max: astral.max ?? 0
-          };
-        }
-        const karma = system.status?.karmaenergy;
-        if (karma && karma.max > 0) {
-          stats.karmaEnergy = {
-            current: karma.value ?? 0,
-            max: karma.max ?? 0
-          };
-        }
-        if (system.characteristics) {
-          stats.characteristics = {};
-          for (const [key, eigenschaft] of Object.entries(system.characteristics)) {
-            const eigenschaftData = eigenschaft;
-            const upperKey = key.toUpperCase();
-            stats.characteristics[upperKey] = {
-              value: eigenschaftData.value ?? 8,
-              initial: eigenschaftData.initial ?? 8,
-              name: EIGENSCHAFT_NAMES[upperKey]?.german,
-              nameEn: EIGENSCHAFT_NAMES[upperKey]?.english
-            };
-          }
-        }
-        const initiative = system.status?.initiative?.value ?? system.status?.initiative;
-        if (initiative !== void 0) {
-          stats.initiative = initiative;
-        }
-        const speed = system.status?.speed?.value ?? system.status?.speed;
-        if (speed !== void 0) {
-          stats.speed = speed;
-        }
-        const dodge = system.status?.dodge?.value ?? system.status?.dodge;
-        if (dodge !== void 0) {
-          stats.dodge = dodge;
-        }
-        const armor = system.status?.armour?.value ?? system.status?.armor?.value ?? 0;
-        if (armor) {
-          stats.armor = armor;
-        }
-        if (system.details) {
-          const identity = {};
-          const species = system.details.species?.value;
-          if (species) {
-            identity.species = species;
-          }
-          const culture = system.details.culture?.value;
-          if (culture) {
-            identity.culture = culture;
-          }
-          const career = system.details.career?.value;
-          if (career) {
-            identity.profession = career;
-          }
-          if (Object.keys(identity).length > 0) {
-            stats.identity = identity;
-          }
-        }
-        const size = system.status?.size?.value;
-        if (size) {
-          stats.size = size;
-        }
-        if (system.tradition) {
-          const tradition = {};
-          if (system.tradition.magical) {
-            tradition.magical = system.tradition.magical;
-          }
-          if (system.tradition.clerical) {
-            tradition.clerical = system.tradition.clerical;
-          }
-          if (Object.keys(tradition).length > 0) {
-            stats.tradition = tradition;
-          }
-        }
-        const hasSpells = !!(astral?.max || karma?.max || system.tradition);
-        if (hasSpells) {
-          stats.spellcasting = {
-            hasSpells: true,
-            hasAstralEnergy: !!astral?.max,
-            hasKarmaEnergy: !!karma?.max
-          };
-        }
-        return stats;
-      }
-      describeActorSchema() {
-        return [
-          "=== DSA5 Actor Schema Reference ===",
-          "",
-          "ACTOR TYPES: character, npc, creature",
-          "",
-          "EIGENSCHAFTEN (characteristics) \u2014 system.characteristics:",
-          "  Shorthand: { MU:13, KL:12, IN:14, CH:11, FF:10, GE:11, KO:12, KK:13 }",
-          "    (uppercase or lowercase; naked number \u2192 {value, initial}, or {value, initial, advances?})",
-          "  Full:      { mu:{initial:13,value:13}, kl:{initial:12,value:12}, ... }",
-          "  Keys: mu, kl, in, ch, ff, ge, ko, kk  (value is derived; writing `initial` suffices)",
-          "",
-          "LEBENSKRAFT / ENERGIE (status) \u2014 system.status:",
-          "  LeP:  { lifePoints:{current, max} } or {status:{lifePoints:{...}}} \u2192 status.wounds.{current,max}",
-          "  AsP:  { astralenergy:{current,max} } or {status:{astralenergy:{...}}} \u2192 status.astralenergy",
-          "  KaP:  { karmaenergy:{current,max} } or {status:{karmaenergy:{...}}} \u2192 status.karmaenergy",
-          "  Note: status.wounds.max is derived at runtime (initial + KO\xD72 + advances); a hard max may be overwritten.",
-          "",
-          "DETAILS (identity / details) \u2014 system.details:",
-          '  species/culture/career accept a string or {value}: { species:"Mensch", culture:"Mittelreich", profession:"Krieger" }',
-          "  `profession` \u2192 details.career.value; `identity.*` \u2192 details.*; experience.{total,spent,available}",
-          "",
-          "KAMPF / STATUS (optional shorthands) \u2014",
-          "  initiative, speed, dodge, size, armour|armor \u2192 status.<key>.value  (size:string \u2192 {value}, armour\u2192armour)",
-          "  tradition \u2192 system.tradition (object passed through)",
-          "",
-          "ACTOR TYPES: character (Held), npc (NSC), creature (Tier/Kreatur).",
-          "ITEMS: advantage, disadvantage, combatskill, talent, spell, liturgy, equipment, weapon, armor, etc."
-        ].join("\n");
-      }
-      // ─────────────────────────────────────────────────────────────────────────
-      // normalizePayload – map caller-friendly DSA5 shorthands onto the real
-      // Foundry DSA5 system paths before the payload is sent to the server.
-      // Receives ONLY the `system` sub-object and returns a normalised `system`
-      // object.  Unknown keys are left untouched.
-      // ─────────────────────────────────────────────────────────────────────────
-      /**
-       * Valid Eigenschaft keys in lowercase (the canonical Foundry form).
-       */
-      static EIGENSCHAFT_KEYS = [
-        "mu",
-        "kl",
-        "in",
-        "ch",
-        "ff",
-        "ge",
-        "ko",
-        "kk"
-      ];
-      /**
-       * Normalise a single Eigenschaft entry to {value, initial?, advances?}.
-       * Accepts:
-       *   - naked number  →  { value: n, initial: n }
-       *   - { value, initial?, advances? }
-       * If `value` is missing but `advances` is present, value = (initial ?? 8) + advances.
-       * `value` is ALWAYS set after normalisation.
-       */
-      normalizeEigenschaft(raw) {
-        if (typeof raw === "number") {
-          return { value: raw, initial: raw };
-        }
-        if (raw && typeof raw === "object") {
-          const result = {};
-          const initial = raw.initial ?? 8;
-          if (raw.value !== void 0) {
-            result.value = raw.value;
-          } else if (raw.advances !== void 0) {
-            result.value = initial + raw.advances;
-          } else {
-            result.value = initial;
-          }
-          if (raw.initial !== void 0)
-            result.initial = raw.initial;
-          if (raw.advances !== void 0)
-            result.advances = raw.advances;
-          return result;
-        }
-        return { value: 8, initial: 8 };
-      }
-      /**
-       * Helper: normalise a resource block (LeP/AsP/KaP/fatePoints).
-       * Accepts {current, max}, {value, max}, or a naked number.
-       * Returns a minimal {value, max} object (or {current, max} for wounds).
-       */
-      normalizeResource(raw, opts) {
-        if (raw === void 0 || raw === null)
-          return void 0;
-        if (typeof raw === "number") {
-          return { value: raw, max: raw };
-        }
-        if (typeof raw === "object") {
-          const result = {};
-          const current = raw.current ?? raw.value;
-          if (current !== void 0) {
-            result[opts?.useCurrent ? "current" : "value"] = current;
-          }
-          if (raw.max !== void 0)
-            result.max = raw.max;
-          if (raw.initial !== void 0)
-            result.initial = raw.initial;
-          return result;
-        }
-        return void 0;
-      }
-      /**
-       * Helper: normalise a detail field that may arrive as a string or {value}.
-       * Always returns {value: string}.
-       */
-      normalizeDetail(raw) {
-        if (raw === void 0 || raw === null)
-          return void 0;
-        if (typeof raw === "string")
-          return { value: raw };
-        if (typeof raw === "object" && raw.value !== void 0) {
-          return { value: String(raw.value) };
-        }
-        return void 0;
-      }
-      /**
-       * Deep-merge helper: copy values from `src` into `dst` for keys that exist
-       * in `src`, creating intermediate objects as needed.  Does not overwrite
-       * keys that already exist in `dst` with higher priority — src wins for
-       * keys it explicitly provides.
-       */
-      static mergeInto(dst, src) {
-        if (!src)
-          return;
-        for (const [key, val] of Object.entries(src)) {
-          if (val && typeof val === "object" && !Array.isArray(val)) {
-            if (typeof dst[key] !== "object" || dst[key] === null || Array.isArray(dst[key])) {
-              dst[key] = {};
-            }
-            _DSA5Adapter.mergeInto(dst[key], val);
-          } else {
-            dst[key] = val;
-          }
-        }
-      }
-      normalizePayload(system) {
-        const out = {};
-        const charSource = system.characteristics ?? system.eigenschaften;
-        if (charSource && typeof charSource === "object") {
-          const normalized = {};
-          for (const [key, raw] of Object.entries(charSource)) {
-            const lower2 = key.toLowerCase();
-            if (_DSA5Adapter.EIGENSCHAFT_KEYS.includes(lower2)) {
-              normalized[lower2] = this.normalizeEigenschaft(raw);
-            }
-          }
-          if (Object.keys(normalized).length > 0) {
-            out.characteristics = normalized;
-          }
-        }
-        const existingWounds = system.status?.wounds;
-        if (!existingWounds) {
-          const lp = system.lifePoints ?? system.status?.lifePoints;
-          const lpNormalized = this.normalizeResource(lp, { useCurrent: true });
-          if (lpNormalized) {
-            if (lpNormalized.max === void 0) {
-              const koVal = out.characteristics?.ko?.value ?? system.characteristics?.ko?.value ?? system.characteristics?.KO?.value ?? 8;
-              const initial = lpNormalized.initial ?? 8;
-              lpNormalized.max = initial + koVal * 2;
-            }
-            out.status = out.status ?? {};
-            out.status.wounds = lpNormalized;
-          }
-        }
-        const asp = system.astralEnergy ?? system.status?.astralEnergy ?? system.status?.astralenergy;
-        const aspNorm = this.normalizeResource(asp);
-        if (aspNorm) {
-          out.status = out.status ?? {};
-          out.status.astralenergy = aspNorm;
-        }
-        const kap = system.karmaEnergy ?? system.status?.karmaEnergy ?? system.status?.karmaenergy;
-        const kapNorm = this.normalizeResource(kap);
-        if (kapNorm) {
-          out.status = out.status ?? {};
-          out.status.karmaenergy = kapNorm;
-        }
-        const fate = system.fatePoints ?? system.status?.fatePoints;
-        const fateNorm = this.normalizeResource(fate);
-        if (fateNorm) {
-          out.status = out.status ?? {};
-          out.status.fatePoints = fateNorm;
-        }
-        const details = {};
-        const srcDetails = system.details;
-        const species = this.normalizeDetail(srcDetails?.species ?? system.species);
-        if (species)
-          details.species = species;
-        const culture = this.normalizeDetail(srcDetails?.culture ?? system.culture);
-        if (culture)
-          details.culture = culture;
-        const career = this.normalizeDetail(srcDetails?.career ?? srcDetails?.profession ?? system.career ?? system.profession ?? system.identity?.profession);
-        if (career)
-          details.career = career;
-        const social = this.normalizeDetail(srcDetails?.socialstate ?? system.socialstate);
-        if (social)
-          details.socialstate = social;
-        const exp = srcDetails?.experience ?? system.experience;
-        if (exp && typeof exp === "object") {
-          details.experience = {
-            ...exp.total !== void 0 ? { total: exp.total } : {},
-            ...exp.spent !== void 0 ? { spent: exp.spent } : {},
-            ...exp.available !== void 0 ? { available: exp.available } : {}
-          };
-        }
-        if (system.identity?.species && !details.species) {
-          const idSpecies = this.normalizeDetail(system.identity.species);
-          if (idSpecies)
-            details.species = idSpecies;
-        }
-        if (system.identity?.culture && !details.culture) {
-          const idCulture = this.normalizeDetail(system.identity.culture);
-          if (idCulture)
-            details.culture = idCulture;
-        }
-        if (Object.keys(details).length > 0) {
-          out.details = details;
-        }
-        const status = {};
-        const init = system.initiative ?? system.status?.initiative;
-        if (init !== void 0) {
-          status.initiative = typeof init === "number" ? { value: init } : init;
-        }
-        const speed = system.speed ?? system.status?.speed;
-        if (speed !== void 0) {
-          status.speed = typeof speed === "number" ? { value: speed } : speed;
-        }
-        const dodge = system.dodge ?? system.status?.dodge;
-        if (dodge !== void 0) {
-          status.dodge = typeof dodge === "number" ? { value: dodge } : dodge;
-        }
-        const armour = system.armour ?? system.armor ?? system.status?.armour ?? system.status?.armor;
-        if (armour !== void 0) {
-          status.armour = typeof armour === "number" ? { value: armour } : armour;
-        }
-        const size = system.size ?? system.status?.size;
-        if (size !== void 0) {
-          status.size = typeof size === "string" ? { value: size } : size;
-        }
-        if (Object.keys(status).length > 0) {
-          out.status = out.status ?? {};
-          _DSA5Adapter.mergeInto(out.status, status);
-        }
-        if (system.tradition) {
-          out.tradition = system.tradition;
-        }
-        _DSA5Adapter.mergeInto(system, out);
-        return system;
-      }
-    };
-  }
-});
-
-// dist/systems/cosmere-rpg/filters.js
-function inRange(value, range) {
-  if (value === void 0)
-    return false;
-  if (typeof range === "number")
-    return value === range;
-  if (range.min !== void 0 && value < range.min)
-    return false;
-  if (range.max !== void 0 && value > range.max)
-    return false;
-  return true;
-}
-function matchesCosmereRpgFilters(creature, filters) {
-  const data = creature.systemData ?? {};
-  if (filters.tier !== void 0 && !inRange(data.tier, filters.tier)) {
-    return false;
-  }
-  if (filters.role !== void 0) {
-    const role = (data.role ?? "").toLowerCase();
-    if (role !== filters.role.toLowerCase())
-      return false;
-  }
-  if (filters.creatureType !== void 0) {
-    const ct = (data.creatureType ?? "").toLowerCase();
-    if (ct !== filters.creatureType.toLowerCase())
-      return false;
-  }
-  if (filters.size !== void 0) {
-    const size = (data.size ?? "").toLowerCase();
-    if (size !== filters.size)
-      return false;
-  }
-  if (filters.hasInvestiture !== void 0) {
-    const has = data.hasInvestiture ?? (data.investiture ?? 0) > 0;
-    if (has !== filters.hasInvestiture)
-      return false;
-  }
-  if (filters.health !== void 0 && !inRange(data.health, filters.health)) {
-    return false;
-  }
-  if (filters.defensesMin !== void 0) {
-    const def = data.defenses ?? {};
-    const { phy, cog, spi } = filters.defensesMin;
-    if (phy !== void 0 && (def.phy ?? -Infinity) < phy)
-      return false;
-    if (cog !== void 0 && (def.cog ?? -Infinity) < cog)
-      return false;
-    if (spi !== void 0 && (def.spi ?? -Infinity) < spi)
-      return false;
-  }
-  if (filters.deflectMin !== void 0) {
-    if ((data.deflect ?? -Infinity) < filters.deflectMin)
-      return false;
-  }
-  return true;
-}
-function describeCosmereRpgFilters(filters) {
-  const parts = [];
-  if (filters.tier !== void 0) {
-    parts.push(typeof filters.tier === "number" ? `tier ${filters.tier}` : describeRange("tier", filters.tier));
-  }
-  if (filters.role)
-    parts.push(`role=${filters.role.toLowerCase()}`);
-  if (filters.creatureType)
-    parts.push(`type=${filters.creatureType.toLowerCase()}`);
-  if (filters.size)
-    parts.push(`size=${filters.size}`);
-  if (filters.hasInvestiture !== void 0) {
-    parts.push(filters.hasInvestiture ? "has Investiture" : "no Investiture");
-  }
-  if (filters.health !== void 0) {
-    parts.push(typeof filters.health === "number" ? `hp=${filters.health}` : describeRange("hp", filters.health));
-  }
-  if (filters.defensesMin) {
-    const { phy, cog, spi } = filters.defensesMin;
-    if (phy !== void 0)
-      parts.push(`phy>=${phy}`);
-    if (cog !== void 0)
-      parts.push(`cog>=${cog}`);
-    if (spi !== void 0)
-      parts.push(`spi>=${spi}`);
-  }
-  if (filters.deflectMin !== void 0)
-    parts.push(`deflect>=${filters.deflectMin}`);
-  return parts.length > 0 ? parts.join(", ") : "no filters";
-}
-function describeRange(label, range) {
-  if (range.min !== void 0 && range.max !== void 0)
-    return `${label} ${range.min}-${range.max}`;
-  if (range.min !== void 0)
-    return `${label}>=${range.min}`;
-  if (range.max !== void 0)
-    return `${label}<=${range.max}`;
-  return `${label} (any)`;
-}
-var NumberRange, COSMERE_SIZES, CosmereRpgFiltersSchema;
-var init_filters4 = __esm({
-  "dist/systems/cosmere-rpg/filters.js"() {
-    "use strict";
-    init_zod();
-    NumberRange = external_exports.union([
-      external_exports.number(),
-      external_exports.object({
-        min: external_exports.number().optional(),
-        max: external_exports.number().optional()
-      }).strict()
-    ]);
-    COSMERE_SIZES = ["tiny", "small", "medium", "large", "huge", "gargantuan"];
-    CosmereRpgFiltersSchema = external_exports.object({
-      /** Tier filter — exact value or {min, max}. */
-      tier: NumberRange.optional(),
-      /** Adversary role (minion/rival/boss/…). Case-insensitive match. */
-      role: external_exports.string().min(1).optional(),
-      /** Creature type — matches `system.type.id`. Case-insensitive. */
-      creatureType: external_exports.string().min(1).optional(),
-      /** Size category. */
-      size: external_exports.enum(COSMERE_SIZES).optional(),
-      /** Filter for Surge/Investiture-using adversaries. */
-      hasInvestiture: external_exports.boolean().optional(),
-      /** Health max range. */
-      health: NumberRange.optional(),
-      /** Minimum defense thresholds — pass any subset. */
-      defensesMin: external_exports.object({
-        phy: external_exports.number().optional(),
-        cog: external_exports.number().optional(),
-        spi: external_exports.number().optional()
-      }).strict().optional(),
-      /** Minimum deflect rating. */
-      deflectMin: external_exports.number().optional()
-    }).strict();
-  }
-});
-
-// dist/systems/cosmere-rpg/adapter.js
-var adapter_exports4 = {};
-__export(adapter_exports4, {
-  CosmereRpgAdapter: () => CosmereRpgAdapter
-});
-var CosmereRpgAdapter;
-var init_adapter4 = __esm({
-  "dist/systems/cosmere-rpg/adapter.js"() {
-    "use strict";
-    init_filters4();
-    init_constants();
-    CosmereRpgAdapter = class {
-      getMetadata() {
-        return {
-          id: "cosmere-rpg",
-          name: "cosmere-rpg",
-          displayName: "Cosmere RPG",
-          version: "1.0.0",
-          description: "Support for the Cosmere RPG (Plotweaver) system: levels/tiers, attributes (str/spd/int/wil/awa/pre), defenses (phy/cog/spi), resources (health/focus/investiture), deflect, and skills (rank+mod). Adversary indexing covers tier, role, creature type, size, defenses, deflect, and Investiture pool.",
-          supportedFeatures: {
-            creatureIndex: true,
-            characterStats: true,
-            spellcasting: false,
-            // Surges are modelled as items, not a spellcasting feature
-            powerLevel: true
-            // Uses adversary tier (1-4) or character level
-          }
-        };
-      }
-      canHandle(systemId) {
-        return systemId.toLowerCase() === "cosmere-rpg";
-      }
-      extractCreatureData(_doc, _pack) {
-        throw new Error("extractCreatureData should be called from CosmereRpgIndexBuilder, not the adapter");
-      }
-      getFilterSchema() {
-        return CosmereRpgFiltersSchema;
-      }
-      matchesFilters(creature, filters) {
-        const validated = CosmereRpgFiltersSchema.safeParse(filters);
-        if (!validated.success)
-          return false;
-        return matchesCosmereRpgFilters(creature, validated.data);
-      }
-      getDataPaths() {
-        return {
-          level: "system.level",
-          tier: "system.tier",
-          // Cosmere RPG doesn't use D&D-style class/race; leaving null.
-          challengeRating: null,
-          creatureType: "system.type.id",
-          size: "system.size",
-          alignment: null,
-          // Resource maxes (DerivedValueFields — read .value)
-          hitPoints: "system.resources.hea.max.value",
-          armorClass: null,
-          // Defenses replace AC; cosmere splits phys/cog/spi
-          // Cosmere-specific
-          attributes: "system.attributes",
-          defenses: "system.defenses",
-          resources: "system.resources",
-          skills: "system.skills",
-          deflect: "system.deflect.value"
-        };
-      }
-      formatCreatureForList(creature) {
-        const c = creature;
-        const formatted = {
-          id: c.id,
-          name: c.name,
-          type: c.type,
-          pack: { id: c.packName, label: c.packLabel }
-        };
-        if (c.systemData) {
-          const stats = {};
-          if (c.systemData.tier !== void 0)
-            stats.tier = c.systemData.tier;
-          if (c.systemData.role)
-            stats.role = c.systemData.role;
-          if (c.systemData.level !== void 0)
-            stats.level = c.systemData.level;
-          if (c.systemData.creatureType)
-            stats.creatureType = c.systemData.creatureType;
-          if (c.systemData.size)
-            stats.size = c.systemData.size;
-          if (c.systemData.health !== void 0)
-            stats.health = c.systemData.health;
-          if (c.systemData.deflect !== void 0)
-            stats.deflect = c.systemData.deflect;
-          if (c.systemData.hasInvestiture)
-            stats.hasInvestiture = true;
-          if (Object.keys(stats).length > 0)
-            formatted.stats = stats;
-        }
-        if (c.img)
-          formatted.hasImage = true;
-        return formatted;
-      }
-      formatCreatureForDetails(creature) {
-        const c = creature;
-        const formatted = this.formatCreatureForList(creature);
-        if (c.systemData) {
-          formatted.detailedStats = { ...c.systemData };
-        }
-        if (c.img)
-          formatted.img = c.img;
-        return formatted;
-      }
-      describeFilters(filters) {
-        const validated = CosmereRpgFiltersSchema.safeParse(filters);
-        if (!validated.success)
-          return "invalid filters";
-        return describeCosmereRpgFilters(validated.data);
-      }
-      getPowerLevel(creature) {
-        const c = creature;
-        return c.systemData?.tier ?? c.systemData?.level;
-      }
-      /**
-       * Extract Cosmere-specific basic info: level, tier, resource maxes,
-       * deflect. Returned object is merged into the get-character response's
-       * `basicInfo` block.
-       */
-      extractBasicInfo(actorData) {
-        const system = actorData?.system || {};
-        const out = {};
-        if (typeof system.level === "number")
-          out.level = system.level;
-        if (typeof system.tier === "number")
-          out.tier = system.tier;
-        if (system.resources) {
-          for (const [key, name] of Object.entries(COSMERE_RESOURCES)) {
-            const r = system.resources[key];
-            if (r) {
-              out[name] = {
-                current: typeof r.value === "number" ? r.value : 0,
-                max: readDerived(r.max) ?? 0,
-                bonus: typeof r.bonus === "number" ? r.bonus : 0
-              };
-            }
-          }
-        }
-        const deflect = readDerived(system.deflect);
-        if (deflect !== void 0)
-          out.deflect = deflect;
-        return out;
-      }
-      /**
-       * Extract Cosmere-specific stats: attributes (with pre→prs remap),
-       * defenses (final values), skills (rank + mod).
-       */
-      extractCharacterStats(actorData) {
-        const system = actorData?.system || {};
-        const stats = {};
-        if (system.attributes) {
-          stats.attributes = {};
-          for (const key of COSMERE_ATTR_KEYS) {
-            const a = system.attributes[key];
-            if (a && typeof a.value === "number") {
-              stats.attributes[key] = a.value;
-            }
-          }
-        }
-        if (system.defenses) {
-          stats.defenses = {};
-          for (const key of COSMERE_DEFENSE_KEYS) {
-            const v = readDerived(system.defenses[key]);
-            if (v !== void 0)
-              stats.defenses[key] = v;
-          }
-        }
-        if (system.skills) {
-          stats.skills = {};
-          for (const [key, skill] of Object.entries(system.skills)) {
-            if (typeof skill === "object" && skill !== null) {
-              const rank = skill.rank;
-              const mod = readDerived(skill.mod);
-              stats.skills[key] = {
-                rank: typeof rank === "number" ? rank : 0,
-                mod: mod ?? 0
-              };
-            }
-          }
-        }
-        return stats;
-      }
-    };
-  }
-});
-
-// dist/systems/wfrp4e/filters.js
-function matchesWFRP4eFilters(creature, filters) {
-  if (filters.species) {
-    const species = creature.systemData?.species;
-    if (!species?.toLowerCase().includes(filters.species.toLowerCase())) {
-      return false;
-    }
-  }
-  if (filters.size) {
-    const size = creature.systemData?.size;
-    if (!size || size.toLowerCase() !== filters.size.toLowerCase()) {
-      return false;
-    }
-  }
-  if (filters.hasSpells !== void 0) {
-    const hasSpells = creature.systemData?.hasSpells || false;
-    if (hasSpells !== filters.hasSpells) {
-      return false;
-    }
-  }
-  return true;
-}
-function describeWFRP4eFilters(filters) {
-  const parts = [];
-  if (filters.species)
-    parts.push(filters.species);
-  if (filters.size)
-    parts.push(filters.size);
-  if (filters.hasSpells)
-    parts.push("spellcaster");
-  return parts.length > 0 ? parts.join(", ") : "no filters";
-}
-var CreatureSizes5, WFRP4eFiltersSchema;
-var init_filters5 = __esm({
-  "dist/systems/wfrp4e/filters.js"() {
-    "use strict";
-    init_zod();
-    CreatureSizes5 = [
-      "tiny",
-      "little",
-      "small",
-      "average",
-      "large",
-      "enormous",
-      "monstrous"
-    ];
-    WFRP4eFiltersSchema = external_exports.object({
-      // Species/race, free-form (e.g. "Human", "Beastman", "Goblin")
-      species: external_exports.string().optional(),
-      // Size category
-      size: external_exports.enum(CreatureSizes5).optional(),
-      // Has arcane spells or divine prayers
-      hasSpells: external_exports.boolean().optional()
-    });
-  }
-});
-
-// dist/systems/wfrp4e/constants.js
-function normalizeSize(size) {
-  if (typeof size !== "string" || size.length === 0) {
-    return void 0;
-  }
-  return SIZE_MAP[size.toLowerCase()] ?? size;
-}
-var CHARACTERISTIC_NAMES, SIZE_MAP, FIELD_PATHS2;
-var init_constants3 = __esm({
-  "dist/systems/wfrp4e/constants.js"() {
-    "use strict";
-    CHARACTERISTIC_NAMES = {
-      ws: { short: "WS", name: "Weapon Skill" },
-      bs: { short: "BS", name: "Ballistic Skill" },
-      s: { short: "S", name: "Strength" },
-      t: { short: "T", name: "Toughness" },
-      i: { short: "I", name: "Initiative" },
-      ag: { short: "Ag", name: "Agility" },
-      dex: { short: "Dex", name: "Dexterity" },
-      int: { short: "Int", name: "Intelligence" },
-      wp: { short: "WP", name: "Willpower" },
-      fel: { short: "Fel", name: "Fellowship" }
-    };
-    SIZE_MAP = {
-      tiny: "tiny",
-      ltl: "little",
-      sml: "small",
-      avg: "average",
-      lrg: "large",
-      enor: "enormous",
-      mnst: "monstrous"
-    };
-    FIELD_PATHS2 = {
-      // Characteristics
-      CHARACTERISTICS: "system.characteristics",
-      // Status / resources
-      STATUS_WOUNDS: "system.status.wounds",
-      STATUS_ADVANTAGE: "system.status.advantage",
-      STATUS_CRITICAL_WOUNDS: "system.status.criticalWounds",
-      STATUS_CORRUPTION: "system.status.corruption",
-      STATUS_ENCUMBRANCE: "system.status.encumbrance",
-      STATUS_ARMOUR: "system.status.armour",
-      // Character-only fortune/fate pools (value-only, no max)
-      STATUS_FATE: "system.status.fate.value",
-      STATUS_FORTUNE: "system.status.fortune.value",
-      STATUS_RESILIENCE: "system.status.resilience.value",
-      STATUS_RESOLVE: "system.status.resolve.value",
-      // Details / profile
-      DETAILS_SPECIES: "system.details.species.value",
-      DETAILS_SUBSPECIES: "system.details.species.subspecies",
-      DETAILS_CAREER: "system.details.career.value",
-      DETAILS_CLASS: "system.details.class.value",
-      DETAILS_STATUS: "system.details.status",
-      DETAILS_MOVE: "system.details.move.value",
-      DETAILS_SIZE: "system.details.size.value",
-      DETAILS_EXPERIENCE: "system.details.experience"
-    };
-  }
-});
-
-// dist/systems/wfrp4e/adapter.js
-var adapter_exports5 = {};
-__export(adapter_exports5, {
-  WFRP4eAdapter: () => WFRP4eAdapter
-});
-var WFRP4eAdapter;
-var init_adapter5 = __esm({
-  "dist/systems/wfrp4e/adapter.js"() {
-    "use strict";
-    init_filters5();
-    init_constants3();
-    WFRP4eAdapter = class {
-      getMetadata() {
-        return {
-          id: "wfrp4e",
-          name: "wfrp4e",
-          displayName: "Warhammer Fantasy Roleplay 4e",
-          version: "1.0.0",
-          description: "Character-focused support for Warhammer Fantasy Roleplay 4th Edition: 10 characteristics, wounds, fate/fortune/resilience/resolve, career, species, and arcane/divine spellcasting detection.",
-          supportedFeatures: {
-            creatureIndex: false,
-            characterStats: true,
-            spellcasting: true,
-            powerLevel: false
-            // WFRP4e has no Challenge Rating / level metric
-          }
-        };
-      }
-      canHandle(systemId) {
-        return systemId.toLowerCase() === "wfrp4e";
-      }
-      /**
-       * Creature extraction runs in the Foundry browser context via the
-       * IndexBuilder; the adapter only delegates (matches the dsa5 pattern).
-       */
-      extractCreatureData(_doc, _pack) {
-        throw new Error("extractCreatureData should be called from WFRP4eIndexBuilder, not the adapter");
-      }
-      getFilterSchema() {
-        return WFRP4eFiltersSchema;
-      }
-      matchesFilters(creature, filters) {
-        const validated = WFRP4eFiltersSchema.safeParse(filters);
-        if (!validated.success) {
-          return false;
-        }
-        return matchesWFRP4eFilters(creature, validated.data);
-      }
-      getDataPaths() {
-        return {
-          // WFRP4e-specific paths
-          characteristics: FIELD_PATHS2.CHARACTERISTICS,
-          wounds: FIELD_PATHS2.STATUS_WOUNDS,
-          advantage: FIELD_PATHS2.STATUS_ADVANTAGE,
-          fate: FIELD_PATHS2.STATUS_FATE,
-          fortune: FIELD_PATHS2.STATUS_FORTUNE,
-          resilience: FIELD_PATHS2.STATUS_RESILIENCE,
-          resolve: FIELD_PATHS2.STATUS_RESOLVE,
-          corruption: FIELD_PATHS2.STATUS_CORRUPTION,
-          armour: FIELD_PATHS2.STATUS_ARMOUR,
-          species: FIELD_PATHS2.DETAILS_SPECIES,
-          career: FIELD_PATHS2.DETAILS_CAREER,
-          class: FIELD_PATHS2.DETAILS_CLASS,
-          move: FIELD_PATHS2.DETAILS_MOVE,
-          size: FIELD_PATHS2.DETAILS_SIZE,
-          // D&D5e / PF2e paths that do not exist in WFRP4e
-          challengeRating: null,
-          creatureType: null,
-          alignment: null,
-          hitPoints: null,
-          armorClass: null,
-          legendaryActions: null,
-          legendaryResistances: null,
-          perception: null,
-          saves: null,
-          rarity: null
-        };
-      }
-      formatCreatureForList(creature) {
-        const wfrpCreature = creature;
-        const formatted = {
-          id: creature.id,
-          name: creature.name,
-          type: creature.type,
-          pack: {
-            id: creature.packName,
-            label: creature.packLabel
-          }
-        };
-        if (wfrpCreature.systemData) {
-          const stats = {};
-          if (wfrpCreature.systemData.species)
-            stats.species = wfrpCreature.systemData.species;
-          if (wfrpCreature.systemData.size)
-            stats.size = wfrpCreature.systemData.size;
-          if (wfrpCreature.systemData.wounds !== void 0) {
-            stats.wounds = wfrpCreature.systemData.wounds;
-          }
-          if (wfrpCreature.systemData.hasSpells)
-            stats.spellcaster = true;
-          if (Object.keys(stats).length > 0)
-            formatted.stats = stats;
-        }
-        if (creature.img)
-          formatted.hasImage = true;
-        return formatted;
-      }
-      formatCreatureForDetails(creature) {
-        const wfrpCreature = creature;
-        const formatted = this.formatCreatureForList(creature);
-        if (wfrpCreature.systemData) {
-          formatted.detailedStats = {
-            species: wfrpCreature.systemData.species,
-            size: wfrpCreature.systemData.size,
-            wounds: wfrpCreature.systemData.wounds,
-            hasSpells: wfrpCreature.systemData.hasSpells,
-            hasPrayers: wfrpCreature.systemData.hasPrayers,
-            traits: wfrpCreature.systemData.traits || []
-          };
-        }
-        if (creature.img)
-          formatted.img = creature.img;
-        return formatted;
-      }
-      describeFilters(filters) {
-        const validated = WFRP4eFiltersSchema.safeParse(filters);
-        if (!validated.success) {
-          return "invalid filters";
-        }
-        return describeWFRP4eFilters(validated.data);
-      }
-      getPowerLevel(_creature) {
-        return void 0;
-      }
-      /**
-       * Extract character statistics from actor data.
-       * Receives the full character object (system + items).
-       */
-      extractCharacterStats(actorData) {
-        const system = actorData.system || {};
-        const stats = {};
-        stats.name = actorData.name;
-        stats.type = actorData.type;
-        if (system.characteristics) {
-          stats.characteristics = {};
-          for (const [key, raw] of Object.entries(system.characteristics)) {
-            const char = raw;
-            const value = this.characteristicValue(char);
-            const meta = CHARACTERISTIC_NAMES[key];
-            stats.characteristics[meta?.short ?? key.toUpperCase()] = {
-              value,
-              // Total
-              bonus: this.characteristicBonus(char, value),
-              initial: char?.initial ?? 0,
-              advances: char?.advances ?? 0,
-              modifier: char?.modifier ?? 0,
-              name: meta?.name
-            };
-          }
-        }
-        const wounds = system.status?.wounds;
-        if (wounds) {
-          stats.wounds = { value: wounds.value ?? 0, max: wounds.max ?? 0 };
-        }
-        const advantage = system.status?.advantage;
-        if (advantage) {
-          stats.advantage = { value: advantage.value ?? 0, max: advantage.max ?? 0 };
-        }
-        const fate = system.status?.fate?.value;
-        const fortune = system.status?.fortune?.value;
-        if (fate !== void 0 || fortune !== void 0) {
-          stats.fate = { fate: fate ?? 0, fortune: fortune ?? 0 };
-        }
-        const resilience = system.status?.resilience?.value;
-        const resolve = system.status?.resolve?.value;
-        if (resilience !== void 0 || resolve !== void 0) {
-          stats.resilience = { resilience: resilience ?? 0, resolve: resolve ?? 0 };
-        }
-        const corruption = system.status?.corruption;
-        if (corruption) {
-          stats.corruption = { value: corruption.value ?? 0, max: corruption.max ?? 0 };
-        }
-        const criticalWounds = system.status?.criticalWounds;
-        if (criticalWounds) {
-          stats.criticalWounds = {
-            value: criticalWounds.value ?? 0,
-            max: criticalWounds.max ?? 0
-          };
-        }
-        const move = system.details?.move;
-        if (move) {
-          stats.movement = {
-            value: move.value,
-            ...move.walk !== void 0 && { walk: move.walk },
-            ...move.run !== void 0 && { run: move.run }
-          };
-        }
-        const identity = {};
-        const species = system.details?.species?.value;
-        if (species)
-          identity.species = species;
-        const subspecies = system.details?.species?.subspecies;
-        if (subspecies)
-          identity.subspecies = subspecies;
-        const career = this.currentCareer(actorData);
-        if (career)
-          identity.career = career;
-        const klass = system.details?.class?.value;
-        if (klass)
-          identity.class = klass;
-        const status = system.details?.status;
-        const statusLabel = typeof status === "string" ? status : status?.value || status?.standing;
-        if (statusLabel)
-          identity.status = statusLabel;
-        if (Object.keys(identity).length > 0)
-          stats.identity = identity;
-        const size = normalizeSize(system.details?.size?.value);
-        if (size)
-          stats.size = size;
-        const experience = system.details?.experience;
-        if (experience) {
-          const total = experience.total ?? 0;
-          const spent = experience.spent ?? 0;
-          stats.experience = {
-            total,
-            spent,
-            current: experience.current ?? total - spent
-          };
-        }
-        const items2 = Array.isArray(actorData.items) ? actorData.items : [];
-        const skillItems = items2.filter((i) => i?.type === "skill");
-        if (skillItems.length > 0) {
-          const chars = system.characteristics || {};
-          stats.skills = skillItems.map((skill) => {
-            const sk = skill.system || {};
-            const charKey = sk.characteristic?.value;
-            const advances = sk.advances?.value ?? 0;
-            const modifier = sk.modifier?.value ?? 0;
-            const charValue = charKey && chars[charKey] ? this.characteristicValue(chars[charKey]) : 0;
-            const total = sk.total?.value ?? charValue + advances + modifier;
-            const entry = { name: skill.name, advances, total };
-            if (charKey) {
-              entry.characteristic = CHARACTERISTIC_NAMES[charKey]?.short ?? charKey.toUpperCase();
-            }
-            return entry;
-          }).sort((a, b) => a.name.localeCompare(b.name));
-        }
-        const hasSpells = items2.some((i) => i?.type === "spell");
-        const hasPrayers = items2.some((i) => i?.type === "prayer");
-        if (hasSpells || hasPrayers) {
-          stats.spellcasting = { hasSpells, hasPrayers };
-        }
-        return stats;
-      }
-      /**
-       * Seed the get-character `basicInfo` block with WFRP4e-native fields.
-       * Wounds stand in for hit points; WFRP4e has no single armour-class value.
-       */
-      extractBasicInfo(actorData) {
-        const system = actorData.system || {};
-        const basicInfo = {};
-        const wounds = system.status?.wounds;
-        if (wounds) {
-          basicInfo.hitPoints = { current: wounds.value ?? 0, max: wounds.max ?? 0 };
-        }
-        const move = system.details?.move?.value;
-        if (move !== void 0) {
-          basicInfo.movement = move;
-        }
-        return basicInfo;
-      }
-      /**
-       * Derive a characteristic's total value. Prefers the system-derived `value`;
-       * falls back to initial + modifier + advances for raw/source actor data.
-       */
-      characteristicValue(char) {
-        if (typeof char?.value === "number") {
-          return char.value;
-        }
-        return (char?.initial ?? 0) + (char?.modifier ?? 0) + (char?.advances ?? 0);
-      }
-      /**
-       * Derive a characteristic bonus (tens digit). Prefers system-derived `bonus`.
-       */
-      characteristicBonus(char, value) {
-        if (typeof char?.bonus === "number") {
-          return char.bonus;
-        }
-        return Math.floor(value / 10) + (char?.bonusMod ?? 0);
-      }
-      /**
-       * Resolve the current career name. Prefer the current career *item* (the one
-       * flagged `system.current.value`) — `system.details.career` is unreliable in
-       * derived data, where it becomes the circular-ref'd career item that the
-       * browser sanitizes to the literal string "[Circular Reference]". Falls back
-       * to `details.career.value` for source data.
-       */
-      currentCareer(actorData) {
-        const items2 = Array.isArray(actorData.items) ? actorData.items : [];
-        const currentCareerItem = items2.find((i) => i?.type === "career" && i.system?.current?.value);
-        if (currentCareerItem?.name) {
-          return currentCareerItem.name;
-        }
-        const raw = actorData.system?.details?.career;
-        const value = typeof raw === "string" ? raw : raw?.value || raw?.name;
-        if (typeof value === "string" && value && value !== "[Circular Reference]") {
-          return value;
-        }
-        return void 0;
-      }
-    };
-  }
-});
-
-// dist/systems/mgt2e/filters.js
-function matchesMGT2eFilters(creature, filters) {
-  const data = creature.systemData ?? {};
-  if (filters.minHits !== void 0 && (data.hits ?? 0) < filters.minHits)
-    return false;
-  if (filters.maxHits !== void 0 && (data.hits ?? 0) > filters.maxHits)
-    return false;
-  if (filters.creatureType && data.creatureType !== filters.creatureType)
-    return false;
-  if (filters.actorType && creature.type !== filters.actorType)
-    return false;
-  if (filters.hasPsionics !== void 0 && !!data.hasPsionics !== filters.hasPsionics)
-    return false;
-  if (filters.name && !creature.name.toLowerCase().includes(filters.name.toLowerCase()))
-    return false;
-  return true;
-}
-function describeMGT2eFilters(filters) {
-  const parts = [];
-  if (filters.name)
-    parts.push(`name contains "${filters.name}"`);
-  if (filters.actorType)
-    parts.push(`type: ${filters.actorType}`);
-  if (filters.creatureType)
-    parts.push(`creature type: ${filters.creatureType}`);
-  if (filters.minHits !== void 0 || filters.maxHits !== void 0) {
-    const min = filters.minHits ?? 0;
-    const max = filters.maxHits ?? "\u221E";
-    parts.push(`hits ${min}\u2013${max}`);
-  }
-  if (filters.hasPsionics)
-    parts.push("psionic");
-  return parts.length > 0 ? parts.join(", ") : "no filters";
-}
-var MGT2eCreatureTypes, MGT2eFiltersSchema;
-var init_filters6 = __esm({
-  "dist/systems/mgt2e/filters.js"() {
-    "use strict";
-    init_zod();
-    MGT2eCreatureTypes = [
-      "animal",
-      "humanoid",
-      "drone",
-      "robot",
-      "alien",
-      "exotic",
-      "unknown"
-    ];
-    MGT2eFiltersSchema = external_exports.object({
-      // Power level range (based on hits/HP)
-      minHits: external_exports.number().optional(),
-      maxHits: external_exports.number().optional(),
-      // Creature type
-      creatureType: external_exports.enum(MGT2eCreatureTypes).optional(),
-      // Actor type filter (creature, npc, traveller, spacecraft...)
-      actorType: external_exports.string().optional(),
-      // Has psionics
-      hasPsionics: external_exports.boolean().optional(),
-      // Name search
-      name: external_exports.string().optional()
-    });
-  }
-});
-
-// dist/systems/mgt2e/constants.js
-function calcDM(value) {
-  if (value <= 0)
-    return -3;
-  if (value <= 2)
-    return -2;
-  return Math.min(3, Math.floor(value / 3) - 2);
-}
-var CHARACTERISTIC_NAMES2;
-var init_constants4 = __esm({
-  "dist/systems/mgt2e/constants.js"() {
-    "use strict";
-    CHARACTERISTIC_NAMES2 = {
-      // Standard characteristics (show: true by default)
-      str: { short: "STR", full: "Strength", show: true },
-      dex: { short: "DEX", full: "Dexterity", show: true },
-      end: { short: "END", full: "Endurance", show: true },
-      int: { short: "INT", full: "Intellect", show: true },
-      edu: { short: "EDU", full: "Education", show: true },
-      soc: { short: "SOC", full: "Social Standing", show: true },
-      // Optional / variant characteristics (show: false — hidden unless enabled)
-      cha: { short: "CHA", full: "Charisma" },
-      ter: { short: "TER", full: "Terraforming" },
-      psi: { short: "PSI", full: "Psionic Strength" },
-      wlt: { short: "WLT", full: "Wealth" },
-      lck: { short: "LCK", full: "Luck" },
-      mrl: { short: "MRL", full: "Morale" },
-      sty: { short: "STY", full: "Stability" },
-      res: { short: "RES", full: "Resilience" },
-      fol: { short: "FOL", full: "Followers" },
-      rep: { short: "REP", full: "Reputation" }
-    };
-  }
-});
-
-// dist/systems/mgt2e/normalize.js
-function normalizeMGT2eSkillsInSystem(system) {
-  const normalizeSpecValues = (specs) => {
-    const result2 = {};
-    for (const [k, v] of Object.entries(specs)) {
-      result2[k] = typeof v === "number" ? { value: v, trained: v > 0 } : v;
-    }
-    return result2;
-  };
-  const normalizeSkillEntry = (sk, sv) => {
-    const defaultSpecs = MGT2E_SKILL_SPECS[sk];
-    const isSpecSkill = defaultSpecs !== void 0;
-    if (typeof sv === "number") {
-      if (isSpecSkill) {
-        return {
-          value: sv,
-          trained: sv > 0,
-          specialities: { [defaultSpecs[0]]: { value: sv, trained: sv > 0 } }
-        };
-      } else {
-        return { id: sk, value: sv, trained: sv > 0 };
-      }
-    } else if (sv && typeof sv === "object") {
-      if (sv.specialities && typeof sv.specialities === "object") {
-        return { ...sv, specialities: normalizeSpecValues(sv.specialities) };
-      } else {
-        return { id: sv.id ?? sk, ...sv };
-      }
-    }
-    return sv;
-  };
-  const result = {};
-  for (const [key, val] of Object.entries(system)) {
-    if (key === "skills" && val && typeof val === "object" && !Array.isArray(val)) {
-      const normalized = {};
-      for (const [sk, sv] of Object.entries(val)) {
-        const lk = sk.toLowerCase();
-        normalized[lk] = normalizeSkillEntry(lk, sv);
-      }
-      result["skills"] = normalized;
-    } else if (key.startsWith("skills.-=")) {
-      result[`skills.-=${key.slice("skills.-=".length).toLowerCase()}`] = val;
-    } else if (key.startsWith("skills.")) {
-      const rest = key.slice("skills.".length);
-      const dotIdx = rest.indexOf(".");
-      if (dotIdx === -1) {
-        result[`skills.${rest.toLowerCase()}`] = val;
-      } else {
-        const skillKey = rest.substring(0, dotIdx).toLowerCase();
-        const subPath = rest.substring(dotIdx);
-        result[`skills.${skillKey}${subPath}`] = val;
-      }
-    } else {
-      result[key] = val;
-    }
-  }
-  return result;
-}
-var MGT2E_SKILL_SPECS;
-var init_normalize = __esm({
-  "dist/systems/mgt2e/normalize.js"() {
-    "use strict";
-    MGT2E_SKILL_SPECS = {
-      animals: ["handling", "vetinary", "training"],
-      // 'vetinary' is the module's own spelling
-      art: ["performer", "holography", "instrument", "visualMedia", "write"],
-      athletics: ["dexterity", "endurance", "strength"],
-      drive: ["hovercraft", "mole", "track", "walker", "wheel"],
-      electronics: ["comms", "computers", "remoteOps", "sensors"],
-      engineer: ["mDrive", "jDrive", "lifeSupport", "power"],
-      flyer: ["airship", "grav", "ornithopter", "rotor", "wing"],
-      gunner: ["turret", "ortillery", "screen", "capital"],
-      guncombat: ["archaic", "energy", "slug"],
-      heavyweapons: ["artillery", "portable", "vehicle"],
-      language: ["galanglic", "vilani", "zdetl", "oynprith", "trokh", "gvegh"],
-      melee: ["unarmed", "blade", "bludgeon", "natural"],
-      pilot: ["smallCraft", "spacecraft", "capitalShips"],
-      profession: [
-        "belter",
-        "biologicals",
-        "civilEngineering",
-        "construction",
-        "hydroponics",
-        "polymers",
-        "robotics"
-      ],
-      science: [
-        "archaeology",
-        "astronomy",
-        "biology",
-        "chemistry",
-        "cosmology",
-        "cybernetics",
-        "economics",
-        "genetics",
-        "history",
-        "linquistics",
-        "philosophy",
-        "physics",
-        "planetology",
-        "psionicology",
-        "psychology",
-        "robotics",
-        "sophontology",
-        "xenology"
-      ],
-      seafarer: ["oceanShips", "personal", "sail", "submarine"],
-      tactics: ["military", "naval"]
-    };
-  }
-});
-
-// dist/systems/mgt2e/adapter.js
-var adapter_exports6 = {};
-__export(adapter_exports6, {
-  MGT2eAdapter: () => MGT2eAdapter
-});
-var MGT2eAdapter;
-var init_adapter6 = __esm({
-  "dist/systems/mgt2e/adapter.js"() {
-    "use strict";
-    init_filters6();
-    init_constants4();
-    init_normalize();
-    MGT2eAdapter = class {
-      getMetadata() {
-        return {
-          id: "mgt2e",
-          name: "mgt2e",
-          displayName: "Mongoose Traveller 2e",
-          version: "1.0.0",
-          description: "Support for Mongoose Traveller 2nd Edition with characteristics (STR/DEX/END/INT/EDU/SOC), skills with levels 0\u20134, wounds, career/rank, spacecraft, and creature indexing.",
-          supportedFeatures: {
-            creatureIndex: false,
-            characterStats: true,
-            spellcasting: false,
-            // Psionics handled separately
-            powerLevel: false
-          }
-        };
-      }
-      canHandle(systemId) {
-        return systemId.toLowerCase() === "mgt2e";
-      }
-      /**
-       * extractCreatureData is delegated to MGT2eIndexBuilder (browser context).
-       */
-      extractCreatureData(_doc, _pack) {
-        throw new Error("extractCreatureData should be called from MGT2eIndexBuilder, not the adapter");
-      }
-      getFilterSchema() {
-        return MGT2eFiltersSchema;
-      }
-      matchesFilters(creature, filters) {
-        const validated = MGT2eFiltersSchema.safeParse(filters);
-        if (!validated.success)
-          return false;
-        return matchesMGT2eFilters(creature, validated.data);
-      }
-      getDataPaths() {
-        return {
-          // mgt2e paths
-          characteristics: "system.characteristics",
-          str: "system.characteristics.str.value",
-          dex: "system.characteristics.dex.value",
-          end: "system.characteristics.end.value",
-          int: "system.characteristics.int.value",
-          edu: "system.characteristics.edu.value",
-          soc: "system.characteristics.soc.value",
-          psi: "system.characteristics.psi.value",
-          skills: "system.skills",
-          hits: "system.hits",
-          details: "system.details",
-          // D&D5e / PF2e paths — not applicable
-          challengeRating: null,
-          creatureType: null,
-          alignment: null,
-          hitPoints: null,
-          armorClass: null,
-          legendaryActions: null,
-          legendaryResistances: null,
-          perception: null,
-          saves: null,
-          rarity: null
-        };
-      }
-      formatCreatureForList(creature) {
-        const mgt2eCreature = creature;
-        const formatted = {
-          id: creature.id,
-          name: creature.name,
-          type: creature.type,
-          pack: { id: creature.packName, label: creature.packLabel }
-        };
-        if (mgt2eCreature.systemData) {
-          const stats = {};
-          if (mgt2eCreature.systemData.hits !== void 0)
-            stats.hits = mgt2eCreature.systemData.hits;
-          if (mgt2eCreature.systemData.creatureType)
-            stats.creatureType = mgt2eCreature.systemData.creatureType;
-          if (mgt2eCreature.systemData.hasPsionics)
-            stats.psionic = true;
-          if (Object.keys(stats).length > 0)
-            formatted.stats = stats;
-        }
-        if (creature.img)
-          formatted.hasImage = true;
-        return formatted;
-      }
-      formatCreatureForDetails(creature) {
-        const mgt2eCreature = creature;
-        const formatted = this.formatCreatureForList(creature);
-        if (mgt2eCreature.systemData) {
-          formatted.detailedStats = {
-            hits: mgt2eCreature.systemData.hits,
-            creatureType: mgt2eCreature.systemData.creatureType,
-            hasPsionics: mgt2eCreature.systemData.hasPsionics ?? false,
-            characteristics: mgt2eCreature.systemData.characteristics ?? {}
-          };
-        }
-        if (creature.img)
-          formatted.img = creature.img;
-        return formatted;
-      }
-      describeFilters(filters) {
-        const validated = MGT2eFiltersSchema.safeParse(filters);
-        if (!validated.success)
-          return "invalid filters";
-        return describeMGT2eFilters(validated.data);
-      }
-      getPowerLevel(_creature) {
-        return void 0;
-      }
-      // ─── Character stats extraction (MCP server / Node.js context) ──────────────
-      /**
-       * Extract full character statistics from a mgt2e actor document.
-       * Called by the get-character tool after receiving raw actor data from Foundry.
-       */
-      extractCharacterStats(actorData) {
-        const system = actorData.system || {};
-        const stats = {};
-        if (system.characteristics && Object.keys(system.characteristics).length > 0) {
-          stats.characteristics = {};
-          const charDamage = {};
-          if (system.damage && typeof system.damage === "object") {
-            for (const [k, v] of Object.entries(system.damage)) {
-              const dmgVal = typeof v === "object" ? v.value ?? 0 : 0;
-              charDamage[k.toUpperCase()] = dmgVal;
-            }
-          }
-          for (const [key, charData] of Object.entries(system.characteristics)) {
-            const c = charData;
-            const value = typeof c === "number" ? c : c.value ?? c.current ?? 0;
-            const lookupKey = key.toLowerCase();
-            const names = CHARACTERISTIC_NAMES2[lookupKey];
-            if (!names)
-              continue;
-            const damage = charDamage[key.toUpperCase()] ?? c.damage ?? 0;
-            const effective = Math.max(0, value - damage);
-            stats.characteristics[names.short] = {
-              value,
-              ...damage > 0 ? { damage, effective } : {},
-              dm: calcDM(effective),
-              full: names.full
-            };
-          }
-        }
-        if (system.skills) {
-          stats.skills = {};
-          for (const [key, skillData] of Object.entries(system.skills)) {
-            const s = skillData;
-            const level = s.value ?? 0;
-            stats.skills[key] = { level };
-            if (s.specialities && Object.keys(s.specialities).length > 0) {
-              const specs = {};
-              for (const [specKey, specData] of Object.entries(s.specialities)) {
-                const sp = specData;
-                if (sp.trained || (sp.value ?? 0) > 0) {
-                  specs[specKey] = sp.value ?? 0;
-                }
-              }
-              if (Object.keys(specs).length > 0)
-                stats.skills[key].specialities = specs;
-            }
-          }
-        }
-        if (system.hits !== void 0) {
-          stats.hits = {
-            value: system.hits.value ?? system.hits ?? 0,
-            max: system.hits.max ?? system.hits ?? 0
-          };
-        }
-        if (system.damage) {
-          stats.damage = {
-            physical: system.damage.physical ?? 0,
-            stun: system.damage.stun ?? 0
-          };
-        }
-        return stats;
-      }
-      /**
-       * Extract basic info for the get-character response top-level basicInfo block.
-       *
-       * mgt2e field paths by actor type:
-       * - traveller/npc/package: system.sophont.{species,gender,age,homeworld,profession}
-       *   Career data comes from embedded 'term' items (no direct career/rank field on actor).
-       * - creature: system.behaviour (space-separated keys), system.traits (comma-separated string)
-       * - spacecraft: system.spacecraft.{dtons,configuration,tl,mdrive,jdrive,rdrive}
-       * - vehicle: system.vehicle.{chassis,subtype,tl,skill}
-       * - world: system.world.uwp.*
-       */
-      extractBasicInfo(actorData) {
-        const system = actorData.system || {};
-        const basicInfo = {};
-        const actorType = actorData.type ?? "traveller";
-        if (["traveller", "npc", "package"].includes(actorType)) {
-          const sophont = system.sophont ?? {};
-          if (sophont.species)
-            basicInfo.species = sophont.species;
-          if (sophont.gender)
-            basicInfo.gender = sophont.gender;
-          if (typeof sophont.age === "number" && sophont.age > 0)
-            basicInfo.age = sophont.age;
-          if (sophont.homeworld)
-            basicInfo.homeworld = sophont.homeworld;
-          if (sophont.profession)
-            basicInfo.profession = sophont.profession;
-          if (sophont.weight)
-            basicInfo.weight = sophont.weight;
-          if (sophont.height)
-            basicInfo.height = sophont.height;
-          if (system.description)
-            basicInfo.description = system.description;
-        } else if (actorType === "creature") {
-          if (system.behaviour)
-            basicInfo.behaviour = system.behaviour;
-          if (system.traits)
-            basicInfo.traits = system.traits;
-          if (system.description)
-            basicInfo.description = system.description;
-        } else if (actorType === "spacecraft") {
-          const sc = system.spacecraft ?? {};
-          if (sc.dtons)
-            basicInfo.dtons = sc.dtons;
-          if (sc.configuration)
-            basicInfo.configuration = sc.configuration;
-          if (sc.tl)
-            basicInfo.techLevel = sc.tl;
-          if (sc.mdrive !== void 0)
-            basicInfo.mDrive = sc.mdrive;
-          if (sc.jdrive !== void 0)
-            basicInfo.jDrive = sc.jdrive;
-          if (sc.rdrive !== void 0)
-            basicInfo.rDrive = sc.rdrive;
-          if (sc.armour !== void 0)
-            basicInfo.armour = sc.armour;
-          if (system.description)
-            basicInfo.description = system.description;
-        } else if (actorType === "vehicle") {
-          const v = system.vehicle ?? {};
-          if (v.chassis)
-            basicInfo.chassis = v.chassis;
-          if (v.subtype)
-            basicInfo.subtype = v.subtype;
-          if (v.tl)
-            basicInfo.techLevel = v.tl;
-          if (v.skill)
-            basicInfo.skill = v.skill;
-          if (system.description)
-            basicInfo.description = system.description;
-        } else if (actorType === "world") {
-          const w = system.world ?? {};
-          if (w.uwp)
-            basicInfo.uwp = w.uwp;
-          if (system.description)
-            basicInfo.description = system.description;
-        }
-        basicInfo.actorType = actorType;
-        return basicInfo;
-      }
-      describeActorSchema() {
-        return [
-          "=== mgt2e Actor Schema Reference ===",
-          "",
-          "ACTOR TYPES: traveller, npc, creature, spacecraft, vehicle, world, package, swarm",
-          "",
-          "CHARACTERISTICS (traveller/npc) \u2014 system.characteristics:",
-          "  Full:      { STR:{value:8,show:true}, DEX:{value:9,show:true}, ... }",
-          "  Shorthand: { str:8, dex:9, end:7, int:8, edu:10, soc:7 }  (uppercase + show:true auto-applied)",
-          "  Hits (STR+DEX+END) calculated automatically when omitted.",
-          "",
-          "SKILLS (traveller/npc) \u2014 system.skills:",
-          "  Shorthand: { pilot:2, medic:1 }  (trained flag set automatically)",
-          "  Full:      { pilot:{value:0,trained:true,specialities:{spacecraft:{value:2,trained:true}}} }",
-          "  Spec-skills: animals, art, athletics, drive, electronics, engineer, flyer, gunner,",
-          "    guncombat, heavyweapons, language, melee, pilot, profession, science, seafarer, tactics",
-          "",
-          "SOPHONT DETAILS (traveller/npc) \u2014 system.sophont:",
-          '  { species:"Human", gender:"M", age:34, profession:"Navy", homeworld:"Regina" }',
-          "  Note: path is sophont, NOT details (system.details does not exist in mgt2e)",
-          "",
-          "CREATURE FIELDS:",
-          '  system.behaviour: "carnivore pouncer"  (space-separated; see MGT2.CREATURES.behaviours)',
-          '  system.traits:    "camouflaged, tough, flyer 3"  (comma-separated string)',
-          "",
-          "ITEM RESTRICTIONS (what can go on each actor type):",
-          "  traveller:  weapon, armour, augment, term, associate, item, software",
-          "  npc:        weapon, armour, augment, item, software  (NO term/associate)",
-          "  creature:   weapon, armour, augment, item, software  (NO term/associate)",
-          "  spacecraft: weapon, armour, augment, cargo, hardware, role, software, item",
-          "  world:      cargo, item, software, worlddata",
-          "",
-          "HARDWARE ITEMS (spacecraft) \u2014 hardware.system discriminators:",
-          '  "drive", "power", "bridge", "sensor", "armour", "weapon",',
-          '  "cargo", "stateroom", "fuel", "computer", "general"',
-          "  Include hardware.tonnage.tonCalc and hardware.tonnage.costCalc for correct display.",
-          '  Ship weapons need weapon.scale:"spacecraft" and a weapon.power field.',
-          "",
-          "SOFTWARE ITEMS \u2014 required sub-object (sheet crashes without it):",
-          '  { software: { class:"spacecraft", type:"generic", interface:"none", bandwidth:N } }',
-          "  Bandwidth: Maneuver/0\u21920, Library/0\u21920, Jump Control/N\u2192N\xD75,",
-          "    Fire Control/N\u2192N\xD75, Auto-Repair/N\u2192N\xD75, Evade/N\u2192N\xD75"
-        ].join("\n");
-      }
-      normalizePayload(system) {
-        return normalizeMGT2eSkillsInSystem(system);
       }
     };
   }
@@ -102643,11 +100112,11 @@ var require_mime_types = __commonJS({
       }
       return exts[0];
     }
-    function lookup(path14) {
-      if (!path14 || typeof path14 !== "string") {
+    function lookup(path13) {
+      if (!path13 || typeof path13 !== "string") {
         return false;
       }
-      var extension2 = extname("x." + path14).toLowerCase().substr(1);
+      var extension2 = extname("x." + path13).toLowerCase().substr(1);
       if (!extension2) {
         return false;
       }
@@ -102721,10 +100190,10 @@ var require_abort = __commonJS({
   "../../node_modules/asynckit/lib/abort.js"(exports2, module2) {
     module2.exports = abort;
     function abort(state) {
-      Object.keys(state.jobs).forEach(clean.bind(state));
+      Object.keys(state.jobs).forEach(clean2.bind(state));
       state.jobs = {};
     }
-    function clean(key) {
+    function clean2(key) {
       if (typeof this.jobs[key] == "function") {
         this.jobs[key]();
       }
@@ -103752,11 +101221,11 @@ var require_form_data = __commonJS({
     "use strict";
     var CombinedStream = require_combined_stream();
     var util4 = require("util");
-    var path14 = require("path");
+    var path13 = require("path");
     var http2 = require("http");
     var https2 = require("https");
     var parseUrl = require("url").parse;
-    var fs14 = require("fs");
+    var fs13 = require("fs");
     var Stream = require("stream").Stream;
     var crypto7 = require("crypto");
     var mime = require_mime_types();
@@ -103823,7 +101292,7 @@ var require_form_data = __commonJS({
         if (value.end != void 0 && value.end != Infinity && value.start != void 0) {
           callback(null, value.end + 1 - (value.start ? value.start : 0));
         } else {
-          fs14.stat(value.path, function(err, stat) {
+          fs13.stat(value.path, function(err, stat) {
             if (err) {
               callback(err);
               return;
@@ -103880,11 +101349,11 @@ var require_form_data = __commonJS({
     FormData3.prototype._getContentDisposition = function(value, options) {
       var filename;
       if (typeof options.filepath === "string") {
-        filename = path14.normalize(options.filepath).replace(/\\/g, "/");
+        filename = path13.normalize(options.filepath).replace(/\\/g, "/");
       } else if (options.filename || value && (value.name || value.path)) {
-        filename = path14.basename(options.filename || value && (value.name || value.path));
+        filename = path13.basename(options.filename || value && (value.name || value.path));
       } else if (value && value.readable && hasOwn(value, "httpVersion")) {
-        filename = path14.basename(value.client._httpMessage.path || "");
+        filename = path13.basename(value.client._httpMessage.path || "");
       }
       if (filename) {
         return 'filename="' + filename + '"';
@@ -104081,10 +101550,10 @@ function isVisitable(thing) {
 function removeBrackets(key) {
   return utils_default.endsWith(key, "[]") ? key.slice(0, -2) : key;
 }
-function renderKey(path14, key, dots) {
-  if (!path14)
+function renderKey(path13, key, dots) {
+  if (!path13)
     return key;
-  return path14.concat(key).map(function each(token, i) {
+  return path13.concat(key).map(function each(token, i) {
     token = removeBrackets(token);
     return !dots && i ? "[" + token + "]" : token;
   }).join(dots ? "." : "");
@@ -104130,9 +101599,9 @@ function toFormData(obj, formData, options) {
     }
     return value;
   }
-  function defaultVisitor(value, key, path14) {
+  function defaultVisitor(value, key, path13) {
     let arr = value;
-    if (value && !path14 && typeof value === "object") {
+    if (value && !path13 && typeof value === "object") {
       if (utils_default.endsWith(key, "{}")) {
         key = metaTokens ? key : key.slice(0, -2);
         value = JSON.stringify(value);
@@ -104151,7 +101620,7 @@ function toFormData(obj, formData, options) {
     if (isVisitable(value)) {
       return true;
     }
-    formData.append(renderKey(path14, key, dots), convertValue(value));
+    formData.append(renderKey(path13, key, dots), convertValue(value));
     return false;
   }
   const stack = [];
@@ -104160,11 +101629,11 @@ function toFormData(obj, formData, options) {
     convertValue,
     isVisitable
   });
-  function build(value, path14) {
+  function build(value, path13) {
     if (utils_default.isUndefined(value))
       return;
     if (stack.indexOf(value) !== -1) {
-      throw Error("Circular reference detected in " + path14.join("."));
+      throw Error("Circular reference detected in " + path13.join("."));
     }
     stack.push(value);
     utils_default.forEach(value, function each(el, key) {
@@ -104172,11 +101641,11 @@ function toFormData(obj, formData, options) {
         formData,
         el,
         utils_default.isString(key) ? key.trim() : key,
-        path14,
+        path13,
         exposedHelpers
       );
       if (result === true) {
-        build(el, path14 ? path14.concat(key) : [key]);
+        build(el, path13 ? path13.concat(key) : [key]);
       }
     });
     stack.pop();
@@ -104450,7 +101919,7 @@ var init_platform2 = __esm({
 // ../../node_modules/axios/lib/helpers/toURLEncodedForm.js
 function toURLEncodedForm(data, options) {
   return toFormData_default(data, new platform_default.classes.URLSearchParams(), {
-    visitor: function(value, key, path14, helpers) {
+    visitor: function(value, key, path13, helpers) {
       if (platform_default.isNode && utils_default.isBuffer(value)) {
         this.append(key, value.toString("base64"));
         return false;
@@ -104488,12 +101957,12 @@ function arrayToObject(arr) {
   return obj;
 }
 function formDataToJSON(formData) {
-  function buildPath(path14, value, target2, index) {
-    let name = path14[index++];
+  function buildPath(path13, value, target2, index) {
+    let name = path13[index++];
     if (name === "__proto__")
       return true;
     const isNumericKey = Number.isFinite(+name);
-    const isLast = index >= path14.length;
+    const isLast = index >= path13.length;
     name = !name && utils_default.isArray(target2) ? target2.length : name;
     if (isLast) {
       if (utils_default.hasOwnProp(target2, name)) {
@@ -104506,7 +101975,7 @@ function formDataToJSON(formData) {
     if (!target2[name] || !utils_default.isObject(target2[name])) {
       target2[name] = [];
     }
-    const result = buildPath(path14, value, target2[name], index);
+    const result = buildPath(path13, value, target2[name], index);
     if (result && utils_default.isArray(target2[name])) {
       target2[name] = arrayToObject(target2[name]);
     }
@@ -104708,11 +102177,11 @@ var init_parseHeaders = __esm({
 function normalizeHeader(header) {
   return header && String(header).trim().toLowerCase();
 }
-function normalizeValue2(value) {
+function normalizeValue(value) {
   if (value === false || value == null) {
     return value;
   }
-  return utils_default.isArray(value) ? value.map(normalizeValue2) : String(value);
+  return utils_default.isArray(value) ? value.map(normalizeValue) : String(value);
 }
 function parseTokens(str) {
   const tokens = /* @__PURE__ */ Object.create(null);
@@ -104776,7 +102245,7 @@ var init_AxiosHeaders = __esm({
           }
           const key = utils_default.findKey(self2, lHeader);
           if (!key || self2[key] === void 0 || _rewrite === true || _rewrite === void 0 && self2[key] !== false) {
-            self2[key || _header] = normalizeValue2(_value);
+            self2[key || _header] = normalizeValue(_value);
           }
         }
         const setHeaders = (headers, _rewrite) => utils_default.forEach(headers, (_value, _header) => setHeader(_value, _header, _rewrite));
@@ -104867,7 +102336,7 @@ var init_AxiosHeaders = __esm({
         utils_default.forEach(this, (value, header) => {
           const key = utils_default.findKey(headers, header);
           if (key) {
-            self2[key] = normalizeValue2(value);
+            self2[key] = normalizeValue(value);
             delete self2[header];
             return;
           }
@@ -104875,7 +102344,7 @@ var init_AxiosHeaders = __esm({
           if (normalized !== header) {
             delete self2[header];
           }
-          self2[normalized] = normalizeValue2(value);
+          self2[normalized] = normalizeValue(value);
           headers[normalized] = true;
         });
         return this;
@@ -106069,7 +103538,7 @@ var init_progressEventReducer = __esm({
         const total = e.lengthComputable ? e.total : void 0;
         const progressBytes = loaded - bytesNotified;
         const rate = _speedometer(progressBytes);
-        const inRange2 = loaded <= total;
+        const inRange = loaded <= total;
         bytesNotified = loaded;
         const data = {
           loaded,
@@ -106077,7 +103546,7 @@ var init_progressEventReducer = __esm({
           progress: total ? loaded / total : void 0,
           bytes: progressBytes,
           rate: rate ? rate : void 0,
-          estimated: rate && total && inRange2 ? (total - loaded) / rate : void 0,
+          estimated: rate && total && inRange ? (total - loaded) / rate : void 0,
           event: e,
           lengthComputable: total != null,
           [isDownloadStream ? "download" : "upload"]: true
@@ -106461,9 +103930,9 @@ var init_http = __esm({
           auth = urlUsername + ":" + urlPassword;
         }
         auth && headers.delete("authorization");
-        let path14;
+        let path13;
         try {
-          path14 = buildURL(
+          path13 = buildURL(
             parsed.pathname + parsed.search,
             config2.params,
             config2.paramsSerializer
@@ -106481,7 +103950,7 @@ var init_http = __esm({
           false
         );
         const options = {
-          path: path14,
+          path: path13,
           method,
           headers: headers.toJSON(),
           agents: { http: config2.httpAgent, https: config2.httpsAgent },
@@ -106726,10 +104195,10 @@ var init_cookies = __esm({
     cookies_default = platform_default.hasStandardBrowserEnv ? (
       // Standard browser envs support document.cookie
       {
-        write(name, value, expires, path14, domain, secure) {
+        write(name, value, expires, path13, domain, secure) {
           const cookie = [name + "=" + encodeURIComponent(value)];
           utils_default.isNumber(expires) && cookie.push("expires=" + new Date(expires).toGMTString());
-          utils_default.isString(path14) && cookie.push("path=" + path14);
+          utils_default.isString(path13) && cookie.push("path=" + path13);
           utils_default.isString(domain) && cookie.push("domain=" + domain);
           secure === true && cookie.push("secure");
           document.cookie = cookie.join("; ");
@@ -108143,8 +105612,8 @@ var init_comfyui_models = __esm({
 // dist/utils/comfyui-paths.js
 function isValidComfyUIPath(dirPath) {
   try {
-    const mainPyPath = path11.join(dirPath, "main.py");
-    return fs12.existsSync(mainPyPath) && fs12.statSync(mainPyPath).isFile();
+    const mainPyPath = path10.join(dirPath, "main.py");
+    return fs11.existsSync(mainPyPath) && fs11.statSync(mainPyPath).isFile();
   } catch (error) {
     return false;
   }
@@ -108187,13 +105656,13 @@ function getDefaultPythonCommand(installPath) {
     return "python/python.exe";
   } else if (isMac()) {
     if (installPath) {
-      const venvPython = path11.join(installPath, "venv", "bin", "python");
-      if (fs12.existsSync(venvPython)) {
+      const venvPython = path10.join(installPath, "venv", "bin", "python");
+      if (fs11.existsSync(venvPython)) {
         return venvPython;
       }
     }
     const systemPython311 = "/Library/Frameworks/Python.framework/Versions/3.11/bin/python3";
-    if (fs12.existsSync(systemPython311)) {
+    if (fs11.existsSync(systemPython311)) {
       return systemPython311;
     }
     return "python3";
@@ -108201,12 +105670,12 @@ function getDefaultPythonCommand(installPath) {
     return "python3";
   }
 }
-var fs12, path11;
+var fs11, path10;
 var init_comfyui_paths = __esm({
   "dist/utils/comfyui-paths.js"() {
     "use strict";
-    fs12 = __toESM(require("fs"), 1);
-    path11 = __toESM(require("path"), 1);
+    fs11 = __toESM(require("fs"), 1);
+    path10 = __toESM(require("path"), 1);
     init_platform();
   }
 });
@@ -108216,13 +105685,13 @@ var comfyui_client_exports = {};
 __export(comfyui_client_exports, {
   ComfyUIClient: () => ComfyUIClient
 });
-var import_child_process2, fss, path12, SIZE_MAPPING, ComfyUIClient;
+var import_child_process2, fss, path11, SIZE_MAPPING, ComfyUIClient;
 var init_comfyui_client = __esm({
   "dist/comfyui-client.js"() {
     "use strict";
     import_child_process2 = require("child_process");
     fss = __toESM(require("fs"), 1);
-    path12 = __toESM(require("path"), 1);
+    path11 = __toESM(require("path"), 1);
     init_axios2();
     init_wrapper();
     init_comfyui_errors();
@@ -108349,7 +105818,7 @@ var init_comfyui_client = __esm({
         this.progressCallbacks.delete(promptId);
       }
       getDefaultInstallPath() {
-        return path12.join(getAppDataDir(), "foundry-mcp-server", "ComfyUI-headless");
+        return path11.join(getAppDataDir(), "foundry-mcp-server", "ComfyUI-headless");
       }
       async checkInstallation() {
         if (!this.config.installPath) {
@@ -108422,8 +105891,8 @@ var init_comfyui_client = __esm({
           pythonCommand: this.config.pythonCommand,
           port: this.config.port
         });
-        const mainPyPath = path12.join(this.config.installPath, "main.py");
-        const logPath = path12.join(getAppDataDir(), "comfyui.log");
+        const mainPyPath = path11.join(this.config.installPath, "main.py");
+        const logPath = path11.join(getAppDataDir(), "comfyui.log");
         this.logStream = fss.createWriteStream(logPath, { flags: "a" });
         const spawnOptions = getHiddenProcessSpawnOptions();
         this.process = (0, import_child_process2.spawn)(this.config.pythonCommand, [
@@ -108897,9 +106366,9 @@ var init_comfyui_client = __esm({
 });
 
 // dist/backend.js
-var fs13 = __toESM(require("fs"), 1);
+var fs12 = __toESM(require("fs"), 1);
 var os7 = __toESM(require("os"), 1);
-var path13 = __toESM(require("path"), 1);
+var path12 = __toESM(require("path"), 1);
 var net = __toESM(require("net"), 1);
 var import_child_process3 = require("child_process");
 
@@ -109976,11 +107445,11 @@ var SystemPaths = {
     legendaryActions: null
   }
 };
-function extractSystemValue(data, path14) {
-  if (!path14 || !data) {
+function extractSystemValue(data, path13) {
+  if (!path13 || !data) {
     return void 0;
   }
-  const parts = path14.split(".");
+  const parts = path13.split(".");
   let value = data;
   for (const part of parts) {
     if (value === void 0 || value === null) {
@@ -110079,7 +107548,7 @@ var CharacterTools = class {
     return [
       {
         name: "get-character",
-        description: `Retrieve character information optimized for minimal token usage. Returns: full stats (abilities, skills, saves, AC, HP), action names, active effects/conditions (name only), and ALL items with minimal metadata (name, type, equipped status) without descriptions. PF2e-specific: includes traits arrays for items/actions, action costs, rarity, and level. D&D 5e-specific: includes attunement status, and playState: classes, proficiency bonus, initiative, speed, senses, saving throw totals, spell DC and attack, spell slots left, hit dice left, feature and item uses left with their recovery (Second Wind, Action Surge, charges), death saves at 0 hp, exhaustion, concentration and legendary actions. Perfect for filtering (e.g., "deviant" trait feats, "fire" trait spells in PF2e), checking equipment, or identifying what to investigate further. Use get-character-entity to fetch full details for specific items, actions, spells, or effects. For an unlinked token (e.g. a summon or a copy of a shared NPC) pass its token ID or token UUID to get that token's own effective stats and effects rather than the base actor's.`,
+        description: `Retrieve character information optimized for minimal token usage. Returns: full stats (abilities, skills, saves, AC, HP), action names, active effects/conditions (name only), and ALL items with minimal metadata (name, type, equipped status) without descriptions. PF2e-specific: includes traits arrays for items/actions, action costs, rarity, and level. D&D 5e-specific: includes attunement status, and playState: classes, proficiency bonus, initiative, speed, senses, saving throw totals, spell DC and attack, spell slots left, hit dice left, feature and item uses left with their recovery (Second Wind, Action Surge, charges), death saves at 0 hp, exhaustion, concentration and legendary actions. Perfect for filtering (e.g., "deviant" trait feats, "fire" trait spells in PF2e), checking equipment, or identifying what to investigate further. Use character entity to fetch full details for specific items, actions, spells, or effects. For an unlinked token (e.g. a summon or a copy of a shared NPC) pass its token ID or token UUID to get that token's own effective stats and effects rather than the base actor's.`,
         inputSchema: {
           type: "object",
           properties: {
@@ -110093,7 +107562,7 @@ var CharacterTools = class {
       },
       {
         name: "get-character-entity",
-        description: "Retrieve full details for a specific entity from a character. Works for items (feats, equipment, spells), actions (strikes, special abilities), or effects/conditions. Returns complete description and all system data. Use this after get-character when you need detailed information about a specific entity.",
+        description: "Retrieve full details for a specific entity from a character. Works for items (feats, equipment, spells), actions (strikes, special abilities), or effects/conditions. Returns complete description and all system data. Use this after character get when you need detailed information about a specific entity.",
         inputSchema: {
           type: "object",
           properties: {
@@ -110124,7 +107593,7 @@ var CharacterTools = class {
       },
       {
         name: "use-item",
-        description: 'Use an item on a character (cast spell, use ability, activate feature, consume item). Opens the item dialog in Foundry VTT for the GM to configure options and confirm. Optionally specify targets by name. Returns immediately with status "initiated" - tell the user to check Foundry for any dialogs. Works across systems: D&D 5e, PF2e, DSA5. Use get-character or search-character-items first to see available items/spells.',
+        description: 'Use an item on a character (cast spell, use ability, activate feature, consume item). Opens the item dialog in Foundry VTT for the GM to configure options and confirm. Optionally specify targets by name. Returns immediately with status "initiated" - tell the user to check Foundry for any dialogs. Works across systems: D&D 5e, PF2e, DSA5. Use character get or character items first to see available items/spells.',
         inputSchema: {
           type: "object",
           properties: {
@@ -110242,7 +107711,7 @@ var CharacterTools = class {
             },
             itemIds: {
               type: "array",
-              description: 'For "remove-from-actor": ids of items already on the actor to delete (most reliable; get them from get-character).',
+              description: 'For "remove-from-actor": ids of items already on the actor to delete (most reliable; get them from character get).',
               items: { type: "string" }
             },
             itemNames: {
@@ -110256,7 +107725,7 @@ var CharacterTools = class {
       },
       {
         name: "search-character-items",
-        description: "Search within a character's items, spells, actions, and effects. More token-efficient than get-character when you need specific items. Supports text search (name/description) and type filtering. Returns matching items with full details including targeting info for spells. Use this to find specific spells, equipment, feats, or abilities without loading the entire character.",
+        description: "Search within a character's items, spells, actions, and effects. More token-efficient than character get when you need specific items. Supports text search (name/description) and type filtering. Returns matching items with full details including targeting info for spells. Use this to find specific spells, equipment, feats, or abilities without loading the entire character.",
         inputSchema: {
           type: "object",
           properties: {
@@ -110441,7 +107910,7 @@ var CharacterTools = class {
     }
   }
   async handleAddActorItems(args) {
-    const itemSchema2 = external_exports.object({
+    const itemSchema = external_exports.object({
       name: external_exports.string().min(1, "Item name cannot be empty"),
       type: external_exports.string().min(1, "Item type cannot be empty"),
       img: external_exports.string().optional(),
@@ -110449,7 +107918,7 @@ var CharacterTools = class {
     });
     const schema23 = external_exports.object({
       actorIdentifier: external_exports.string().min(1, "Actor identifier cannot be empty"),
-      items: external_exports.array(itemSchema2).min(1, "At least one item is required")
+      items: external_exports.array(itemSchema).min(1, "At least one item is required")
     });
     const { actorIdentifier, items: items2 } = schema23.parse(args);
     this.logger.info("Adding items to actor", {
@@ -110540,7 +108009,7 @@ var CharacterTools = class {
     }
   }
   async handleCreateWorldItems(args) {
-    const itemSchema2 = external_exports.object({
+    const itemSchema = external_exports.object({
       name: external_exports.string().min(1, "Item name cannot be empty"),
       type: external_exports.string().min(1, "Item type cannot be empty"),
       img: external_exports.string().optional(),
@@ -110549,7 +108018,7 @@ var CharacterTools = class {
       flags: external_exports.record(external_exports.any()).optional()
     });
     const schema23 = external_exports.object({
-      items: external_exports.array(itemSchema2).min(1, "At least one item is required"),
+      items: external_exports.array(itemSchema).min(1, "At least one item is required"),
       folder: external_exports.string().optional()
     });
     const { items: items2, folder } = schema23.parse(args);
@@ -111079,8 +108548,25 @@ function describeFilters(filters, system) {
   return parts.length > 0 ? parts.join(", ") : "no filters";
 }
 
+// dist/systems/cosmere-rpg/constants.js
+function readDerived(field) {
+  if (field == null)
+    return void 0;
+  if (typeof field === "number")
+    return field;
+  if (typeof field === "object") {
+    if (field.useOverride === true && typeof field.override === "number") {
+      return field.override;
+    }
+    if (typeof field.value === "number")
+      return field.value;
+    if (typeof field.derived === "number")
+      return field.derived;
+  }
+  return void 0;
+}
+
 // dist/tools/compendium.js
-init_constants();
 var CompendiumTools = class {
   foundryClient;
   logger;
@@ -111103,295 +108589,6 @@ var CompendiumTools = class {
   /**
    * Tool definitions for compendium operations
    */
-  getToolDefinitions() {
-    return [
-      {
-        name: "search-compendium",
-        description: 'Search through compendium packs by name. IMPORTANT LIMITATIONS: (1) Text search only matches entity NAMES - descriptions and traits are NOT searchable. (2) Filters use name heuristics only (not actual system data) and only work on Actor packs - challengeRating and creatureType filters search for keywords like "ancient", "legendary", "humanoid", etc. in entity names. For accurate filtering by level/CR, traits, or rarity, use list-creatures-by-criteria instead. For best results, use broad name-based searches (e.g., "dragon", "knight") and inspect individual items with get-compendium-item. When Plutonium is active, prefer the plutonium tool for monsters, spells and items: it searches every official book (not only what the compendiums hold) and imports fully converted actors.',
-        inputSchema: {
-          type: "object",
-          properties: {
-            query: {
-              type: "string",
-              description: 'Search query to find items in compendiums by name only. Use broad, simple terms (e.g., "dragon", "sword", "feat"). Descriptions and traits are NOT searchable.'
-            },
-            packType: {
-              type: "string",
-              description: 'Optional filter by pack type (e.g., "Item", "Actor", "JournalEntry")'
-            },
-            filters: {
-              type: "object",
-              description: 'LIMITED FUNCTIONALITY: Only works on Actor packs using name-based heuristics. challengeRating searches for keywords like "ancient" (CR 15+), "adult" (CR 10+), "captain" (CR 5+). creatureType searches for type keywords in names. Does NOT check actual system data. For accurate filtering, use list-creatures-by-criteria instead.',
-              properties: {
-                challengeRating: {
-                  oneOf: [
-                    { type: "number", description: "Exact CR value (e.g., 12)" },
-                    {
-                      type: "object",
-                      properties: {
-                        min: { type: "number", description: "Minimum CR" },
-                        max: { type: "number", description: "Maximum CR" }
-                      }
-                    }
-                  ]
-                },
-                creatureType: {
-                  type: "string",
-                  description: 'Creature type (e.g., "humanoid", "dragon", "beast", "undead", "fey", "fiend", "celestial", "construct", "elemental", "giant", "monstrosity", "ooze", "plant")',
-                  enum: [
-                    "humanoid",
-                    "dragon",
-                    "beast",
-                    "undead",
-                    "fey",
-                    "fiend",
-                    "celestial",
-                    "construct",
-                    "elemental",
-                    "giant",
-                    "monstrosity",
-                    "ooze",
-                    "plant",
-                    "aberration"
-                  ]
-                },
-                size: {
-                  type: "string",
-                  description: 'Creature size (e.g., "medium", "large", "huge")',
-                  enum: ["tiny", "small", "medium", "large", "huge", "gargantuan"]
-                },
-                alignment: {
-                  type: "string",
-                  description: 'Creature alignment (e.g., "lawful good", "chaotic evil", "neutral")'
-                },
-                hasLegendaryActions: {
-                  type: "boolean",
-                  description: "Filter for creatures with legendary actions"
-                },
-                spellcaster: {
-                  type: "boolean",
-                  description: "Filter for creatures that can cast spells (D&D 5e)"
-                },
-                // Pathfinder 2e specific filters
-                level: {
-                  oneOf: [
-                    { type: "number", description: "Exact level value (e.g., 12)" },
-                    {
-                      type: "object",
-                      properties: {
-                        min: { type: "number", description: "Minimum level" },
-                        max: { type: "number", description: "Maximum level" }
-                      }
-                    }
-                  ],
-                  description: "Creature level (Pathfinder 2e, -1 to 25+)"
-                },
-                traits: {
-                  type: "array",
-                  items: { type: "string" },
-                  description: "Creature traits to filter by (Pathfinder 2e)"
-                },
-                rarity: {
-                  type: "string",
-                  enum: ["common", "uncommon", "rare", "unique"],
-                  description: "Creature rarity (Pathfinder 2e)"
-                },
-                hasSpells: {
-                  type: "boolean",
-                  description: "Filter for spellcasting creatures (Pathfinder 2e)"
-                }
-              }
-            },
-            limit: {
-              type: "number",
-              description: "Maximum number of results to return (default: 50 for discovery searches, max: 50)",
-              minimum: 1,
-              maximum: 50
-            }
-          },
-          required: ["query"]
-        }
-      },
-      {
-        name: "get-compendium-item",
-        description: "Retrieve detailed information about a specific compendium item. Use compact mode for UI performance when full details are not needed.",
-        inputSchema: {
-          type: "object",
-          properties: {
-            packId: {
-              type: "string",
-              description: "ID of the compendium pack containing the item"
-            },
-            itemId: {
-              type: "string",
-              description: "ID of the specific item to retrieve"
-            },
-            compact: {
-              type: "boolean",
-              description: "Return condensed stat block (recommended for UI performance). Includes key stats, abilities, and actions but omits lengthy descriptions and technical data.",
-              default: false
-            }
-          },
-          required: ["packId", "itemId"]
-        }
-      },
-      {
-        name: "list-creatures-by-criteria",
-        description: "MULTI-SYSTEM CREATURE DISCOVERY: Get a comprehensive list of creatures matching specific criteria. Supports D&D 5e (Challenge Rating), Pathfinder 2e (Level), and Cosmere RPG (Tier/Role/Investiture) with automatic system detection. Perfect for encounter building - returns minimal data so Claude can use built-in monster knowledge to identify suitable creatures by name, then pull full details only for final selections. Features intelligent pack prioritization and high result limits for complete surveys.",
-        inputSchema: {
-          type: "object",
-          properties: {
-            challengeRating: {
-              oneOf: [
-                { type: "number", description: "Exact CR value (e.g., 12)" },
-                { type: "string", description: 'Exact CR value as string (e.g., "12")' },
-                {
-                  type: "object",
-                  properties: {
-                    min: { type: "number", description: "Minimum CR (default: 0)" },
-                    max: { type: "number", description: "Maximum CR (default: 30)" }
-                  },
-                  description: 'CR range object (e.g., {"min": 10, "max": 15})'
-                }
-              ],
-              description: 'Filter by Challenge Rating - accepts number, string, or range object. Use ranges for broader discovery (e.g., {"min": 10, "max": 15}) or exact values (12 or "12")'
-            },
-            creatureType: {
-              type: "string",
-              description: "Filter by creature type",
-              enum: [
-                "humanoid",
-                "dragon",
-                "beast",
-                "undead",
-                "fey",
-                "fiend",
-                "celestial",
-                "construct",
-                "elemental",
-                "giant",
-                "monstrosity",
-                "ooze",
-                "plant",
-                "aberration"
-              ]
-            },
-            size: {
-              type: "string",
-              description: "Filter by creature size",
-              enum: ["tiny", "small", "medium", "large", "huge", "gargantuan"]
-            },
-            hasSpells: {
-              type: "boolean",
-              description: "Filter for spellcasting creatures"
-            },
-            hasLegendaryActions: {
-              type: "boolean",
-              description: "Filter for creatures with legendary actions (D&D 5e)"
-            },
-            // Pathfinder 2e specific filters
-            level: {
-              oneOf: [
-                { type: "number", description: "Exact level value (e.g., 12)" },
-                { type: "string", description: 'Exact level value as string (e.g., "12")' },
-                {
-                  type: "object",
-                  properties: {
-                    min: { type: "number", description: "Minimum level (default: -1)" },
-                    max: { type: "number", description: "Maximum level (default: 25)" }
-                  },
-                  description: 'Level range object (e.g., {"min": 10, "max": 15})'
-                }
-              ],
-              description: "Filter by creature level (Pathfinder 2e, -1 to 25+)"
-            },
-            traits: {
-              type: "array",
-              items: { type: "string" },
-              description: "Filter by creature traits (Pathfinder 2e)"
-            },
-            rarity: {
-              type: "string",
-              enum: ["common", "uncommon", "rare", "unique"],
-              description: "Filter by rarity (Pathfinder 2e)"
-            },
-            // Cosmere RPG specific filters
-            tier: {
-              oneOf: [
-                { type: "number", description: "Exact tier value (1-4)" },
-                {
-                  type: "object",
-                  properties: {
-                    min: { type: "number", description: "Minimum tier (1-4)" },
-                    max: { type: "number", description: "Maximum tier (1-4)" }
-                  },
-                  description: 'Tier range object (e.g., {"min": 2, "max": 3})'
-                }
-              ],
-              description: "Filter by adversary Tier (Cosmere RPG, 1-4). Cosmere's primary encounter-design dial."
-            },
-            role: {
-              type: "string",
-              description: 'Filter by adversary role (Cosmere RPG). Common values: "minion", "rival", "boss". Case-insensitive.'
-            },
-            hasInvestiture: {
-              type: "boolean",
-              description: "Filter for Surge/Investiture-using adversaries (Cosmere RPG)"
-            },
-            hitPoints: {
-              oneOf: [
-                { type: "number", description: "Exact health/HP value" },
-                {
-                  type: "object",
-                  properties: {
-                    min: { type: "number" },
-                    max: { type: "number" }
-                  },
-                  description: 'Health/HP range object (e.g., {"min": 30, "max": 80})'
-                }
-              ],
-              description: "Filter by max health/HP (Cosmere RPG; cross-system field)"
-            },
-            defensesMin: {
-              type: "object",
-              properties: {
-                phy: { type: "number", description: "Minimum Physical defense" },
-                cog: { type: "number", description: "Minimum Cognitive defense" },
-                spi: { type: "number", description: "Minimum Spiritual defense" }
-              },
-              additionalProperties: false,
-              description: "Minimum defense thresholds (Cosmere RPG). Pass any subset of phy/cog/spi."
-            },
-            deflectMin: {
-              type: "number",
-              description: "Minimum Deflect rating (Cosmere RPG)"
-            },
-            limit: {
-              type: "number",
-              description: "Maximum results to return (default: 500 for comprehensive surveys, max: 1000)",
-              minimum: 1,
-              maximum: 1e3,
-              default: 500
-            }
-          },
-          required: []
-        }
-      },
-      {
-        name: "list-compendium-packs",
-        description: "List all available compendium packs",
-        inputSchema: {
-          type: "object",
-          properties: {
-            type: {
-              type: "string",
-              description: "Optional filter by pack type"
-            }
-          }
-        }
-      }
-    ];
-  }
   async handleSearchCompendium(args) {
     const gameSystem = await this.getGameSystem();
     const schema23 = external_exports.object({
@@ -111683,7 +108880,7 @@ var CompendiumTools = class {
           searchStrategy: `Prioritized pack search - ${gameSystem === "pf2e" ? "PF2e" : gameSystem === "cosmere-rpg" ? "Cosmere RPG" : gameSystem === "mgt2e" ? "Mongoose Traveller 2e" : "D&D 5e"} content first, then modules, then campaign-specific`,
           note: "Packs searched in priority order to find most relevant creatures first"
         },
-        optimizationNote: "Use creature names to identify suitable options, then call get-compendium-item for final details only"
+        optimizationNote: "Use creature names to identify suitable options, then call compendium get for final details only"
       };
     } catch (error) {
       this.logger.error("Failed to list creatures by criteria", error);
@@ -112982,7 +110179,7 @@ ${recoveryText}`;
       message += mcpError.suggestions.map((suggestion) => `\u2022 ${suggestion}`).join("\n");
     }
     if (mcpError.type === "validation" && toolName === "create-actor-from-compendium") {
-      message += "\n\n\u{1F4A1} **Tip:** Try using the `search-compendium` tool first to see what creatures are available.";
+      message += "\n\n\u{1F4A1} **Tip:** Try `compendium` search first to see what creatures are available.";
     }
     return message;
   }
@@ -113089,103 +110286,6 @@ var ActorCreationTools = class {
   /**
    * Tool definitions for actor creation operations
    */
-  getToolDefinitions() {
-    return [
-      {
-        name: "create-actor-from-compendium",
-        description: "Create one or more actors from a specific compendium entry with custom names. Use search-compendium first to find the exact creature you want, then use this tool with the packId and itemId from the search results. If the creature is not in a compendium, or Plutonium is active, use the plutonium tool (action import) instead: it imports from the full 5etools catalogue.",
-        inputSchema: {
-          type: "object",
-          properties: {
-            packId: {
-              type: "string",
-              description: 'ID of the compendium pack containing the creature (e.g., "dnd5e.monsters")'
-            },
-            itemId: {
-              type: "string",
-              description: "ID of the specific creature entry within the pack (get this from search-compendium results)"
-            },
-            names: {
-              type: "array",
-              items: { type: "string" },
-              description: 'Custom names for the created actors (e.g., ["Flameheart", "Sneak", "Peek"])',
-              minItems: 1
-            },
-            quantity: {
-              type: "number",
-              description: "Number of actors to create (default: based on names array length)",
-              minimum: 1,
-              maximum: 10
-            },
-            folder: {
-              type: "string",
-              description: 'Actor folder to put them in (created if absent; default "Foundry MCP Creatures")'
-            },
-            hp: {
-              type: ["number", "object"],
-              description: "dnd5e only: override hit points with a number (current and maximum) or {value, max}"
-            },
-            token: {
-              type: "object",
-              description: `Token options: width and height in squares (2 for a Large creature), disposition (-1 hostile, 0 neutral, 1 friendly), scale (0.2 to 3), actor_link, display_name and display_bars (none, control, owner_hover, hover, owner, always), vision (on/off), vision_range (distance units, e.g. 60), vision_mode (basic, darkvision...), sight {enabled, range, angle, vision_mode, brightness, saturation, contrast}, light {preset: torch|lantern|candle|none, or bright and dim in distance units, color #RRGGBB, alpha, angle, animation {type: torch|pulse|flame..., speed, intensity}}, detection_modes [{id, range}] (e.g. seeAll, feelTremor), lock_rotation, alpha, raw (any other prototype token field as a nested object).`,
-              additionalProperties: true
-            },
-            img: { type: "string", description: "Portrait path to use instead of the compendium one" },
-            tokenImg: { type: "string", description: "Token picture path" },
-            addToScene: {
-              type: "boolean",
-              description: "Whether to add created actors to the current scene as tokens",
-              default: false
-            },
-            placement: {
-              type: "object",
-              description: "Token placement options (only used when addToScene is true)",
-              properties: {
-                type: {
-                  type: "string",
-                  enum: ["random", "grid", "center", "coordinates"],
-                  description: "Placement strategy",
-                  default: "grid"
-                },
-                coordinates: {
-                  type: "array",
-                  items: {
-                    type: "object",
-                    properties: {
-                      x: { type: "number", description: "X coordinate in pixels" },
-                      y: { type: "number", description: "Y coordinate in pixels" }
-                    },
-                    required: ["x", "y"]
-                  },
-                  description: 'Specific coordinates for each token (required when type is "coordinates")'
-                }
-              },
-              required: ["type"]
-            }
-          },
-          required: ["packId", "itemId", "names"]
-        }
-      },
-      {
-        name: "get-compendium-entry-full",
-        description: "Retrieve complete stat block data including items, spells, and abilities for actor creation",
-        inputSchema: {
-          type: "object",
-          properties: {
-            packId: {
-              type: "string",
-              description: "Compendium pack identifier"
-            },
-            entryId: {
-              type: "string",
-              description: "Entry identifier within the pack"
-            }
-          },
-          required: ["packId", "entryId"]
-        }
-      }
-    ];
-  }
   /**
    * Handle actor creation from specific compendium entry
    */
@@ -113883,1120 +110983,6 @@ var EffectManagementTools = class {
   }
 };
 
-// dist/tools/quest-creation.js
-init_zod();
-var QuestCreationTools = class {
-  foundryClient;
-  logger;
-  errorHandler;
-  constructor(options) {
-    this.foundryClient = options.foundryClient;
-    this.logger = options.logger;
-    this.errorHandler = new ErrorHandler(this.logger);
-  }
-  /**
-   * Get all tool definitions for MCP registration
-   */
-  getToolDefinitions() {
-    return [
-      {
-        name: "create-quest-journal",
-        description: "Create a new quest journal entry with AI-generated content based on natural language description",
-        inputSchema: {
-          type: "object",
-          properties: {
-            questTitle: {
-              type: "string",
-              description: "The title of the quest"
-            },
-            questDescription: {
-              type: "string",
-              description: "Detailed description of what the quest should accomplish"
-            },
-            questType: {
-              type: "string",
-              enum: [
-                "main",
-                "side",
-                "personal",
-                "mystery",
-                "fetch",
-                "escort",
-                "kill",
-                "collection"
-              ],
-              description: "Type of quest (optional)"
-            },
-            difficulty: {
-              type: "string",
-              enum: ["easy", "medium", "hard", "deadly"],
-              description: "Quest difficulty level (optional)"
-            },
-            location: {
-              type: "string",
-              description: "Where the quest takes place (optional)"
-            },
-            questGiver: {
-              type: "string",
-              description: "Name of the NPC who gives this quest to the party (optional)"
-            },
-            npcName: {
-              type: "string",
-              description: "Name of key NPC this quest involves - could be antagonist, ally, or target (optional)"
-            },
-            rewards: {
-              type: "string",
-              description: "Quest rewards description (optional)"
-            },
-            additionalPages: {
-              type: "array",
-              items: {
-                type: "object",
-                properties: {
-                  name: {
-                    type: "string",
-                    description: 'Page name (e.g. "Player Handout", "GM Notes")'
-                  },
-                  content: { type: "string", description: "HTML content for this page" }
-                },
-                required: ["name", "content"]
-              },
-              description: "Optional additional pages to create alongside the main quest page. Use for multi-page journals with separate sections like Player Handout, GM Notes, etc."
-            },
-            folderName: {
-              type: "string",
-              description: "Optional folder name to organize the journal into. The folder is created automatically if it does not exist."
-            }
-          },
-          required: ["questTitle", "questDescription"]
-        }
-      },
-      {
-        name: "link-quest-to-npc",
-        description: "Link an existing quest journal to an NPC in the world",
-        inputSchema: {
-          type: "object",
-          properties: {
-            journalId: {
-              type: "string",
-              description: "ID of the quest journal entry"
-            },
-            npcName: {
-              type: "string",
-              description: "Name of the NPC to link to the quest"
-            },
-            relationship: {
-              type: "string",
-              enum: ["quest_giver", "target", "ally", "enemy", "contact"],
-              description: "Relationship between NPC and quest"
-            }
-          },
-          required: ["journalId", "npcName", "relationship"]
-        }
-      },
-      {
-        name: "update-quest-journal",
-        description: 'Update an existing quest journal with new progress information. By default updates the FIRST text page. Use pageId to target a specific page, or newPageName to create a new page.\n\nFor Foundry VTT v13 ProseMirror editor compatibility:\n\n\u2705 USE QUEST-STYLE HTML: Match create-quest-journal formatting\n\u2705 OR USE PLAIN TEXT: Will be wrapped in <p> tags with line breaks as <br>\n\u274C DO NOT USE MARKDOWN: **bold**, *italic*, # headers will be stripped to plain text\n\nQuest-style HTML examples:\n\u2022 Sections: "<h2 class=\\"spaced\\">New Discovery</h2>"\n\u2022 GM Notes: "<div class=\\"gmnote\\"><p>GM info here</p></div>"\n\u2022 Player Info: "<div class=\\"readaloud\\"><p>Player-facing content</p></div>"\n\u2022 Plain text: "The party discovered the secret chamber"\n\u2022 Avoid: "**The party** discovered the *secret chamber*" (Markdown will be stripped)',
-        inputSchema: {
-          type: "object",
-          properties: {
-            journalId: {
-              type: "string",
-              description: "ID of the quest journal to update"
-            },
-            newContent: {
-              type: "string",
-              description: 'Content to add using quest-style HTML or plain text. Quest HTML classes: <h2 class="spaced">Section</h2>, <div class="gmnote"><p>GM info</p></div>, <div class="readaloud"><p>Player content</p></div>, <div class="grid-2">Two columns</div>. Plain text gets wrapped in <p> tags. Markdown will be stripped.'
-            },
-            updateType: {
-              type: "string",
-              enum: ["progress", "completion", "failure", "modification"],
-              description: "Type of update being made"
-            },
-            pageId: {
-              type: "string",
-              description: "ID of a specific page to update. If omitted, updates the first text page. Get page IDs from list-journals."
-            },
-            newPageName: {
-              type: "string",
-              description: "If provided (without pageId), creates a new page with this name instead of updating an existing one."
-            }
-          },
-          required: ["journalId", "newContent", "updateType"]
-        }
-      },
-      {
-        name: "replace-journal-page",
-        description: "Replace the ENTIRE content of a specific journal page. Use this to overwrite/rewrite a page. For appending progress, use update-quest-journal instead.",
-        inputSchema: {
-          type: "object",
-          properties: {
-            journalId: {
-              type: "string",
-              description: "ID of the journal containing the page to replace"
-            },
-            pageId: {
-              type: "string",
-              description: "ID of the page whose content will be replaced. Get page IDs from list-journals."
-            },
-            newContent: {
-              type: "string",
-              description: "The new content for the page. Quest-style HTML or plain text is supported. Plain text gets wrapped in <p> tags. Markdown will be stripped."
-            },
-            newPageName: {
-              type: "string",
-              description: "Optional new name for the page (rename the page while replacing its content)."
-            }
-          },
-          required: ["journalId", "pageId", "newContent"]
-        }
-      },
-      {
-        name: "list-journals",
-        description: "List all journal entries, or read a specific journal/page. Without parameters: lists all journals with their pages (id, name, type). With journalId: reads the journal's first text page content and shows all available pages. With journalId + pageId: reads a specific page's full content.",
-        inputSchema: {
-          type: "object",
-          properties: {
-            filterQuests: {
-              type: "boolean",
-              description: "Only show journals that appear to be quest-related (default: false)"
-            },
-            includeContent: {
-              type: "boolean",
-              description: "Include journal content preview (default: false)"
-            },
-            journalId: {
-              type: "string",
-              description: "If provided, read this journal's content instead of listing all journals. Returns full page content and a list of all pages in the journal."
-            },
-            pageId: {
-              type: "string",
-              description: "If provided with journalId, read this specific page's content. Get page IDs from the pages array returned when listing journals or reading a journal."
-            }
-          }
-        }
-      },
-      {
-        name: "search-journals",
-        description: "Search through all pages of all journal entries for specific content or keywords. Returns which specific page matched, so you can read it with list-journals using journalId + pageId.",
-        inputSchema: {
-          type: "object",
-          properties: {
-            searchQuery: {
-              type: "string",
-              description: "Text to search for in journal entries"
-            },
-            searchType: {
-              type: "string",
-              enum: ["title", "content", "both"],
-              description: "Where to search (default: both)"
-            }
-          },
-          required: ["searchQuery"]
-        }
-      }
-    ];
-  }
-  /**
-   * Handle create quest journal request
-   */
-  async handleCreateQuestJournal(args) {
-    try {
-      const requestSchema = external_exports.object({
-        questTitle: external_exports.string().min(1, "Quest title is required"),
-        questDescription: external_exports.string().min(1, "Quest description is required"),
-        questType: external_exports.enum(["main", "side", "personal", "mystery", "fetch", "escort", "kill", "collection"]).optional(),
-        difficulty: external_exports.enum(["easy", "medium", "hard", "deadly"]).optional(),
-        location: external_exports.string().optional(),
-        questGiver: external_exports.string().optional(),
-        npcName: external_exports.string().optional(),
-        rewards: external_exports.string().optional(),
-        additionalPages: external_exports.array(external_exports.object({
-          name: external_exports.string().min(1),
-          content: external_exports.string().min(1)
-        })).optional(),
-        folderName: external_exports.string().optional()
-      });
-      const request = requestSchema.parse(args);
-      const questContent = this.generateQuestContent(request);
-      const result = await this.foundryClient.query("foundry-mcp-bridge.createJournalEntry", {
-        name: request.questTitle,
-        content: questContent,
-        additionalPages: request.additionalPages,
-        ...request.folderName ? { folderName: request.folderName } : {}
-      });
-      if (!result || result.error) {
-        throw new Error(result?.error || "Failed to create quest journal");
-      }
-      return {
-        success: true,
-        journalId: result.id,
-        journalName: result.name,
-        pageCount: result.pageCount || 1,
-        content: questContent,
-        message: `Quest "${request.questTitle}" created successfully with ${result.pageCount || 1} page(s)`
-      };
-    } catch (error) {
-      this.errorHandler.handleToolError(error, "create-quest-journal", "quest creation");
-    }
-  }
-  /**
-   * Handle link quest to NPC request
-   */
-  async handleLinkQuestToNPC(args) {
-    try {
-      const requestSchema = external_exports.object({
-        journalId: external_exports.string().min(1, "Journal ID is required"),
-        npcName: external_exports.string().min(1, "NPC name is required"),
-        relationship: external_exports.enum(["quest_giver", "target", "ally", "enemy", "contact"])
-      });
-      const request = requestSchema.parse(args);
-      const journalResult = await this.foundryClient.query("foundry-mcp-bridge.getJournalContent", {
-        journalId: request.journalId
-      });
-      if (!journalResult || journalResult.error) {
-        throw new Error("Journal not found");
-      }
-      const updatedContent = this.addNPCLinkToJournal(journalResult.content, request.npcName, request.relationship);
-      const updateResult = await this.foundryClient.query("foundry-mcp-bridge.updateJournalContent", {
-        journalId: request.journalId,
-        content: updatedContent
-      });
-      if (!updateResult || updateResult.error) {
-        throw new Error("Failed to update journal with NPC link");
-      }
-      return {
-        success: true,
-        message: `Linked ${request.npcName} to quest as ${request.relationship.replace("_", " ")}`
-      };
-    } catch (error) {
-      this.errorHandler.handleToolError(error, "link-quest-to-npc", "linking quest to NPC");
-    }
-  }
-  // REMOVED: analyze-campaign-context tool - was causing too many debugging issues
-  // Enhanced creature index is still available for other tools that need monster detection
-  /**
-   * Handle update quest journal request
-   */
-  async handleUpdateQuestJournal(args) {
-    try {
-      const requestSchema = external_exports.object({
-        journalId: external_exports.string().min(1, "Journal ID is required"),
-        newContent: external_exports.string().min(1, "New content is required"),
-        updateType: external_exports.enum(["progress", "completion", "failure", "modification"]),
-        pageId: external_exports.string().optional(),
-        newPageName: external_exports.string().optional()
-      });
-      const request = requestSchema.parse(args);
-      request.newContent = this.convertMarkdownToPlainText(request.newContent);
-      if (request.pageId && request.newPageName) {
-        const formattedContent = this.formatNewPageContent(request.newContent, request.updateType);
-        const result2 = await this.foundryClient.query("foundry-mcp-bridge.updateJournalContent", {
-          journalId: request.journalId,
-          content: formattedContent,
-          pageId: request.pageId,
-          newPageName: request.newPageName
-        });
-        if (!result2 || result2.error || !result2.success) {
-          throw new Error(result2?.error || "Failed to rename/update journal page");
-        }
-        return {
-          success: true,
-          updateType: request.updateType,
-          message: `Page renamed to "${request.newPageName}" and updated`,
-          pageId: result2.pageId,
-          pageName: result2.pageName,
-          verified: true
-        };
-      }
-      if (request.newPageName) {
-        const formattedContent = this.formatNewPageContent(request.newContent, request.updateType);
-        const result2 = await this.foundryClient.query("foundry-mcp-bridge.updateJournalContent", {
-          journalId: request.journalId,
-          content: formattedContent,
-          newPageName: request.newPageName
-        });
-        if (!result2 || result2.error || !result2.success) {
-          throw new Error(result2?.error || "Failed to create new journal page");
-        }
-        return {
-          success: true,
-          updateType: request.updateType,
-          message: `New page "${request.newPageName}" created in journal`,
-          pageId: result2.pageId,
-          pageName: result2.pageName,
-          verified: true
-        };
-      }
-      let currentContent;
-      if (request.pageId) {
-        const pageResult = await this.foundryClient.query("foundry-mcp-bridge.getJournalPageContent", {
-          journalId: request.journalId,
-          pageId: request.pageId
-        });
-        if (!pageResult || pageResult.error) {
-          throw new Error(`Page not found: ${request.pageId}`);
-        }
-        currentContent = pageResult.content;
-      } else {
-        const currentJournal = await this.foundryClient.query("foundry-mcp-bridge.getJournalContent", {
-          journalId: request.journalId
-        });
-        if (!currentJournal || currentJournal.error) {
-          throw new Error(`Journal not found: ${currentJournal?.error || "Journal ID may be invalid"}`);
-        }
-        currentContent = currentJournal.content;
-      }
-      if (!currentContent) {
-        throw new Error("Journal/page exists but has no content to update");
-      }
-      let updatedContent;
-      if (request.pageId) {
-        const formattedNew = this.formatUpdateContentForFoundry(request.newContent);
-        updatedContent = currentContent + formattedNew;
-      } else {
-        updatedContent = this.formatQuestUpdate(currentContent, request.newContent, request.updateType);
-      }
-      const result = await this.foundryClient.query("foundry-mcp-bridge.updateJournalContent", {
-        journalId: request.journalId,
-        content: updatedContent,
-        pageId: request.pageId
-      });
-      if (!result) {
-        throw new Error("Failed to update quest journal: No response from Foundry");
-      }
-      if (result.error) {
-        throw new Error(`Failed to update quest journal: ${result.error}`);
-      }
-      if (!result.success) {
-        throw new Error("Failed to update quest journal: Update operation returned failure");
-      }
-      let verifyContent;
-      if (request.pageId) {
-        const verifyResult = await this.foundryClient.query("foundry-mcp-bridge.getJournalPageContent", {
-          journalId: request.journalId,
-          pageId: request.pageId
-        });
-        verifyContent = verifyResult?.content || "";
-      } else {
-        const verifyResult = await this.foundryClient.query("foundry-mcp-bridge.getJournalContent", {
-          journalId: request.journalId
-        });
-        verifyContent = verifyResult?.content || "";
-      }
-      const verificationPassed = verifyContent && (verifyContent.length > currentContent.length || // Content grew
-      verifyContent !== currentContent || // Content changed
-      verifyContent.includes(request.newContent) || // Raw content found
-      verifyContent.includes("Progress Update") || // Progress update section found
-      verifyContent.includes("Quest Complete") || // Completion section found
-      verifyContent.includes("Quest Failed"));
-      if (!verificationPassed) {
-        throw new Error(`Journal update verification failed: Content was not updated as expected. Original length: ${currentContent.length}, New length: ${verifyContent?.length || 0}`);
-      }
-      return {
-        success: true,
-        updateType: request.updateType,
-        message: `Quest journal updated with ${request.updateType}`,
-        pageId: result.pageId,
-        pageName: result.pageName,
-        verified: true,
-        details: `Content successfully updated and verified. Content length changed from ${currentContent.length} to ${verifyContent.length} characters.`,
-        updatedContent: verifyContent
-      };
-    } catch (error) {
-      this.errorHandler.handleToolError(error, "update-quest-journal", "journal update");
-    }
-  }
-  /**
-   * Handle replace journal page request
-   * Replaces the ENTIRE content of a specific journal page (no append).
-   */
-  async handleReplaceJournalPage(args) {
-    try {
-      const requestSchema = external_exports.object({
-        journalId: external_exports.string().min(1, "Journal ID is required"),
-        pageId: external_exports.string().min(1, "Page ID is required"),
-        newContent: external_exports.string().min(1, "New content is required"),
-        newPageName: external_exports.string().optional()
-      });
-      const request = requestSchema.parse(args);
-      request.newContent = this.convertMarkdownToPlainText(request.newContent);
-      const replacementContent = this.formatUpdateContentForFoundry(request.newContent);
-      const result = await this.foundryClient.query("foundry-mcp-bridge.updateJournalContent", {
-        journalId: request.journalId,
-        content: replacementContent,
-        pageId: request.pageId
-      });
-      if (!result) {
-        throw new Error("Failed to replace journal page: No response from Foundry");
-      }
-      if (result.error) {
-        throw new Error(`Failed to replace journal page: ${result.error}`);
-      }
-      if (!result.success) {
-        throw new Error("Failed to replace journal page: Update operation returned failure");
-      }
-      if (request.newPageName) {
-        await this.foundryClient.query("foundry-mcp-bridge.updateJournalContent", {
-          journalId: request.journalId,
-          pageId: request.pageId,
-          content: replacementContent,
-          newPageName: request.newPageName
-        });
-      }
-      const verifyResult = await this.foundryClient.query("foundry-mcp-bridge.getJournalPageContent", {
-        journalId: request.journalId,
-        pageId: request.pageId
-      });
-      const verifyContent = verifyResult?.content || "";
-      return {
-        success: true,
-        message: `Page content replaced successfully`,
-        pageId: result.pageId,
-        pageName: request.newPageName || result.pageName,
-        verified: verifyContent.length > 0,
-        details: `Page content replaced. New content length: ${verifyContent.length} characters.`,
-        updatedContent: verifyContent
-      };
-    } catch (error) {
-      this.errorHandler.handleToolError(error, "replace-journal-page", "journal page replacement");
-    }
-  }
-  /**
-   * Handle list journals request
-   */
-  async handleListJournals(args) {
-    try {
-      const requestSchema = external_exports.object({
-        filterQuests: external_exports.boolean().optional().default(false),
-        includeContent: external_exports.boolean().optional().default(false),
-        journalId: external_exports.string().optional(),
-        pageId: external_exports.string().optional()
-      });
-      const request = requestSchema.parse(args);
-      if (request.journalId && request.pageId) {
-        const pageResult = await this.foundryClient.query("foundry-mcp-bridge.getJournalPageContent", {
-          journalId: request.journalId,
-          pageId: request.pageId
-        });
-        if (!pageResult || pageResult.error) {
-          throw new Error(pageResult?.error || "Page not found");
-        }
-        return {
-          success: true,
-          mode: "page",
-          journalId: request.journalId,
-          page: pageResult
-        };
-      }
-      if (request.journalId) {
-        const journalContent = await this.foundryClient.query("foundry-mcp-bridge.getJournalContent", {
-          journalId: request.journalId
-        });
-        if (!journalContent || journalContent.error) {
-          throw new Error(journalContent?.error || "Journal not found");
-        }
-        return {
-          success: true,
-          mode: "journal",
-          journalId: request.journalId,
-          content: journalContent.content,
-          currentPage: journalContent.currentPage,
-          allPages: journalContent.allPages,
-          pageCount: journalContent.pageCount,
-          note: journalContent.note
-        };
-      }
-      const journals = await this.foundryClient.query("foundry-mcp-bridge.listJournals", {});
-      if (!journals || journals.error) {
-        throw new Error("Failed to retrieve journals");
-      }
-      let filteredJournals = journals;
-      if (request.filterQuests) {
-        filteredJournals = journals.filter((journal) => this.isQuestRelated(journal.name));
-      }
-      if (request.includeContent) {
-        for (const journal of filteredJournals) {
-          try {
-            const content = await this.foundryClient.query("foundry-mcp-bridge.getJournalContent", {
-              journalId: journal.id
-            });
-            journal.contentPreview = content?.content?.substring(0, 150) + "..." || "";
-          } catch (error) {
-            journal.contentPreview = "Error loading content";
-          }
-        }
-      }
-      return {
-        success: true,
-        mode: "list",
-        journals: filteredJournals,
-        total: filteredJournals.length,
-        filtered: request.filterQuests
-      };
-    } catch (error) {
-      this.errorHandler.handleToolError(error, "list-journals", "journal listing");
-    }
-  }
-  /**
-   * Handle search journals request
-   */
-  async handleSearchJournals(args) {
-    try {
-      const requestSchema = external_exports.object({
-        searchQuery: external_exports.string().min(1, "Search query is required"),
-        searchType: external_exports.enum(["title", "content", "both"]).optional().default("both")
-      });
-      const request = requestSchema.parse(args);
-      const journals = await this.foundryClient.query("foundry-mcp-bridge.listJournals", {});
-      if (!journals || journals.error) {
-        throw new Error("Failed to retrieve journals");
-      }
-      const searchResults = [];
-      const query = request.searchQuery.toLowerCase();
-      for (const journal of journals) {
-        let matches = false;
-        const matchInfo = {
-          id: journal.id,
-          name: journal.name,
-          pageCount: journal.pageCount || 0,
-          matchType: [],
-          matchedPages: []
-        };
-        if (request.searchType === "title" || request.searchType === "both") {
-          if (journal.name.toLowerCase().includes(query)) {
-            matches = true;
-            matchInfo.matchType.push("title");
-          }
-        }
-        if (request.searchType === "content" || request.searchType === "both") {
-          const pages = journal.pages || [];
-          for (const page of pages) {
-            if (page.type !== "text")
-              continue;
-            try {
-              const pageContent = await this.foundryClient.query("foundry-mcp-bridge.getJournalPageContent", {
-                journalId: journal.id,
-                pageId: page.id
-              });
-              if (pageContent?.content?.toLowerCase().includes(query)) {
-                matches = true;
-                if (!matchInfo.matchType.includes("content")) {
-                  matchInfo.matchType.push("content");
-                }
-                matchInfo.matchedPages.push({
-                  pageId: page.id,
-                  pageName: page.name,
-                  contentSnippet: this.extractSnippet(pageContent.content, request.searchQuery)
-                });
-              }
-            } catch (error) {
-            }
-          }
-        }
-        if (matches) {
-          searchResults.push(matchInfo);
-        }
-      }
-      return {
-        success: true,
-        searchQuery: request.searchQuery,
-        searchType: request.searchType,
-        results: searchResults,
-        totalMatches: searchResults.length
-      };
-    } catch (error) {
-      this.errorHandler.handleToolError(error, "search-journals", "journal search");
-    }
-  }
-  /**
-   * Generate formatted quest content from request (HTML for Foundry v13 ProseMirror)
-   * Uses professional styling that mimics Lost Mine of Phandelver templates
-   */
-  generateQuestContent(request) {
-    const htmlBody = this.buildStyledQuestContent(request);
-    return this.createStyledJournal(request.questTitle, htmlBody);
-  }
-  /**
-   * Create a professional styled journal with CSS that mimics Lost Mine of Phandelver
-   */
-  createStyledJournal(title, htmlBody) {
-    return `
-    <section class="mcp-journal">
-      <style>
-        .mcp-journal { --ink:#222; --muted:#666; --paper:#f8f5f2; --gm:#f2f2f2; --accent:#b33; --rule:#ddd; font-size:14px; line-height:1.6; color:var(--ink); }
-        .mcp-journal .wrap { max-width: 980px; margin: 0 auto; padding: 8px 12px 24px; }
-        .mcp-journal h1 { font-size: 28px; letter-spacing: .5px; text-align: center; margin: 8px 0 6px; }
-        .mcp-journal .orn { height: 10px; border: 0; border-top: 2px solid var(--rule); margin: 8px auto 16px; width: 60%; }
-        .mcp-journal h2 { font-size: 20px; margin: 18px 0 6px; }
-        .mcp-journal h3 { font-size: 16px; margin: 16px 0 6px; text-transform: uppercase; letter-spacing: .04em; }
-        .mcp-journal p.lead { font-size: 15px; color: var(--muted); margin: 0 0 10px; }
-        .mcp-journal .readaloud { background: var(--paper); border-left: 4px solid var(--accent); padding: 10px 12px; margin: 12px 0; }
-        .mcp-journal .gmnote { background: var(--gm); border-left: 4px solid #444; padding: 10px 12px; margin: 12px 0; }
-        .mcp-journal ul { margin: 6px 0 10px 18px; }
-        .mcp-journal .grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 10px 24px; }
-        .mcp-journal img { max-width: 100%; height: auto; border-radius: 2px; }
-        .mcp-journal .meta { font-size: 12px; color: var(--muted); margin: 4px 0 12px; }
-        .mcp-journal table { border-collapse: collapse; width: 100%; }
-        .mcp-journal table th, .mcp-journal table td { border-bottom: 1px solid var(--rule); padding: 6px 4px; text-align: left; }
-        .mcp-journal .spaced { margin-top: 14px; }
-      </style>
-
-      <div class="wrap">
-        <h1>${title}</h1>
-        <hr class="orn"/>
-
-        ${htmlBody}
-      </div>
-    </section>`;
-  }
-  /**
-   * Build professional quest content using template fragments
-   */
-  buildStyledQuestContent(request) {
-    let htmlBody = "";
-    htmlBody += `<p class="lead">${request.questDescription}</p>`;
-    if (request.location || request.questGiver || request.npcName) {
-      htmlBody += "<h2>Background</h2>";
-      let backgroundText = this.generateBackgroundText(request);
-      htmlBody += `<p>${backgroundText}</p>`;
-    }
-    if (request.questType || request.difficulty || request.location || request.npcName || request.rewards) {
-      htmlBody += '<div class="grid-2">';
-      htmlBody += "<div><h3>Quest Details</h3><ul>";
-      if (request.questType) {
-        htmlBody += `<li><strong>Type:</strong> ${request.questType.charAt(0).toUpperCase() + request.questType.slice(1)} Quest</li>`;
-      }
-      if (request.difficulty) {
-        htmlBody += `<li><strong>Difficulty:</strong> ${request.difficulty.charAt(0).toUpperCase() + request.difficulty.slice(1)}</li>`;
-      }
-      if (request.location) {
-        htmlBody += `<li><strong>Location:</strong> ${request.location}</li>`;
-      }
-      if (request.questGiver) {
-        htmlBody += `<li><strong>Quest Giver:</strong> ${request.questGiver}</li>`;
-      }
-      if (request.npcName) {
-        htmlBody += `<li><strong>Key NPC:</strong> ${request.npcName}</li>`;
-      }
-      htmlBody += "</ul></div>";
-      htmlBody += "<div><h3>Rewards & Status</h3><ul>";
-      if (request.rewards) {
-        htmlBody += `<li><strong>Rewards:</strong> ${request.rewards}</li>`;
-      }
-      htmlBody += `<li><strong>Status:</strong> Active</li>`;
-      htmlBody += `<li><strong>Created:</strong> ${(/* @__PURE__ */ new Date()).toLocaleDateString()}</li>`;
-      htmlBody += "</ul></div>";
-      htmlBody += "</div>";
-    }
-    htmlBody += '<h2 class="spaced">Adventure Hook</h2>';
-    htmlBody += '<div class="readaloud">';
-    const hookText = this.generateAdventureHook(request);
-    htmlBody += hookText;
-    htmlBody += "</div>";
-    htmlBody += '<div class="gmnote">';
-    let gmNotes = "<p><strong>GM Notes:</strong> ";
-    if (request.difficulty) {
-      gmNotes += `This ${request.difficulty} difficulty quest `;
-    } else {
-      gmNotes += "This quest ";
-    }
-    if (request.questType) {
-      gmNotes += `is designed as a ${request.questType} quest. `;
-    }
-    gmNotes += "Adjust encounters, NPCs, and obstacles to match your party's level and campaign tone. ";
-    if (request.location) {
-      gmNotes += `Consider the specific details of ${request.location} in your world. `;
-    }
-    if (request.rewards) {
-      gmNotes += "The specified rewards can be modified to better fit your campaign's economy and progression.";
-    } else {
-      gmNotes += "Consider appropriate rewards based on the quest's difficulty and your party's level.";
-    }
-    gmNotes += "</p>";
-    htmlBody += gmNotes;
-    htmlBody += "</div>";
-    htmlBody += '<h2 class="spaced">Quest Objectives</h2>';
-    htmlBody += "<ul>";
-    const objectives = this.generateQuestObjectives(request);
-    objectives.forEach((objective) => {
-      htmlBody += `<li>${objective}</li>`;
-    });
-    htmlBody += "</ul>";
-    htmlBody += '<h2 class="spaced">Progress Notes</h2>';
-    htmlBody += '<div class="gmnote">';
-    htmlBody += "<p><strong>GM Note:</strong> Use this section to track quest progress, player decisions, and any modifications made during gameplay.</p>";
-    htmlBody += "</div>";
-    return htmlBody;
-  }
-  /**
-   * Add NPC link information to journal content (HTML for Foundry v13 ProseMirror)
-   * Maintains professional styling by adding to the grid layout
-   */
-  addNPCLinkToJournal(content, npcName, relationship) {
-    const relationshipText = relationship.replace("_", " ");
-    if (content.includes("<h3>Related NPCs</h3>")) {
-      return content.replace("</ul></div></div>", `<li><strong>${npcName}:</strong> ${relationshipText}</li></ul></div></div>`);
-    } else {
-      if (content.includes("<h3>Rewards & Status</h3>")) {
-        const npcSection = `<li><strong>Related NPCs:</strong></li><li><strong>${npcName}:</strong> ${relationshipText}</li>`;
-        return content.replace("</ul></div></div>", `${npcSection}</ul></div></div>`);
-      } else {
-        const npcSection = `<div class="gmnote"><p><strong>Related NPCs:</strong> ${npcName} (${relationshipText})</p></div>`;
-        return content.replace("</div></section>", npcSection + "</div></section>");
-      }
-    }
-  }
-  // REMOVED: Campaign analysis quest generation methods
-  // REMOVED: performReconnaissance method - was only used by campaign analysis
-  // REMOVED: All campaign analysis helper methods - these were only used by the removed tool
-  /**
-   * Format quest update based on type (HTML for Foundry v13 ProseMirror)
-   * Maintains professional styling by adding updates with proper section headings
-   */
-  /**
-   * Format content for a brand new page (no existing content to append to)
-   */
-  formatNewPageContent(newContent, updateType) {
-    const timestamp = (/* @__PURE__ */ new Date()).toLocaleDateString();
-    const formattedContent = this.formatUpdateContentForFoundry(newContent);
-    const hasCustomHeading = /<h[1-6][^>]*>.*<\/h[1-6]>/i.test(newContent);
-    if (hasCustomHeading) {
-      return `<section class="mcp-journal">${formattedContent}</section>`;
-    }
-    let heading = "";
-    switch (updateType) {
-      case "progress":
-        heading = `<h2 class="spaced">Progress Update - ${timestamp}</h2>`;
-        break;
-      case "completion":
-        heading = `<h2 class="spaced">Quest Completed - ${timestamp}</h2>`;
-        break;
-      case "failure":
-        heading = `<h2 class="spaced">Quest Failed - ${timestamp}</h2>`;
-        break;
-      case "modification":
-        heading = `<h2 class="spaced">Quest Modified - ${timestamp}</h2>`;
-        break;
-    }
-    return `<section class="mcp-journal">${heading}<div class="gmnote">${formattedContent}</div></section>`;
-  }
-  formatQuestUpdate(currentContent, newContent, updateType) {
-    const timestamp = (/* @__PURE__ */ new Date()).toLocaleDateString();
-    const formattedContent = this.formatUpdateContentForFoundry(newContent);
-    let updateSection = "";
-    const hasCustomHeading = /<h[1-6][^>]*>.*<\/h[1-6]>/i.test(newContent);
-    if (hasCustomHeading) {
-      updateSection = formattedContent;
-    } else {
-      switch (updateType) {
-        case "progress":
-          updateSection = `<h2 class="spaced">Progress Update - ${timestamp}</h2><div class="gmnote">${formattedContent}</div>`;
-          break;
-        case "completion":
-          updateSection = `<h2 class="spaced">Quest Completed - ${timestamp}</h2><div class="readaloud">${formattedContent}</div>`;
-          break;
-        case "failure":
-          updateSection = `<h2 class="spaced">Quest Failed - ${timestamp}</h2><div class="gmnote">${formattedContent}</div>`;
-          break;
-        case "modification":
-          updateSection = `<h2 class="spaced">Quest Modified - ${timestamp}</h2><div class="gmnote">${formattedContent}</div>`;
-          break;
-      }
-    }
-    if (updateType === "completion") {
-      currentContent = currentContent.replace("<li><strong>Status:</strong> Active</li>", "<li><strong>Status:</strong> Completed</li>");
-    } else if (updateType === "failure") {
-      currentContent = currentContent.replace("<li><strong>Status:</strong> Active</li>", "<li><strong>Status:</strong> Failed</li>");
-    }
-    if (currentContent.includes("</div>\n    </section>")) {
-      return currentContent.replace("</div>\n    </section>", updateSection + "</div>\n    </section>");
-    } else {
-      return currentContent.replace("</div></section>", updateSection + "</div></section>");
-    }
-  }
-  /**
-   * Format text content for Foundry VTT (convert to proper HTML)
-   */
-  formatTextForFoundry(text3) {
-    let escaped = text3.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-    const paragraphs = escaped.split("\n\n").filter((p) => p.trim().length > 0);
-    if (paragraphs.length === 0) {
-      return "<p></p>";
-    }
-    if (paragraphs.length === 1) {
-      return `<p>${paragraphs[0].replace(/\n/g, "<br>")}</p>`;
-    }
-    return paragraphs.map((p) => `<p>${p.replace(/\n/g, "<br>")}</p>`).join("");
-  }
-  /**
-   * Format update content for Foundry VTT (preserve HTML like create-quest-journal)
-   * Allows custom section headings and themed content with proper CSS classes
-   */
-  formatUpdateContentForFoundry(content) {
-    const trimmed = content.trim();
-    if (!trimmed) {
-      return "<p></p>";
-    }
-    const hasHTMLTags = /<[^>]+>/.test(trimmed);
-    if (hasHTMLTags) {
-      return trimmed;
-    } else {
-      const paragraphs = trimmed.split("\n\n").filter((p) => p.trim().length > 0);
-      if (paragraphs.length === 0) {
-        return "<p></p>";
-      }
-      if (paragraphs.length === 1) {
-        return `<p>${paragraphs[0].replace(/\n/g, "<br>")}</p>`;
-      }
-      return paragraphs.map((p) => `<p>${p.replace(/\n/g, "<br>")}</p>`).join("");
-    }
-  }
-  /**
-   * Check if a journal appears to be quest-related
-   */
-  isQuestRelated(journalName) {
-    const questKeywords = ["quest", "mission", "task", "adventure", "job", "contract"];
-    const nameLower = journalName.toLowerCase();
-    return questKeywords.some((keyword) => nameLower.includes(keyword));
-  }
-  /**
-   * Extract content snippet around search term
-   */
-  extractSnippet(content, searchTerm, maxLength = 200) {
-    const index = content.toLowerCase().indexOf(searchTerm.toLowerCase());
-    if (index === -1)
-      return "";
-    const start = Math.max(0, index - 50);
-    const end = Math.min(content.length, index + maxLength);
-    return "..." + content.substring(start, end) + "...";
-  }
-  /**
-   * Determine if the named NPC is an antagonist based on quest description
-   */
-  determineNPCRole(questDescription, npcName) {
-    if (!npcName)
-      return "neutral";
-    const desc = questDescription.toLowerCase();
-    const name = npcName.toLowerCase();
-    const antagonistKeywords = [
-      "stop",
-      "defeat",
-      "confront",
-      "evil",
-      "corrupt",
-      "mad",
-      "insane",
-      "villain",
-      "enemy",
-      "threat",
-      "dangerous",
-      "rogue",
-      "gone wrong",
-      "obsessed",
-      "twisted",
-      "dark",
-      "forbidden",
-      "necro",
-      "tyrant",
-      "bandit",
-      "cultist",
-      "possessed",
-      "cursed",
-      "malevolent"
-    ];
-    const hasAntagonistContext = antagonistKeywords.some((keyword) => desc.includes(keyword) && desc.includes(name));
-    const explicitAntagonist = desc.includes(`${name} has`) || desc.includes(`${name} is`) || desc.includes(`confront ${name}`) || desc.includes(`stop ${name}`) || desc.includes(`defeat ${name}`);
-    return hasAntagonistContext || explicitAntagonist ? "antagonist" : "quest_giver";
-  }
-  /**
-   * Generate background text using separate quest giver and NPC parameters
-   */
-  generateBackgroundText(request) {
-    let backgroundText = "";
-    if (request.questGiver && request.location) {
-      backgroundText = `This quest is provided by ${request.questGiver} and takes place in ${request.location}. `;
-    } else if (request.questGiver) {
-      backgroundText = `This quest is provided by ${request.questGiver}. `;
-    } else if (request.location) {
-      backgroundText = `This quest takes place in ${request.location}. `;
-    } else {
-      backgroundText = `This quest involves the party's investigation and action. `;
-    }
-    if (request.npcName) {
-      backgroundText += `The quest centers around ${request.npcName}. `;
-    }
-    backgroundText += "Adjust these details as needed for your campaign.";
-    return backgroundText;
-  }
-  /**
-   * Generate adventure hook with proper quest giver logic and complete sentences
-   */
-  generateAdventureHook(request) {
-    let hookText = "<p><strong>Read-Aloud:</strong> ";
-    if (request.questGiver) {
-      hookText += `${request.questGiver} approaches the party with evident concern. `;
-      if (request.location && request.npcName) {
-        hookText += `"There's been trouble in ${request.location} involving ${request.npcName}. `;
-      } else if (request.location) {
-        hookText += `"Something troubling is happening in ${request.location}. `;
-      } else if (request.npcName) {
-        hookText += `"I need to tell you about ${request.npcName}. `;
-      } else {
-        hookText += `"I have urgent news that requires your attention. `;
-      }
-      const hookDialogue = this.generateQuestGiverDialogue(request);
-      hookText += `${hookDialogue}" ${request.questGiver} pauses, clearly hoping you'll take action.`;
-    } else {
-      if (request.location) {
-        hookText += `Troubling reports reach your ears concerning ${request.location}. `;
-      } else {
-        hookText += `Disturbing rumors begin circulating in the area. `;
-      }
-      const rumorContent = this.generateRumorHook(request);
-      hookText += `${rumorContent} The situation clearly demands investigation before it worsens.`;
-    }
-    hookText += "</p>";
-    return hookText;
-  }
-  /**
-   * Generate quest giver dialogue based on quest content
-   */
-  generateQuestGiverDialogue(request) {
-    const desc = request.questDescription.toLowerCase();
-    if (desc.includes("blight") || desc.includes("corruption")) {
-      return `A strange blight is spreading, and crops are turning into something unnatural. The situation grows worse by the day`;
-    } else if (desc.includes("missing") || desc.includes("disappeared")) {
-      return `People have been going missing, and we fear the worst. Someone needs to find out what's happening`;
-    } else if (desc.includes("bandits") || desc.includes("raiders")) {
-      return `Bandits have been terrorizing travelers and merchants. The roads aren't safe anymore`;
-    } else if (desc.includes("monster") || desc.includes("creature")) {
-      return `A dangerous creature has been spotted in the area. People are too frightened to venture out`;
-    } else if (desc.includes("cult") || desc.includes("ritual")) {
-      return `Strange rituals and suspicious activities have been observed. Something dark is stirring`;
-    } else if (request.npcName && this.isLikelyAntagonist(request.questDescription, request.npcName)) {
-      return `${request.npcName} has become a threat to everyone in the area. Someone must stop them before more people get hurt`;
-    } else {
-      return `The situation has become dangerous, and innocent people are at risk. We need heroes to set things right`;
-    }
-  }
-  /**
-   * Generate rumor-based hook content
-   */
-  generateRumorHook(request) {
-    const desc = request.questDescription.toLowerCase();
-    if (desc.includes("wizard") || desc.includes("magic")) {
-      return `Witnesses speak of uncontrolled magical experiments and their terrifying consequences.`;
-    } else if (desc.includes("blight") || desc.includes("corruption")) {
-      return `Farmers report that healthy crops are turning into hostile, animate creatures overnight.`;
-    } else if (desc.includes("missing") || desc.includes("disappeared")) {
-      return `Several people have vanished without a trace, leaving behind only mysterious circumstances.`;
-    } else if (request.npcName) {
-      return `Local tales speak of ${request.npcName} and the growing danger they represent to the community.`;
-    } else {
-      return `Multiple witnesses describe strange and threatening events that demand immediate investigation.`;
-    }
-  }
-  /**
-   * Generate specific quest objectives based on type and parameters
-   */
-  generateQuestObjectives(request) {
-    const objectives = [];
-    if (request.questType === "fetch") {
-      objectives.push("Locate and retrieve the required item or information");
-      if (request.location) {
-        objectives.push(`Travel to ${request.location} and investigate thoroughly`);
-      }
-    } else if (request.questType === "escort") {
-      objectives.push("Safely escort the target to their destination");
-      objectives.push("Protect against threats along the journey");
-    } else if (request.questType === "kill") {
-      objectives.push("Eliminate the specified threat or enemy");
-      objectives.push("Ensure the area is secure from further danger");
-    } else if (request.questType === "mystery") {
-      objectives.push("Investigate the mysterious circumstances");
-      objectives.push("Gather evidence and interview witnesses");
-      objectives.push("Uncover the truth behind the events");
-    } else {
-      if (request.npcName && this.isLikelyAntagonist(request.questDescription, request.npcName)) {
-        objectives.push(`Investigate the situation involving ${request.npcName}`);
-        if (request.location) {
-          objectives.push(`Travel to ${request.location} and assess the threat`);
-        }
-        objectives.push(`Deal with ${request.npcName} as appropriate`);
-      } else {
-        const actionWords = this.extractActionObjectives(request.questDescription);
-        actionWords.forEach((action) => objectives.push(action));
-      }
-    }
-    if (request.questGiver) {
-      objectives.push(`Report back to ${request.questGiver} upon completion`);
-    } else {
-      objectives.push("Report the outcome to the appropriate authorities");
-    }
-    if (request.rewards) {
-      objectives.push("Claim the promised rewards");
-    }
-    return objectives;
-  }
-  /**
-   * Check if NPC is likely an antagonist based on description
-   */
-  isLikelyAntagonist(description, npcName) {
-    const desc = description.toLowerCase();
-    const name = npcName.toLowerCase().split(" ")[0];
-    const antagonistPhrases = [
-      "confront",
-      "stop",
-      "defeat",
-      "gone wrong",
-      "obsessed",
-      "mad",
-      "threat",
-      "corrupted",
-      "evil",
-      "dangerous"
-    ];
-    return antagonistPhrases.some((phrase) => desc.includes(phrase)) && desc.includes(name);
-  }
-  /**
-   * Extract actionable objectives from quest description
-   */
-  extractActionObjectives(description) {
-    const objectives = [];
-    if (description.includes("investigate")) {
-      objectives.push("Investigate the mysterious circumstances");
-    }
-    if (description.includes("navigate")) {
-      objectives.push("Navigate through the dangerous area");
-    }
-    if (description.includes("confront")) {
-      objectives.push("Confront the source of the problem");
-    }
-    if (description.includes("stop") || description.includes("prevent")) {
-      objectives.push("Prevent further spread of the threat");
-    }
-    if (objectives.length === 0) {
-      const words2 = description.split(" ");
-      const briefObjective = words2.slice(0, 15).join(" ") + (words2.length > 15 ? "..." : "");
-      objectives.push(`Complete the main objective: ${briefObjective}`);
-    }
-    return objectives;
-  }
-  /**
-   * Convert Markdown to plain text and warn (don't block the operation)
-   * This ensures the tool works while gently educating about proper format
-   */
-  convertMarkdownToPlainText(content) {
-    const originalContent = content;
-    content = content.replace(/\*\*(.+?)\*\*/g, "$1").replace(/\*(.+?)\*/g, "$1").replace(/^#{1,6}\s+(.+)/gm, "$1").replace(/`(.+?)`/g, "$1").replace(/\[(.+?)\]\((.+?)\)/g, "$1").replace(/^[-*+]\s+(.+)/gm, "$1").replace(/^\d+\.\s+(.+)/gm, "$1").replace(/^>\s*(.+)/gm, "$1");
-    if (content !== originalContent) {
-      this.logger.warn("Automatically converted Markdown formatting to plain text. Future updates will work better with plain text input.");
-    }
-    return content;
-  }
-};
-
 // dist/tools/dice-roll.js
 init_zod();
 var DiceRollTools = class {
@@ -115010,7 +110996,7 @@ var DiceRollTools = class {
     return [
       {
         name: "request-player-rolls",
-        description: 'Request dice rolls from players with interactive buttons. Creates roll buttons in Foundry chat that players can click. VISIBILITY WORKFLOW: Before calling this function, ensure the user has specified whether they want a public or private roll. If they have already specified "public" or "private" in their request (e.g., "public performance check", "private stealth roll"), you can proceed directly. If the visibility is ambiguous or unspecified, ask: "Do you want this to be a PUBLIC roll (visible to all players) or PRIVATE roll (visible to player and GM only)?" and wait for their answer. Supports character-to-player resolution and GM fallback.',
+        description: "Request a roll from a player: posts a card with a roll button in the Foundry chat. rollType ability | skill | save | attack | initiative | death (a death saving throw, counted on the sheet) | custom (a formula); rollTarget is the ability, skill or formula; targetPlayer is a player or character name (GM fallback when nobody owns it). isPublic defaults to true (everyone sees the roll); pass false for a roll only the player and the GM see (Insight, Stealth, anything whose result should stay secret). The card waits for the narration queued before it, and the table feed holds its next beat until the roll comes in.",
         inputSchema: {
           type: "object",
           properties: {
@@ -115029,12 +111015,7 @@ var DiceRollTools = class {
             },
             isPublic: {
               type: "boolean",
-              description: "Whether the roll should be public (true = visible to all players) or private (false = visible only to target player and GM)."
-            },
-            userConfirmedVisibility: {
-              type: "boolean",
-              const: true,
-              description: 'REQUIRED: Must be set to true to confirm the roll visibility has been determined. This can happen in two ways: 1) User explicitly specified "public" or "private" in their original request (e.g., "public stealth check"), or 2) You asked the clarifying question and received their answer. Only set this to true when you are confident about the visibility preference, either from their original request or from a direct answer to your question.'
+              description: "true (default): visible to all players; false: visible only to the target player and the GM."
             },
             rollModifier: {
               type: "string",
@@ -115047,13 +111028,7 @@ var DiceRollTools = class {
               default: ""
             }
           },
-          required: [
-            "rollType",
-            "rollTarget",
-            "targetPlayer",
-            "isPublic",
-            "userConfirmedVisibility"
-          ]
+          required: ["rollType", "rollTarget", "targetPlayer"]
         }
       }
     ];
@@ -115063,20 +111038,16 @@ var DiceRollTools = class {
       rollType: external_exports.enum(["ability", "skill", "save", "attack", "initiative", "death", "custom"]),
       rollTarget: external_exports.string(),
       targetPlayer: external_exports.string(),
-      isPublic: external_exports.boolean(),
-      userConfirmedVisibility: external_exports.literal(true),
+      isPublic: external_exports.boolean().default(true),
+      // Old callers still send this; it is accepted and ignored.
+      userConfirmedVisibility: external_exports.boolean().optional(),
       rollModifier: external_exports.string().default(""),
       flavor: external_exports.string().default("")
     });
     try {
       const params = schema23.parse(args);
-      if (typeof params.isPublic !== "boolean") {
-        return 'Please specify whether you want this to be a PUBLIC roll (visible to all players) or PRIVATE roll (visible only to the target player and GM). You must provide either "true" for public or "false" for private.';
-      }
-      if (params.userConfirmedVisibility !== true) {
-        return 'You must determine the roll visibility before calling this function. Either: 1) The user already specified "public" or "private" in their request, or 2) You need to ask: "Do you want this to be a PUBLIC roll or PRIVATE roll?" Set userConfirmedVisibility to true only when you are confident about the visibility preference.';
-      }
-      const response = await this.foundryClient.query("foundry-mcp-bridge.request-player-rolls", params);
+      const { userConfirmedVisibility: _ignored, ...forModule } = params;
+      const response = await this.foundryClient.query("foundry-mcp-bridge.request-player-rolls", forModule);
       if (response.success) {
         return `Roll request sent successfully! ${response.message}`;
       } else {
@@ -115085,842 +111056,9 @@ var DiceRollTools = class {
     } catch (error) {
       this.logger.error("Error requesting player rolls", error);
       if (error instanceof external_exports.ZodError) {
-        const messages = error.errors.map((e) => {
-          if (e.path.includes("isPublic")) {
-            return "You must specify whether the roll should be PUBLIC (visible to all players) or PRIVATE (visible only to target player and GM). Check if the user already specified this in their request, or ask them to clarify.";
-          }
-          return e.message;
-        });
+        const messages = error.errors.map((e) => e.message);
         return `Parameter error: ${messages.join(", ")}`;
       }
-      throw error;
-    }
-  }
-};
-
-// dist/tools/campaign-management.js
-init_zod();
-
-// ../../shared/dist/schemas.js
-init_zod();
-var MCPQuerySchema = external_exports.object({
-  method: external_exports.string(),
-  data: external_exports.unknown().optional()
-});
-var MCPResponseSchema = external_exports.object({
-  success: external_exports.boolean(),
-  data: external_exports.unknown().optional(),
-  error: external_exports.string().optional()
-});
-var CharacterItemSchema = external_exports.object({
-  id: external_exports.string(),
-  name: external_exports.string(),
-  type: external_exports.string(),
-  img: external_exports.string().optional(),
-  system: external_exports.record(external_exports.unknown())
-});
-var CharacterEffectSchema = external_exports.object({
-  id: external_exports.string(),
-  name: external_exports.string(),
-  icon: external_exports.string().optional(),
-  disabled: external_exports.boolean(),
-  duration: external_exports.object({
-    type: external_exports.string(),
-    duration: external_exports.number().optional(),
-    remaining: external_exports.number().optional()
-  }).optional()
-});
-var CharacterInfoSchema = external_exports.object({
-  id: external_exports.string(),
-  name: external_exports.string(),
-  type: external_exports.string(),
-  img: external_exports.string().optional(),
-  system: external_exports.record(external_exports.unknown()),
-  items: external_exports.array(CharacterItemSchema),
-  effects: external_exports.array(CharacterEffectSchema)
-});
-var CompendiumSearchResultSchema = external_exports.object({
-  id: external_exports.string(),
-  name: external_exports.string(),
-  type: external_exports.string(),
-  img: external_exports.string().optional(),
-  pack: external_exports.string(),
-  packLabel: external_exports.string(),
-  system: external_exports.record(external_exports.unknown()).optional()
-});
-var CompendiumPackSchema = external_exports.object({
-  id: external_exports.string(),
-  label: external_exports.string(),
-  type: external_exports.string(),
-  system: external_exports.string(),
-  private: external_exports.boolean()
-});
-var SceneTokenSchema = external_exports.object({
-  id: external_exports.string(),
-  name: external_exports.string(),
-  x: external_exports.number(),
-  y: external_exports.number(),
-  width: external_exports.number(),
-  height: external_exports.number(),
-  actorId: external_exports.string().optional(),
-  img: external_exports.string(),
-  hidden: external_exports.boolean(),
-  disposition: external_exports.number()
-});
-var SceneNoteSchema = external_exports.object({
-  id: external_exports.string(),
-  text: external_exports.string(),
-  x: external_exports.number(),
-  y: external_exports.number()
-});
-var SceneInfoSchema = external_exports.object({
-  id: external_exports.string(),
-  name: external_exports.string(),
-  img: external_exports.string().optional(),
-  background: external_exports.string().optional(),
-  width: external_exports.number(),
-  height: external_exports.number(),
-  padding: external_exports.number(),
-  active: external_exports.boolean(),
-  navigation: external_exports.boolean(),
-  tokens: external_exports.array(SceneTokenSchema),
-  walls: external_exports.number(),
-  lights: external_exports.number(),
-  sounds: external_exports.number(),
-  notes: external_exports.array(SceneNoteSchema)
-});
-var TokenUpdateSchema = external_exports.object({
-  tokenId: external_exports.string(),
-  updates: external_exports.object({
-    x: external_exports.number().optional(),
-    y: external_exports.number().optional(),
-    width: external_exports.number().positive().optional(),
-    height: external_exports.number().positive().optional(),
-    rotation: external_exports.number().min(0).max(360).optional(),
-    hidden: external_exports.boolean().optional(),
-    disposition: external_exports.union([external_exports.literal(-1), external_exports.literal(0), external_exports.literal(1)]).optional(),
-    name: external_exports.string().optional(),
-    elevation: external_exports.number().optional(),
-    lockRotation: external_exports.boolean().optional()
-  })
-});
-var TokenMoveRequestSchema = external_exports.object({
-  tokenId: external_exports.string(),
-  x: external_exports.number(),
-  y: external_exports.number(),
-  animate: external_exports.boolean().optional().default(false)
-});
-var TokenUpdateResultSchema = external_exports.object({
-  success: external_exports.boolean(),
-  tokenId: external_exports.string(),
-  updated: external_exports.boolean(),
-  error: external_exports.string().optional()
-});
-var TokenDeleteResultSchema = external_exports.object({
-  success: external_exports.boolean(),
-  deletedCount: external_exports.number(),
-  tokenIds: external_exports.array(external_exports.string()),
-  errors: external_exports.array(external_exports.string()).optional()
-});
-var TokenDetailsSchema = SceneTokenSchema.extend({
-  rotation: external_exports.number(),
-  elevation: external_exports.number(),
-  lockRotation: external_exports.boolean(),
-  scale: external_exports.number(),
-  alpha: external_exports.number(),
-  actorLink: external_exports.boolean(),
-  actorData: external_exports.object({
-    name: external_exports.string(),
-    type: external_exports.string(),
-    img: external_exports.string().optional()
-  }).optional()
-});
-var FoundryMCPConfigSchema = external_exports.object({
-  enabled: external_exports.boolean(),
-  mcpHost: external_exports.string(),
-  mcpPort: external_exports.number().min(1024).max(65535),
-  connectionTimeout: external_exports.number().min(5).max(60),
-  debugLogging: external_exports.boolean()
-});
-var MCPServerConfigSchema = external_exports.object({
-  logLevel: external_exports.enum(["error", "warn", "info", "debug"]),
-  foundry: external_exports.object({
-    host: external_exports.string(),
-    port: external_exports.number().min(1024).max(65535),
-    namespace: external_exports.string(),
-    reconnectAttempts: external_exports.number().min(1).max(10),
-    reconnectDelay: external_exports.number().min(100).max(1e4)
-  })
-});
-var WorldUserSchema = external_exports.object({
-  id: external_exports.string(),
-  name: external_exports.string(),
-  active: external_exports.boolean(),
-  isGM: external_exports.boolean()
-});
-var WorldInfoSchema = external_exports.object({
-  id: external_exports.string(),
-  title: external_exports.string(),
-  system: external_exports.string(),
-  systemVersion: external_exports.string(),
-  foundryVersion: external_exports.string(),
-  users: external_exports.array(WorldUserSchema)
-});
-var BridgeStatusSchema = external_exports.object({
-  isRunning: external_exports.boolean(),
-  config: FoundryMCPConfigSchema,
-  timestamp: external_exports.number()
-});
-var CampaignPartStatusSchema = external_exports.enum([
-  "not_started",
-  "in_progress",
-  "completed",
-  "skipped"
-]);
-var CampaignPartTypeSchema = external_exports.enum([
-  "main_part",
-  "sub_part",
-  "chapter",
-  "session",
-  "optional"
-]);
-var LevelRecommendationSchema = external_exports.object({
-  start: external_exports.number().min(1).max(20),
-  end: external_exports.number().min(1).max(20)
-});
-var NPCReferenceSchema = external_exports.object({
-  id: external_exports.string(),
-  name: external_exports.string(),
-  actorId: external_exports.string().optional()
-});
-var ScalingOptionsSchema = external_exports.object({
-  adjustForPartySize: external_exports.boolean().default(true),
-  adjustForLevel: external_exports.boolean().default(true),
-  difficultyModifier: external_exports.number().min(-2).max(2).default(0)
-});
-var CampaignSubPartSchema = external_exports.object({
-  id: external_exports.string(),
-  title: external_exports.string().min(1),
-  description: external_exports.string(),
-  type: CampaignPartTypeSchema,
-  status: CampaignPartStatusSchema.default("not_started"),
-  journalId: external_exports.string().optional(),
-  createdAt: external_exports.number().optional(),
-  completedAt: external_exports.number().optional()
-});
-var CampaignPartSchema = external_exports.object({
-  id: external_exports.string(),
-  title: external_exports.string().min(1),
-  description: external_exports.string(),
-  type: CampaignPartTypeSchema,
-  status: CampaignPartStatusSchema.default("not_started"),
-  dependencies: external_exports.array(external_exports.string()).default([]),
-  subParts: external_exports.array(CampaignSubPartSchema).optional(),
-  questGiver: NPCReferenceSchema.optional(),
-  levelRecommendation: LevelRecommendationSchema,
-  gmNotes: external_exports.string().default(""),
-  playerContent: external_exports.string().default(""),
-  scaling: ScalingOptionsSchema.default({}),
-  journalId: external_exports.string().optional(),
-  createdAt: external_exports.number().optional(),
-  completedAt: external_exports.number().optional()
-});
-var CampaignMetadataSchema = external_exports.object({
-  defaultQuestGiver: NPCReferenceSchema.optional(),
-  defaultLocation: external_exports.string().optional(),
-  theme: external_exports.string().optional(),
-  estimatedSessions: external_exports.number().optional(),
-  targetLevelRange: LevelRecommendationSchema.optional(),
-  tags: external_exports.array(external_exports.string()).default([])
-});
-var CampaignStructureSchema = external_exports.object({
-  id: external_exports.string(),
-  title: external_exports.string().min(1),
-  description: external_exports.string(),
-  parts: external_exports.array(CampaignPartSchema),
-  metadata: CampaignMetadataSchema,
-  dashboardJournalId: external_exports.string().optional(),
-  createdAt: external_exports.number(),
-  updatedAt: external_exports.number()
-});
-var CampaignTemplateSchema = external_exports.object({
-  id: external_exports.string(),
-  name: external_exports.string(),
-  description: external_exports.string(),
-  parts: external_exports.array(external_exports.object({
-    title: external_exports.string(),
-    description: external_exports.string(),
-    type: CampaignPartTypeSchema,
-    dependencies: external_exports.array(external_exports.string()).default([]),
-    subParts: external_exports.array(external_exports.object({
-      title: external_exports.string(),
-      description: external_exports.string(),
-      type: CampaignPartTypeSchema
-    })).optional(),
-    levelRecommendation: LevelRecommendationSchema
-  })),
-  metadata: CampaignMetadataSchema.partial()
-});
-
-// dist/tools/campaign-management.js
-var CampaignManagementTools = class {
-  foundryClient;
-  errorHandler;
-  logger;
-  constructor(foundryClient, logger) {
-    this.foundryClient = foundryClient;
-    this.logger = logger;
-    this.errorHandler = new ErrorHandler(this.logger);
-  }
-  getToolDefinitions() {
-    return [
-      {
-        name: "create-campaign-dashboard",
-        description: "Create a comprehensive campaign dashboard journal with navigation, progress tracking, and part management",
-        inputSchema: {
-          type: "object",
-          properties: {
-            campaignTitle: {
-              type: "string",
-              description: 'Title of the campaign (e.g., "The Whisperstone Conspiracy")'
-            },
-            campaignDescription: {
-              type: "string",
-              description: "Brief description of the campaign theme and scope"
-            },
-            template: {
-              type: "string",
-              enum: ["five-part-adventure", "dungeon-crawl", "investigation", "sandbox", "custom"],
-              description: "Campaign structure template to use"
-            },
-            customParts: {
-              type: "array",
-              items: {
-                type: "object",
-                properties: {
-                  title: { type: "string" },
-                  description: { type: "string" },
-                  type: {
-                    type: "string",
-                    enum: ["main_part", "sub_part", "chapter", "session", "optional"]
-                  },
-                  levelStart: { type: "number", minimum: 1, maximum: 20 },
-                  levelEnd: { type: "number", minimum: 1, maximum: 20 },
-                  subParts: {
-                    type: "array",
-                    items: {
-                      type: "object",
-                      properties: {
-                        title: { type: "string" },
-                        description: { type: "string" }
-                      },
-                      required: ["title", "description"]
-                    }
-                  }
-                },
-                required: ["title", "description", "type", "levelStart", "levelEnd"]
-              },
-              description: 'Custom campaign parts when template is "custom"'
-            },
-            defaultQuestGiver: {
-              type: "string",
-              description: "Default NPC name for quest giving (optional)"
-            },
-            defaultLocation: {
-              type: "string",
-              description: "Default campaign location/setting (optional)"
-            }
-          },
-          required: ["campaignTitle", "campaignDescription", "template"]
-        }
-      }
-    ];
-  }
-  /**
-   * Handle create campaign dashboard request
-   */
-  async handleCreateCampaignDashboard(args) {
-    try {
-      const requestSchema = external_exports.object({
-        campaignTitle: external_exports.string().min(1, "Campaign title is required"),
-        campaignDescription: external_exports.string().min(1, "Campaign description is required"),
-        template: external_exports.enum([
-          "five-part-adventure",
-          "dungeon-crawl",
-          "investigation",
-          "sandbox",
-          "custom"
-        ]),
-        customParts: external_exports.array(external_exports.object({
-          title: external_exports.string().min(1),
-          description: external_exports.string().min(1),
-          type: CampaignPartTypeSchema,
-          levelStart: external_exports.number().min(1).max(20),
-          levelEnd: external_exports.number().min(1).max(20),
-          subParts: external_exports.array(external_exports.object({
-            title: external_exports.string().min(1),
-            description: external_exports.string().min(1)
-          })).optional()
-        })).optional(),
-        defaultQuestGiver: external_exports.string().optional(),
-        defaultLocation: external_exports.string().optional()
-      });
-      const request = requestSchema.parse(args);
-      const campaignStructure = this.generateCampaignStructure(request);
-      const dashboardContent = this.generateDashboardHTML(campaignStructure);
-      const journalResult = await this.foundryClient.query("foundry-mcp-bridge.createJournalEntry", {
-        name: `${request.campaignTitle} - Campaign Dashboard`,
-        content: dashboardContent,
-        folderName: request.campaignTitle
-        // Organize in campaign-named folder
-      });
-      if (!journalResult || journalResult.error) {
-        throw new Error(journalResult?.error || "Failed to create campaign dashboard journal");
-      }
-      campaignStructure.dashboardJournalId = journalResult.id;
-      await this.storeCampaignStructure(campaignStructure);
-      return {
-        success: true,
-        campaignId: campaignStructure.id,
-        dashboardJournalId: journalResult.id,
-        dashboardName: journalResult.name,
-        campaignStructure,
-        message: `Campaign dashboard "${request.campaignTitle}" created successfully with ${campaignStructure.parts.length} parts`
-      };
-    } catch (error) {
-      return this.errorHandler.handleToolError(error, "create-campaign-dashboard", "campaign dashboard creation");
-    }
-  }
-  /**
-   * Generate campaign structure from template
-   */
-  generateCampaignStructure(request) {
-    const campaignId = `campaign-${Date.now()}`;
-    const timestamp = Date.now();
-    let parts = [];
-    if (request.template === "custom" && request.customParts) {
-      parts = request.customParts.map((part, index) => ({
-        id: `${campaignId}-part-${index + 1}`,
-        title: part.title,
-        description: part.description,
-        type: part.type,
-        status: "not_started",
-        dependencies: index > 0 ? [`${campaignId}-part-${index}`] : [],
-        subParts: part.subParts?.map((subPart, subIndex) => ({
-          id: `${campaignId}-part-${index + 1}-sub-${subIndex + 1}`,
-          title: subPart.title,
-          description: subPart.description,
-          type: "sub_part",
-          status: "not_started",
-          createdAt: timestamp
-        })),
-        ...request.defaultQuestGiver && {
-          questGiver: {
-            id: `npc-${request.defaultQuestGiver.toLowerCase().replace(/\s+/g, "-")}`,
-            name: request.defaultQuestGiver
-          }
-        },
-        levelRecommendation: {
-          start: part.levelStart,
-          end: part.levelEnd
-        },
-        gmNotes: "",
-        playerContent: "",
-        scaling: {
-          adjustForPartySize: true,
-          adjustForLevel: true,
-          difficultyModifier: 0
-        },
-        createdAt: timestamp
-      }));
-    } else {
-      parts = this.getTemplateParts(request.template, campaignId, timestamp, request.defaultQuestGiver);
-    }
-    return {
-      id: campaignId,
-      title: request.campaignTitle,
-      description: request.campaignDescription,
-      parts,
-      metadata: {
-        ...request.defaultQuestGiver && {
-          defaultQuestGiver: {
-            id: `npc-${request.defaultQuestGiver.toLowerCase().replace(/\s+/g, "-")}`,
-            name: request.defaultQuestGiver
-          }
-        },
-        ...request.defaultLocation && { defaultLocation: request.defaultLocation },
-        ...request.template && { theme: request.template },
-        tags: [request.template]
-      },
-      createdAt: timestamp,
-      updatedAt: timestamp
-    };
-  }
-  /**
-   * Get template-based campaign parts
-   */
-  getTemplateParts(template, campaignId, timestamp, defaultQuestGiver) {
-    const templates = {
-      "five-part-adventure": [
-        {
-          title: "Hook & Introduction",
-          description: "Draw the party into the adventure with compelling hooks and initial encounters",
-          levels: [1, 2]
-        },
-        {
-          title: "Investigation & Clues",
-          description: "Gather information, explore leads, and uncover the scope of the threat",
-          levels: [2, 4]
-        },
-        {
-          title: "Midpoint Revelation",
-          description: "Major discovery or plot twist that changes the stakes and direction",
-          levels: [4, 6]
-        },
-        {
-          title: "Climactic Confrontation",
-          description: "Face the primary antagonist or overcome the central challenge",
-          levels: [6, 8]
-        },
-        {
-          title: "Resolution & Rewards",
-          description: "Wrap up loose ends, distribute rewards, and set up future adventures",
-          levels: [8, 9]
-        }
-      ],
-      "dungeon-crawl": [
-        {
-          title: "Approach & Entry",
-          description: "Navigate to the dungeon and overcome entrance challenges",
-          levels: [1, 2]
-        },
-        {
-          title: "Upper Levels",
-          description: "Explore the first floors, encounter guardians and traps",
-          levels: [2, 4],
-          subParts: [
-            { title: "Rooms 1-3", description: "Initial chambers and encounters" },
-            { title: "Rooms 4-6", description: "Mid-level challenges and treasures" }
-          ]
-        },
-        {
-          title: "Lower Levels",
-          description: "Delve deeper into more dangerous areas",
-          levels: [4, 6],
-          subParts: [
-            { title: "Rooms 7-9", description: "Advanced traps and stronger enemies" },
-            { title: "Rooms 10-12", description: "Elite encounters and hidden secrets" }
-          ]
-        },
-        {
-          title: "Final Boss & Treasure",
-          description: "Confront the dungeon's master and claim the ultimate prize",
-          levels: [6, 8]
-        }
-      ],
-      investigation: [
-        {
-          title: "Crime Scene",
-          description: "Initial investigation of the incident and evidence gathering",
-          levels: [1, 2]
-        },
-        {
-          title: "Witness Interviews",
-          description: "Question involved parties and gather testimonies",
-          levels: [2, 3],
-          subParts: [
-            { title: "Primary Witnesses", description: "Key individuals with direct knowledge" },
-            { title: "Secondary Sources", description: "Additional contacts and informants" }
-          ]
-        },
-        {
-          title: "Following Leads",
-          description: "Pursue clues to multiple locations and uncover connections",
-          levels: [3, 5],
-          subParts: [
-            { title: "Location A", description: "First lead destination" },
-            { title: "Location B", description: "Second investigation site" },
-            { title: "Location C", description: "Final clue location" }
-          ]
-        },
-        {
-          title: "Confrontation",
-          description: "Face the culprit with evidence and resolve the case",
-          levels: [5, 6]
-        },
-        {
-          title: "Resolution",
-          description: "Tie up loose ends and deliver justice or closure",
-          levels: [6, 7]
-        }
-      ],
-      sandbox: [
-        {
-          title: "World Introduction",
-          description: "Establish the setting, key NPCs, and available opportunities",
-          levels: [1, 3]
-        },
-        {
-          title: "Exploration Phase",
-          description: "Players choose their path and explore available content",
-          levels: [3, 8]
-        },
-        {
-          title: "Consequences & Reactions",
-          description: "World responds to player actions with new challenges",
-          levels: [8, 12]
-        },
-        {
-          title: "Player-Driven Climax",
-          description: "Major storyline chosen and pursued by players",
-          levels: [12, 15]
-        }
-      ]
-    };
-    const templateParts = templates[template] || templates["five-part-adventure"];
-    return templateParts.map((part, index) => ({
-      id: `${campaignId}-part-${index + 1}`,
-      title: part.title,
-      description: part.description,
-      type: "main_part",
-      status: "not_started",
-      dependencies: index > 0 ? [`${campaignId}-part-${index}`] : [],
-      subParts: part.subParts?.map((subPart, subIndex) => ({
-        id: `${campaignId}-part-${index + 1}-sub-${subIndex + 1}`,
-        title: subPart.title,
-        description: subPart.description,
-        type: "sub_part",
-        status: "not_started",
-        createdAt: timestamp
-      })),
-      ...defaultQuestGiver && {
-        questGiver: {
-          id: `npc-${defaultQuestGiver.toLowerCase().replace(/\s+/g, "-")}`,
-          name: defaultQuestGiver
-        }
-      },
-      levelRecommendation: {
-        start: part.levels[0],
-        end: part.levels[1]
-      },
-      gmNotes: "",
-      playerContent: "",
-      scaling: {
-        adjustForPartySize: true,
-        adjustForLevel: true,
-        difficultyModifier: 0
-      },
-      createdAt: timestamp
-    }));
-  }
-  /**
-   * Generate HTML content for campaign dashboard journal
-   */
-  generateDashboardHTML(campaign) {
-    const progress = this.calculateProgress(campaign);
-    const currentPart = campaign.parts.find((part) => part.status === "in_progress");
-    return `<style>
-.campaign-status-toggle {
-  cursor: pointer;
-  border-radius: 1em;
-  padding: 0.3em 0.6em;
-  margin: 0 0.2em;
-  font-size: 0.9em;
-  font-weight: bold;
-  color: #fff;
-  background: #777;
-  border: 1px solid #555;
-  transition: all 0.2s ease;
-  display: inline-block;
-  user-select: none;
-}
-
-.campaign-status-toggle:hover {
-  transform: scale(1.05);
-  box-shadow: 0 2px 4px rgba(0,0,0,0.3);
-}
-
-.campaign-status-toggle.not-started {
-  background: #6c757d;
-  border-color: #495057;
-}
-
-.campaign-status-toggle.in-progress {
-  background: #007bff;
-  border-color: #0056b3;
-}
-
-.campaign-status-toggle.completed {
-  background: #28a745;
-  border-color: #1e7e34;
-}
-
-.campaign-status-toggle.skipped {
-  background: #ffc107;
-  border-color: #e0a800;
-  color: #212529;
-}
-
-.campaign-part {
-  margin-bottom: 1.5em;
-  padding: 1em;
-  border-left: 4px solid #ddd;
-}
-
-.campaign-part.in-progress {
-  border-left-color: #007bff;
-  background: rgba(0, 123, 255, 0.05);
-}
-
-.campaign-part.completed {
-  border-left-color: #28a745;
-  background: rgba(40, 167, 69, 0.05);
-}
-</style>
-
-<div class="campaign-dashboard spaced">
-  <h1>${campaign.title}</h1>
-  
-  <div class="campaign-overview readaloud">
-    <p><strong>Campaign Progress:</strong> ${progress.completed} of ${progress.total} parts completed (${progress.percentage}%)</p>
-    <p><strong>Current Focus:</strong> ${currentPart ? currentPart.title : "Ready to begin"}</p>
-    ${campaign.metadata.defaultLocation ? `<p><strong>Primary Setting:</strong> ${campaign.metadata.defaultLocation}</p>` : ""}
-    ${campaign.metadata.defaultQuestGiver ? `<p><strong>Primary Quest Giver:</strong> ${campaign.metadata.defaultQuestGiver.name}</p>` : ""}
-  </div>
-  
-  <h2>Campaign Parts</h2>
-  <p><em>Click status indicators to update progress. Changes are saved automatically.</em></p>
-  
-  ${campaign.parts.map((part, index) => this.generatePartHTML(part, index + 1, campaign)).join("\n  ")}
-  
-  <div class="campaign-notes gmnote">
-    <h3>GM Notes</h3>
-    <p><em>Campaign created: ${new Date(campaign.createdAt).toLocaleDateString()}</em></p>
-    <p><em>Last updated: ${new Date(campaign.updatedAt).toLocaleDateString()}</em></p>
-    ${campaign.description ? `<p><strong>Description:</strong> ${campaign.description}</p>` : ""}
-    <p><em><strong>Campaign ID:</strong> ${campaign.id}</em></p>
-  </div>
-</div>`;
-  }
-  /**
-   * Generate HTML for individual campaign part
-   */
-  generatePartHTML(part, partNumber, campaign) {
-    const statusIcon = this.getStatusIcon(part.status);
-    const isLocked = this.isPartLocked(part, campaign);
-    const lockIcon = isLocked ? "[LOCKED] " : "";
-    const statusTracker = this.generateStatusTracker(part, campaign.id);
-    let html = `<div class="campaign-part ${part.status} spaced">
-    <h3>${lockIcon}Part ${partNumber}: ${part.title}</h3>
-    <p><strong>Status:</strong> ${statusTracker}</p>
-    <p><strong>Levels:</strong> ${part.levelRecommendation.start}-${part.levelRecommendation.end}</p>`;
-    if (part.journalId) {
-      html += `
-    <p><strong>@JournalEntry[${part.journalId}]{\u{1F4D6} View Details}</strong></p>`;
-    }
-    html += `
-    <p>${part.description}</p>`;
-    if (isLocked && part.dependencies.length > 0) {
-      const depNames = part.dependencies.map((depId) => {
-        const depPart = campaign.parts.find((p) => p.id === depId);
-        return depPart ? depPart.title : depId;
-      }).join(", ");
-      html += `
-    <p class="dependencies"><small><em>Requires completion of:</em> ${depNames}</small></p>`;
-    }
-    if (part.subParts && part.subParts.length > 0) {
-      html += `
-    <div class="sub-parts">`;
-      html += `
-      <h4>Sub-Parts:</h4>`;
-      part.subParts.forEach((subPart, subIndex) => {
-        const subStatusTracker = this.generateStatusTracker(subPart, campaign.id);
-        html += `
-      <p><strong>${partNumber}.${subIndex + 1}: ${subPart.title}</strong> - Status: ${subStatusTracker}</p>`;
-        if (subPart.journalId) {
-          html += `
-      <p><strong>@JournalEntry[${subPart.journalId}]{\u{1F4D6} View Details}</strong></p>`;
-        }
-        html += `
-      <hr style="margin: 10px 0; border: 1px solid #ccc;">`;
-      });
-      html += `
-    </div>`;
-    }
-    html += `
-  </div>`;
-    return html;
-  }
-  /**
-   * Get status icon for visual indication
-   */
-  getStatusIcon(status) {
-    const icons = {
-      not_started: "\u26AA",
-      in_progress: "\u{1F504}",
-      completed: "\u2705",
-      skipped: "\u23ED\uFE0F"
-    };
-    return icons[status] || "\u2753";
-  }
-  /**
-   * Generate interactive status toggle element for Foundry hook system
-   */
-  generateStatusTracker(part, campaignId) {
-    const statusIcon = this.getStatusIcon(part.status);
-    const statusDisplay = this.formatStatus(part.status);
-    const statusClass = part.status.replace("_", "-");
-    return `<span class="campaign-status-toggle ${statusClass}" 
-                  data-campaign-id="${campaignId}" 
-                  data-part-id="${part.id}"
-                  title="Click to change status: ${statusDisplay}">
-              ${statusIcon} ${statusDisplay}
-            </span>`;
-  }
-  /**
-   * Format status for display
-   */
-  formatStatus(status) {
-    return status.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
-  }
-  /**
-   * Check if part is locked by dependencies
-   */
-  isPartLocked(part, campaign) {
-    if (part.dependencies.length === 0)
-      return false;
-    return part.dependencies.some((depId) => {
-      const depPart = campaign.parts.find((p) => p.id === depId);
-      return !depPart || depPart.status !== "completed";
-    });
-  }
-  /**
-   * Calculate overall campaign progress
-   */
-  calculateProgress(campaign) {
-    let total = 0;
-    let completed = 0;
-    campaign.parts.forEach((part) => {
-      if (part.subParts && part.subParts.length > 0) {
-        total += part.subParts.length;
-        completed += part.subParts.filter((sp) => sp.status === "completed").length;
-      } else {
-        total += 1;
-        if (part.status === "completed")
-          completed += 1;
-      }
-    });
-    const percentage = total > 0 ? Math.round(completed / total * 100) : 0;
-    return { total, completed, percentage };
-  }
-  /**
-   * Store campaign structure (simplified for create-only workflow)
-   */
-  async storeCampaignStructure(campaign) {
-    try {
-      this.logger.info(`Campaign structure created: ${campaign.id} (GMs will track progress manually)`);
-    } catch (error) {
-      this.logger.error(`Error with campaign ${campaign.id}:`, error);
       throw error;
     }
   }
@@ -116190,235 +111328,6 @@ var OwnershipTools = class {
   }
 };
 
-// dist/tools/wfrp4e/update-actor.js
-init_zod();
-var CHAR_KEYS = ["ws", "bs", "s", "t", "i", "ag", "dex", "int", "wp", "fel"];
-var charFieldSchema = external_exports.object({
-  initial: external_exports.number().optional(),
-  advances: external_exports.number().optional(),
-  modifier: external_exports.number().optional()
-}).strict();
-var updateActorSchema = external_exports.object({
-  actor: external_exports.string().min(1),
-  characteristics: external_exports.record(external_exports.string(), charFieldSchema).optional(),
-  wounds: external_exports.object({ value: external_exports.number().optional(), max: external_exports.number().optional() }).strict().optional(),
-  skills: external_exports.array(external_exports.object({ name: external_exports.string().min(1), advances: external_exports.number() }).strict()).optional(),
-  career: external_exports.string().min(1).optional(),
-  movement: external_exports.number().optional(),
-  biography: external_exports.string().optional()
-}).strict();
-var WFRP4eUpdateActorTools = class {
-  foundryClient;
-  logger;
-  constructor({ foundryClient, logger }) {
-    this.foundryClient = foundryClient;
-    this.logger = logger.child({ component: "WFRP4eUpdateActorTools" });
-  }
-  getToolDefinitions() {
-    const charProperty = {
-      type: "object",
-      properties: {
-        initial: { type: "number", description: "Base characteristic value" },
-        advances: { type: "number", description: "Points advanced in this characteristic" },
-        modifier: { type: "number", description: "Modifier (may be negative)" }
-      },
-      additionalProperties: false
-    };
-    const characteristicProps = {};
-    for (const key of CHAR_KEYS)
-      characteristicProps[key] = charProperty;
-    return [
-      {
-        name: "wfrp4e-update-actor",
-        description: "[WFRP4e only] Update an existing actor's stat block: characteristic initial/advances/modifier, wounds (current value and max), the advances on skills the actor already has, which career is current, base movement, and/or the biography text. Only the fields you provide change; the characteristic Total/Bonus and skill totals recompute automatically. USE THIS to tweak a creature/NPC/PC you already have \u2014 e.g. after cloning a creature to make a tougher variant, or to advance a skill. To ADD a new skill, talent, trait, trapping or career use wfrp4e-add-items; to create an actor use create-actor-from-compendium.",
-        inputSchema: {
-          type: "object",
-          properties: {
-            actor: {
-              type: "string",
-              description: "Actor name or 16-character Foundry id"
-            },
-            characteristics: {
-              type: "object",
-              description: "Per-characteristic updates. Keys: ws, bs, s, t, i, ag, dex, int, wp, fel. Each may set initial, advances and/or modifier.",
-              properties: characteristicProps,
-              additionalProperties: false
-            },
-            wounds: {
-              type: "object",
-              description: "Wound (hit point) updates.",
-              properties: {
-                value: { type: "number", description: "Current wounds" },
-                max: { type: "number", description: "Maximum wounds" }
-              },
-              additionalProperties: false
-            },
-            skills: {
-              type: "array",
-              description: "Set advances on skills the actor ALREADY has. To add a new skill use wfrp4e-add-items instead.",
-              items: {
-                type: "object",
-                properties: {
-                  name: {
-                    type: "string",
-                    description: 'Existing skill name (e.g. "Stealth (Rural)").'
-                  },
-                  advances: { type: "number", description: "Advances to set on the skill." }
-                },
-                required: ["name", "advances"],
-                additionalProperties: false
-              }
-            },
-            career: {
-              type: "string",
-              description: "Name of an existing career item to make the actor's current career (the others are set non-current)."
-            },
-            movement: {
-              type: "number",
-              description: "Base Movement value (system.details.move)."
-            },
-            biography: {
-              type: "string",
-              description: "Biography / notes text for the actor (replaces the current biography; HTML allowed)."
-            }
-          },
-          required: ["actor"]
-        }
-      }
-    ];
-  }
-  async handleUpdateActor(args) {
-    const parsed = updateActorSchema.safeParse(args);
-    if (!parsed.success) {
-      const detail = parsed.error.issues.map((i) => `${i.path.join(".") || "(root)"}: ${i.message}`).join("; ");
-      return { success: false, error: `Invalid arguments: ${detail}` };
-    }
-    const { actor, characteristics, wounds, skills, career, movement, biography } = parsed.data;
-    if (!characteristics && !wounds && !skills?.length && !career && movement === void 0 && biography === void 0) {
-      return {
-        success: false,
-        error: "Nothing to update: provide characteristics, wounds, skills, career, movement and/or biography."
-      };
-    }
-    if (characteristics) {
-      const unknown = Object.keys(characteristics).filter((k) => !CHAR_KEYS.includes(k.toLowerCase()));
-      if (unknown.length > 0) {
-        return {
-          success: false,
-          error: `Unknown characteristic key(s): ${unknown.join(", ")}. Valid keys: ${CHAR_KEYS.join(", ")}.`
-        };
-      }
-    }
-    this.logger.info("Updating WFRP4e actor", { actor });
-    try {
-      return await this.foundryClient.query("foundry-mcp-bridge.updateWfrp4eActor", {
-        actor,
-        characteristics,
-        wounds,
-        skills,
-        career,
-        movement,
-        biography
-      });
-    } catch (error) {
-      this.logger.error("Failed to update WFRP4e actor", error);
-      return { success: false, error: error instanceof Error ? error.message : "Unknown error" };
-    }
-  }
-};
-
-// dist/tools/wfrp4e/add-items.js
-init_zod();
-var itemSchema = external_exports.object({
-  name: external_exports.string().min(1),
-  type: external_exports.string().optional(),
-  pack: external_exports.string().optional(),
-  advances: external_exports.number().optional(),
-  quantity: external_exports.number().optional(),
-  setCurrent: external_exports.boolean().optional()
-}).strict();
-var addItemsSchema = external_exports.object({
-  actor: external_exports.string().min(1),
-  items: external_exports.array(itemSchema).min(1)
-}).strict();
-var WFRP4eAddItemsTools = class {
-  foundryClient;
-  logger;
-  constructor({ foundryClient, logger }) {
-    this.foundryClient = foundryClient;
-    this.logger = logger.child({ component: "WFRP4eAddItemsTools" });
-  }
-  getToolDefinitions() {
-    return [
-      {
-        name: "wfrp4e-add-items",
-        description: `[WFRP4e only] Add skills, talents, traits, trappings, careers, weapons, spells and other items to an existing actor. Each item is matched by name against the installed WFRP4e compendiums and copied in full, so a skill keeps its linked characteristic, a talent its tests, and a career its progression; a name with no compendium match is added as a blank custom item. Use "advances" to set a skill's advances, "quantity" for gear counts, and "setCurrent" to make a career the active one. Pass "type" and/or "pack" to disambiguate a name found in several places. USE THIS to build out a character's items. To create the actor itself use create-actor-from-compendium; to change characteristics/wounds or bump a skill the actor already has, use wfrp4e-update-actor.`,
-        inputSchema: {
-          type: "object",
-          properties: {
-            actor: {
-              type: "string",
-              description: "Actor name or 16-character Foundry id"
-            },
-            items: {
-              type: "array",
-              description: "Items to add to the actor.",
-              minItems: 1,
-              items: {
-                type: "object",
-                properties: {
-                  name: {
-                    type: "string",
-                    description: 'Item name to look up (e.g. "Stealth (Rural)", "Strike Mighty Blow").'
-                  },
-                  type: {
-                    type: "string",
-                    description: "Optional WFRP item type to disambiguate (skill, talent, trait, trapping, career, weapon, armour, spell, prayer, \u2026). Also used as the type when a name is not in any compendium."
-                  },
-                  pack: {
-                    type: "string",
-                    description: "Optional compendium pack id (or fragment) to source the item from."
-                  },
-                  advances: {
-                    type: "number",
-                    description: "Skills only: advances to set on the added skill."
-                  },
-                  quantity: {
-                    type: "number",
-                    description: "Gear only: quantity to set on the added item."
-                  },
-                  setCurrent: {
-                    type: "boolean",
-                    description: "Careers only: make this the actor's current career."
-                  }
-                },
-                required: ["name"],
-                additionalProperties: false
-              }
-            }
-          },
-          required: ["actor", "items"]
-        }
-      }
-    ];
-  }
-  async handleAddItems(args) {
-    const parsed = addItemsSchema.safeParse(args);
-    if (!parsed.success) {
-      const detail = parsed.error.issues.map((i) => `${i.path.join(".") || "(root)"}: ${i.message}`).join("; ");
-      return { success: false, error: `Invalid arguments: ${detail}` };
-    }
-    const { actor, items: items2 } = parsed.data;
-    this.logger.info("Adding WFRP4e items", { actor, count: items2.length });
-    try {
-      return await this.foundryClient.query("foundry-mcp-bridge.addWfrp4eItems", { actor, items: items2 });
-    } catch (error) {
-      this.logger.error("Failed to add WFRP4e items", error);
-      return { success: false, error: error instanceof Error ? error.message : "Unknown error" };
-    }
-  }
-};
-
 // dist/tools/map-generation.js
 var MapGenerationTools = class {
   foundryClient;
@@ -116529,7 +111438,7 @@ var MapGenerationTools = class {
             },
             atmosphere: {
               type: ["string", "null"],
-              description: 'FXMaster atmosphere to play on the new scene (rain, fog, thunderstorm, snow...; "none" clears it). See manage-scenes.'
+              description: 'FXMaster atmosphere to play on the new scene (rain, fog, thunderstorm, snow...; "none" clears it). See the scene tool (update).'
             }
           },
           required: ["scene_identifier"]
@@ -117144,1434 +112053,6 @@ var TokenManipulationTools = class {
   }
 };
 
-// dist/systems/dsa5/character-creator.js
-init_zod();
-var DSA5CharacterCreator = class {
-  foundryClient;
-  logger;
-  errorHandler;
-  constructor({ foundryClient, logger }) {
-    this.foundryClient = foundryClient;
-    this.logger = logger.child({ component: "DSA5CharacterCreator" });
-    this.errorHandler = new ErrorHandler(this.logger);
-  }
-  /**
-   * Tool definitions for DSA5 character creation
-   */
-  getToolDefinitions() {
-    return [
-      {
-        name: "create-dsa5-character-from-archetype",
-        description: "Create a DSA5 character from an archetype (e.g., Allacaya, Wulfgrimm). Allows customization of name, age, biography, and other details. Use search-compendium first to find available archetypes in DSA5 character packs.",
-        inputSchema: {
-          type: "object",
-          properties: {
-            archetypePackId: {
-              type: "string",
-              description: 'ID of the compendium pack containing the archetype (e.g., "dsa5-core.corecharacters")'
-            },
-            archetypeId: {
-              type: "string",
-              description: "ID of the archetype within the pack (get from search-compendium results)"
-            },
-            characterName: {
-              type: "string",
-              description: 'Custom name for the character (e.g., "Ericsson", "Thorald")'
-            },
-            customization: {
-              type: "object",
-              description: "Optional customizations for the character",
-              properties: {
-                age: {
-                  type: "number",
-                  description: "Character age in years (e.g., 20, 35)",
-                  minimum: 12,
-                  maximum: 100
-                },
-                biography: {
-                  type: "string",
-                  description: "Custom biography or background story"
-                },
-                gender: {
-                  type: "string",
-                  description: "Character gender (male, female, diverse)",
-                  enum: ["male", "female", "diverse"]
-                },
-                eyeColor: {
-                  type: "string",
-                  description: "Eye color"
-                },
-                hairColor: {
-                  type: "string",
-                  description: "Hair color"
-                },
-                height: {
-                  type: "number",
-                  description: "Height in cm"
-                },
-                weight: {
-                  type: "number",
-                  description: "Weight in kg"
-                },
-                species: {
-                  type: "string",
-                  description: 'Species/race (e.g., "Mensch", "Elf", "Zwerg")'
-                },
-                culture: {
-                  type: "string",
-                  description: 'Culture (e.g., "Mittelreich", "Thorwal")'
-                },
-                profession: {
-                  type: "string",
-                  description: "Profession/career"
-                }
-              }
-            },
-            addToWorld: {
-              type: "boolean",
-              description: "Whether to add the character to the current world (default: true)",
-              default: true
-            }
-          },
-          required: ["archetypePackId", "archetypeId", "characterName"]
-        }
-      },
-      {
-        name: "list-dsa5-archetypes",
-        description: "List available DSA5 character archetypes from compendium packs. Helps users discover available templates for character creation.",
-        inputSchema: {
-          type: "object",
-          properties: {
-            packId: {
-              type: "string",
-              description: 'Optional: specific pack to search (e.g., "dsa5-core.corecharacters"). If not provided, searches all DSA5 character packs.'
-            },
-            filterBySpecies: {
-              type: "string",
-              description: 'Optional: filter by species (e.g., "Mensch", "Elf")'
-            },
-            filterByProfession: {
-              type: "string",
-              description: "Optional: filter by profession type"
-            }
-          }
-        }
-      }
-    ];
-  }
-  /**
-   * Handle DSA5 character creation from archetype
-   */
-  async handleCreateCharacterFromArchetype(args) {
-    const schema23 = external_exports.object({
-      archetypePackId: external_exports.string().min(1, "Archetype pack ID cannot be empty"),
-      archetypeId: external_exports.string().min(1, "Archetype ID cannot be empty"),
-      characterName: external_exports.string().min(1, "Character name cannot be empty"),
-      customization: external_exports.object({
-        age: external_exports.number().min(12).max(100).optional(),
-        biography: external_exports.string().optional(),
-        gender: external_exports.enum(["male", "female", "diverse"]).optional(),
-        eyeColor: external_exports.string().optional(),
-        hairColor: external_exports.string().optional(),
-        height: external_exports.number().optional(),
-        weight: external_exports.number().optional(),
-        species: external_exports.string().optional(),
-        culture: external_exports.string().optional(),
-        profession: external_exports.string().optional()
-      }).optional(),
-      addToWorld: external_exports.boolean().default(true)
-    });
-    const { archetypePackId, archetypeId, characterName, customization, addToWorld } = schema23.parse(args);
-    this.logger.info("Creating DSA5 character from archetype", {
-      archetypePackId,
-      archetypeId,
-      characterName,
-      customization
-    });
-    try {
-      const archetypeData = await this.foundryClient.query("foundry-mcp-bridge.getCompendiumDocumentFull", {
-        packId: archetypePackId,
-        documentId: archetypeId
-      });
-      if (!archetypeData) {
-        throw new Error(`Archetype ${archetypeId} not found in pack ${archetypePackId}`);
-      }
-      const characterData = this.prepareCharacterData(archetypeData, characterName, customization);
-      const result = await this.foundryClient.query("foundry-mcp-bridge.createActorFromCompendium", {
-        packId: archetypePackId,
-        itemId: archetypeId,
-        customNames: [characterName],
-        quantity: 1,
-        addToScene: false,
-        // Characters aren't added to scenes by default
-        customData: characterData
-        // Pass customizations
-      });
-      this.logger.info("DSA5 character created successfully", {
-        characterName,
-        archetypeName: archetypeData.name,
-        success: result.success
-      });
-      return this.formatCharacterCreationResponse(result, archetypeData, characterName, customization);
-    } catch (error) {
-      this.errorHandler.handleToolError(error, "create-dsa5-character-from-archetype", "DSA5 character creation");
-    }
-  }
-  /**
-   * Handle listing DSA5 archetypes
-   */
-  async handleListArchetypes(args) {
-    const schema23 = external_exports.object({
-      packId: external_exports.string().optional(),
-      filterBySpecies: external_exports.string().optional(),
-      filterByProfession: external_exports.string().optional()
-    });
-    const { packId, filterBySpecies, filterByProfession } = schema23.parse(args);
-    this.logger.info("Listing DSA5 archetypes", { packId, filterBySpecies, filterByProfession });
-    try {
-      const packs = await this.foundryClient.query("foundry-mcp-bridge.getAvailablePacks");
-      const characterPacks = packs.filter((pack) => pack.type === "Actor" && pack.system === "dsa5" && (!packId || pack.id === packId));
-      const archetypes = [];
-      for (const pack of characterPacks) {
-        try {
-          const packIndex = await this.foundryClient.query("foundry-mcp-bridge.getPackIndex", {
-            packId: pack.id,
-            // Include the fields the species/profession filters read so the index
-            // carries them without loading every full document.
-            fields: ["type", "system.details.species.value", "system.details.career.value"]
-          });
-          const packArchetypes = packIndex.filter((entry) => entry.type === "character").filter((entry) => {
-            if (filterBySpecies && entry.system?.details?.species?.value !== filterBySpecies) {
-              return false;
-            }
-            if (filterByProfession && !entry.system?.details?.career?.value?.includes(filterByProfession)) {
-              return false;
-            }
-            return true;
-          }).map((entry) => ({
-            id: entry.id,
-            name: entry.name,
-            packId: pack.id,
-            packLabel: pack.label,
-            species: entry.system?.details?.species?.value || "Unknown",
-            profession: entry.system?.details?.career?.value || "Unknown",
-            img: entry.img
-          }));
-          archetypes.push(...packArchetypes);
-        } catch (packError) {
-          this.logger.warn(`Failed to load archetypes from pack ${pack.id}`, { error: packError });
-        }
-      }
-      this.logger.info("Retrieved DSA5 archetypes", { count: archetypes.length });
-      return this.formatArchetypeListResponse(archetypes, filterBySpecies, filterByProfession);
-    } catch (error) {
-      this.errorHandler.handleToolError(error, "list-dsa5-archetypes", "archetype listing");
-    }
-  }
-  /**
-   * Prepare character data with customizations
-   */
-  prepareCharacterData(archetypeData, characterName, customization) {
-    const data = {
-      name: characterName
-    };
-    if (!customization) {
-      return data;
-    }
-    const systemUpdates = {};
-    if (customization.age !== void 0) {
-      systemUpdates["details.age.value"] = customization.age;
-    }
-    if (customization.biography) {
-      systemUpdates["details.biography.value"] = customization.biography;
-    }
-    if (customization.gender) {
-      systemUpdates["details.gender.value"] = customization.gender;
-    }
-    if (customization.eyeColor) {
-      systemUpdates["details.eyecolor.value"] = customization.eyeColor;
-    }
-    if (customization.hairColor) {
-      systemUpdates["details.haircolor.value"] = customization.hairColor;
-    }
-    if (customization.height) {
-      systemUpdates["details.height.value"] = customization.height;
-    }
-    if (customization.weight) {
-      systemUpdates["details.weight.value"] = customization.weight;
-    }
-    if (customization.species) {
-      systemUpdates["details.species.value"] = customization.species;
-    }
-    if (customization.culture) {
-      systemUpdates["details.culture.value"] = customization.culture;
-    }
-    if (customization.profession) {
-      systemUpdates["details.career.value"] = customization.profession;
-    }
-    if (Object.keys(systemUpdates).length > 0) {
-      data.system = systemUpdates;
-    }
-    return data;
-  }
-  /**
-   * Format character creation response
-   */
-  formatCharacterCreationResponse(result, archetypeData, characterName, customization) {
-    const customizationInfo = customization ? Object.entries(customization).filter(([_, value]) => value !== void 0).map(([key, value]) => `${key}: ${value}`).join(", ") : "None";
-    const summary = `\u2705 DSA5 Character "${characterName}" created from archetype "${archetypeData.name}"`;
-    const details = [
-      `**Name:** ${characterName}`,
-      `**Archetype:** ${archetypeData.name}`,
-      `**Pack:** ${archetypeData.packLabel}`
-    ];
-    if (customization) {
-      if (customization.age)
-        details.push(`**Age:** ${customization.age} years`);
-      if (customization.species)
-        details.push(`**Species:** ${customization.species}`);
-      if (customization.culture)
-        details.push(`**Culture:** ${customization.culture}`);
-      if (customization.profession)
-        details.push(`**Profession:** ${customization.profession}`);
-      if (customization.biography)
-        details.push(`**Biography:** ${customization.biography.substring(0, 100)}...`);
-    }
-    const errorInfo = result.errors?.length > 0 ? `
-\u26A0\uFE0F Issues: ${result.errors.join(", ")}` : "";
-    return {
-      summary,
-      success: result.success,
-      character: {
-        name: characterName,
-        id: result.actors?.[0]?.id,
-        archetype: {
-          name: archetypeData.name,
-          packId: archetypeData.pack
-        },
-        customizations: customization || {}
-      },
-      message: summary + "\n\n" + details.join("\n") + errorInfo
-    };
-  }
-  /**
-   * Format archetype list response
-   */
-  formatArchetypeListResponse(archetypes, filterBySpecies, filterByProfession) {
-    const filterInfo = [
-      filterBySpecies ? `Species: ${filterBySpecies}` : null,
-      filterByProfession ? `Profession: ${filterByProfession}` : null
-    ].filter(Boolean).join(", ");
-    const summary = `Found ${archetypes.length} DSA5 archetypes` + (filterInfo ? ` (${filterInfo})` : "");
-    const archetypeList = archetypes.map((archetype) => `\u2022 **${archetype.name}** (${archetype.species}, ${archetype.profession})
-  Pack: ${archetype.packLabel} | ID: ${archetype.id}`).join("\n\n");
-    return {
-      summary,
-      count: archetypes.length,
-      filters: {
-        species: filterBySpecies,
-        profession: filterByProfession
-      },
-      archetypes,
-      message: summary + "\n\n" + archetypeList
-    };
-  }
-};
-
-// dist/systems/dsa5/json-actor-importer.js
-var import_node_fs = require("node:fs");
-var import_node_path = __toESM(require("node:path"), 1);
-init_zod();
-var isRecord = (value) => typeof value === "object" && value !== null && !Array.isArray(value);
-var fixMojibake = (s) => s.replace(/Ã¶/g, "\xF6").replace(/Ã¼/g, "\xFC").replace(/Ã¤/g, "\xE4").replace(/ÃŸ/g, "\xDF").replace(/Ã–/g, "\xD6").replace(/Ãœ/g, "\xDC").replace(/Ã„/g, "\xC4");
-var normalizeValue = (value, parentKey) => {
-  if (Array.isArray(value)) {
-    return value.map((entry) => normalizeValue(entry, parentKey));
-  }
-  if (isRecord(value)) {
-    const normalized = {};
-    for (const [key, entryValue] of Object.entries(value)) {
-      const fixedKey = fixMojibake(key);
-      normalized[fixedKey] = normalizeValue(entryValue, fixedKey);
-    }
-    return normalized;
-  }
-  if (typeof value === "string" && parentKey === "name") {
-    return fixMojibake(value);
-  }
-  return value;
-};
-var normalizeInputKeys = (payload) => normalizeValue(payload);
-var toNumber = (value) => {
-  if (typeof value === "number" && Number.isFinite(value))
-    return value;
-  if (typeof value === "string") {
-    const parsed = Number.parseFloat(value);
-    if (Number.isFinite(parsed))
-      return parsed;
-  }
-  return void 0;
-};
-var toStringValue = (value) => {
-  if (typeof value === "string") {
-    const trimmed = value.trim();
-    return trimmed.length > 0 ? trimmed : void 0;
-  }
-  return void 0;
-};
-var getByKeys = (source, keys) => {
-  for (const key of keys) {
-    if (key in source)
-      return source[key];
-  }
-  return void 0;
-};
-var getNested = (source, path14) => {
-  const parts = path14.split(".");
-  let current = source;
-  for (const part of parts) {
-    if (!isRecord(current) || !(part in current))
-      return void 0;
-    current = current[part];
-  }
-  return current;
-};
-var characteristicAdvance = (value) => {
-  const numeric = toNumber(value);
-  if (numeric === void 0)
-    return void 0;
-  return Math.round(numeric) - 8;
-};
-var normalizeName = (name) => name.toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9_]+/g, " ").replace(/\s+/g, " ").trim();
-var DARK_AID_ITEM_NAME_MAP = {
-  // Talente
-  sinnesschaerfe: "Sinnessch\xE4rfe",
-  bekehrenueberzeugen: "Bekehren & \xDCberzeugen",
-  einschuechtern: "Einsch\xFCchtern",
-  ueberreden: "\xDCberreden",
-  fischenangeln: "Fischen & Angeln",
-  goetterkulte: "G\xF6tter & Kulte",
-  sagenlegenden: "Sagen & Legenden",
-  sphaerenkunde: "Sph\xE4renkunde",
-  // Liturgien / Zeremonien / Segen
-  kleinerbannstrahl: "Kleiner Bannstrahl",
-  machtvollerexorzismus: "Machtvoller Exorzismus",
-  glueckssegen: "Gl\xFCckssegen",
-  kleinerheilsegen: "Kleiner Heilsegen",
-  kleinerschutzsegen: "Kleiner Schutzsegen",
-  staerkungssegen: "St\xE4rkungssegen",
-  bannderdunkelheit: "Bann der Dunkelheit",
-  // Sonderfertigkeiten / Nachteile
-  hoheseelenkraft: "Hohe Seelenkraft",
-  schwerzuverzaubern: "Schwer zu verzaubern",
-  unfaehig: "Unf\xE4hig",
-  persoenlichkeitsschwaeche: "Pers\xF6nlichkeitsschw\xE4che (Vorurteile)",
-  // Spezies / Kultur
-  mittellaender: "Mensch",
-  mittelreicher: "Mittelreich"
-};
-var mapDarkAidItemName = (name) => DARK_AID_ITEM_NAME_MAP[normalizeName(name)] ?? name;
-var uniqueNames = (names) => {
-  const seen = /* @__PURE__ */ new Set();
-  const result = [];
-  for (const name of names) {
-    const normalized = normalizeName(name);
-    if (normalized.length === 0 || seen.has(normalized))
-      continue;
-    seen.add(normalized);
-    result.push(name.trim());
-  }
-  return result;
-};
-var sanitizeEmbeddedDocuments = (docs) => {
-  if (!Array.isArray(docs))
-    return [];
-  return docs.filter((entry) => isRecord(entry)).map((entry) => {
-    const cloned = { ...entry };
-    delete cloned._id;
-    delete cloned.folder;
-    delete cloned.sort;
-    return cloned;
-  });
-};
-var addItemOverride = (itemOverrides, sourceName, next) => {
-  const normalized = normalizeName(sourceName);
-  if (normalized.length === 0)
-    return;
-  const current = itemOverrides[normalized] ?? { sourceName };
-  itemOverrides[normalized] = {
-    ...current,
-    ...next,
-    sourceName: current.sourceName ?? sourceName
-  };
-};
-var collectTalentOverrides = (source, itemOverrides) => {
-  if (!Array.isArray(source))
-    return;
-  for (const entry of source) {
-    if (!isRecord(entry))
-      continue;
-    const name = toStringValue(entry.name);
-    const talentValue = toNumber(entry.talentwert);
-    if (!name || talentValue === void 0)
-      continue;
-    addItemOverride(itemOverrides, name, { talentValue });
-  }
-};
-var collectQuantityOverrides = (source, itemOverrides) => {
-  if (!Array.isArray(source))
-    return;
-  for (const entry of source) {
-    if (!isRecord(entry))
-      continue;
-    const name = toStringValue(entry.name);
-    const quantity = toNumber(getByKeys(entry, ["anzahl", "menge", "quantity"]));
-    if (!name || quantity === void 0)
-      continue;
-    addItemOverride(itemOverrides, name, { quantity: Math.max(0, Math.round(quantity)) });
-  }
-};
-var applyResolvedItemOverrides = (items2, itemOverrides) => {
-  if (items2.length === 0 || Object.keys(itemOverrides).length === 0) {
-    return { appliedCount: 0, unappliedSourceNames: [] };
-  }
-  const matched = /* @__PURE__ */ new Set();
-  let appliedCount = 0;
-  for (const item of items2) {
-    const itemName = toStringValue(item.name);
-    if (!itemName)
-      continue;
-    const normalized = normalizeName(itemName);
-    const override = itemOverrides[normalized];
-    if (!override)
-      continue;
-    if (!isRecord(item.system)) {
-      item.system = {};
-    }
-    let touched = false;
-    if (override.talentValue !== void 0) {
-      const talentValue = isRecord(item.system.talentValue) ? { ...item.system.talentValue } : {};
-      talentValue.value = Math.round(override.talentValue);
-      item.system.talentValue = talentValue;
-      touched = true;
-    }
-    if (override.quantity !== void 0) {
-      const quantity = isRecord(item.system.quantity) ? { ...item.system.quantity } : {};
-      quantity.value = Math.max(0, Math.round(override.quantity));
-      item.system.quantity = quantity;
-      touched = true;
-    }
-    if (touched) {
-      matched.add(normalized);
-      appliedCount += 1;
-    }
-  }
-  const unappliedSourceNames = Object.entries(itemOverrides).filter(([normalized]) => !matched.has(normalized)).map(([, override]) => override.sourceName);
-  return {
-    appliedCount,
-    unappliedSourceNames: uniqueNames(unappliedSourceNames)
-  };
-};
-var getSearchCandidates = (name) => {
-  const candidates = [
-    name,
-    name.replace(/\s*-\s*[ivx]+$/i, ""),
-    name.replace(/\s+[ivx]+$/i, ""),
-    name.replace(/\s*\([^)]*\)\s*/g, " ").trim()
-  ].map((candidate) => candidate.trim()).filter((candidate) => candidate.length > 0);
-  return uniqueNames(candidates);
-};
-var detectDSA5ImportFormat = (payload) => {
-  const normalizedPayload = normalizeInputKeys(payload);
-  if (isRecord(normalizedPayload.system) && typeof normalizedPayload.type === "string") {
-    return "raw_foundry";
-  }
-  const attr = normalizedPayload.attr;
-  const optolithLike = isRecord(attr) && Array.isArray(attr.values);
-  if (optolithLike)
-    return "optolith_like";
-  const darkaidLike = Array.isArray(normalizedPayload.attributes) || Array.isArray(normalizedPayload.skills) || Array.isArray(normalizedPayload.chants) || Array.isArray(normalizedPayload.baseValues);
-  if (darkaidLike)
-    return "darkaid";
-  const customLike = isRecord(normalizedPayload.attribute) || Array.isArray(normalizedPayload.vorteile) || Array.isArray(normalizedPayload.talente) || Array.isArray(normalizedPayload.kampftechniken);
-  if (customLike)
-    return "custom_dsa5";
-  return "unknown";
-};
-var validateImportPayload = (payload) => {
-  const normalizedPayload = normalizeInputKeys(payload);
-  const detectedFormat = detectDSA5ImportFormat(normalizedPayload);
-  const availableTopLevelKeys = Object.keys(normalizedPayload);
-  const missingCriticalFields = [];
-  const errors = [];
-  const warnings = [];
-  if (detectedFormat === "raw_foundry") {
-    if (typeof normalizedPayload.type !== "string") {
-      missingCriticalFields.push("type");
-    }
-    if (!isRecord(normalizedPayload.system)) {
-      missingCriticalFields.push("system");
-    }
-    if (missingCriticalFields.length > 0) {
-      errors.push(`raw_foundry: Pflichtfelder fehlen (${missingCriticalFields.join(", ")}).`);
-    }
-  }
-  if (detectedFormat === "optolith_like") {
-    if (!toStringValue(normalizedPayload.name)) {
-      missingCriticalFields.push("name");
-    }
-    const attr = isRecord(normalizedPayload.attr) ? normalizedPayload.attr : void 0;
-    const values = attr && Array.isArray(attr.values) ? attr.values : [];
-    if (values.length === 0) {
-      missingCriticalFields.push("attr.values");
-    }
-    if (missingCriticalFields.length > 0) {
-      errors.push(`optolith_like: Pflichtfelder fehlen (${missingCriticalFields.join(", ")}).`);
-    }
-    const hasR = Boolean(toStringValue(normalizedPayload.r));
-    const hasC = Boolean(toStringValue(normalizedPayload.c));
-    const hasP = Boolean(toStringValue(normalizedPayload.p));
-    if (!hasR || !hasC || !hasP) {
-      warnings.push("Spezies/Kultur/Profession fehlen");
-    }
-    if (!isRecord(normalizedPayload.talents) || Object.keys(normalizedPayload.talents).length === 0) {
-      warnings.push("Keine Talente gefunden");
-    }
-  }
-  if (detectedFormat === "custom_dsa5") {
-    if (!toStringValue(normalizedPayload.name)) {
-      missingCriticalFields.push("name");
-    }
-    const attribute = isRecord(normalizedPayload.attribute) ? normalizedPayload.attribute : void 0;
-    const knownAttributeKeys = [
-      "mut",
-      "klugheit",
-      "intuition",
-      "charisma",
-      "fingerfertigkeit",
-      "gewandheit",
-      "konstitution",
-      "k\xF6rperkraft",
-      "koerperkraft"
-    ];
-    const hasKnownAttribute = attribute !== void 0 && knownAttributeKeys.some((key) => key in attribute);
-    if (!hasKnownAttribute) {
-      missingCriticalFields.push("attribute");
-    }
-    if (missingCriticalFields.length > 0) {
-      errors.push(`custom_dsa5: Pflichtfelder fehlen (${missingCriticalFields.join(", ")}).`);
-    }
-    if (!isRecord(normalizedPayload.energien)) {
-      warnings.push("Energien (Lebensenergie etc.) fehlen");
-    }
-    const hasTalente = Array.isArray(normalizedPayload.talente) && normalizedPayload.talente.length > 0;
-    const hasVorteile = Array.isArray(normalizedPayload.vorteile) && normalizedPayload.vorteile.length > 0;
-    const hasKampftechniken = Array.isArray(normalizedPayload.kampftechniken) && normalizedPayload.kampftechniken.length > 0;
-    if (!hasTalente && !hasVorteile && !hasKampftechniken) {
-      warnings.push("Keine Items");
-    }
-  }
-  if (detectedFormat === "unknown") {
-    const keyList = availableTopLevelKeys.length > 0 ? availableTopLevelKeys.join(", ") : "(keine)";
-    errors.push(`Format nicht erkannt. Erkannte Felder: [${keyList}]. Unterst\xFCtzte Formate: custom_dsa5, optolith_like, raw_foundry. F\xFCr custom_dsa5 wird mindestens 'name' + 'attribute' ben\xF6tigt. F\xFCr optolith_like wird mindestens 'name' + 'attr.values' ben\xF6tigt.`);
-  }
-  return {
-    isValid: errors.length === 0,
-    errors,
-    warnings,
-    detectedFormat,
-    missingCriticalFields,
-    availableTopLevelKeys
-  };
-};
-var mapCustomDsa5Payload = (payload) => {
-  const attribute = isRecord(payload.attribute) ? payload.attribute : {};
-  const energien = isRecord(payload.energien) ? payload.energien : {};
-  const itemOverrides = {};
-  const species = toStringValue(payload.spezies);
-  const culture = toStringValue(payload.kultur);
-  const profession = toStringValue(payload.profession);
-  const socialStatus = toStringValue(payload.sozialstatus);
-  const koValue = toNumber(attribute.konstitution);
-  const lifeEnergy = toNumber(energien.lebensenergie);
-  const derivedWoundsInitial = lifeEnergy !== void 0 && koValue !== void 0 ? Math.max(0, Math.round(lifeEnergy - koValue * 2)) : void 0;
-  const actorData = {
-    name: toStringValue(payload.name) ?? "Imported DSA5 Character",
-    type: "character",
-    system: {
-      characteristics: {
-        mu: { advances: characteristicAdvance(attribute.mut) ?? 0 },
-        kl: { advances: characteristicAdvance(attribute.klugheit) ?? 0 },
-        in: { advances: characteristicAdvance(attribute.intuition) ?? 0 },
-        ch: { advances: characteristicAdvance(attribute.charisma) ?? 0 },
-        ff: { advances: characteristicAdvance(attribute.fingerfertigkeit) ?? 0 },
-        ge: { advances: characteristicAdvance(attribute.gewandheit) ?? 0 },
-        ko: { advances: characteristicAdvance(attribute.konstitution) ?? 0 },
-        kk: {
-          advances: characteristicAdvance(getByKeys(attribute, ["k\xF6rperkraft", "koerperkraft"])) ?? 0
-        }
-      },
-      status: {
-        wounds: {
-          // DSA5 computes max LeP from wounds.initial + KO*2 (+modifiers).
-          // Keep initial aligned with imported lifeEnergy to avoid 27/22 mismatches.
-          initial: derivedWoundsInitial ?? 0,
-          value: lifeEnergy ?? 0,
-          max: lifeEnergy ?? 0
-        },
-        astralenergy: {
-          value: toNumber(energien.astralenergie) ?? 0,
-          max: toNumber(energien.astralenergie) ?? 0
-        },
-        karmaenergy: {
-          value: toNumber(energien.karmaenergie) ?? 0,
-          max: toNumber(energien.karmaenergie) ?? 0
-        },
-        fatePoints: {
-          value: toNumber(energien.schicksalspunkte) ?? 0,
-          max: toNumber(energien.schicksalspunkte) ?? 0
-        }
-      },
-      details: {
-        species: { value: species ?? "" },
-        culture: { value: culture ?? "" },
-        career: { value: profession ?? "" },
-        socialstate: { value: socialStatus ?? "" },
-        experience: {
-          total: toNumber(payload.abenteuerpunkteGesammelt) ?? 0,
-          spent: toNumber(payload.abenteuerpunkteAusgegeben) ?? 0,
-          available: toNumber(payload.abenteuerpunkteGesamt) ?? 0
-        }
-      }
-    }
-  };
-  const nameBuckets = [];
-  if (species)
-    nameBuckets.push(species);
-  if (culture)
-    nameBuckets.push(culture);
-  if (profession)
-    nameBuckets.push(profession);
-  const pushNames = (value) => {
-    if (!Array.isArray(value))
-      return;
-    for (const entry of value) {
-      if (isRecord(entry)) {
-        const entryName = toStringValue(entry.name);
-        if (entryName)
-          nameBuckets.push(entryName);
-      } else if (typeof entry === "string" && entry.trim().length > 0) {
-        nameBuckets.push(entry.trim());
-      }
-    }
-  };
-  pushNames(payload.vorteile);
-  pushNames(payload.nachteile);
-  pushNames(payload.sonderfertigkeiten);
-  pushNames(payload.talente);
-  pushNames(payload.kampftechniken);
-  pushNames(payload.zauberUndLiturgien);
-  pushNames(payload.nahkampfwaffen);
-  pushNames(payload.fernkampfwaffen);
-  pushNames(payload.gegenst\u00E4nde);
-  pushNames(payload.sprachen);
-  pushNames(payload.schriften);
-  collectTalentOverrides(payload.talente, itemOverrides);
-  collectTalentOverrides(payload.kampftechniken, itemOverrides);
-  collectTalentOverrides(payload.zauberUndLiturgien, itemOverrides);
-  collectQuantityOverrides(payload.nahkampfwaffen, itemOverrides);
-  collectQuantityOverrides(payload.fernkampfwaffen, itemOverrides);
-  collectQuantityOverrides(payload.gegenst\u00E4nde, itemOverrides);
-  const warnings = [];
-  if (!species)
-    warnings.push("No species in payload; actor will be created with empty species field.");
-  if (!culture)
-    warnings.push("No culture in payload; actor will be created with empty culture field.");
-  if (!profession)
-    warnings.push("No profession in payload; actor will be created with empty profession field.");
-  const knownRoots = /* @__PURE__ */ new Set([
-    "uid",
-    "gr\xF6sse",
-    "gr\xF6\xDFe",
-    "gr\xC3\xB6sse",
-    "name",
-    "geschlecht",
-    "spezies",
-    "region",
-    "kultur",
-    "kulturpaket",
-    "profession",
-    "sozialstatus",
-    "abenteuerpunkteGesammelt",
-    "abenteuerpunkteAusgegeben",
-    "abenteuerpunkteGesamt",
-    "hintergrund",
-    "attribute",
-    "abgeleiteteWerte",
-    "energien",
-    "vorteile",
-    "nachteile",
-    "sonderfertigkeiten",
-    "berufsgeheimnisse",
-    "sprachen",
-    "schriften",
-    "talente",
-    "kampftechniken",
-    "zauberUndLiturgien",
-    "objektrituale",
-    "r\xFCstungen",
-    "nahkampfwaffen",
-    "fernkampfwaffen",
-    "gegenst\xE4nde"
-  ]);
-  const unmappedFields = Object.keys(payload).filter((key) => !knownRoots.has(key));
-  return {
-    actorData,
-    candidateItemNames: uniqueNames(nameBuckets),
-    itemOverrides,
-    warnings,
-    unmappedFields
-  };
-};
-var mapDarkAidPayload = (payload) => {
-  const attributes = Array.isArray(payload.attributes) ? payload.attributes : [];
-  const skills = Array.isArray(payload.skills) ? payload.skills : [];
-  const chants = Array.isArray(payload.chants) ? payload.chants : [];
-  const combatTechniques = Array.isArray(payload.combatTechniques) ? payload.combatTechniques : [];
-  const disadvantages = Array.isArray(payload.disadvantages) ? payload.disadvantages : [];
-  const specialAbilities = Array.isArray(payload.specialAbilities) ? payload.specialAbilities : [];
-  const baseValues = Array.isArray(payload.baseValues) ? payload.baseValues : [];
-  const itemOverrides = {};
-  const normalize = (id2) => fixMojibake(String(id2 ?? "")).toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g, "").trim();
-  const idToCharacteristic = {
-    mut: "mu",
-    klugheit: "kl",
-    intuition: "in",
-    charisma: "ch",
-    fingerfertigkeit: "ff",
-    gewandheit: "ge",
-    gewandtheit: "ge",
-    konstitution: "ko",
-    k\u00F6rperkraft: "kk",
-    koerperkraft: "kk"
-  };
-  const characteristics = {
-    mu: { advances: 0 },
-    kl: { advances: 0 },
-    in: { advances: 0 },
-    ch: { advances: 0 },
-    ff: { advances: 0 },
-    ge: { advances: 0 },
-    ko: { advances: 0 },
-    kk: { advances: 0 }
-  };
-  const characteristicsMap = characteristics;
-  let koLevel = 0;
-  for (const entry of attributes) {
-    if (!isRecord(entry))
-      continue;
-    const id2 = normalize(getByKeys(entry, ["id", "name"]));
-    const level = toNumber(getByKeys(entry, ["level", "value"]));
-    if (!id2 || level === void 0)
-      continue;
-    const characteristicKey = idToCharacteristic[id2];
-    if (characteristicKey === "ko")
-      koLevel = Math.round(level);
-  }
-  for (const entry of attributes) {
-    if (!isRecord(entry))
-      continue;
-    const id2 = normalize(getByKeys(entry, ["id", "name"]));
-    const level = toNumber(getByKeys(entry, ["level", "value"]));
-    if (!id2 || level === void 0)
-      continue;
-    const characteristicKey = idToCharacteristic[id2];
-    if (characteristicKey) {
-      characteristics[characteristicKey] = { advances: Math.round(level) - 8 };
-    }
-  }
-  const species = toStringValue(payload.race);
-  const culture = toStringValue(payload.culture);
-  const profession = toStringValue(payload.profession);
-  const socialStatus = toStringValue(payload.socialstatus);
-  const actorData = {
-    name: toStringValue(payload.name) ?? "Imported Dark Aid Character",
-    type: "character",
-    system: {
-      characteristics,
-      status: {
-        wounds: {
-          advances: koLevel
-        }
-      },
-      details: {
-        species: { value: species ?? "" },
-        culture: { value: culture ?? "" },
-        career: { value: profession ?? "" },
-        socialstate: { value: socialStatus ?? "" },
-        age: { value: toStringValue(payload.age) ?? "" },
-        gender: { value: toStringValue(payload.sex) ?? "" },
-        height: { value: toStringValue(payload.height) ?? "" },
-        weight: { value: toStringValue(payload.weight) ?? "" },
-        haircolor: { value: toStringValue(payload.haircolor) ?? "" },
-        eyecolor: { value: toStringValue(payload.eyecolor) ?? "" },
-        home: { value: toStringValue(payload.placeofbirth) ?? "" },
-        experience: {
-          total: xpTotal(payload) ?? 0
-        }
-      }
-    }
-  };
-  const nameBuckets = [];
-  if (species)
-    nameBuckets.push(mapDarkAidItemName(species));
-  if (culture)
-    nameBuckets.push(mapDarkAidItemName(culture));
-  if (profession)
-    nameBuckets.push(mapDarkAidItemName(profession));
-  const pushArrayNames = (source) => {
-    if (!Array.isArray(source))
-      return;
-    for (const entry of source) {
-      if (isRecord(entry)) {
-        const name = toStringValue(getByKeys(entry, ["name", "id"]));
-        if (name)
-          nameBuckets.push(mapDarkAidItemName(name));
-      } else if (typeof entry === "string" && entry.trim().length > 0) {
-        nameBuckets.push(mapDarkAidItemName(entry.trim()));
-      }
-    }
-  };
-  pushArrayNames(skills);
-  pushArrayNames(chants);
-  pushArrayNames(combatTechniques);
-  pushArrayNames(disadvantages);
-  pushArrayNames(specialAbilities);
-  const collectTalentValue = (source, nameField, valueField) => {
-    if (!Array.isArray(source))
-      return;
-    for (const entry of source) {
-      if (!isRecord(entry))
-        continue;
-      const name = toStringValue(getByKeys(entry, ["name", nameField]));
-      const value = toNumber(getByKeys(entry, ["level", valueField]));
-      if (!name || value === void 0)
-        continue;
-      addItemOverride(itemOverrides, mapDarkAidItemName(name), { talentValue: Math.round(value) });
-    }
-  };
-  collectTalentValue(skills, "id", "level");
-  collectTalentValue(combatTechniques, "id", "level");
-  collectTalentValue(chants, "id", "level");
-  const warnings = [];
-  if (!species)
-    warnings.push("No species in payload; actor will be created with empty species field.");
-  if (!culture)
-    warnings.push("No culture in payload; actor will be created with empty culture field.");
-  if (!profession)
-    warnings.push("No profession in payload; actor will be created with empty profession field.");
-  return {
-    actorData,
-    candidateItemNames: uniqueNames(nameBuckets),
-    itemOverrides,
-    warnings,
-    unmappedFields: []
-  };
-};
-var xpTotal = (payload) => {
-  const xp = isRecord(payload.xp) ? payload.xp : void 0;
-  if (!xp)
-    return void 0;
-  const startLevel = toStringValue(xp.startinglevel);
-  if (!startLevel)
-    return void 0;
-  const map = {
-    grundgeschickt: 0,
-    geschickt: 1,
-    kompetent: 2,
-    beherrschend: 3,
-    meister: 4
-  };
-  const total = toNumber(getByKeys(xp, ["total", "abenteuerpunkteGesamt", "points"]));
-  if (total !== void 0)
-    return Math.round(total);
-  const mapped = map[startLevel.toLowerCase()];
-  return mapped !== void 0 ? mapped : void 0;
-};
-var mapOptolithLikePayload = (payload) => {
-  const attr = isRecord(payload.attr) ? payload.attr : {};
-  const details = isRecord(payload.pers) ? payload.pers : {};
-  const itemOverrides = {};
-  const candidateItemNames = [];
-  const warnings = [];
-  const characteristics = {
-    mu: { advances: 0 },
-    kl: { advances: 0 },
-    in: { advances: 0 },
-    ch: { advances: 0 },
-    ff: { advances: 0 },
-    ge: { advances: 0 },
-    ko: { advances: 0 },
-    kk: { advances: 0 }
-  };
-  const attrValues = Array.isArray(attr.values) ? attr.values : [];
-  const attrToCharacteristic = {
-    ATTR_1: "mu",
-    ATTR_2: "kl",
-    ATTR_3: "in",
-    ATTR_4: "ch",
-    ATTR_5: "ff",
-    ATTR_6: "ge",
-    ATTR_7: "ko",
-    ATTR_8: "kk"
-  };
-  for (const entry of attrValues) {
-    if (!isRecord(entry))
-      continue;
-    const idRaw = toStringValue(entry.id);
-    const value = toNumber(entry.value);
-    if (!idRaw || value === void 0)
-      continue;
-    const characteristicKey = attrToCharacteristic[idRaw];
-    if (characteristicKey) {
-      characteristics[characteristicKey] = { advances: Math.round(value) - 8 };
-    }
-  }
-  const speciesId = toStringValue(payload.r);
-  const cultureId = toStringValue(payload.c);
-  const professionId = toStringValue(payload.p);
-  if (speciesId)
-    candidateItemNames.push(speciesId);
-  if (cultureId)
-    candidateItemNames.push(cultureId);
-  if (professionId)
-    candidateItemNames.push(professionId);
-  if (speciesId || cultureId || professionId) {
-    warnings.push("Spezies/Kultur/Profession sind als IDs gespeichert - Compendium-Suche kann davon abweichen.");
-  }
-  const addIdBasedTalentValues = (source) => {
-    if (!isRecord(source))
-      return false;
-    let detected = false;
-    for (const [id2, value] of Object.entries(source)) {
-      const numeric = toNumber(value);
-      if (numeric === void 0)
-        continue;
-      candidateItemNames.push(id2);
-      addItemOverride(itemOverrides, id2, { talentValue: Math.round(numeric) });
-      detected = true;
-    }
-    return detected;
-  };
-  const hasTalentIds = [
-    addIdBasedTalentValues(payload.talents),
-    addIdBasedTalentValues(payload.ct),
-    addIdBasedTalentValues(payload.spells),
-    addIdBasedTalentValues(payload.liturgies)
-  ].some(Boolean);
-  if (hasTalentIds) {
-    warnings.push("Talent-IDs (TAL_x) wurden \xFCbergeben - Compendium-Treffer h\xE4ngen vom DSA5-System-Modul ab.");
-  }
-  const pushArrayNames = (source) => {
-    if (!Array.isArray(source))
-      return;
-    for (const entry of source) {
-      const name = toStringValue(entry);
-      if (name)
-        candidateItemNames.push(name);
-    }
-  };
-  pushArrayNames(payload.cantrips);
-  pushArrayNames(payload.blessings);
-  if (isRecord(payload.activatable)) {
-    for (const [id2] of Object.entries(payload.activatable)) {
-      candidateItemNames.push(id2);
-    }
-  }
-  const belongings = isRecord(payload.belongings) ? payload.belongings : {};
-  const belongingsItems = isRecord(belongings.items) ? belongings.items : {};
-  for (const [, itemData] of Object.entries(belongingsItems)) {
-    if (!isRecord(itemData))
-      continue;
-    const itemName = toStringValue(itemData.name);
-    if (!itemName)
-      continue;
-    candidateItemNames.push(itemName);
-    const amount = toNumber(itemData.amount);
-    if (amount !== void 0) {
-      addItemOverride(itemOverrides, itemName, { quantity: Math.max(0, Math.round(amount)) });
-    }
-  }
-  const actorData = {
-    name: toStringValue(payload.name) ?? "Imported Optolith Character",
-    type: "character",
-    system: {
-      characteristics,
-      status: {
-        wounds: {
-          advances: toNumber(attr.lp) ?? 0
-        },
-        astralenergy: {
-          advances: toNumber(attr.ae) ?? 0,
-          permanentLoss: toNumber(getNested(attr, "permanentAE.lost")) ?? 0,
-          rebuy: toNumber(getNested(attr, "permanentAE.redeemed")) ?? 0
-        },
-        karmaenergy: {
-          advances: toNumber(attr.kp) ?? 0,
-          permanentLoss: toNumber(getNested(attr, "permanentKP.lost")) ?? 0,
-          rebuy: toNumber(getNested(attr, "permanentKP.redeemed")) ?? 0
-        }
-      },
-      details: {
-        species: { value: speciesId ?? "" },
-        culture: { value: cultureId ?? "" },
-        career: { value: professionId ?? "" },
-        socialstate: { value: toStringValue(details.socialstatus) ?? "" },
-        age: { value: toStringValue(details.age) ?? "" },
-        gender: { value: toStringValue(payload.sex) ?? "" },
-        home: { value: toStringValue(details.placeofbirth) ?? "" },
-        family: { value: toStringValue(details.family) ?? "" },
-        haircolor: { value: toStringValue(details.haircolor) ?? "" },
-        eyecolor: { value: toStringValue(details.eyecolor) ?? "" },
-        height: { value: toStringValue(details.height) ?? "" },
-        weight: { value: toStringValue(details.weight) ?? "" },
-        characteristics: { value: toStringValue(details.characteristics) ?? "" },
-        experience: {
-          total: toNumber(isRecord(payload.ap) ? payload.ap.total : void 0) ?? 0
-        }
-      }
-    }
-  };
-  return {
-    actorData,
-    candidateItemNames: uniqueNames(candidateItemNames),
-    itemOverrides,
-    warnings,
-    unmappedFields: []
-  };
-};
-var sanitizeActorPayload = (payload) => {
-  const actorData = { ...payload };
-  delete actorData._id;
-  delete actorData.folder;
-  delete actorData.sort;
-  actorData.items = sanitizeEmbeddedDocuments(actorData.items);
-  actorData.effects = sanitizeEmbeddedDocuments(actorData.effects);
-  if (!actorData.name || typeof actorData.name !== "string") {
-    actorData.name = "Imported Actor";
-  }
-  if (!actorData.type || typeof actorData.type !== "string") {
-    actorData.type = "character";
-  }
-  if (!isRecord(actorData.system)) {
-    actorData.system = {};
-  }
-  const prototypeToken = isRecord(actorData.prototypeToken) ? actorData.prototypeToken : void 0;
-  const texture = prototypeToken && isRecord(prototypeToken.texture) ? prototypeToken.texture : void 0;
-  const src = texture && typeof texture.src === "string" ? texture.src : void 0;
-  if (src && src.startsWith("http")) {
-    texture.src = null;
-  }
-  return actorData;
-};
-var MAX_PAYLOAD_FILE_SIZE = 10 * 1024 * 1024;
-var ALLOWED_PAYLOAD_FILE_EXTENSIONS = /* @__PURE__ */ new Set([".json", ".tdc"]);
-var extractPayload = async (jsonPayload, filePath) => {
-  let parsed = jsonPayload;
-  if (!parsed && filePath) {
-    const extension = import_node_path.default.extname(filePath).toLowerCase();
-    if (!ALLOWED_PAYLOAD_FILE_EXTENSIONS.has(extension)) {
-      throw new Error("Payload file must use a .json or .tdc extension.");
-    }
-    let size;
-    try {
-      ({ size } = await import_node_fs.promises.stat(filePath));
-    } catch {
-      throw new Error("Payload file could not be read.");
-    }
-    if (size > MAX_PAYLOAD_FILE_SIZE) {
-      throw new Error(`Payload file exceeds the ${MAX_PAYLOAD_FILE_SIZE / 1024 / 1024} MB size limit.`);
-    }
-    let content;
-    try {
-      content = await import_node_fs.promises.readFile(filePath, "utf8");
-    } catch {
-      throw new Error("Payload file could not be read.");
-    }
-    try {
-      parsed = JSON.parse(content);
-    } catch {
-      throw new Error("Payload is not valid JSON.");
-    }
-  }
-  if (typeof parsed === "string") {
-    try {
-      parsed = JSON.parse(parsed);
-    } catch {
-      throw new Error("Payload is not valid JSON.");
-    }
-  }
-  if (!isRecord(parsed)) {
-    throw new Error("Payload must resolve to a JSON object.");
-  }
-  return parsed;
-};
-var DSA5JsonActorImporter = class {
-  foundryClient;
-  logger;
-  errorHandler;
-  constructor({ foundryClient, logger }) {
-    this.foundryClient = foundryClient;
-    this.logger = logger.child({ component: "DSA5JsonActorImporter" });
-    this.errorHandler = new ErrorHandler(this.logger);
-  }
-  getToolDefinitions() {
-    return [
-      {
-        name: "import-dsa5-actor-from-json",
-        description: "Import a custom DSA5 actor JSON using multiple strategies (auto/custom_dsa5/optolith_like/raw_foundry). Supports file path or inline JSON payload. Best-effort item resolution is performed via compendium name lookup and unresolved entries are returned as warnings.",
-        inputSchema: {
-          type: "object",
-          properties: {
-            jsonPayload: {
-              oneOf: [{ type: "string" }, { type: "object" }],
-              description: "Inline JSON content as object or string. Optional if filePath is provided."
-            },
-            filePath: {
-              type: "string",
-              description: "Local file path to a JSON file readable by the MCP server process. Optional if jsonPayload is provided."
-            },
-            strategy: {
-              type: "string",
-              enum: ["auto", "custom_dsa5", "optolith_like", "raw_foundry"],
-              default: "auto",
-              description: "Import strategy. auto detects format and chooses mapping path."
-            },
-            resolveItems: {
-              type: "boolean",
-              default: true,
-              description: "Try resolving item-like entries by name from compendiums and embed them into the created actor."
-            },
-            addToScene: {
-              type: "boolean",
-              default: false,
-              description: "Add created actor to active scene as token."
-            },
-            updateExisting: {
-              type: "boolean",
-              default: true,
-              description: "If true, update an existing actor (same name by default) instead of creating a duplicate."
-            },
-            existingActorIdentifier: {
-              type: "string",
-              description: "Optional actor ID or exact name used when updateExisting is true. Defaults to imported name."
-            },
-            strict: {
-              type: "boolean",
-              default: false,
-              description: "If true, unresolved item names abort the import instead of returning warnings."
-            }
-          }
-        }
-      }
-    ];
-  }
-  async handleImportActorFromJson(args) {
-    const schema23 = external_exports.object({
-      jsonPayload: external_exports.union([external_exports.string(), external_exports.record(external_exports.unknown())]).optional(),
-      filePath: external_exports.string().optional(),
-      strategy: external_exports.enum(["auto", "custom_dsa5", "optolith_like", "raw_foundry", "darkaid"]).default("auto"),
-      resolveItems: external_exports.boolean().default(true),
-      addToScene: external_exports.boolean().default(false),
-      updateExisting: external_exports.boolean().default(true),
-      existingActorIdentifier: external_exports.string().optional(),
-      strict: external_exports.boolean().default(false)
-    }).refine((value) => Boolean(value.jsonPayload) || Boolean(value.filePath), {
-      message: "Either jsonPayload or filePath is required."
-    });
-    const { jsonPayload, filePath, strategy, resolveItems, addToScene, updateExisting, existingActorIdentifier, strict } = schema23.parse(args);
-    try {
-      await this.assertDsa5World();
-      const payload = await extractPayload(jsonPayload, filePath);
-      const normalizedPayload = normalizeInputKeys(payload);
-      const validation = validateImportPayload(normalizedPayload);
-      const detectedFormat = validation.detectedFormat;
-      const selectedFormat = strategy === "auto" ? detectedFormat : strategy;
-      if (strategy === "auto" && validation.errors.length > 0) {
-        return {
-          success: false,
-          error: validation.errors.join(" | "),
-          detectedFormat: validation.detectedFormat,
-          availableTopLevelKeys: validation.availableTopLevelKeys
-        };
-      }
-      let mappingResult;
-      switch (selectedFormat) {
-        case "raw_foundry":
-          mappingResult = {
-            actorData: sanitizeActorPayload(normalizedPayload),
-            candidateItemNames: [],
-            itemOverrides: {},
-            warnings: [],
-            unmappedFields: []
-          };
-          break;
-        case "optolith_like":
-          mappingResult = mapOptolithLikePayload(normalizedPayload);
-          break;
-        case "custom_dsa5":
-          mappingResult = mapCustomDsa5Payload(normalizedPayload);
-          break;
-        case "darkaid":
-          mappingResult = mapDarkAidPayload(normalizedPayload);
-          break;
-        default:
-          throw new Error(`Could not detect supported JSON format. Detected format: ${detectedFormat}. Use strategy override if needed.`);
-      }
-      const warnings = Array.from(/* @__PURE__ */ new Set([...validation.warnings, ...mappingResult.warnings]));
-      const unresolvedItemNames = [];
-      let appliedItemOverrides = 0;
-      let unappliedItemOverrideNames = [];
-      if (resolveItems && mappingResult.candidateItemNames.length > 0) {
-        const resolved = await this.resolveItemsByName(mappingResult.candidateItemNames);
-        unresolvedItemNames.push(...resolved.unresolvedNames);
-        if (resolved.items.length > 0) {
-          const existingItems = Array.isArray(mappingResult.actorData.items) ? sanitizeEmbeddedDocuments(mappingResult.actorData.items) : [];
-          mappingResult.actorData.items = [...existingItems, ...resolved.items];
-        }
-        if (resolved.unresolvedNames.length > 0) {
-          warnings.push(`Unresolved item names (${resolved.unresolvedNames.length}): ${resolved.unresolvedNames.join(", ")}`);
-        }
-      }
-      const actorItems = Array.isArray(mappingResult.actorData.items) ? sanitizeEmbeddedDocuments(mappingResult.actorData.items) : [];
-      if (actorItems.length > 0 && Object.keys(mappingResult.itemOverrides).length > 0) {
-        const overrideResult = applyResolvedItemOverrides(actorItems, mappingResult.itemOverrides);
-        appliedItemOverrides = overrideResult.appliedCount;
-        unappliedItemOverrideNames = overrideResult.unappliedSourceNames;
-        mappingResult.actorData.items = actorItems;
-        if (overrideResult.unappliedSourceNames.length > 0) {
-          warnings.push(`Unapplied value overrides (${overrideResult.unappliedSourceNames.length}): ${overrideResult.unappliedSourceNames.join(", ")}`);
-        }
-      }
-      if (strict && unresolvedItemNames.length > 0) {
-        throw new Error(`Strict import aborted because ${unresolvedItemNames.length} item names could not be resolved.`);
-      }
-      const creationResult = await this.foundryClient.query("foundry-mcp-bridge.createActorFromData", {
-        actorData: sanitizeActorPayload(mappingResult.actorData),
-        addToScene,
-        updateExisting,
-        existingActorIdentifier: existingActorIdentifier ?? String(mappingResult.actorData.name ?? ""),
-        ...updateExisting ? { preserveItemTypes: ["species", "culture", "career"] } : {}
-      });
-      const actor = isRecord(creationResult) && isRecord(creationResult.actor) ? creationResult.actor : {};
-      return {
-        success: true,
-        summary: `Imported actor "${String(actor.name ?? mappingResult.actorData.name)}" using ${selectedFormat}.`,
-        import: {
-          selectedFormat,
-          detectedFormat,
-          strategy,
-          resolveItems,
-          updateExisting,
-          existingActorIdentifier,
-          strict,
-          source: filePath ? `file:${filePath}` : "jsonPayload"
-        },
-        actor,
-        warnings,
-        unmappedFields: mappingResult.unmappedFields,
-        unresolvedItemNames,
-        valueOverrides: {
-          total: Object.keys(mappingResult.itemOverrides).length,
-          applied: appliedItemOverrides,
-          unapplied: unappliedItemOverrideNames.length,
-          unappliedNames: unappliedItemOverrideNames
-        },
-        message: `Import completed via ${selectedFormat}.
-Warnings: ${warnings.length}
-Unmapped root fields: ${mappingResult.unmappedFields.length}`
-      };
-    } catch (error) {
-      this.errorHandler.handleToolError(error, "import-dsa5-actor-from-json", "JSON import");
-    }
-  }
-  async assertDsa5World() {
-    const worldInfo = await this.foundryClient.query("foundry-mcp-bridge.getWorldInfo");
-    const systemIdRaw = isRecord(worldInfo) && typeof worldInfo.system === "string" ? worldInfo.system : void 0;
-    const systemId = systemIdRaw?.toLowerCase();
-    if (systemId && systemId !== "dsa5") {
-      throw new Error(`import-dsa5-actor-from-json supports only DSA5 worlds. Detected system: ${systemIdRaw}.`);
-    }
-  }
-  async resolveItemsByName(itemNames) {
-    const unique = uniqueNames(itemNames).slice(0, 120);
-    const resolvedItems = [];
-    const unresolved = [];
-    for (const candidateName of unique) {
-      try {
-        const searchCandidates = getSearchCandidates(candidateName);
-        let selected;
-        for (const searchName of searchCandidates) {
-          const searchResponse = await this.foundryClient.query("foundry-mcp-bridge.searchCompendium", {
-            query: searchName,
-            packType: "Item"
-          });
-          if (!Array.isArray(searchResponse) || searchResponse.length === 0) {
-            continue;
-          }
-          const exact = searchResponse.find((entry) => {
-            if (!isRecord(entry))
-              return false;
-            const name = toStringValue(entry.name);
-            if (!name)
-              return false;
-            const normalizedItemName = normalizeName(name);
-            return normalizedItemName === normalizeName(candidateName) || normalizedItemName === normalizeName(searchName);
-          });
-          selected = exact;
-          if (selected)
-            break;
-        }
-        if (!isRecord(selected)) {
-          unresolved.push(candidateName);
-          continue;
-        }
-        const packId = toStringValue(selected.pack);
-        const itemId = toStringValue(selected.id);
-        if (!packId || !itemId) {
-          unresolved.push(candidateName);
-          continue;
-        }
-        const full = await this.foundryClient.query("foundry-mcp-bridge.getCompendiumDocumentFull", {
-          packId,
-          documentId: itemId
-        });
-        if (!isRecord(full) || !isRecord(full.fullData)) {
-          unresolved.push(candidateName);
-          continue;
-        }
-        const itemData = sanitizeEmbeddedDocuments([full.fullData])[0];
-        if (!itemData) {
-          unresolved.push(candidateName);
-          continue;
-        }
-        resolvedItems.push(itemData);
-      } catch (error) {
-        this.logger.warn("Item resolution failed during import", {
-          candidateName,
-          error: error instanceof Error ? error.message : String(error)
-        });
-        unresolved.push(candidateName);
-      }
-    }
-    return {
-      items: resolvedItems,
-      unresolvedNames: unresolved,
-      resolvedCount: resolvedItems.length
-    };
-  }
-};
-
 // dist/tools/dnd5e/add-feature.js
 init_zod();
 var DAMAGE_CANONICAL = /* @__PURE__ */ new Set([
@@ -118687,7 +112168,7 @@ var DnD5eAddFeatureTool = class {
     return [
       {
         name: "dnd5e-add-feature",
-        description: '[D&D 5e only] Add a feature, attack, spellcasting setup, or spells to an existing actor. Set featureType to select the mode \u2014 each mode uses only its own parameters:\n\n\u2022 passive \u2014 descriptive trait, no roll (Multiattack, Magic Resistance, Spider Climb).\n  Required: actorIdentifier, featureName\n  Optional: description, uses, sourceRules, sourceBook, sourcePage\n\n\u2022 save \u2014 feature that forces a saving throw (breath weapon, cone of cold, etc.).\n  Required: actorIdentifier, featureName, saveAbility, saveDC, damageParts\n  Optional: description, activationType, uses, halfOnSave, areaType, areaSize (required if areaType set), areaUnits, affectsType\n\n\u2022 attack \u2014 weapon attack with to-hit roll (Claw, Bite, Scimitar, etc.).\n  Required: actorIdentifier, featureName, attackType, damageParts\n  Required when ranged: rangeFt\n  Optional: description, activationType, weaponClass, abilityModifier, attackBonus, proficient, equipped, reachFt, longRangeFt, properties, uses, sourceRules, sourceBook, sourcePage\n\n\u2022 attack-with-save \u2014 attack roll on hit + forced save for bonus damage (e.g. Stinger: piercing hit + CON save or poison damage).\n  Required: actorIdentifier, featureName, attackType, damageParts, saveAbility, saveDC, saveDamageParts\n  Required when ranged: rangeFt\n  Optional: description, activationType, weaponClass, abilityModifier, attackBonus, proficient, equipped, reachFt, longRangeFt, properties, saveOnSave, uses, sourceRules, sourceBook, sourcePage\n\n\u2022 aura \u2014 automatic-damage area, no to-hit, no save (all creatures in range take damage).\n  Required: actorIdentifier, featureName, damageParts, areaType, areaSize\n  Optional: description, activationType, areaUnits, affectsType, uses, sourceRules, sourceBook, sourcePage\n\n\u2022 spellcasting \u2014 configure spell slots and casting ability. Run this BEFORE featureType "spells".\n  Required: actorIdentifier, spellcastingClass, spellcastingLevel\n  Optional: spellcastingAbility (default per class: wizard/artificer\u2192INT, cleric/druid/ranger\u2192WIS, sorcerer/warlock/bard/paladin\u2192CHA), sourceRules\n\n\u2022 spells \u2014 import named spells from compendium. Names must be in English.\n  Required: actorIdentifier, spellNames (max 50)\n  Optional: compendiumPacks (default ["dnd5e.spells"])\n\nUse list-characters or get-character first to find the actorIdentifier.',
+        description: '[D&D 5e only] Add a feature, attack, spellcasting setup, or spells to an existing actor. Set featureType to select the mode \u2014 each mode uses only its own parameters:\n\n\u2022 passive \u2014 descriptive trait, no roll (Multiattack, Magic Resistance, Spider Climb).\n  Required: actorIdentifier, featureName\n  Optional: description, uses, sourceRules, sourceBook, sourcePage\n\n\u2022 save \u2014 feature that forces a saving throw (breath weapon, cone of cold, etc.).\n  Required: actorIdentifier, featureName, saveAbility, saveDC, damageParts\n  Optional: description, activationType, uses, halfOnSave, areaType, areaSize (required if areaType set), areaUnits, affectsType\n\n\u2022 attack \u2014 weapon attack with to-hit roll (Claw, Bite, Scimitar, etc.).\n  Required: actorIdentifier, featureName, attackType, damageParts\n  Required when ranged: rangeFt\n  Optional: description, activationType, weaponClass, abilityModifier, attackBonus, proficient, equipped, reachFt, longRangeFt, properties, uses, sourceRules, sourceBook, sourcePage\n\n\u2022 attack-with-save \u2014 attack roll on hit + forced save for bonus damage (e.g. Stinger: piercing hit + CON save or poison damage).\n  Required: actorIdentifier, featureName, attackType, damageParts, saveAbility, saveDC, saveDamageParts\n  Required when ranged: rangeFt\n  Optional: description, activationType, weaponClass, abilityModifier, attackBonus, proficient, equipped, reachFt, longRangeFt, properties, saveOnSave, uses, sourceRules, sourceBook, sourcePage\n\n\u2022 aura \u2014 automatic-damage area, no to-hit, no save (all creatures in range take damage).\n  Required: actorIdentifier, featureName, damageParts, areaType, areaSize\n  Optional: description, activationType, areaUnits, affectsType, uses, sourceRules, sourceBook, sourcePage\n\n\u2022 spellcasting \u2014 configure spell slots and casting ability. Run this BEFORE featureType "spells".\n  Required: actorIdentifier, spellcastingClass, spellcastingLevel\n  Optional: spellcastingAbility (default per class: wizard/artificer\u2192INT, cleric/druid/ranger\u2192WIS, sorcerer/warlock/bard/paladin\u2192CHA), sourceRules\n\n\u2022 spells \u2014 import named spells from compendium. Names must be in English.\n  Required: actorIdentifier, spellNames (max 50)\n  Optional: compendiumPacks (default ["dnd5e.spells"])\n\nUse character list or character get first to find the actorIdentifier.',
         inputSchema: {
           type: "object",
           properties: {
@@ -120060,37 +113541,6 @@ var DnD5eFeaturesFromCompendiumTools = class {
     this.logger = logger.child({ component: "DnD5eFeaturesFromCompendiumTools" });
     this.errorHandler = new ErrorHandler(this.logger);
   }
-  getToolDefinitions() {
-    return [
-      {
-        name: "dnd5e-add-features-from-compendium",
-        description: '[D&D 5e only] Import class features and monster features from an official compendium pack onto an actor (NPC or PC). Each feature is looked up by EXACT name (case-insensitive) and embedded onto the actor as-is from the compendium data.\n\nUSE THIS TOOL when you need to:\n  - Add monster features by name (e.g. "Pack Tactics", "Nimble Escape", "Multiattack")\n  - Add class features to an NPC caster (e.g. "Spellcasting", "Action Surge", "Font of Magic")\n  - Mix features from monster and class compendiums on a custom NPC\n  - Example: "add Spellcasting, Font of Magic and Metamagic to this sorcerer NPC"\n\n\u26A0\uFE0F IMPORTANT \u2014 feature names must be in English: the compendium uses English names. Translate BEFORE calling if the user provided names in another language.\n\ncompendiumPacks controls which pack(s) to search (priority order, first match wins):\n  - Default ["dnd5e.monsterfeatures", "dnd5e.classfeatures"] \u2192 2014 SRD\n  - ["dnd5e.monsterfeatures24"]                              \u2192 2024 monster features only\n  - ["dnd5e.monsterfeatures24", "dnd5e.classfeatures"]       \u2192 2024 monsters + 2014 class\n\nDO NOT USE THIS TOOL for:\n  - Importing spell items \u2192 use dnd5e-add-spells-to-actor instead\n  - Setting up spellcasting class or spell slots \u2192 use dnd5e-set-actor-spellcasting\n  - Importing 2024 class features \u2014 they are embedded inside class items in the 2024 edition, not available in a separate compendium pack; this tool cannot import them\n  - Creating custom/homebrew features from scratch \u2192 compendium-only, no homebrew\n  - Non-dnd5e systems \u2192 this tool is dnd5e-exclusive\n\nReturns a detailed report: features added \u2705, skipped (already on actor) \u23ED\uFE0F, not found in compendium \u274C, and failed during import \u26A0\uFE0F.\nUse list-characters or get-character first to find the actorIdentifier.',
-        inputSchema: {
-          type: "object",
-          properties: {
-            actorIdentifier: {
-              type: "string",
-              description: "Name or ID of the target actor (partial name match supported)"
-            },
-            featureNames: {
-              type: "array",
-              description: "English feature names to import (exact match, case-insensitive). Maximum 50 per call.",
-              minItems: 1,
-              maxItems: 50,
-              items: { type: "string", minLength: 1 }
-            },
-            compendiumPacks: {
-              type: "array",
-              description: 'Compendium pack IDs to search, in priority order (first match wins). Defaults to ["dnd5e.monsterfeatures", "dnd5e.classfeatures"] (SRD 2014). Use "dnd5e.monsterfeatures24" for 2024 monster features. Note: 2024 class features are not available in a separate pack.',
-              items: { type: "string", minLength: 1 },
-              default: ["dnd5e.monsterfeatures", "dnd5e.classfeatures"]
-            }
-          },
-          required: ["actorIdentifier", "featureNames"]
-        }
-      }
-    ];
-  }
   async handleAddFeaturesFromCompendium(args) {
     const schema23 = external_exports.object({
       actorIdentifier: external_exports.string().min(1, "actorIdentifier cannot be empty"),
@@ -120106,7 +113556,7 @@ var DnD5eFeaturesFromCompendiumTools = class {
     try {
       const system = await detectGameSystem(this.foundryClient, this.logger);
       if (system !== "dnd5e") {
-        throw new Error(`dnd5e-add-features-from-compendium requires D&D 5e. Detected system: "${getCachedSystemId() ?? "unknown"}".`);
+        throw new Error(`compendium add_features requires D&D 5e. Detected system: "${getCachedSystemId() ?? "unknown"}".`);
       }
       const result = await this.foundryClient.query("foundry-mcp-bridge.addFeaturesFromCompendium", parsed);
       this.logger.info("Features import complete", {
@@ -120190,6 +113640,9 @@ ${lines.join("\n")}`
   }
 };
 
+// dist/tools/chat-control.js
+init_zod();
+
 // dist/tools/chat.js
 init_zod();
 var ChatTools = class {
@@ -120264,9 +113717,6 @@ var ChatTools = class {
     }
   }
 };
-
-// dist/tools/chat-control.js
-init_zod();
 
 // dist/chat-feed.js
 init_wrapper();
@@ -121141,7 +114591,7 @@ var UploadTools = class {
     return [
       {
         name: "upload-file",
-        description: `Upload an image or an audio file from this computer to the Foundry server, into the current world's own folder (worlds/<world>/uploads/...). Returns the Foundry path, which can be used directly as a scene background (manage-scenes), an actor or token image, or a sound for manage-playlists and manage-scene-objects {kind:"sound"}. Images: png, jpg, webp, gif up to 20 MB. Audio: mp3, ogg, wav, flac, m4a up to 25 MB. The file must really be of the type its name says. Existing files are not replaced unless overwrite is true.`,
+        description: `Upload an image or an audio file from this computer to the Foundry server, into the current world's own folder (worlds/<world>/uploads/...). Returns the Foundry path, which can be used directly as a scene background (scene update), an actor or token image, or a sound for manage-playlists and manage-scene-objects {kind:"sound"}. Images: png, jpg, webp, gif up to 20 MB. Audio: mp3, ogg, wav, flac, m4a up to 25 MB. The file must really be of the type its name says. Existing files are not replaced unless overwrite is true.`,
         inputSchema: {
           type: "object",
           properties: {
@@ -121238,6 +114688,96 @@ var UploadTools = class {
     }
   }
 };
+
+// dist/tts-stream.js
+function serverUrl(comfyBaseUrl2) {
+  return `${comfyBaseUrl2.replace(/\/+$/, "")}/claude-tts`;
+}
+async function failure(response) {
+  let detail = "";
+  try {
+    const body = await response.json();
+    detail = body?.error || body?.detail || "";
+  } catch {
+  }
+  if (response.status === 404) {
+    return new Error("This ComfyUI has no narration server. Install the claude_tts custom node from the bridge (tts-server/claude_tts) and restart ComfyUI.");
+  }
+  if (response.status === 503) {
+    return new Error(detail || "The narration server is not running. Check the ComfyUI log for [claude_tts].");
+  }
+  return new Error(`Narration server error ${response.status}${detail ? `: ${detail}` : ""}`);
+}
+async function getServerJson(baseUrl, path13, timeoutMs = 8e3) {
+  const response = await fetch(`${serverUrl(baseUrl)}${path13}`, { signal: AbortSignal.timeout(timeoutMs) });
+  if (!response.ok)
+    throw await failure(response);
+  return response.json();
+}
+async function unloadVoice(baseUrl, timeoutMs = 1e4) {
+  try {
+    const response = await fetch(`${serverUrl(baseUrl)}/unload`, { method: "POST", signal: AbortSignal.timeout(timeoutMs) });
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+async function streamSpeech(baseUrl, request, options = {}) {
+  const response = await fetch(`${serverUrl(baseUrl)}/speak`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request),
+    signal: AbortSignal.timeout(options.timeoutMs ?? 24e4)
+  });
+  if (!response.ok || !response.body)
+    throw await failure(response);
+  const sampleRate = Number(response.headers.get("x-sample-rate")) || 24e3;
+  const reader = response.body.getReader();
+  async function* read() {
+    let carry = Buffer.alloc(0);
+    try {
+      for (; ; ) {
+        const { done, value } = await reader.read();
+        if (done)
+          break;
+        const joined = carry.length ? Buffer.concat([carry, Buffer.from(value)]) : Buffer.from(value);
+        const usable = joined.length - joined.length % 2;
+        carry = joined.subarray(usable);
+        if (usable > 0)
+          yield joined.subarray(0, usable);
+      }
+    } finally {
+      reader.cancel().catch(() => void 0);
+    }
+  }
+  return { sampleRate, chunks: read() };
+}
+function pcmToWav(pcm, sampleRate) {
+  const header = Buffer.alloc(44);
+  header.write("RIFF", 0, "ascii");
+  header.writeUInt32LE(36 + pcm.length, 4);
+  header.write("WAVE", 8, "ascii");
+  header.write("fmt ", 12, "ascii");
+  header.writeUInt32LE(16, 16);
+  header.writeUInt16LE(1, 20);
+  header.writeUInt16LE(1, 22);
+  header.writeUInt32LE(sampleRate, 24);
+  header.writeUInt32LE(sampleRate * 2, 28);
+  header.writeUInt16LE(2, 32);
+  header.writeUInt16LE(16, 34);
+  header.write("data", 36, "ascii");
+  header.writeUInt32LE(pcm.length, 40);
+  return Buffer.concat([header, pcm]);
+}
+function pcmSeconds(pcm, sampleRate) {
+  return pcm.length / 2 / sampleRate;
+}
+function sliceWords(text3, from, to) {
+  const words2 = text3.trim().split(/\s+/).filter(Boolean);
+  const a = Math.round(Math.min(1, Math.max(0, from)) * words2.length);
+  const b = to >= 1 ? words2.length : Math.round(Math.min(1, Math.max(0, to)) * words2.length);
+  return words2.slice(a, Math.max(a, b)).join(" ");
+}
 
 // dist/tools/image-generation.js
 var import_crypto5 = require("crypto");
@@ -121848,18 +115388,20 @@ var ImageGenerationTools = class {
   getClient;
   applyTarget;
   outputDir;
+  beforeGenerate;
   constructor(options) {
     this.foundryClient = options.foundryClient;
     this.logger = options.logger.child({ component: "ImageGenerationTools" });
     this.getClient = options.getClient;
     this.applyTarget = options.applyTarget;
+    this.beforeGenerate = options.beforeGenerate;
     this.outputDir = options.outputDir ?? import_path2.default.join(import_os.default.tmpdir(), "foundry-mcp-images");
   }
   getToolDefinitions() {
     return [
       {
         name: "generate-image",
-        description: `Generate a picture with the GM's ComfyUI and (by default) upload it to the Foundry world. "kind" picks the profile the GM configured in the module settings (checkpoint, steps, size and prompt wording): map = top-down battlemap, portrait = character portrait, token = round token art, handout = illustration for players. The profile wraps your prompt, so describe only the subject. Returns the Foundry path (use it in manage-scenes, actors or journals) and a local file path you can open to look at the result. Takes about 1-3 minutes with MiniMax H3 (10-90 seconds for a checkpoint). A kind that is not set up fails with a message saying so; describe-image-generation shows what is set up. MINIMAX H3 PROMPTS: there is no prompt expander, so write the prompt yourself as ONE detailed English paragraph (80-200 words): the subject and its exact visible features (face, hair, scar, clothes, props, colours), pose and expression, setting, camera/framing, lighting, medium or art style. Put any required text in quotes. Do not use keyword lists or negative wording; describe what should be there. REFERENCE IMAGES (MiniMax H3 only): pass absolute file paths in reference_images (for example the local_path of an earlier result) and refer to them in the prompt as <Picture 1>, <Picture 2>, ...; to keep a character consistent, say which features to keep ("the exact same woman from <Picture 1>: same face, scar, copper braids, green eyes, apron and pendant") and then describe the new scene. Repeat the features that matter in words, because the picture alone carries them only loosely.`,
+        description: `Generate a picture with the GM's ComfyUI and (by default) upload it to the Foundry world. "kind" picks the profile the GM configured in the module settings (checkpoint, steps, size and prompt wording): map = top-down battlemap, portrait = character portrait, token = round token art, handout = illustration for players. The profile wraps your prompt, so describe only the subject. Returns the Foundry path (use it in the scene tool, actors or journals) and a local file path you can open to look at the result. Takes about 1-3 minutes with MiniMax H3 (10-90 seconds for a checkpoint). A kind that is not set up fails with a message saying so; describe-image-generation shows what is set up. MINIMAX H3 PROMPTS: there is no prompt expander, so write the prompt yourself as ONE detailed English paragraph (80-200 words): the subject and its exact visible features (face, hair, scar, clothes, props, colours), pose and expression, setting, camera/framing, lighting, medium or art style. Put any required text in quotes. Do not use keyword lists or negative wording; describe what should be there. REFERENCE IMAGES (MiniMax H3 only): pass absolute file paths in reference_images (for example the local_path of an earlier result) and refer to them in the prompt as <Picture 1>, <Picture 2>, ...; to keep a character consistent, say which features to keep ("the exact same woman from <Picture 1>: same face, scar, copper braids, green eyes, apron and pendant") and then describe the new scene. Repeat the features that matter in words, because the picture alone carries them only loosely.`,
         inputSchema: {
           type: "object",
           properties: {
@@ -121954,6 +115496,11 @@ var ImageGenerationTools = class {
       steps: generation.steps,
       size: `${generation.width}x${generation.height}`
     });
+    try {
+      await this.beforeGenerate?.();
+    } catch (error) {
+      this.logger.warn("beforeGenerate failed", { error: error instanceof Error ? error.message : String(error) });
+    }
     const started = Date.now();
     let result;
     try {
@@ -122216,10 +115763,10 @@ function slugify2(text3, max = 40) {
   return text3.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, max).replace(/-+$/g, "") || "speech";
 }
 function splitSpeechSegments(text3, maxChars = 200) {
-  const clean = text3.replace(/\s+/g, " ").trim();
-  if (!clean)
+  const clean2 = text3.replace(/\s+/g, " ").trim();
+  if (!clean2)
     return [];
-  const sentences = clean.split(/(?<=[.!?…])\s+(?=[^\s])/).map((s) => s.trim()).filter(Boolean);
+  const sentences = clean2.split(/(?<=[.!?…])\s+(?=[^\s])/).map((s) => s.trim()).filter(Boolean);
   const pieces = [];
   for (const sentence of sentences) {
     if (sentence.length <= maxChars) {
@@ -122272,88 +115819,6 @@ function startDelayMs(pieces, firstSeconds, firstReadyMs, gapMs = 120) {
     delay = Math.max(delay, ready - plays);
   }
   return Math.max(0, Math.round((delay + (delay > 0 ? 0.4 : 0)) * 1e3));
-}
-
-// dist/tts-stream.js
-function serverUrl(comfyBaseUrl2) {
-  return `${comfyBaseUrl2.replace(/\/+$/, "")}/claude-tts`;
-}
-async function failure(response) {
-  let detail = "";
-  try {
-    const body = await response.json();
-    detail = body?.error || body?.detail || "";
-  } catch {
-  }
-  if (response.status === 404) {
-    return new Error("This ComfyUI has no narration server. Install the claude_tts custom node from the bridge (tts-server/claude_tts) and restart ComfyUI.");
-  }
-  if (response.status === 503) {
-    return new Error(detail || "The narration server is not running. Check the ComfyUI log for [claude_tts].");
-  }
-  return new Error(`Narration server error ${response.status}${detail ? `: ${detail}` : ""}`);
-}
-async function getServerJson(baseUrl, path14, timeoutMs = 8e3) {
-  const response = await fetch(`${serverUrl(baseUrl)}${path14}`, { signal: AbortSignal.timeout(timeoutMs) });
-  if (!response.ok)
-    throw await failure(response);
-  return response.json();
-}
-async function streamSpeech(baseUrl, request, options = {}) {
-  const response = await fetch(`${serverUrl(baseUrl)}/speak`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(request),
-    signal: AbortSignal.timeout(options.timeoutMs ?? 24e4)
-  });
-  if (!response.ok || !response.body)
-    throw await failure(response);
-  const sampleRate = Number(response.headers.get("x-sample-rate")) || 24e3;
-  const reader = response.body.getReader();
-  async function* read() {
-    let carry = Buffer.alloc(0);
-    try {
-      for (; ; ) {
-        const { done, value } = await reader.read();
-        if (done)
-          break;
-        const joined = carry.length ? Buffer.concat([carry, Buffer.from(value)]) : Buffer.from(value);
-        const usable = joined.length - joined.length % 2;
-        carry = joined.subarray(usable);
-        if (usable > 0)
-          yield joined.subarray(0, usable);
-      }
-    } finally {
-      reader.cancel().catch(() => void 0);
-    }
-  }
-  return { sampleRate, chunks: read() };
-}
-function pcmToWav(pcm, sampleRate) {
-  const header = Buffer.alloc(44);
-  header.write("RIFF", 0, "ascii");
-  header.writeUInt32LE(36 + pcm.length, 4);
-  header.write("WAVE", 8, "ascii");
-  header.write("fmt ", 12, "ascii");
-  header.writeUInt32LE(16, 16);
-  header.writeUInt16LE(1, 20);
-  header.writeUInt16LE(1, 22);
-  header.writeUInt32LE(sampleRate, 24);
-  header.writeUInt32LE(sampleRate * 2, 28);
-  header.writeUInt16LE(2, 32);
-  header.writeUInt16LE(16, 34);
-  header.write("data", 36, "ascii");
-  header.writeUInt32LE(pcm.length, 40);
-  return Buffer.concat([header, pcm]);
-}
-function pcmSeconds(pcm, sampleRate) {
-  return pcm.length / 2 / sampleRate;
-}
-function sliceWords(text3, from, to) {
-  const words2 = text3.trim().split(/\s+/).filter(Boolean);
-  const a = Math.round(Math.min(1, Math.max(0, from)) * words2.length);
-  const b = to >= 1 ? words2.length : Math.round(Math.min(1, Math.max(0, to)) * words2.length);
-  return words2.slice(a, Math.max(a, b)).join(" ");
 }
 
 // dist/tools/speech-tools.js
@@ -122875,8 +116340,10 @@ var pinSchema = external_exports.object({
   global: external_exports.boolean().optional()
 }).strict();
 var journalSchema = external_exports.object({
-  action: external_exports.enum(["create", "update", "describe"]),
+  action: external_exports.enum(["create", "update", "describe", "search"]),
   journal: external_exports.string().min(1).optional(),
+  query: external_exports.string().min(1).max(200).optional(),
+  search_in: external_exports.enum(["title", "content", "both"]).optional(),
   name: external_exports.string().min(1).optional(),
   folder: external_exports.string().min(1).optional(),
   ownership: external_exports.enum(["none", "limited", "observer", "owner"]).optional(),
@@ -122894,11 +116361,13 @@ var JournalTools = class {
     return [
       {
         name: "manage-journals",
-        description: "Create, update or describe journals with exact pages (never deletes anything). create: needs name; optional folder (created if missing), ownership (who can see it: none = GM only (default), limited, observer, owner) and pages. update: needs journal (id or exact name); can rename, move to a folder, change ownership, and upsert pages: a page with an id or an exact existing name is changed, otherwise a new page is added at the end. describe: lists all journals, or one journal with its full page contents when journal is given. Text pages take HTML in content (headings, paragraphs, lists, tables). Image pages take src, a Foundry file path such as the one upload-file returns. pin {scene?, x, y, page?, text?, global?} (create or update) also puts a map pin for the journal on a scene in the same call (grid squares from the top-left; page opens that page; text is the label; global shows it to all players).\nIn text you can write {{actor: Name}}, {{scene: Name}}, {{journal: Name}}, {{item: Name}} or {{rolltable: Name}} (or {{actor: Name | label}}) to insert a clickable Foundry link; unmatched names are reported as warnings. Scripts and event handlers are removed from the HTML.",
+        description: "Create, update, describe or search journals with exact pages (never deletes anything). create: needs name; optional folder (created if missing), ownership (who can see it: none = GM only (default), limited, observer, owner) and pages. update: needs journal (id or exact name); can rename, move to a folder, change ownership, and upsert pages: a page with an id or an exact existing name is changed, otherwise a new page is added at the end. describe: lists all journals, or one journal with its full page contents when journal is given. search {query, search_in?(title|content|both, default both)}: finds journals by title and/or page text, with a snippet for each matching page. Text pages take HTML in content (headings, paragraphs, lists, tables). Image pages take src, a Foundry file path such as the one upload-file returns. pin {scene?, x, y, page?, text?, global?} (create or update) also puts a map pin for the journal on a scene in the same call (grid squares from the top-left; page opens that page; text is the label; global shows it to all players).\nIn text you can write {{actor: Name}}, {{scene: Name}}, {{journal: Name}}, {{item: Name}} or {{rolltable: Name}} (or {{actor: Name | label}}) to insert a clickable Foundry link; unmatched names are reported as warnings. Scripts and event handlers are removed from the HTML.",
         inputSchema: {
           type: "object",
           properties: {
-            action: { type: "string", enum: ["create", "update", "describe"] },
+            action: { type: "string", enum: ["create", "update", "describe", "search"] },
+            query: { type: "string", description: "search: text to look for" },
+            search_in: { type: "string", enum: ["title", "content", "both"], description: "search: where to look (default both)" },
             journal: {
               type: "string",
               description: "Journal id or exact name (update; optional for describe)"
@@ -122962,8 +116431,66 @@ var JournalTools = class {
       }
     ];
   }
+  extractSnippet(content, searchTerm, maxLength = 200) {
+    const index = content.toLowerCase().indexOf(searchTerm.toLowerCase());
+    if (index === -1)
+      return "";
+    const start = Math.max(0, index - 50);
+    const end = Math.min(content.length, index + maxLength);
+    return "..." + content.substring(start, end) + "...";
+  }
+  /** Find journals by title and/or page text. */
+  async searchJournals(query, searchIn) {
+    const journals = await this.foundryClient.query("foundry-mcp-bridge.listJournals", {});
+    if (!Array.isArray(journals))
+      throw new Error("Failed to retrieve journals");
+    const needle = query.toLowerCase();
+    const results = [];
+    for (const journal of journals) {
+      const info = {
+        id: journal.id,
+        name: journal.name,
+        pageCount: journal.pageCount || 0,
+        matchType: [],
+        matchedPages: []
+      };
+      if (searchIn !== "content" && String(journal.name ?? "").toLowerCase().includes(needle)) {
+        info.matchType.push("title");
+      }
+      if (searchIn !== "title") {
+        for (const page of journal.pages || []) {
+          if (page.type !== "text")
+            continue;
+          try {
+            const pageContent = await this.foundryClient.query("foundry-mcp-bridge.getJournalPageContent", {
+              journalId: journal.id,
+              pageId: page.id
+            });
+            if (pageContent?.content?.toLowerCase().includes(needle)) {
+              if (!info.matchType.includes("content"))
+                info.matchType.push("content");
+              info.matchedPages.push({
+                pageId: page.id,
+                pageName: page.name,
+                contentSnippet: this.extractSnippet(pageContent.content, query)
+              });
+            }
+          } catch {
+          }
+        }
+      }
+      if (info.matchType.length > 0)
+        results.push(info);
+    }
+    return { success: true, query, search_in: searchIn, results, totalMatches: results.length };
+  }
   async handleManageJournals(args) {
     const parsed = journalSchema.parse(args);
+    if (parsed.action === "search") {
+      if (!parsed.query)
+        throw new Error("query is required for search");
+      return this.searchJournals(parsed.query, parsed.search_in ?? "both");
+    }
     if (parsed.action === "create" && !parsed.name) {
       throw new Error("name is required for create");
     }
@@ -123519,7 +117046,7 @@ var SceneObjectTools = class {
     return [
       {
         name: "manage-scene-objects",
-        description: `Place tokens, lights, walls, map pins, tiles (pictures laid on the map: rugs, furniture, props), animated effects (torches, braziers, campfires, fog, via Sequencer) and ambient sounds on a scene by grid square, describe what is on a scene, or remove objects this tool created (it never removes anything else). Positions are in GRID SQUARES from the top-left corner of the map image: (0, 0) is the top-left corner of the first square, (2.5, 1.5) the centre of the square in column 2, row 1 (counting from 0). Use preview-scene first to see the numbered grid. describe returns the scene grid size so you know the valid range. place takes objects (up to 200): {kind:"token", actor, x, y} puts the actor's token with its top-left corner at that square (use whole numbers; actor is an id or exact name); {kind:"light", x, y, bright, dim} makes a light at that point with radii in squares (optional color, alpha, angle, rotation, animation, hidden); {kind:"wall", points:[[x1,y1],[x2,y2],...]} draws walls along a chain of points (add closed:true to join the ends) or {kind:"wall", rect:[x,y,width,height]} draws the four walls of a rectangle, with preset wall (default), door, secret_door, invisible (blocks movement only) or window (blocks movement, lets light and sight through), and for doors door_state closed, open or locked; {kind:"note", x, y, journal, page?, text?} puts a map pin (the label text defaults to the journal name) that opens that journal or page when clicked; pins are only seen by players who may read the journal unless global is true. {kind:"tile", x, y, width, height, src, rotation?, alpha?, hidden?, elevation?} lays an image (a path in the Foundry files, e.g. an uploaded prop) over the map with its top-left corner at x, y and the given size in squares; {kind:"tile", x, y, effect, width?, height?} places an animated decor effect (a Sequencer effect, e.g. effect "jb2a.braziers.orange.bordered.01.05x05ft", or a few words such as "campfire" when only one effect matches) on an invisible tile at that square (size in squares, default 1); it keeps burning after reloads and is removed with the tile (remove or all_mine), and it can only be placed on the scene being viewed; find names with describe {search: "brazier"} or walk the groups with describe {browse: ""} (top groups with counts), then describe {browse: "jb2a.campfire"} and so on until it lists the effects; use decor to bring a room to life (braziers, campfires, bats in a cave), not on every map; {kind:"sound", x, y, radius, path, volume?, repeat?, walls?, easing?, hidden?} places a looping ambient sound audible within radius squares (path is an audio file in the Foundry files); tokens also accept width and height in squares (e.g. 2 for a Large creature) to override the actor's size. Use whole or half squares for wall points and make wall ends meet exactly, otherwise light and sight leak through gaps. update takes updates (up to 200): [{id, ...fields}] to change objects this tool placed, without removing them: x and y move it (grid squares; give one to keep the other), and per kind: token name, width, height, hidden, disposition, elevation; light bright, dim, color, alpha, angle, rotation, animation (null stops it), hidden; note text, font_size, icon_size, icon, global; tile width, height, src, rotation, alpha, elevation, hidden; sound radius, path, volume, repeat, walls, easing, hidden; wall door_state (closed, open, locked; doors only, walls cannot be moved). check_walls {scene?, fix?, tolerance?} reads the scene walls and reports ends that stop just short of another wall (gaps; with the square they should join), loose ends, doors touching no wall, duplicates, tiny and diagonal walls; fix:true repairs the gaps and duplicates of walls this tool placed (moves ends so they join) and reports the rest. Run it after placing or changing walls, then look at preview-scene. remove needs ids or all_mine:true (optionally with kind) and only removes objects created by this tool. scene is an id or exact name; it defaults to the scene the GM is viewing.`,
+        description: `Place tokens, lights, walls, map pins, tiles (pictures laid on the map: rugs, furniture, props), animated effects (torches, braziers, campfires, fog, via Sequencer) and ambient sounds on a scene by grid square, describe what is on a scene, or remove objects this tool created (it never removes anything else). Positions are in GRID SQUARES from the top-left corner of the map image: (0, 0) is the top-left corner of the first square, (2.5, 1.5) the centre of the square in column 2, row 1 (counting from 0). Use preview-scene first to see the numbered grid. describe returns the scene grid size so you know the valid range. place takes objects (up to 200): {kind:"token", actor, x, y} puts the actor's token with its top-left corner at that square (use whole numbers; actor is an id or exact name); {kind:"light", x, y, bright, dim} makes a light at that point with radii in squares (optional color, alpha, angle, rotation, animation, hidden); {kind:"wall", points:[[x1,y1],[x2,y2],...]} draws walls along a chain of points (add closed:true to join the ends) or {kind:"wall", rect:[x,y,width,height]} draws the four walls of a rectangle, with preset wall (default), door, secret_door, invisible (blocks movement only) or window (blocks movement, lets light and sight through), and for doors door_state closed, open or locked; {kind:"note", x, y, journal, page?, text?} puts a map pin (the label text defaults to the journal name) that opens that journal or page when clicked; pins are only seen by players who may read the journal unless global is true. {kind:"tile", x, y, width, height, src, rotation?, alpha?, hidden?, elevation?} lays an image (a path in the Foundry files, e.g. an uploaded prop) over the map with its top-left corner at x, y and the given size in squares; {kind:"tile", x, y, effect, width?, height?} places an animated decor effect (a Sequencer effect, e.g. effect "jb2a.braziers.orange.bordered.01.05x05ft", or a few words such as "campfire" when only one effect matches) on an invisible tile at that square (size in squares, default 1); it keeps burning after reloads and is removed with the tile (remove or all_mine), and it can only be placed on the scene being viewed; find names with describe {search: "brazier"} or walk the groups with describe {browse: ""} (top groups with counts), then describe {browse: "jb2a.campfire"} and so on until it lists the effects; use decor to bring a room to life (braziers, campfires, bats in a cave), not on every map; {kind:"sound", x, y, radius, path, volume?, repeat?, walls?, easing?, hidden?} places a looping ambient sound audible within radius squares (path is an audio file in the Foundry files); tokens also accept width and height in squares (e.g. 2 for a Large creature) to override the actor's size. Use whole or half squares for wall points and make wall ends meet exactly, otherwise light and sight leak through gaps. update takes updates (up to 200): [{id, ...fields}] to change objects this tool placed, without removing them: x and y move it (grid squares; give one to keep the other), and per kind: token name, width, height, hidden, disposition, elevation; light bright, dim, color, alpha, angle, rotation, animation (null stops it), hidden; note text, font_size, icon_size, icon, global; tile width, height, src, rotation, alpha, elevation, hidden; sound radius, path, volume, repeat, walls, easing, hidden; wall door_state (closed, open, locked; doors only, walls cannot be moved; this works on ANY door, including those of a bought map, while every other change is limited to objects this tool placed). check_walls {scene?, fix?, tolerance?} reads the scene walls and reports ends that stop just short of another wall (gaps; with the square they should join), loose ends, doors touching no wall, duplicates, tiny and diagonal walls; fix:true repairs the gaps and duplicates of walls this tool placed (moves ends so they join) and reports the rest. Run it after placing or changing walls, then look at preview-scene. remove needs ids or all_mine:true (optionally with kind) and only removes objects created by this tool. scene is an id or exact name; it defaults to the scene the GM is viewing.`,
         inputSchema: {
           type: "object",
           properties: {
@@ -123656,7 +117183,7 @@ var SceneObjectTools = class {
       },
       {
         name: "measure-grid",
-        description: "Measure the grid that is drawn into a map picture: pixels per square and the offset of the first line, from the scene's background (default: the scene being viewed) or from an image file in Foundry (image). Maps bought with a baked-in grid are often faint and drawn only on the floors, so pass region (pixels of the image: x, y, width, height) over a floor area to measure that part; a whole-picture run reports no grid for gridless AI maps, which is the correct answer. Returns detected, size, offsetX/offsetY, per-direction results, grid sizes that split the picture into whole squares (divisors) and a note on how to set grid_size in manage-scenes (Foundry's minimum grid is 50 px, so a small grid means making the scene larger). Read-only. Needs the Foundry tab open in a browser.",
+        description: "Measure the grid that is drawn into a map picture: pixels per square and the offset of the first line, from the scene's background (default: the scene being viewed) or from an image file in Foundry (image). Maps bought with a baked-in grid are often faint and drawn only on the floors, so pass region (pixels of the image: x, y, width, height) over a floor area to measure that part; a whole-picture run reports no grid for gridless AI maps, which is the correct answer. Returns detected, size, offsetX/offsetY, per-direction results, grid sizes that split the picture into whole squares (divisors) and a note on how to set grid_size with scene update (Foundry's minimum grid is 50 px, so a small grid means making the scene larger). Read-only. Needs the Foundry tab open in a browser.",
         inputSchema: {
           type: "object",
           properties: {
@@ -124633,23 +118160,8 @@ var LootTools = class {
     };
     return [
       {
-        name: "add-compendium-items",
-        description: 'Copy items from the compendium onto an actor by exact name: weapons, armour, potions, gear, loot, for an NPC, a player character or a chest. items: ["Longsword", {name:"Arrow", quantity:20}, {name:"Chest", pack:"dnd5e.items"}]. Without a pack it searches the item packs (the main system ones first) and only takes things that can be carried, not spells or features; name a pack to take anything from it. An item already on the actor stacks (its quantity goes up) unless stack is false. Reports what was added, stacked and not found. Use search-compendium to find exact names.',
-        inputSchema: {
-          type: "object",
-          properties: {
-            actor: { type: "string", description: "Actor id or name" },
-            items: itemList,
-            packs: { type: "array", items: { type: "string" }, description: "Pack ids to search, in order (default: all item packs)" },
-            stack: { type: "boolean", description: "Add to an existing stack of the same item (default true)" }
-          },
-          required: ["actor", "items"],
-          additionalProperties: false
-        }
-      },
-      {
         name: "make-chest",
-        description: `Make a chest, hoard or stash of loot in one call: an actor (a group in D&D 5e) holding currency, compendium items and made-up items, with who may open it, and optionally its token on a scene. items: compendium items as in add-compendium-items (["Potion of Healing", {name:"Arrow", quantity:20}]); custom_items: things made up on the spot [{name, quantity?, type? (default loot), price?:{value, denomination}, description? (HTML)}]; currency: {pp?, gp?, ep?, sp?, cp?}. ownership says what players can do with it: none (they cannot see it), limited, observer (default: they can look inside), owner (they can take things). Give scene (default the one being viewed), x and y (grid squares, top-left corner of the token) to put its token on the map; without x and y only the actor is made. img is the chest picture (default a steel-bound chest from Foundry's icons; a prop made with make-prop works too). It lands in a Loot folder. Names not found in the compendium are listed, and the chest is still made.`,
+        description: `Make a chest, hoard or stash of loot in one call: an actor (a group in D&D 5e) holding currency, compendium items and made-up items, with who may open it, and optionally its token on a scene. items: compendium items as in compendium add_items (["Potion of Healing", {name:"Arrow", quantity:20}]); custom_items: things made up on the spot [{name, quantity?, type? (default loot), price?:{value, denomination}, description? (HTML)}]; currency: {pp?, gp?, ep?, sp?, cp?}. ownership says what players can do with it: none (they cannot see it), limited, observer (default: they can look inside), owner (they can take things). Give scene (default the one being viewed), x and y (grid squares, top-left corner of the token) to put its token on the map; without x and y only the actor is made. img is the chest picture (default a steel-bound chest from Foundry's icons; a prop made with make-prop works too). It lands in a Loot folder. Names not found in the compendium are listed, and the chest is still made.`,
         inputSchema: {
           type: "object",
           properties: {
@@ -125366,22 +118878,6 @@ var PlutoniumTools = class {
   getToolDefinitions() {
     return [
       {
-        name: "plutonium",
-        description: `Search and import monsters, spells and items from the 5etools catalogue through the Plutonium module (it must be active in the world). It covers every official book and many third-party ones, so use it before the SRD compendiums when a creature, spell or item is not found there, and to import fully converted actors (actions, traits, spells, art) in one call. search {kind: creature|spell|item (default creature), query, source?, limit?} lists matches (name, source, cr/level/type; inWorld:true when one with that name already exists); import {kind, names: ["Goblin Boss", "Nothic|MM"]} imports each by exact name (add |SOURCE to pick a book) and returns what was created with ids and uuids; status says whether Plutonium is active. Imported actors land in the world's folders as Plutonium is configured; place them on a scene afterwards with the usual token tools. Needs the Foundry GM tab open and not minimized.`,
-        inputSchema: {
-          type: "object",
-          properties: {
-            action: { type: "string", enum: ["status", "search", "import"], description: "search (default), import or status" },
-            kind: { type: "string", enum: ["creature", "spell", "item"], description: "what to search or import (default creature)" },
-            query: { type: "string", description: "search: the name or part of it" },
-            source: { type: "string", description: "only this book, e.g. MM, PHB, LMoP" },
-            limit: { type: "number", description: "search: how many results (default 10, max 25)" },
-            names: { type: "array", items: { type: "string" }, description: 'import: exact names, each optionally "Name|SOURCE" (max 20)' }
-          },
-          additionalProperties: false
-        }
-      },
-      {
         name: "adventure",
         description: 'Read a published adventure from the 5etools data through Plutonium (for example Lost Mine of Phandelver, id LMoP), so scenes are run from the book and not from memory. list {query?} finds adventures; outline {adventure?(LMoP)} shows its sections with the headings inside them; search {query} finds the sections that mention something (a place, an NPC, an item); read {section: index or name, heading?, max_chars?(6000)} returns the text (read-aloud boxes marked "> Read aloud", tables and lists kept), use heading to read just one part such as "Goblin Ambush" or "3. Kennel". Prefer search then read with a heading to keep it short. The text is the published adventure: it may include spoilers for the GM only; never read boxed text or secrets to players unless the scene calls for it.',
         inputSchema: {
@@ -125417,6 +118913,325 @@ var PlutoniumTools = class {
     return result;
   }
 };
+
+// dist/tools/compendium-hub.js
+init_zod();
+var hubSchema = external_exports.object({
+  action: external_exports.enum(["search", "get", "packs", "creatures", "import", "add_items", "add_features", "status"]),
+  where: external_exports.enum(["catalogue", "packs"]).optional(),
+  kind: external_exports.enum(["creature", "spell", "item"]).optional(),
+  query: external_exports.string().min(1).max(120).optional(),
+  book: external_exports.string().min(1).max(20).optional(),
+  limit: external_exports.number().int().min(1).max(500).optional(),
+  names: external_exports.array(external_exports.string().min(1).max(120)).min(1).max(20).optional(),
+  pack_type: external_exports.string().optional(),
+  filters: external_exports.record(external_exports.any()).optional(),
+  pack_id: external_exports.string().min(1).optional(),
+  item_id: external_exports.string().min(1).optional(),
+  full: external_exports.boolean().optional(),
+  compact: external_exports.boolean().optional(),
+  challenge_rating: external_exports.union([external_exports.number(), external_exports.string(), external_exports.object({ min: external_exports.number().optional(), max: external_exports.number().optional() }).strict()]).optional(),
+  creature_type: external_exports.string().optional(),
+  size: external_exports.string().optional(),
+  has_spells: external_exports.boolean().optional(),
+  has_legendary_actions: external_exports.boolean().optional(),
+  quantity: external_exports.number().int().min(1).max(10).optional(),
+  add_to_scene: external_exports.boolean().optional(),
+  placement: external_exports.record(external_exports.any()).optional(),
+  folder: external_exports.string().min(1).optional(),
+  hp: external_exports.union([external_exports.number(), external_exports.record(external_exports.any())]).optional(),
+  img: external_exports.string().min(1).optional(),
+  token_img: external_exports.string().min(1).optional(),
+  token: external_exports.record(external_exports.any()).optional(),
+  actor: external_exports.string().min(1).optional(),
+  items: external_exports.array(external_exports.any()).min(1).max(100).optional(),
+  feature_names: external_exports.array(external_exports.string().min(1)).min(1).max(50).optional(),
+  packs: external_exports.array(external_exports.string().min(1)).max(20).optional(),
+  stack: external_exports.boolean().optional()
+}).strict();
+function clean(o) {
+  const out = {};
+  for (const [k, v] of Object.entries(o))
+    if (v !== void 0)
+      out[k] = v;
+  return out;
+}
+function need(value, what, action) {
+  if (value === void 0 || value === null || typeof value === "string" && value === "") {
+    throw new Error(`${what} is required for ${action}`);
+  }
+  return value;
+}
+var CompendiumHub = class {
+  h;
+  constructor(h) {
+    this.h = h;
+  }
+  getToolDefinitions() {
+    return [
+      {
+        name: "compendium",
+        description: 'Everything that comes out of a compendium or the 5etools catalogue (Plutonium), in one tool. Two places: where "catalogue" (default) is the 5etools catalogue through Plutonium (every official book and many third-party ones; fully converted actors with actions, traits, spells and art), and where "packs" is the Foundry compendium packs (SRD and modules). Prefer the catalogue for creatures, spells and items. ACTIONS: search {query, kind?(creature|spell|item, default creature), book?(MM, PHB, LMoP...), limit?} searches the catalogue (inWorld:true when an actor with that name exists); with where:"packs" it searches pack entries by NAME only {query, pack_type?(Actor|Item|JournalEntry...), filters?, limit?}. get {pack_id, item_id, full?(true: the complete stat block with items, spells and effects), compact?} reads one pack entry (ids come from a packs search). packs {pack_type?} lists the compendium packs. creatures {challenge_rating?(number | "1/4" | {min,max}), creature_type?, size?, has_spells?, has_legendary_actions?, limit?} surveys pack creatures by their real data, for encounter building (name-only search cannot filter by CR). import {kind, names:["Goblin Boss","Nothic|MM"]} imports from the catalogue by exact name (|BOOK picks a book) and returns ids and uuids; or, with pack_id and item_id, creates actors from a pack entry {names, quantity?, add_to_scene?, placement?, folder?, hp?, img?, token_img?, token?}. Imported actors land in the world folders as Plutonium is configured; place them with the token tools. add_items {actor, items:["Longsword",{name:"Arrow",quantity:20},{name:"Chest",pack:"dnd5e.items"}], packs?, stack?} copies carried items (weapons, armour, potions, gear, loot) onto an actor, an NPC, a player character or a chest, by exact name; they stack with what is already there unless stack is false; it reports added, stacked and not found. add_features {actor, feature_names:["Pack Tactics","Nimble Escape"], packs?} copies class or monster features by exact English name onto an actor (default packs dnd5e.monsterfeatures and dnd5e.classfeatures). status says whether Plutonium is active. Needs the Foundry GM tab open and not minimized.',
+        inputSchema: {
+          type: "object",
+          properties: {
+            action: {
+              type: "string",
+              enum: ["search", "get", "packs", "creatures", "import", "add_items", "add_features", "status"]
+            },
+            where: { type: "string", enum: ["catalogue", "packs"], description: "search: the 5etools catalogue (default) or the compendium packs" },
+            kind: { type: "string", enum: ["creature", "spell", "item"], description: "search, import: what to look for (default creature)" },
+            query: { type: "string", description: "search: the name or part of it" },
+            book: { type: "string", description: "search: only this book, e.g. MM, PHB, LMoP" },
+            limit: { type: "number", description: "search: how many results (catalogue default 10, max 25; packs max 50); creatures: max results" },
+            names: { type: "array", items: { type: "string" }, description: 'import: catalogue names, each optionally "Name|BOOK" (max 20); from a pack: the names for the new actors' },
+            pack_type: { type: "string", description: "search (packs), packs: filter by pack type, e.g. Actor, Item" },
+            filters: { type: "object", description: "search (packs): name-based filters for Actor packs", additionalProperties: true },
+            pack_id: { type: "string", description: "get, import: compendium pack id, e.g. dnd5e.monsters" },
+            item_id: { type: "string", description: "get, import: entry id inside the pack" },
+            full: { type: "boolean", description: "get: the complete stat block" },
+            compact: { type: "boolean", description: "get: a condensed entry" },
+            challenge_rating: { description: 'creatures: exact CR (number or "1/4") or a range {min, max}' },
+            creature_type: { type: "string", description: "creatures: humanoid, beast, undead, dragon..." },
+            size: { type: "string", description: "creatures: tiny to gargantuan" },
+            has_spells: { type: "boolean", description: "creatures: only spellcasters" },
+            has_legendary_actions: { type: "boolean", description: "creatures: only those with legendary actions" },
+            quantity: { type: "number", description: "import (pack): how many actors (1-10)" },
+            add_to_scene: { type: "boolean", description: "import (pack): also place tokens on the current scene" },
+            placement: { type: "object", description: "import (pack): {type: random|grid|center|coordinates, coordinates?: [{x, y}]}", additionalProperties: true },
+            folder: { type: "string", description: "import (pack): actor folder" },
+            hp: { description: "import (pack): hit points override, a number or {value, max}" },
+            img: { type: "string", description: "import (pack): portrait path" },
+            token_img: { type: "string", description: "import (pack): token picture path" },
+            token: { type: "object", description: "import (pack): token options as in manage-actors", additionalProperties: true },
+            actor: { type: "string", description: "add_items, add_features: actor id or name" },
+            items: { type: "array", items: {}, description: "add_items: item names or {name, quantity?, pack?}" },
+            feature_names: { type: "array", items: { type: "string" }, description: "add_features: English feature names (max 50)" },
+            packs: { type: "array", items: { type: "string" }, description: "add_items, add_features: pack ids to search, in order" },
+            stack: { type: "boolean", description: "add_items: stack with an existing item (default true)" }
+          },
+          required: ["action"],
+          additionalProperties: false
+        }
+      }
+    ];
+  }
+  async handle(args) {
+    const a = hubSchema.parse(args ?? {});
+    const h = this.h;
+    switch (a.action) {
+      case "status":
+        return h.plutonium.handlePlutonium({ action: "status" });
+      case "search":
+        if (a.where === "packs") {
+          return h.compendium.handleSearchCompendium(clean({ query: need(a.query, "query", "search"), packType: a.pack_type, filters: a.filters, limit: a.limit }));
+        }
+        return h.plutonium.handlePlutonium(clean({ action: "search", kind: a.kind, query: need(a.query, "query", "search"), source: a.book, limit: a.limit }));
+      case "get": {
+        const packId = need(a.pack_id, "pack_id", "get");
+        const itemId = need(a.item_id, "item_id", "get");
+        if (a.full)
+          return h.creation.handleGetCompendiumEntryFull({ packId, entryId: itemId });
+        return h.compendium.handleGetCompendiumItem(clean({ packId, itemId, compact: a.compact }));
+      }
+      case "packs":
+        return h.compendium.handleListCompendiumPacks(clean({ type: a.pack_type }));
+      case "creatures":
+        return h.compendium.handleListCreaturesByCriteria(clean({
+          challengeRating: a.challenge_rating,
+          creatureType: a.creature_type,
+          size: a.size,
+          hasSpells: a.has_spells,
+          hasLegendaryActions: a.has_legendary_actions,
+          limit: a.limit
+        }));
+      case "import":
+        if (a.pack_id || a.item_id) {
+          return h.creation.handleCreateActorFromCompendium(clean({
+            packId: need(a.pack_id, "pack_id", "import from a pack"),
+            itemId: need(a.item_id, "item_id", "import from a pack"),
+            names: need(a.names, "names", "import"),
+            quantity: a.quantity,
+            addToScene: a.add_to_scene,
+            placement: a.placement,
+            folder: a.folder,
+            hp: a.hp,
+            img: a.img,
+            tokenImg: a.token_img,
+            token: a.token
+          }));
+        }
+        return h.plutonium.handlePlutonium(clean({ action: "import", kind: a.kind, names: need(a.names, "names", "import") }));
+      case "add_items":
+        return h.loot.handleAddCompendiumItems(clean({ actor: need(a.actor, "actor", "add_items"), items: need(a.items, "items", "add_items"), packs: a.packs, stack: a.stack }));
+      case "add_features":
+        return h.features.handleAddFeaturesFromCompendium(clean({
+          actorIdentifier: need(a.actor, "actor", "add_features"),
+          featureNames: need(a.feature_names, "feature_names", "add_features"),
+          compendiumPacks: a.packs
+        }));
+    }
+  }
+};
+
+// dist/tools/tool-hub.js
+function typeSet(schema23) {
+  const t = schema23?.type;
+  if (Array.isArray(t))
+    return t;
+  if (typeof t === "string")
+    return [t];
+  return [];
+}
+function mergeProperty(a, b) {
+  const ta = typeSet(a);
+  const tb = typeSet(b);
+  if (ta.length === 0 || tb.length === 0)
+    return a;
+  const union = Array.from(/* @__PURE__ */ new Set([...ta, ...tb]));
+  if (union.length === ta.length)
+    return a;
+  return { ...a, type: union };
+}
+function buildHub(options) {
+  const { name, intro, routes } = options;
+  const byAction = /* @__PURE__ */ new Map();
+  const properties = {};
+  for (const route of routes) {
+    for (const action of route.actions) {
+      if (byAction.has(action))
+        throw new Error(`Hub ${name}: action "${action}" is served twice`);
+      byAction.set(action, route);
+    }
+    for (const [key, schema23] of Object.entries(route.def.inputSchema.properties ?? {})) {
+      if (key === "action" || options.dropProperties?.includes(key))
+        continue;
+      properties[key] = key in properties ? mergeProperty(properties[key], schema23) : schema23;
+    }
+  }
+  const actions = Array.from(byAction.keys());
+  const sections2 = routes.map((r) => `[${r.actions.join(" | ")}] ${r.def.description ?? ""}`.trim());
+  const definition = {
+    name,
+    description: `${intro}
+
+ACTIONS (set action to one of them; the parameters of each are listed with it):
+
+${sections2.join("\n\n")}`,
+    inputSchema: {
+      type: "object",
+      properties: { action: { type: "string", enum: actions, description: "What to do" }, ...properties },
+      required: ["action"]
+    }
+  };
+  return {
+    definition,
+    async handle(args) {
+      const { action, ...rest } = args ?? {};
+      if (typeof action !== "string" || !byAction.has(action)) {
+        throw new Error(`${name}: action must be one of ${actions.join(", ")}`);
+      }
+      return byAction.get(action).call(action, rest);
+    }
+  };
+}
+
+// dist/tools/hubs.js
+var MERGED_TOOL_NAMES = [
+  "move-token",
+  "update-token",
+  "delete-tokens",
+  "get-token-details",
+  "toggle-token-condition",
+  "get-available-conditions",
+  "list-characters",
+  "get-character",
+  "get-character-entity",
+  "search-character-items",
+  "assign-actor-ownership",
+  "remove-actor-ownership",
+  "list-actor-ownership",
+  "list-scenes",
+  "get-current-scene",
+  "get-world-info",
+  "switch-scene",
+  "manage-scenes",
+  "manage-playlists",
+  "control-playlist",
+  "update-scene-music",
+  "setup-scene-sound"
+];
+function createHubs(allDefs, h) {
+  const def = (name) => {
+    const found = allDefs.find((d) => d.name === name);
+    if (!found)
+      throw new Error(`Cannot build the merged tools: the definition of ${name} is missing`);
+    return found;
+  };
+  const route = (actions, from, call) => ({
+    actions,
+    def: def(from),
+    call
+  });
+  const withAction = (actions, from, handler) => route(Object.keys(actions), from, (a, args) => handler({ ...args, action: actions[a] }));
+  const token = buildHub({
+    name: "token",
+    intro: "Everything about a token already on a scene: move it, change it, read it, delete it, set its conditions. A token is found by its id or its name (token name, else actor name; an ambiguous name is refused with the ids). To put new tokens on a map use manage-scene-objects place or manage-actors place.",
+    routes: [
+      route(["move"], "move-token", (_a, args) => h.moveToken(args)),
+      route(["update"], "update-token", (_a, args) => h.updateToken(args)),
+      route(["details"], "get-token-details", (_a, args) => h.getTokenDetails(args)),
+      route(["delete"], "delete-tokens", (_a, args) => h.deleteTokens(args)),
+      route(["condition"], "toggle-token-condition", (_a, args) => h.toggleTokenCondition(args)),
+      route(["conditions"], "get-available-conditions", (_a, args) => h.getAvailableConditions(args))
+    ]
+  });
+  const character = buildHub({
+    name: "character",
+    intro: "Read characters and NPCs (actors): list them, read a sheet, read one item, spell or effect in full, or search their items. Changing actors is manage-actors; using an item is use-item.",
+    routes: [
+      route(["list"], "list-characters", (_a, args) => h.listCharacters(args)),
+      route(["get"], "get-character", (_a, args) => h.getCharacter(args)),
+      route(["entity"], "get-character-entity", (_a, args) => h.getCharacterEntity(args)),
+      route(["items"], "search-character-items", (_a, args) => h.searchCharacterItems(args))
+    ]
+  });
+  const ownership = buildHub({
+    name: "ownership",
+    intro: "Who may control which actor: give a player access to an actor, take it away, or list it.",
+    routes: [
+      route(["assign"], "assign-actor-ownership", (_a, args) => h.ownership("assign-actor-ownership", args)),
+      route(["remove"], "remove-actor-ownership", (_a, args) => h.ownership("remove-actor-ownership", args)),
+      route(["list"], "list-actor-ownership", (_a, args) => h.ownership("list-actor-ownership", args))
+    ]
+  });
+  const scene = buildHub({
+    name: "scene",
+    intro: "Scenes and the world: list scenes, read the scene on screen, switch to another (this moves the players), create or edit one, and read the world and system info. Maps, walls, lights and tokens on a scene are manage-scene-objects, preview-scene and layout.",
+    routes: [
+      route(["list"], "list-scenes", (_a, args) => h.listScenes(args)),
+      route(["current"], "get-current-scene", (_a, args) => h.getCurrentScene(args)),
+      route(["world"], "get-world-info", (_a, args) => h.getWorldInfo(args)),
+      route(["switch"], "switch-scene", (_a, args) => h.switchScene(args)),
+      withAction({ create: "create", update: "update", describe: "describe" }, "manage-scenes", h.manageScenes)
+    ]
+  });
+  const audio = buildHub({
+    name: "audio",
+    intro: "Music and sound: build and read playlists, control playback, bind music to a scene, and set a scene's music and ambient sounds in one go. Upload audio files first with upload-file.",
+    routes: [
+      withAction({ create_playlist: "create", update_playlist: "update", delete_playlist: "delete", describe_playlists: "describe" }, "manage-playlists", h.managePlaylists),
+      route(["control"], "control-playlist", (_a, args) => h.controlPlaylist(args)),
+      route(["scene_music"], "update-scene-music", (_a, args) => h.updateSceneMusic(args)),
+      withAction({ scene_sound: "apply", describe_scene_sound: "describe" }, "setup-scene-sound", h.setupSceneSound)
+    ]
+  });
+  const hubs = [token, character, ownership, scene, audio];
+  return {
+    definitions: hubs.map((x) => x.definition),
+    handlers: Object.fromEntries(hubs.map((x) => [x.definition.name, (args) => x.handle(args)]))
+  };
+}
 
 // dist/tools/party-tools.js
 init_zod();
@@ -125495,7 +119310,7 @@ var QuartermasterTools = class {
     return [
       {
         name: "quartermaster",
-        description: "The shared party inventory (Quartermaster module): the place for party gold, shared items and loot the players divide among themselves. Players open it with its own button and take things out; you read it and fill it. ACTIONS: status shows the coins (every currency, custom ones too), counters, the items (name, quantity, weight), staged hidden loot, and the weight against the capacity limit. deposit {actor?, item_names? | item_ids?, quantity?, currency?} puts loot in the vault: items and/or coins moved from a character, NPC or chest (actor); a whole stack moves with Quartermaster's own log entry, a quantity or coins are moved straight; without actor, currency adds coins found out of nowhere (currency: {gp: 50, sp: 20}). take {actor, item_names? | item_ids?, quantity?, currency?} gives items and/or coins from the vault to a character (normally the players do this themselves in the inventory window; use it when you hand something out). add_currency {currency:{gp:50}} adds coins to the vault from nowhere (negative removes them; custom currency ids work here). To put a compendium item in the vault, use add-compendium-items with the vault actor (named in status) as the target. Needs the Quartermaster module active and the Foundry tab open.",
+        description: "The shared party inventory (Quartermaster module): the place for party gold, shared items and loot the players divide among themselves. Players open it with its own button and take things out; you read it and fill it. ACTIONS: status shows the coins (every currency, custom ones too), counters, the items (name, quantity, weight), staged hidden loot, and the weight against the capacity limit. deposit {actor?, item_names? | item_ids?, quantity?, currency?} puts loot in the vault: items and/or coins moved from a character, NPC or chest (actor); a whole stack moves with Quartermaster's own log entry, a quantity or coins are moved straight; without actor, currency adds coins found out of nowhere (currency: {gp: 50, sp: 20}). take {actor, item_names? | item_ids?, quantity?, currency?} gives items and/or coins from the vault to a character (normally the players do this themselves in the inventory window; use it when you hand something out). add_currency {currency:{gp:50}} adds coins to the vault from nowhere (negative removes them; custom currency ids work here). To put a compendium item in the vault, use compendium add_items with the vault actor (named in status) as the actor. Needs the Quartermaster module active and the Foundry tab open.",
         inputSchema: {
           type: "object",
           properties: {
@@ -126201,8 +120016,8 @@ var schema21 = external_exports.object({
   replace_ambient: external_exports.boolean().optional(),
   clear_ambient: external_exports.boolean().optional()
 }).strict();
-function soundNameFromPath(path14) {
-  const file = path14.split("/").pop() ?? path14;
+function soundNameFromPath(path13) {
+  const file = path13.split("/").pop() ?? path13;
   const base = file.replace(/\.[^.]+$/, "");
   const name = base.replace(/[-_]+/g, " ").replace(/\s+/g, " ").trim();
   return name || "Sound";
@@ -126321,9 +120136,9 @@ var SceneSoundTools = class {
         let soundToStart = music.sound;
         if (music.files) {
           const repeat = music.repeat ?? music.files.length === 1;
-          const entry = (path14) => ({
-            path: path14,
-            name: soundNameFromPath(path14),
+          const entry = (path13) => ({
+            path: path13,
+            name: soundNameFromPath(path13),
             repeat,
             ...music.volume !== void 0 ? { volume: music.volume } : {}
           });
@@ -128121,7 +121936,7 @@ var LayoutTools = class {
     return [
       {
         name: "layout",
-        description: "Build a map layout step by step (rooms, corridors, roads, rivers, buildings, doors), see it at once as a text map, adjust it, then render a flat-colour sketch for generate-image (reference_images + <Picture 1>) and derive walls and doors for the scene. Layouts are saved, so you can come back to them. " + shapeHelp + ' TOWNS: a shape {shape:"building", rect:[x,y,w,h], doors:[{side:"n|s|e|w", offset?(squares along the wall, default centred), size?(1), secret?, state?}], fill?(building), label?} adds a block with its doors in one go (start the layout with wall_fills:["building"] so walls go around buildings instead of inside rooms); any shape accepts repeat:{count, step:[dx,dy]} to make count copies in a row (a street of houses). portals {layout} lists every door with the square outside and inside it and the building it belongs to, ready for linking enterable buildings to interior scenes with manage-regions link. Painting order is the list order: later shapes cover earlier ones (rooms first, then corridors, then doors; paint rock to carve). ACTIONS: new {name, columns, rows, grid_size?(64), background?(rock; grass outdoors), snap?(1), wall_fills?, reference?} starts a layout. add {layout, shapes, after?} adds shapes and returns their ids and the text map. update {layout, id, set?, move?:[cols,rows], front?, back?, after?} changes one shape (set null to clear a field). remove {layout, ids}. show {layout} returns the text map (one character per square with column and row numbers; add region to zoom, shapes_list for every shape and its numbers) or, with png:true, a picture with the numbered grid, shape ids and the reference page showing through, for checking against a book map. reference traces a picture: set {layout, reference:{image, origin:[px,py], cell_px}} where image is a PNG/JPEG on this computer, origin the pixel where square (0,0) starts and cell_px the pixels per square; show png:true then lays your shapes over it (show_reference:false hides it, hide_shapes:true shows only the picture and grid so you can calibrate origin and cell_px). render {layout} writes the clean sketch PNG (no grid or labels) and returns its file path and a legend sentence for the prompt. walls {layout} returns wall and door objects (chains around everything drawn with the wall_fills, default floor, at half-square steps; doors become door walls, with secret and state closed/open/locked). apply_walls {layout, scene?, replace?, shift?, dry_run?} builds them and PLACES them on the scene in one step, once the generated map is the scene background: the scene must have the same number of columns and rows as the layout (the generated picture and the layout line up square for square); replace (default true) first removes the walls this tool placed before, so it can be run again after the layout changes; shift [dx, dy] moves everything by squares to match the picture; dry_run only counts. Then check with preview-scene and nudge anything that is off. CHECK, PLACE AND LIGHT: check {layout, scene?} finds problems without looking at a picture: open areas that nothing connects, doors with rock on a side and shapes outside the layout; with scene (id or name) it also reads what is on that scene and reports tokens or pins on solid rock, tokens sharing a square and lights buried in rock. place {layout, scene?, items:[...], shift?, dry_run?} puts tokens, lights and pins INSIDE named shapes without you picking coordinates: each item {kind:"token"|"light"|"note", in: shape id, label number or name, count?(1), spread?(true), ...} where a token has actor, name?, hidden?, width?, height?, disposition?; a light has bright, dim, color?, animation?; a pin has journal, page?, text?. Spots are away from walls, spread apart, on floor (not rock or water), and avoid squares already taken on the scene. lights {layout, scene?, dry_run?, min_area?, bright?, dim?, color?(#ffa040), animation?(torch), include_outdoor?, replace?} proposes torch lights for every room or cave big enough (one per ~40 squares, away from walls; outdoors skipped unless include_outdoor) and places them; replace first removes the lights the tools placed. align {layout, image, max_shift?(1.5)} compares a generated picture with the layout and returns the shift in squares that best makes its floor match, for apply_walls shift. build {layout, scene_name, prompt, upload_folder?(maps), filename?, scene_grid_size?(64), scene_options?, auto_align?(true), walls?(true)} does the whole chain in one call: render the sketch, generate the map (prompt is your description of the look; the legend sentence is added), upload it, create the scene (scene_options: darkness, fog_mode, token_vision, initial_view, grid_alpha ... as in manage-scenes), align and place the walls and doors. Needs the layout to have columns and rows whose pixel size is a multiple of 32. set {layout, snap?, background?, wall_fills?, reference?} changes layout settings. undo {layout, steps?} and redo {layout, steps?} step back and forward through the changes (add, update, remove, set; the last 40 are kept and saved with the layout); every change reports how many undo and redo steps there are. list; delete {layout}. Works without Foundry.',
+        description: "Build a map layout step by step (rooms, corridors, roads, rivers, buildings, doors), see it at once as a text map, adjust it, then render a flat-colour sketch for generate-image (reference_images + <Picture 1>) and derive walls and doors for the scene. Layouts are saved, so you can come back to them. " + shapeHelp + ' TOWNS: a shape {shape:"building", rect:[x,y,w,h], doors:[{side:"n|s|e|w", offset?(squares along the wall, default centred), size?(1), secret?, state?}], fill?(building), label?} adds a block with its doors in one go (start the layout with wall_fills:["building"] so walls go around buildings instead of inside rooms); any shape accepts repeat:{count, step:[dx,dy]} to make count copies in a row (a street of houses). portals {layout} lists every door with the square outside and inside it and the building it belongs to, ready for linking enterable buildings to interior scenes with manage-regions link. Painting order is the list order: later shapes cover earlier ones (rooms first, then corridors, then doors; paint rock to carve). ACTIONS: new {name, columns, rows, grid_size?(64), background?(rock; grass outdoors), snap?(1), wall_fills?, reference?} starts a layout. add {layout, shapes, after?} adds shapes and returns their ids and the text map. update {layout, id, set?, move?:[cols,rows], front?, back?, after?} changes one shape (set null to clear a field). remove {layout, ids}. show {layout} returns the text map (one character per square with column and row numbers; add region to zoom, shapes_list for every shape and its numbers) or, with png:true, a picture with the numbered grid, shape ids and the reference page showing through, for checking against a book map. reference traces a picture: set {layout, reference:{image, origin:[px,py], cell_px}} where image is a PNG/JPEG on this computer, origin the pixel where square (0,0) starts and cell_px the pixels per square; show png:true then lays your shapes over it (show_reference:false hides it, hide_shapes:true shows only the picture and grid so you can calibrate origin and cell_px). render {layout} writes the clean sketch PNG (no grid or labels) and returns its file path and a legend sentence for the prompt. walls {layout} returns wall and door objects (chains around everything drawn with the wall_fills, default floor, at half-square steps; doors become door walls, with secret and state closed/open/locked). apply_walls {layout, scene?, replace?, shift?, dry_run?} builds them and PLACES them on the scene in one step, once the generated map is the scene background: the scene must have the same number of columns and rows as the layout (the generated picture and the layout line up square for square); replace (default true) first removes the walls this tool placed before, so it can be run again after the layout changes; shift [dx, dy] moves everything by squares to match the picture; dry_run only counts. Then check with preview-scene and nudge anything that is off. CHECK, PLACE AND LIGHT: check {layout, scene?} finds problems without looking at a picture: open areas that nothing connects, doors with rock on a side and shapes outside the layout; with scene (id or name) it also reads what is on that scene and reports tokens or pins on solid rock, tokens sharing a square and lights buried in rock. place {layout, scene?, items:[...], shift?, dry_run?} puts tokens, lights and pins INSIDE named shapes without you picking coordinates: each item {kind:"token"|"light"|"note", in: shape id, label number or name, count?(1), spread?(true), ...} where a token has actor, name?, hidden?, width?, height?, disposition?; a light has bright, dim, color?, animation?; a pin has journal, page?, text?. Spots are away from walls, spread apart, on floor (not rock or water), and avoid squares already taken on the scene. lights {layout, scene?, dry_run?, min_area?, bright?, dim?, color?(#ffa040), animation?(torch), include_outdoor?, replace?} proposes torch lights for every room or cave big enough (one per ~40 squares, away from walls; outdoors skipped unless include_outdoor) and places them; replace first removes the lights the tools placed. align {layout, image, max_shift?(1.5)} compares a generated picture with the layout and returns the shift in squares that best makes its floor match, for apply_walls shift. build {layout, scene_name, prompt, upload_folder?(maps), filename?, scene_grid_size?(64), scene_options?, auto_align?(true), walls?(true)} does the whole chain in one call: render the sketch, generate the map (prompt is your description of the look; the legend sentence is added), upload it, create the scene (scene_options: darkness, fog_mode, token_vision, initial_view, grid_alpha ... as in the scene tool, create), align and place the walls and doors. Needs the layout to have columns and rows whose pixel size is a multiple of 32. set {layout, snap?, background?, wall_fills?, reference?} changes layout settings. undo {layout, steps?} and redo {layout, steps?} step back and forward through the changes (add, update, remove, set; the last 40 are kept and saved with the layout); every change reports how many undo and redo steps there are. list; delete {layout}. Works without Foundry.',
         inputSchema: {
           type: "object",
           properties: {
@@ -128220,7 +122035,7 @@ var LayoutTools = class {
             prompt: { type: "string", description: "build: the look of the map (the legend of the layout is added)" },
             scene_name: { type: "string", description: "build: name of the scene to create" },
             scene_grid_size: { type: "number", description: "build: pixels per square in the scene (default 64)" },
-            scene_options: { type: "object", additionalProperties: true, description: "build: extra manage-scenes create fields (darkness, fog_mode, token_vision, initial_view, grid_alpha, ...)" },
+            scene_options: { type: "object", additionalProperties: true, description: "build: extra scene create fields (darkness, fog_mode, token_vision, initial_view, grid_alpha, ...)" },
             upload_folder: { type: "string", description: "build: folder below the world uploads (default maps)" },
             filename: { type: "string", description: "build: file name for the uploaded map" },
             auto_align: { type: "boolean", description: "build: shift the walls to match the picture (default true)" },
@@ -128417,7 +122232,7 @@ var LayoutTools = class {
       throw new Error(described.error || "Could not read the scene");
     const grid = described?.grid;
     if (grid && (grid.columns !== doc.columns || grid.rows !== doc.rows)) {
-      throw new Error(`The scene "${described.scene?.name}" is ${grid.columns} x ${grid.rows} squares but the layout is ${doc.columns} x ${doc.rows}. Set the scene grid so the generated map has the same squares (manage-scenes grid_size, width and height), or use another scene.`);
+      throw new Error(`The scene "${described.scene?.name}" is ${grid.columns} x ${grid.rows} squares but the layout is ${doc.columns} x ${doc.rows}. Set the scene grid so the generated map has the same squares (scene update: grid_size, width and height), or use another scene.`);
     }
     let removed = 0;
     if (a.replace !== false) {
@@ -128987,11 +122802,11 @@ var InspectTools = class {
 var DISABLED_LEGACY_MAP_TOOLS = ["generate-map", "check-map-status", "cancel-map-job"];
 var CONTROL_HOST = "127.0.0.1";
 var CONTROL_PORT = 31414;
-var LOCK_FILE = path13.join(os7.tmpdir(), "foundry-mcp-backend.lock");
+var LOCK_FILE = path12.join(os7.tmpdir(), "foundry-mcp-backend.lock");
 function getBundledPythonPath() {
-  let installDir = path13.join(os7.homedir(), "AppData", "Local", "FoundryMCPServer");
+  let installDir = path12.join(os7.homedir(), "AppData", "Local", "FoundryMCPServer");
   const currentDir = process.cwd();
-  const execDir = path13.dirname(process.execPath);
+  const execDir = path12.dirname(process.execPath);
   if (currentDir.includes("FoundryMCPServer") || execDir.includes("FoundryMCPServer")) {
     const foundryMcpIndex = currentDir.indexOf("FoundryMCPServer");
     if (foundryMcpIndex !== -1) {
@@ -129003,30 +122818,30 @@ function getBundledPythonPath() {
       }
     }
   }
-  const nestedComfyUIPythonPath = path13.join(installDir, "ComfyUI", "ComfyUI", "python_embeded", "python.exe");
-  if (fs13.existsSync(nestedComfyUIPythonPath)) {
+  const nestedComfyUIPythonPath = path12.join(installDir, "ComfyUI", "ComfyUI", "python_embeded", "python.exe");
+  if (fs12.existsSync(nestedComfyUIPythonPath)) {
     return nestedComfyUIPythonPath;
   }
-  const portablePythonPath = path13.join(installDir, "ComfyUI", "python_embeded", "python.exe");
-  if (fs13.existsSync(portablePythonPath)) {
+  const portablePythonPath = path12.join(installDir, "ComfyUI", "python_embeded", "python.exe");
+  if (fs12.existsSync(portablePythonPath)) {
     return portablePythonPath;
   }
-  const bundledPythonPath = path13.join(installDir, "ComfyUI-env", "Scripts", "python.exe");
-  if (fs13.existsSync(bundledPythonPath)) {
+  const bundledPythonPath = path12.join(installDir, "ComfyUI-env", "Scripts", "python.exe");
+  if (fs12.existsSync(bundledPythonPath)) {
     return bundledPythonPath;
   }
   const fallbackPaths = [
-    path13.join(os7.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI", "ComfyUI", "python_embeded", "python.exe"),
-    path13.join(os7.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI-headless", "ComfyUI", "python_embeded", "python.exe"),
-    path13.join(os7.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI", "python_embeded", "python.exe"),
-    path13.join(os7.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI-headless", "python_embeded", "python.exe"),
-    path13.join(os7.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI-env", "Scripts", "python.exe"),
-    path13.join(process.cwd(), "..", "..", "ComfyUI-env", "Scripts", "python.exe"),
-    path13.join(__dirname, "..", "..", "..", "ComfyUI-env", "Scripts", "python.exe"),
-    path13.join(os7.homedir(), "AppData", "Local", "FoundryMCPServer", "Python", "python.exe")
+    path12.join(os7.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI", "ComfyUI", "python_embeded", "python.exe"),
+    path12.join(os7.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI-headless", "ComfyUI", "python_embeded", "python.exe"),
+    path12.join(os7.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI", "python_embeded", "python.exe"),
+    path12.join(os7.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI-headless", "python_embeded", "python.exe"),
+    path12.join(os7.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI-env", "Scripts", "python.exe"),
+    path12.join(process.cwd(), "..", "..", "ComfyUI-env", "Scripts", "python.exe"),
+    path12.join(__dirname, "..", "..", "..", "ComfyUI-env", "Scripts", "python.exe"),
+    path12.join(os7.homedir(), "AppData", "Local", "FoundryMCPServer", "Python", "python.exe")
   ];
   for (const fallbackPath of fallbackPaths) {
-    if (fs13.existsSync(fallbackPath)) {
+    if (fs12.existsSync(fallbackPath)) {
       return fallbackPath;
     }
   }
@@ -129051,39 +122866,39 @@ var lockFd = null;
 function acquireLock() {
   try {
     try {
-      lockFd = fs13.openSync(LOCK_FILE, "wx");
+      lockFd = fs12.openSync(LOCK_FILE, "wx");
     } catch (err) {
       if (err && err.code === "EEXIST") {
         try {
-          const lockData = fs13.readFileSync(LOCK_FILE, "utf8");
+          const lockData = fs12.readFileSync(LOCK_FILE, "utf8");
           const lockPid = parseInt(lockData.trim(), 10);
           try {
             process.kill(lockPid, 0);
             if (evaluateLockFile(lockPid, LOCK_FILE) === "orphaned") {
               console.error(`Removing orphaned backend lock for PID ${lockPid} (process is not node.exe or lock file is stale)`);
               try {
-                fs13.unlinkSync(LOCK_FILE);
+                fs12.unlinkSync(LOCK_FILE);
               } catch {
               }
-              lockFd = fs13.openSync(LOCK_FILE, "wx");
+              lockFd = fs12.openSync(LOCK_FILE, "wx");
             } else {
               return false;
             }
           } catch {
             console.error(`Removing stale backend lock for PID ${lockPid}`);
             try {
-              fs13.unlinkSync(LOCK_FILE);
+              fs12.unlinkSync(LOCK_FILE);
             } catch {
             }
-            lockFd = fs13.openSync(LOCK_FILE, "wx");
+            lockFd = fs12.openSync(LOCK_FILE, "wx");
           }
         } catch (readErr) {
           console.error("Corrupt backend lock file, removing:", readErr);
           try {
-            fs13.unlinkSync(LOCK_FILE);
+            fs12.unlinkSync(LOCK_FILE);
           } catch {
           }
-          lockFd = fs13.openSync(LOCK_FILE, "wx");
+          lockFd = fs12.openSync(LOCK_FILE, "wx");
         }
       } else {
         console.error("Failed to open backend lock file:", err);
@@ -129092,9 +122907,9 @@ function acquireLock() {
     }
     if (lockFd === null)
       return false;
-    fs13.writeFileSync(lockFd, String(process.pid));
+    fs12.writeFileSync(lockFd, String(process.pid));
     try {
-      fs13.fsyncSync(lockFd);
+      fs12.fsyncSync(lockFd);
     } catch {
     }
     console.error(`Acquired backend lock with PID ${process.pid}`);
@@ -129108,14 +122923,14 @@ function releaseLock() {
   try {
     if (lockFd !== null) {
       try {
-        fs13.closeSync(lockFd);
+        fs12.closeSync(lockFd);
       } catch {
       }
       lockFd = null;
     }
-    if (fs13.existsSync(LOCK_FILE)) {
+    if (fs12.existsSync(LOCK_FILE)) {
       try {
-        fs13.unlinkSync(LOCK_FILE);
+        fs12.unlinkSync(LOCK_FILE);
       } catch {
       }
     }
@@ -129124,20 +122939,20 @@ function releaseLock() {
   }
 }
 async function findComfyUIPath() {
-  const nestedComfyUIPath = path13.join(os7.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI", "ComfyUI");
-  if (fs13.existsSync(path13.join(nestedComfyUIPath, "main.py"))) {
+  const nestedComfyUIPath = path12.join(os7.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI", "ComfyUI");
+  if (fs12.existsSync(path12.join(nestedComfyUIPath, "main.py"))) {
     return nestedComfyUIPath;
   }
-  const nestedHeadlessPath = path13.join(os7.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI-headless", "ComfyUI");
-  if (fs13.existsSync(path13.join(nestedHeadlessPath, "main.py"))) {
+  const nestedHeadlessPath = path12.join(os7.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI-headless", "ComfyUI");
+  if (fs12.existsSync(path12.join(nestedHeadlessPath, "main.py"))) {
     return nestedHeadlessPath;
   }
-  const flatPath = path13.join(os7.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI");
-  if (fs13.existsSync(path13.join(flatPath, "main.py"))) {
+  const flatPath = path12.join(os7.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI");
+  if (fs12.existsSync(path12.join(flatPath, "main.py"))) {
     return flatPath;
   }
-  const legacyFlatPath = path13.join(os7.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI-headless");
-  if (fs13.existsSync(path13.join(legacyFlatPath, "main.py"))) {
+  const legacyFlatPath = path12.join(os7.homedir(), "AppData", "Local", "FoundryMCPServer", "ComfyUI-headless");
+  if (fs12.existsSync(path12.join(legacyFlatPath, "main.py"))) {
     return legacyFlatPath;
   }
   throw new Error("ComfyUI installation not found");
@@ -129177,7 +122992,7 @@ async function startComfyUIService(logger) {
     logger.info("Starting ComfyUI service...");
     const comfyUIPath = await findComfyUIPath();
     logger.info("ComfyUI found", { path: comfyUIPath });
-    logger.info("Starting ComfyUI process", { path: path13.join(comfyUIPath, "main.py") });
+    logger.info("Starting ComfyUI process", { path: path12.join(comfyUIPath, "main.py") });
     const pythonExe = getBundledPythonPath();
     logger.info("Using bundled Python", { pythonPath: pythonExe });
     comfyuiProcess = (0, import_child_process3.spawn)(pythonExe, [
@@ -129578,8 +123393,8 @@ async function processMapGenerationInBackend(jobId, jobQueue, comfyuiClient, log
 `);
     await fs22.appendFile(processDebugLog, `[${(/* @__PURE__ */ new Date()).toISOString()}] About to import fs/path/os for upload...
 `);
-    const fs14 = await import("fs").then((m) => m.promises);
-    const path14 = await import("path");
+    const fs13 = await import("fs").then((m) => m.promises);
+    const path13 = await import("path");
     const os8 = await import("os");
     await fs22.appendFile(processDebugLog, `[${(/* @__PURE__ */ new Date()).toISOString()}] Imports complete
 `);
@@ -129605,8 +123420,8 @@ async function processMapGenerationInBackend(jobId, jobQueue, comfyuiClient, log
     await fs22.appendFile(processDebugLog, `[${(/* @__PURE__ */ new Date()).toISOString()}] Using upload method for all connections
 `);
     const debugLog = async (msg) => {
-      const logPath = path14.join(os8.tmpdir(), "foundry-mcp-upload-debug.log");
-      await fs14.appendFile(logPath, `[${(/* @__PURE__ */ new Date()).toISOString()}] ${msg}
+      const logPath = path13.join(os8.tmpdir(), "foundry-mcp-upload-debug.log");
+      await fs13.appendFile(logPath, `[${(/* @__PURE__ */ new Date()).toISOString()}] ${msg}
 `);
     };
     await debugLog(`=== MAP GENERATION DEBUG START ===`);
@@ -129725,7 +123540,7 @@ async function startBackend() {
     format: config.logFormat,
     enableConsole: false,
     enableFile: true,
-    filePath: path13.join(os7.tmpdir(), "foundry-mcp-server", "mcp-server.log")
+    filePath: path12.join(os7.tmpdir(), "foundry-mcp-server", "mcp-server.log")
   });
   logger.info("Starting Foundry MCP Backend", {
     version: config.server.version,
@@ -129735,18 +123550,8 @@ async function startBackend() {
   const foundryClient = new FoundryClient(config.foundry, logger);
   const { getSystemRegistry: getSystemRegistry2 } = await Promise.resolve().then(() => (init_systems(), systems_exports));
   const { DnD5eAdapter: DnD5eAdapter2 } = await Promise.resolve().then(() => (init_adapter(), adapter_exports));
-  const { PF2eAdapter: PF2eAdapter2 } = await Promise.resolve().then(() => (init_adapter2(), adapter_exports2));
-  const { DSA5Adapter: DSA5Adapter2 } = await Promise.resolve().then(() => (init_adapter3(), adapter_exports3));
-  const { CosmereRpgAdapter: CosmereRpgAdapter2 } = await Promise.resolve().then(() => (init_adapter4(), adapter_exports4));
-  const { WFRP4eAdapter: WFRP4eAdapter2 } = await Promise.resolve().then(() => (init_adapter5(), adapter_exports5));
-  const { MGT2eAdapter: MGT2eAdapter2 } = await Promise.resolve().then(() => (init_adapter6(), adapter_exports6));
   const systemRegistry = getSystemRegistry2(logger);
   systemRegistry.register(new DnD5eAdapter2());
-  systemRegistry.register(new PF2eAdapter2());
-  systemRegistry.register(new DSA5Adapter2());
-  systemRegistry.register(new CosmereRpgAdapter2());
-  systemRegistry.register(new WFRP4eAdapter2());
-  systemRegistry.register(new MGT2eAdapter2());
   logger.info("System registry initialized", {
     supportedSystems: systemRegistry.getSupportedSystems()
   });
@@ -129769,6 +123574,15 @@ async function startBackend() {
       } catch (error) {
         throw new Error(`Invalid ComfyUI settings: ${error.message}`);
       }
+    },
+    // The narration model stays in GPU memory between speeches; free it before an image job so the two
+    // never share a small GPU (the next narration reloads it, about 30 s).
+    beforeGenerate: async () => {
+      if (!mapGenerationComfyUIClient)
+        return;
+      const freed = await unloadVoice(mapGenerationComfyUIClient.getBaseUrl());
+      if (freed)
+        logger.info("Narration model unloaded before image generation");
     }
   });
   let announce = () => {
@@ -129857,23 +123671,23 @@ async function startBackend() {
   const actorCreationTools = new ActorCreationTools({ foundryClient, logger });
   const actorManagementTools = new ActorManagementTools({ foundryClient, logger, systemRegistry });
   const effectManagementTools = new EffectManagementTools({ foundryClient, logger });
-  const dsa5CharacterCreator = new DSA5CharacterCreator({ foundryClient, logger });
-  const dsa5JsonActorImporter = new DSA5JsonActorImporter({ foundryClient, logger });
   const dnd5eAddFeatureTool = new DnD5eAddFeatureTool({ foundryClient, logger });
   const dnd5eNpcTools = new DnD5eNpcTools({ foundryClient, logger });
   const dnd5eFeaturesFromCompendiumTools = new DnD5eFeaturesFromCompendiumTools({
     foundryClient,
     logger
   });
-  const questCreationTools = new QuestCreationTools({ foundryClient, logger });
-  const chatTools = new ChatTools({ foundryClient, logger });
+  const compendiumHub = new CompendiumHub({
+    compendium: compendiumTools,
+    creation: actorCreationTools,
+    loot: lootTools,
+    features: dnd5eFeaturesFromCompendiumTools,
+    plutonium: plutoniumTools
+  });
   const chatControlTools = new ChatControlTools({ foundryClient, logger });
   const diceRollTools = new DiceRollTools({ foundryClient, logger });
-  const campaignManagementTools = new CampaignManagementTools(foundryClient, logger);
   const ownershipTools = new OwnershipTools({ foundryClient, logger });
   const tokenManipulationTools = new TokenManipulationTools({ foundryClient, logger });
-  const wfrp4eUpdateActorTools = new WFRP4eUpdateActorTools({ foundryClient, logger });
-  const wfrp4eAddItemsTools = new WFRP4eAddItemsTools({ foundryClient, logger });
   let mapGenerationJobQueue = null;
   let mapGenerationComfyUIClient = null;
   try {
@@ -129906,11 +123720,11 @@ async function startBackend() {
   }
   globalThis.backendComfyUIHandlers = {
     handleMessage: async (message) => {
-      const fs14 = await import("fs").then((m) => m.promises);
-      const path14 = await import("path");
+      const fs13 = await import("fs").then((m) => m.promises);
+      const path13 = await import("path");
       const os8 = await import("os");
-      const debugLog = path14.join(os8.tmpdir(), "backend-handler-debug.log");
-      await fs14.appendFile(debugLog, `[${(/* @__PURE__ */ new Date()).toISOString()}] handleMessage called - type: ${message?.type}, requestId: ${message?.requestId}
+      const debugLog = path13.join(os8.tmpdir(), "backend-handler-debug.log");
+      await fs13.appendFile(debugLog, `[${(/* @__PURE__ */ new Date()).toISOString()}] handleMessage called - type: ${message?.type}, requestId: ${message?.requestId}
 `);
       logger.info("Handling ComfyUI message", {
         requestId: message.requestId,
@@ -129918,11 +123732,11 @@ async function startBackend() {
         hasData: !!message.data
       });
       try {
-        const fs15 = await import("fs").then((m) => m.promises);
-        const path15 = await import("path");
+        const fs14 = await import("fs").then((m) => m.promises);
+        const path14 = await import("path");
         const os9 = await import("os");
-        const debugLog2 = path15.join(os9.tmpdir(), "backend-handler-debug.log");
-        await fs15.appendFile(debugLog2, `[${(/* @__PURE__ */ new Date()).toISOString()}] About to switch on message.type: "${message.type}"
+        const debugLog2 = path14.join(os9.tmpdir(), "backend-handler-debug.log");
+        await fs14.appendFile(debugLog2, `[${(/* @__PURE__ */ new Date()).toISOString()}] About to switch on message.type: "${message.type}"
 `);
         let result;
         try {
@@ -129951,10 +123765,10 @@ async function startBackend() {
             }
             break;
           case "generate-map-request":
-            await fs15.appendFile(debugLog2, `[${(/* @__PURE__ */ new Date()).toISOString()}] Matched generate-map-request case, calling handler...
+            await fs14.appendFile(debugLog2, `[${(/* @__PURE__ */ new Date()).toISOString()}] Matched generate-map-request case, calling handler...
 `);
             result = await handleGenerateMapRequest(message, mapGenerationJobQueue, mapGenerationComfyUIClient, logger, foundryClient);
-            await fs15.appendFile(debugLog2, `[${(/* @__PURE__ */ new Date()).toISOString()}] Handler returned: ${JSON.stringify(result)}
+            await fs14.appendFile(debugLog2, `[${(/* @__PURE__ */ new Date()).toISOString()}] Handler returned: ${JSON.stringify(result)}
 `);
             break;
           case "check-map-status-request":
@@ -130010,9 +123824,9 @@ async function startBackend() {
     logger,
     backendComfyUIHandlers: globalThis.backendComfyUIHandlers
   });
-  const allTools = [
+  const rawTools = [
     ...characterTools.getToolDefinitions(),
-    ...compendiumTools.getToolDefinitions(),
+    ...compendiumHub.getToolDefinitions(),
     ...sceneTools.getToolDefinitions(),
     ...uploadTools.getToolDefinitions(),
     ...imageGenerationTools.getToolDefinitions(),
@@ -130044,27 +123858,43 @@ async function startBackend() {
     ...sceneSoundTools.getToolDefinitions(),
     ...layoutTools.getToolDefinitions(),
     ...inspectTools.getToolDefinitions(),
-    ...actorCreationTools.getToolDefinitions(),
     ...actorManagementTools.getToolDefinitions(),
     ...effectManagementTools.getToolDefinitions(),
-    ...dsa5CharacterCreator.getToolDefinitions(),
-    ...dsa5JsonActorImporter.getToolDefinitions(),
     ...dnd5eAddFeatureTool.getToolDefinitions(),
     ...dnd5eNpcTools.getToolDefinitions(),
-    ...dnd5eFeaturesFromCompendiumTools.getToolDefinitions(),
-    ...questCreationTools.getToolDefinitions(),
     ...chatControlTools.getToolDefinitions(),
     ...diceRollTools.getToolDefinitions(),
-    ...campaignManagementTools.getToolDefinitions(),
     ...ownershipTools.getToolDefinitions(),
-    ...wfrp4eUpdateActorTools.getToolDefinitions(),
-    ...wfrp4eAddItemsTools.getToolDefinitions(),
     ...tokenManipulationTools.getToolDefinitions(),
     // The old async map tools are switched off: generate-image (kind "map") replaces them. The
     // code stays; remove the names from this list to bring them back.
     ...mapGenerationTools.getToolDefinitions().filter((tool) => !DISABLED_LEGACY_MAP_TOOLS.includes(tool.name)),
     ...playlistTools.getToolDefinitions()
   ];
+  const hubs = createHubs(rawTools, {
+    moveToken: (a) => tokenManipulationTools.handleMoveToken(a),
+    updateToken: (a) => tokenManipulationTools.handleUpdateToken(a),
+    deleteTokens: (a) => tokenManipulationTools.handleDeleteTokens(a),
+    getTokenDetails: (a) => tokenManipulationTools.handleGetTokenDetails(a),
+    toggleTokenCondition: (a) => tokenManipulationTools.handleToggleTokenCondition(a),
+    getAvailableConditions: (a) => tokenManipulationTools.handleGetAvailableConditions(a),
+    listCharacters: (a) => characterTools.handleListCharacters(a),
+    getCharacter: (a) => characterTools.handleGetCharacter(a),
+    getCharacterEntity: (a) => characterTools.handleGetCharacterEntity(a),
+    searchCharacterItems: (a) => characterTools.handleSearchCharacterItems(a),
+    ownership: (name, a) => ownershipTools.handleToolCall(name, a),
+    listScenes: (a) => mapGenerationTools.listScenes(a),
+    getCurrentScene: (a) => sceneTools.handleGetCurrentScene(a),
+    getWorldInfo: (a) => sceneTools.handleGetWorldInfo(a),
+    switchScene: (a) => mapGenerationTools.switchScene(a),
+    manageScenes: (a) => sceneTools.handleManageScenes(a),
+    managePlaylists: (a) => playlistTools.handleManagePlaylists(a),
+    controlPlaylist: (a) => playlistTools.handleControlPlaylist(a),
+    updateSceneMusic: (a) => sceneTools.handleUpdateSceneMusic(a),
+    setupSceneSound: (a) => sceneSoundTools.handleSetupSceneSound(a)
+  });
+  const mergedAway = new Set(MERGED_TOOL_NAMES);
+  const allTools = [...rawTools.filter((t) => !mergedAway.has(t.name)), ...hubs.definitions];
   for (const tool of allTools) {
     const props = tool?.inputSchema?.properties;
     if (!props)
@@ -130126,53 +123956,11 @@ async function startBackend() {
               const dispatch = async (name2, args2) => {
                 let result2;
                 switch (name2) {
-                  case "get-character":
-                    result2 = await characterTools.handleGetCharacter(args2);
-                    break;
-                  case "list-characters":
-                    result2 = await characterTools.handleListCharacters(args2);
-                    break;
-                  case "get-character-entity":
-                    result2 = await characterTools.handleGetCharacterEntity(args2);
-                    break;
                   case "use-item":
                     result2 = await characterTools.handleUseItem(args2);
                     break;
-                  case "search-character-items":
-                    result2 = await characterTools.handleSearchCharacterItems(args2);
-                    break;
                   case "manage-world-items":
                     result2 = await characterTools.handleManageWorldItems(args2);
-                    break;
-                  case "search-compendium":
-                    result2 = await compendiumTools.handleSearchCompendium(args2);
-                    break;
-                  case "get-compendium-item":
-                    result2 = await compendiumTools.handleGetCompendiumItem(args2);
-                    break;
-                  case "list-creatures-by-criteria":
-                    result2 = await compendiumTools.handleListCreaturesByCriteria(args2);
-                    break;
-                  case "list-compendium-packs":
-                    result2 = await compendiumTools.handleListCompendiumPacks(args2);
-                    break;
-                  case "get-current-scene":
-                    result2 = await sceneTools.handleGetCurrentScene(args2);
-                    break;
-                  case "get-world-info":
-                    result2 = await sceneTools.handleGetWorldInfo(args2);
-                    break;
-                  case "create-actor-from-compendium":
-                    result2 = await actorCreationTools.handleCreateActorFromCompendium(args2);
-                    break;
-                  case "get-compendium-entry-full":
-                    result2 = await actorCreationTools.handleGetCompendiumEntryFull(args2);
-                    break;
-                  case "wfrp4e-update-actor":
-                    result2 = await wfrp4eUpdateActorTools.handleUpdateActor(args2);
-                    break;
-                  case "wfrp4e-add-items":
-                    result2 = await wfrp4eAddItemsTools.handleAddItems(args2);
                     break;
                   case "manage-actors":
                     result2 = await actorManagementTools.handleManageActors(args2);
@@ -130180,23 +123968,11 @@ async function startBackend() {
                   case "manage-effects":
                     result2 = await effectManagementTools.handleManageEffects(args2);
                     break;
-                  case "create-dsa5-character-from-archetype":
-                    result2 = await dsa5CharacterCreator.handleCreateCharacterFromArchetype(args2);
-                    break;
-                  case "list-dsa5-archetypes":
-                    result2 = await dsa5CharacterCreator.handleListArchetypes(args2);
-                    break;
-                  case "import-dsa5-actor-from-json":
-                    result2 = await dsa5JsonActorImporter.handleImportActorFromJson(args2);
-                    break;
                   case "dnd5e-add-feature":
                     result2 = await dnd5eAddFeatureTool.handleAddFeature(args2);
                     break;
                   case "dnd5e-create-npc":
                     result2 = await dnd5eNpcTools.handleCreateNpc(args2);
-                    break;
-                  case "dnd5e-add-features-from-compendium":
-                    result2 = await dnd5eFeaturesFromCompendiumTools.handleAddFeaturesFromCompendium(args2);
                     break;
                   case "chat":
                     if (args2?.action === "read" || args2?.queue === false) {
@@ -130206,27 +123982,6 @@ async function startBackend() {
                       const { queue: _q, ...rest } = args2 ?? {};
                       result2 = await sayLane.afterSpeech(`chat ${rest.action}`, () => chatControlTools.handleChat(rest));
                     }
-                    break;
-                  case "create-chat-message":
-                    result2 = await chatTools.handleCreateChatMessage(args2);
-                    break;
-                  case "create-quest-journal":
-                    result2 = await questCreationTools.handleCreateQuestJournal(args2);
-                    break;
-                  case "link-quest-to-npc":
-                    result2 = await questCreationTools.handleLinkQuestToNPC(args2);
-                    break;
-                  case "update-quest-journal":
-                    result2 = await questCreationTools.handleUpdateQuestJournal(args2);
-                    break;
-                  case "replace-journal-page":
-                    result2 = await questCreationTools.handleReplaceJournalPage(args2);
-                    break;
-                  case "list-journals":
-                    result2 = await questCreationTools.handleListJournals(args2);
-                    break;
-                  case "search-journals":
-                    result2 = await questCreationTools.handleSearchJournals(args2);
                     break;
                   case "request-player-rolls":
                     {
@@ -130244,58 +123999,10 @@ async function startBackend() {
                       result2 = noQueue === false ? await post().catch((e) => e?.message ?? String(e)) : await sayLane.afterSpeech("roll request", post);
                     }
                     break;
-                  case "create-campaign-dashboard":
-                    result2 = await campaignManagementTools.handleCreateCampaignDashboard(args2);
-                    break;
-                  case "assign-actor-ownership":
-                    result2 = await ownershipTools.handleToolCall("assign-actor-ownership", args2);
-                    break;
-                  case "remove-actor-ownership":
-                    result2 = await ownershipTools.handleToolCall("remove-actor-ownership", args2);
-                    break;
-                  case "list-actor-ownership":
-                    result2 = await ownershipTools.handleToolCall("list-actor-ownership", args2);
-                    break;
-                  case "move-token":
-                    result2 = await tokenManipulationTools.handleMoveToken(args2);
-                    break;
-                  case "update-token":
-                    result2 = await tokenManipulationTools.handleUpdateToken(args2);
-                    break;
-                  case "delete-tokens":
-                    result2 = await tokenManipulationTools.handleDeleteTokens(args2);
-                    break;
-                  case "get-token-details":
-                    result2 = await tokenManipulationTools.handleGetTokenDetails(args2);
-                    break;
-                  case "toggle-token-condition":
-                    result2 = await tokenManipulationTools.handleToggleTokenCondition(args2);
-                    break;
-                  case "get-available-conditions":
-                    result2 = await tokenManipulationTools.handleGetAvailableConditions(args2);
-                    break;
                   case "generate-map":
                   case "check-map-status":
                   case "cancel-map-job":
                     throw new Error(`The ${name2} tool is switched off. Use generate-image with kind "map" instead.`);
-                  case "list-scenes":
-                    result2 = await mapGenerationTools.listScenes(args2);
-                    break;
-                  case "switch-scene":
-                    result2 = await mapGenerationTools.switchScene(args2);
-                    break;
-                  case "manage-playlists":
-                    result2 = await playlistTools.handleManagePlaylists(args2);
-                    break;
-                  case "control-playlist":
-                    result2 = await playlistTools.handleControlPlaylist(args2);
-                    break;
-                  case "update-scene-music":
-                    result2 = await sceneTools.handleUpdateSceneMusic(args2);
-                    break;
-                  case "manage-scenes":
-                    result2 = await sceneTools.handleManageScenes(args2);
-                    break;
                   case "manage-scene-objects":
                     result2 = await sceneObjectTools.handleManageSceneObjects(args2);
                     break;
@@ -130347,8 +124054,8 @@ async function startBackend() {
                   case "quartermaster":
                     result2 = await quartermasterTools.handleQuartermaster(args2);
                     break;
-                  case "plutonium":
-                    result2 = await plutoniumTools.handlePlutonium(args2);
+                  case "compendium":
+                    result2 = await compendiumHub.handle(args2);
                     break;
                   case "adventure":
                     result2 = await plutoniumTools.handleAdventure(args2);
@@ -130386,17 +124093,11 @@ async function startBackend() {
                   case "share-with-players":
                     result2 = await shareTools.handleShareWithPlayers(args2);
                     break;
-                  case "add-compendium-items":
-                    result2 = await lootTools.handleAddCompendiumItems(args2);
-                    break;
                   case "make-chest":
                     result2 = await lootTools.handleMakeChest(args2);
                     break;
                   case "audit-world":
                     result2 = await auditTools.handleAuditWorld(args2);
-                    break;
-                  case "setup-scene-sound":
-                    result2 = await sceneSoundTools.handleSetupSceneSound(args2);
                     break;
                   case "manage-world":
                     result2 = await sceneObjectTools.handleManageWorld(args2);
@@ -130414,6 +124115,10 @@ async function startBackend() {
                     result2 = await imageGenerationTools.handleDescribe();
                     break;
                   default:
+                    if (hubs.handlers[name2]) {
+                      result2 = await hubs.handlers[name2](args2);
+                      break;
+                    }
                     throw new Error(`Unknown tool: ${name2}`);
                 }
                 return result2;
@@ -130475,7 +124180,7 @@ async function startBackend() {
     process.exit(0);
   });
 }
-var AFTER_SPEECH_TOOLS = /* @__PURE__ */ new Set(["reveal", "switch-scene", "move-token", "update-token", "toggle-token-condition", "manage-scene-objects", "manage-scenes", "manage-regions", "combat", "use-item", "time", "update-scene-music", "control-playlist", "delete-tokens"]);
+var AFTER_SPEECH_TOOLS = /* @__PURE__ */ new Set(["reveal", "scene", "token", "manage-scene-objects", "manage-regions", "combat", "use-item", "time", "audio"]);
 var hasLock = acquireLock();
 (async function main() {
   if (!hasLock) {
