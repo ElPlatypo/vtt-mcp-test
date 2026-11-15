@@ -2479,10 +2479,10 @@ index 0000000..df1f22f
 +}
 diff --git a/packages/foundry-module/src/calendaria-utils.test.ts b/packages/foundry-module/src/calendaria-utils.test.ts
 new file mode 100644
-index 0000000..f6dc449
+index 0000000..0f07f00
 --- /dev/null
 +++ b/packages/foundry-module/src/calendaria-utils.test.ts
-@@ -0,0 +1,100 @@
+@@ -0,0 +1,110 @@
 +/** Calendaria through its API (faked). */
 +import { afterEach, describe, expect, it, vi } from 'vitest';
 +import { calendariaApi, calendariaCalendars, calendariaStatus, calendariaWeather, plain } from './calendaria-utils.js';
@@ -2496,7 +2496,7 @@ index 0000000..f6dc449
 +    getCurrentWeather: vi.fn(() => state.weather),
 +    getTemperature: vi.fn(() => 12),
 +    formatTemperature: vi.fn((t: number) => `${t}°C`),
-+    getAllMoonPhases: vi.fn(() => [{ name: 'Luna', phase: 'Full Moon' }]),
++    getAllMoonPhases: vi.fn(() => [{ moonName: 'Luna', name: 'Full Moon', dayInCycle: 14, icon: 'x.svg' }]),
 +    getCurrentSeason: vi.fn(() => ({ name: 'Winter' })),
 +    getCurrentFestival: vi.fn(() => null),
 +    isRestDay: vi.fn(() => true),
@@ -2509,7 +2509,7 @@ index 0000000..f6dc449
 +    setWeather: vi.fn(async (id: string) => void (state.weather = { id, label: id })),
 +    generateWeather: vi.fn(async () => void (state.weather = { id: 'fog', label: 'Fog' })),
 +    clearWeather: vi.fn(async () => void (state.weather = null)),
-+    getWeatherForecast: vi.fn(() => [{ day: 1, id: 'rain' }]),
++    getWeatherForecast: vi.fn(() => [{ month: 0, dayOfMonth: 2, preset: { id: 'rain', label: 'Rain' }, temperature: 4, wind: { kph: 12 }, precipitation: { type: 'rain', intensity: 0.6 } }]),
 +  };
 +};
 +
@@ -2524,7 +2524,7 @@ index 0000000..f6dc449
 +describe('calendariaStatus', () => {
 +  it('collects weather, moons, season, rest day and sunrise and sunset, and skips what the version lacks', async () => {
 +    const out = await calendariaStatus(fakeApi(), 100);
-+    expect(out).toMatchObject({ weather: { id: 'clear' }, temperature: '12°C', moons: [{ phase: 'Full Moon' }], season: { name: 'Winter' }, restDay: true, calendariaSunrise: '07:57', calendariaSunset: '16:03' });
++    expect(out).toMatchObject({ weather: { id: 'clear' }, temperature: '12°C', moons: [{ moon: 'Luna', phase: 'Full Moon', day: 14 }], calendariaSeason: 'Winter', restDay: true, calendariaSunrise: '07:57', calendariaSunset: '16:03' });
 +    expect(out.festival).toBeUndefined();
 +    expect(await calendariaStatus({}, 0)).toEqual({});
 +  });
@@ -2541,7 +2541,7 @@ index 0000000..f6dc449
 +  it('reads, sets, generates and clears the weather, and lists presets', async () => {
 +    const api = fakeApi();
 +    expect(await calendariaWeather(api, {})).toMatchObject({ weather: { id: 'clear' }, temperature: '12°C' });
-+    expect(await calendariaWeather(api, { preset: 'Rain', forecast: 3 })).toMatchObject({ set: 'rain', weather: { id: 'rain' }, forecast: [{ id: 'rain' }] });
++    expect(await calendariaWeather(api, { preset: 'Rain', forecast: 3 })).toMatchObject({ set: 'rain', weather: { id: 'rain' }, forecast: [{ month: 1, day: 3, id: 'rain', temperatureC: 4, windKph: 12 }] });
 +    expect(await calendariaWeather(api, { generate: true })).toMatchObject({ generated: true, weather: { id: 'fog' } });
 +    expect(await calendariaWeather(api, { clear: true })).toMatchObject({ cleared: true });
 +    expect(await calendariaWeather(api, { list: true })).toEqual({ success: true, presets: [{ id: 'clear', label: 'Clear' }, { id: 'rain', label: 'Rain' }] });
@@ -2583,12 +2583,22 @@ index 0000000..f6dc449
 +    expect(await worldTime({ action: 'weather' })).toMatchObject({ weather: { id: 'clear' } });
 +  });
 +});
++
++describe('slimWeather', () => {
++  it('translates the labels and keeps only what a GM needs', async () => {
++    const { slimWeather } = await import('./calendaria-utils.js');
++    const t = (k: string) => k.replace('CALENDARIA.Common.', '').replace('CALENDARIA.Weather.', '');
++    const w = { id: 'rain', label: 'CALENDARIA.Common.Rain', description: 'CALENDARIA.Weather.RainDesc', icon: 'fa-x', color: '#fff', temperature: 4, wind: { speed: 2, kph: 12 }, precipitation: { type: 'rain', intensity: 0.6 }, fxPreset: 'rain', severity: 4 };
++    expect(slimWeather(w, t)).toEqual({ id: 'rain', label: 'Rain', description: 'RainDesc', temperatureC: 4, windKph: 12, precipitation: { type: 'rain', intensity: 0.6 }, severity: 4 });
++    expect(slimWeather(null)).toBeNull();
++  });
++});
 diff --git a/packages/foundry-module/src/calendaria-utils.ts b/packages/foundry-module/src/calendaria-utils.ts
 new file mode 100644
-index 0000000..8cc020a
+index 0000000..5f85b1f
 --- /dev/null
 +++ b/packages/foundry-module/src/calendaria-utils.ts
-@@ -0,0 +1,115 @@
+@@ -0,0 +1,150 @@
 +/**
 + * Calendaria (the calendar, clock and weather module) through its public API, CALENDARIA.api.
 + * The world clock itself is still Foundry's (game.time), which Calendaria follows; this adds what only Calendaria knows:
@@ -2626,6 +2636,23 @@ index 0000000..8cc020a
 +  }
 +}
 +
++export type Translate = (key: string) => string;
++const same: Translate = key => key;
++
++/** The weather as a GM needs it: what it is, how warm, how windy, how wet. */
++export function slimWeather(w: any, t: Translate = same): Record<string, unknown> | null {
++  if (!w || typeof w !== 'object') return null;
++  if (w.error) return { error: w.error };
++  const out: Record<string, unknown> = { id: w.id, label: t(String(w.label ?? w.id ?? '')) };
++  if (w.description) out.description = t(String(w.description));
++  if (typeof w.temperature === 'number') out.temperatureC = w.temperature;
++  const wind = w.wind?.kph ?? w.wind?.speed;
++  if (typeof wind === 'number') out.windKph = wind;
++  if (w.precipitation?.type) out.precipitation = { type: w.precipitation.type, intensity: w.precipitation.intensity };
++  if (typeof w.severity === 'number') out.severity = w.severity;
++  return out;
++}
++
 +const hours = (h: unknown): string | undefined => {
 +  if (typeof h !== 'number' || !Number.isFinite(h)) return undefined;
 +  const total = Math.round(h * 60);
@@ -2633,17 +2660,24 @@ index 0000000..8cc020a
 +};
 +
 +/** What Calendaria adds to a status: weather, moons, the season, a festival, sunrise and sunset. */
-+export async function calendariaStatus(api: any, worldTime: number): Promise<Record<string, unknown>> {
++export async function calendariaStatus(api: any, worldTime: number, t: Translate = same): Promise<Record<string, unknown>> {
 +  const out: Record<string, unknown> = {};
 +  const set = (key: string, value: unknown) => {
 +    if (value !== undefined && value !== null) out[key] = plain(value);
 +  };
-+  set('weather', await ask(api, 'getCurrentWeather'));
-+  set('temperature', await ask(api, 'formatTemperature', await ask(api, 'getTemperature')));
-+  set('moons', await ask(api, 'getAllMoonPhases'));
-+  set('season', await ask(api, 'getCurrentSeason', worldTime));
-+  const festival = await ask(api, 'getCurrentFestival');
-+  set('festival', festival);
++  const weather = slimWeather(await ask(api, 'getCurrentWeather'), t);
++  set('weather', weather);
++  const moons = (await ask(api, 'getAllMoonPhases')) as any;
++  if (Array.isArray(moons) && moons.length) set('moons', moons.map(m => ({ moon: m?.moonName ?? m?.name, phase: t(String(m?.name ?? '')), day: m?.dayInCycle })));
++  const season = (await ask(api, 'getCurrentSeason', worldTime)) as any;
++  if (season?.name) out.calendariaSeason = t(String(season.name));
++  const festival = (await ask(api, 'getCurrentFestival')) as any;
++  if (festival) set('festival', typeof festival === 'object' ? { name: t(String(festival.name ?? festival.title ?? '')), ...(festival.description ? { description: plain(festival.description, 300) } : {}) } : festival);
++  const temp = await ask(api, 'getTemperature');
++  if (typeof temp === 'number') {
++    const shown = await ask(api, 'formatTemperature', temp);
++    if (typeof shown === 'string' && shown) out.temperature = shown;
++  }
 +  const rest = await ask(api, 'isRestDay');
 +  if (rest === true) out.restDay = true;
 +  const sunrise = hours(await ask(api, 'getSunrise'));
@@ -2674,12 +2708,12 @@ index 0000000..8cc020a
 +}
 +
 +/** Read or change the weather. With nothing asked it reports the current weather. */
-+export async function calendariaWeather(api: any, data: WeatherRequest): Promise<Record<string, unknown>> {
++export async function calendariaWeather(api: any, data: WeatherRequest, t: Translate = same): Promise<Record<string, unknown>> {
 +  const out: Record<string, unknown> = { success: true };
 +  if (data.list) {
 +    const presets = (await ask(api, 'getWeatherPresets')) as any;
 +    const list = Array.isArray(presets) ? presets : presets && typeof presets === 'object' ? Object.values(presets) : [];
-+    out.presets = list.map((p: any) => ({ id: p?.id, label: p?.label ?? p?.name })).filter((p: any) => p.id);
++    out.presets = list.map((p: any) => ({ id: p?.id, label: t(String(p?.label ?? p?.name ?? p?.id ?? '')) })).filter((p: any) => p.id);
 +    return out;
 +  }
 +  if (data.clear) {
@@ -2698,10 +2732,21 @@ index 0000000..8cc020a
 +    if (result?.error) throw new Error(`Calendaria refused the weather: ${result.error}`);
 +    out.set = match?.id ?? data.preset;
 +  }
-+  out.weather = plain(await ask(api, 'getCurrentWeather'));
++  out.weather = slimWeather(await ask(api, 'getCurrentWeather'), t);
 +  const temp = await ask(api, 'getTemperature');
-+  if (typeof temp === 'number') out.temperature = plain(await ask(api, 'formatTemperature', temp));
-+  if (data.forecast) out.forecast = plain(await ask(api, 'getWeatherForecast', { days: data.forecast }), 3000);
++  if (typeof temp === 'number') {
++    const shown = await ask(api, 'formatTemperature', temp);
++    if (typeof shown === 'string' && shown) out.temperature = shown;
++  }
++  if (data.forecast) {
++    const days = (await ask(api, 'getWeatherForecast', { days: data.forecast })) as any;
++    if (Array.isArray(days)) {
++      out.forecast = days.map(d => ({
++        ...(typeof d?.month === 'number' && typeof d?.dayOfMonth === 'number' ? { month: d.month + 1, day: d.dayOfMonth + 1 } : {}),
++        ...slimWeather({ ...d?.preset, temperature: d?.temperature, wind: d?.wind, precipitation: d?.precipitation }, t),
++      }));
++    }
++  }
 +  return out;
 +}
 diff --git a/packages/foundry-module/src/character-state-utils.test.ts b/packages/foundry-module/src/character-state-utils.test.ts
@@ -27651,7 +27696,7 @@ index 0000000..955383a
 +}
 diff --git a/packages/foundry-module/src/world-time.ts b/packages/foundry-module/src/world-time.ts
 new file mode 100644
-index 0000000..fa9130e
+index 0000000..59eed75
 --- /dev/null
 +++ b/packages/foundry-module/src/world-time.ts
 @@ -0,0 +1,167 @@
@@ -27706,7 +27751,7 @@ index 0000000..fa9130e
 +      if (cfg.dailyRecovery !== undefined) out.dailyRecovery = !!cfg.dailyRecovery;
 +    }
 +    const api = calendariaApi(g);
-+    if (api) out.calendaria = await calendariaStatus(api, time.worldTime);
++    if (api) out.calendaria = await calendariaStatus(api, time.worldTime, t);
 +    if (inCombat) out.note = 'A combat is running: each round already moves the clock by 6 seconds';
 +    return out;
 +  }
@@ -27777,7 +27822,7 @@ index 0000000..fa9130e
 +  if (action === 'weather') {
 +    const api = calendariaApi(g);
 +    if (!api) throw new Error('Weather needs the Calendaria module, which is not active in this world');
-+    return calendariaWeather(api, data);
++    return calendariaWeather(api, data, t);
 +  }
 +
 +  if (action === 'calendar') {
