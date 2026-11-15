@@ -11499,11 +11499,11 @@ var require_color_string = __commonJS({
     cs.to.keyword = function(rgb) {
       return reverseNames[rgb.slice(0, 3)];
     };
-    function clamp2(num3, min, max) {
-      return Math.min(Math.max(min, num3), max);
+    function clamp2(num4, min, max) {
+      return Math.min(Math.max(min, num4), max);
     }
-    function hexDouble(num3) {
-      var str = Math.round(num3).toString(16).toUpperCase();
+    function hexDouble(num4) {
+      var str = Math.round(num4).toString(16).toUpperCase();
       return str.length < 2 ? "0" + str : str;
     }
   }
@@ -12839,12 +12839,12 @@ var require_color = __commonJS({
         return new Color(color2, model);
       };
     });
-    function roundTo(num3, places) {
-      return Number(num3.toFixed(places));
+    function roundTo(num4, places) {
+      return Number(num4.toFixed(places));
     }
     function roundToPlace(places) {
-      return function(num3) {
-        return roundTo(num3, places);
+      return function(num4) {
+        return roundTo(num4, places);
       };
     }
     function getset(model, channel, modifier) {
@@ -13655,10 +13655,10 @@ var require_file = __commonJS({
         if (this.zippedArchive) {
           tasks.push(
             function(cb) {
-              const num3 = this._created > 0 && !this.tailable ? this._created : "";
+              const num4 = this._created > 0 && !this.tailable ? this._created : "";
               this._compressFile(
-                path13.join(this.dirname, `${basename2}${num3}${ext}`),
-                path13.join(this.dirname, `${basename2}${num3}${ext}.gz`),
+                path13.join(this.dirname, `${basename2}${num4}${ext}`),
+                path13.join(this.dirname, `${basename2}${num4}${ext}.gz`),
                 cb
               );
             }.bind(this)
@@ -16008,26 +16008,26 @@ var require_permessage_deflate = __commonJS({
             value = value[0];
             if (key === "client_max_window_bits") {
               if (value !== true) {
-                const num3 = +value;
-                if (!Number.isInteger(num3) || num3 < 8 || num3 > 15) {
+                const num4 = +value;
+                if (!Number.isInteger(num4) || num4 < 8 || num4 > 15) {
                   throw new TypeError(
                     `Invalid value for parameter "${key}": ${value}`
                   );
                 }
-                value = num3;
+                value = num4;
               } else if (!this._isServer) {
                 throw new TypeError(
                   `Invalid value for parameter "${key}": ${value}`
                 );
               }
             } else if (key === "server_max_window_bits") {
-              const num3 = +value;
-              if (!Number.isInteger(num3) || num3 < 8 || num3 > 15) {
+              const num4 = +value;
+              if (!Number.isInteger(num4) || num4 < 8 || num4 > 15) {
                 throw new TypeError(
                   `Invalid value for parameter "${key}": ${value}`
                 );
               }
-              value = num3;
+              value = num4;
             } else if (key === "client_no_context_takeover" || key === "server_no_context_takeover") {
               if (value !== true) {
                 throw new TypeError(
@@ -16730,8 +16730,8 @@ var require_receiver = __commonJS({
           return;
         }
         const buf = this.consume(8);
-        const num3 = buf.readUInt32BE(0);
-        if (num3 > Math.pow(2, 53 - 32) - 1) {
+        const num4 = buf.readUInt32BE(0);
+        if (num4 > Math.pow(2, 53 - 32) - 1) {
           const error = this.createError(
             RangeError,
             "Unsupported WebSocket frame: payload length > 2^53 - 1",
@@ -16742,7 +16742,7 @@ var require_receiver = __commonJS({
           cb(error);
           return;
         }
-        this._payloadLength = num3 * Math.pow(2, 32) + buf.readUInt32BE(4);
+        this._payloadLength = num4 * Math.pow(2, 32) + buf.readUInt32BE(4);
         this.haveLength(cb);
       }
       /**
@@ -20036,8 +20036,8 @@ var require_network = __commonJS({
       return port;
     }
     exports2.randomPort = randomPort;
-    async function randomPorts(num3, protocol = "udp4", interfaceAddresses) {
-      return Promise.all([...Array(num3)].map(() => randomPort(protocol, interfaceAddresses)));
+    async function randomPorts(num4, protocol = "udp4", interfaceAddresses) {
+      return Promise.all([...Array(num4)].map(() => randomPort(protocol, interfaceAddresses)));
     }
     exports2.randomPorts = randomPorts;
     async function findPort(min, max, protocol = "udp4", interfaceAddresses) {
@@ -24867,9 +24867,9 @@ var require_buffer_crc32 = __commonJS({
         throw new Error("input must be buffer, number, or string, received " + typeof input);
       }
     }
-    function bufferizeInt(num3) {
+    function bufferizeInt(num4) {
       var tmp = ensureBuffer(4);
-      tmp.writeInt32BE(num3, 0);
+      tmp.writeInt32BE(num4, 0);
       return tmp;
     }
     function _crc32(buf, previous) {
@@ -24983,9 +24983,9 @@ var require_attributes = __commonJS({
       ];
       let xData = data.slice(0, 2);
       for (const i of (0, range_1.default)(2, data.length)) {
-        const num3 = data[i] ^ xPad[i - 2];
+        const num4 = data[i] ^ xPad[i - 2];
         const buf = Buffer.alloc(1);
-        buf.writeUIntBE(num3, 0, 1);
+        buf.writeUIntBE(num4, 0, 1);
         xData = Buffer.concat([xData, buf]);
       }
       return xData;
@@ -29748,44 +29748,44 @@ var require_typedArrayUtils = __commonJS({
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.dumpBytes = exports2.float32bit = exports2.int16Bit = exports2.getNumberByteLength = exports2.stringToByteArray = exports2.numberToByteArray = void 0;
     var memoize_1 = __importDefault3(require_memoize());
-    var numberToByteArray = (num3, byteLength = getNumberByteLength(num3)) => {
+    var numberToByteArray = (num4, byteLength = getNumberByteLength(num4)) => {
       let byteArray;
       if (byteLength === 1) {
         byteArray = new DataView(new ArrayBuffer(1));
-        byteArray.setUint8(0, num3);
+        byteArray.setUint8(0, num4);
       } else if (byteLength === 2) {
         byteArray = new DataView(new ArrayBuffer(2));
-        byteArray.setUint16(0, num3);
+        byteArray.setUint16(0, num4);
       } else if (byteLength === 3) {
         byteArray = new DataView(new ArrayBuffer(3));
-        byteArray.setUint8(0, num3 >> 16);
-        byteArray.setUint16(1, num3 & 65535);
+        byteArray.setUint8(0, num4 >> 16);
+        byteArray.setUint16(1, num4 & 65535);
       } else if (byteLength === 4) {
         byteArray = new DataView(new ArrayBuffer(4));
-        byteArray.setUint32(0, num3);
+        byteArray.setUint32(0, num4);
       } else if (
         /* byteLength === 5 && */
-        num3 < 4294967295
+        num4 < 4294967295
       ) {
         byteArray = new DataView(new ArrayBuffer(5));
-        byteArray.setUint32(1, num3);
+        byteArray.setUint32(1, num4);
       } else if (byteLength === 5) {
         byteArray = new DataView(new ArrayBuffer(5));
-        byteArray.setUint8(0, num3 / 4294967296 | 0);
-        byteArray.setUint32(1, num3 % 4294967296);
+        byteArray.setUint8(0, num4 / 4294967296 | 0);
+        byteArray.setUint32(1, num4 % 4294967296);
       } else if (byteLength === 6) {
         byteArray = new DataView(new ArrayBuffer(6));
-        byteArray.setUint16(0, num3 / 4294967296 | 0);
-        byteArray.setUint32(2, num3 % 4294967296);
+        byteArray.setUint16(0, num4 / 4294967296 | 0);
+        byteArray.setUint32(2, num4 % 4294967296);
       } else if (byteLength === 7) {
         byteArray = new DataView(new ArrayBuffer(7));
-        byteArray.setUint8(0, num3 / 281474976710656 | 0);
-        byteArray.setUint16(1, num3 / 4294967296 & 65535);
-        byteArray.setUint32(3, num3 % 4294967296);
+        byteArray.setUint8(0, num4 / 281474976710656 | 0);
+        byteArray.setUint16(1, num4 / 4294967296 & 65535);
+        byteArray.setUint32(3, num4 % 4294967296);
       } else if (byteLength === 8) {
         byteArray = new DataView(new ArrayBuffer(8));
-        byteArray.setUint32(0, num3 / 4294967296 | 0);
-        byteArray.setUint32(4, num3 % 4294967296);
+        byteArray.setUint32(0, num4 / 4294967296 | 0);
+        byteArray.setUint32(4, num4 % 4294967296);
       } else {
         throw new Error("EBML.typedArrayUtils.numberToByteArray: byte length must be less than or equal to 8");
       }
@@ -29795,36 +29795,36 @@ var require_typedArrayUtils = __commonJS({
     exports2.stringToByteArray = (0, memoize_1.default)((str) => {
       return Uint8Array.from(Array.from(str).map((_) => _.codePointAt(0)));
     });
-    function getNumberByteLength(num3) {
-      if (num3 < 0) {
+    function getNumberByteLength(num4) {
+      if (num4 < 0) {
         throw new Error("EBML.typedArrayUtils.getNumberByteLength: negative number not implemented");
-      } else if (num3 < 256) {
+      } else if (num4 < 256) {
         return 1;
-      } else if (num3 < 65536) {
+      } else if (num4 < 65536) {
         return 2;
-      } else if (num3 < 16777216) {
+      } else if (num4 < 16777216) {
         return 3;
-      } else if (num3 < 4294967296) {
+      } else if (num4 < 4294967296) {
         return 4;
-      } else if (num3 < 1099511627776) {
+      } else if (num4 < 1099511627776) {
         return 5;
-      } else if (num3 < 281474976710656) {
+      } else if (num4 < 281474976710656) {
         return 6;
-      } else if (num3 < 0x20000000000000n) {
+      } else if (num4 < 0x20000000000000n) {
         return 7;
       } else {
         throw new Error("EBML.typedArrayUtils.getNumberByteLength: number exceeds Number.MAX_SAFE_INTEGER");
       }
     }
     exports2.getNumberByteLength = getNumberByteLength;
-    exports2.int16Bit = (0, memoize_1.default)((num3) => {
+    exports2.int16Bit = (0, memoize_1.default)((num4) => {
       const ab = new ArrayBuffer(2);
-      new DataView(ab).setInt16(0, num3);
+      new DataView(ab).setInt16(0, num4);
       return new Uint8Array(ab);
     });
-    exports2.float32bit = (0, memoize_1.default)((num3) => {
+    exports2.float32bit = (0, memoize_1.default)((num4) => {
       const ab = new ArrayBuffer(4);
-      new DataView(ab).setFloat32(0, num3);
+      new DataView(ab).setFloat32(0, num4);
       return new Uint8Array(ab);
     });
     var dumpBytes = (b) => {
@@ -29906,12 +29906,12 @@ var require_ebml = __commonJS({
     exports2.bytes = (0, memoize_1.default)((data) => {
       return new Value(data);
     });
-    exports2.number = (0, memoize_1.default)((num3) => {
-      return (0, exports2.bytes)((0, typedArrayUtils_1.numberToByteArray)(num3));
+    exports2.number = (0, memoize_1.default)((num4) => {
+      return (0, exports2.bytes)((0, typedArrayUtils_1.numberToByteArray)(num4));
     });
-    exports2.float = (0, memoize_1.default)((num3) => (0, exports2.bytes)((0, typedArrayUtils_1.float32bit)(num3)));
-    exports2.vintEncodedNumber = (0, memoize_1.default)((num3) => {
-      return (0, exports2.bytes)((0, exports2.vintEncode)((0, typedArrayUtils_1.numberToByteArray)(num3, (0, exports2.getEBMLByteLength)(num3))));
+    exports2.float = (0, memoize_1.default)((num4) => (0, exports2.bytes)((0, typedArrayUtils_1.float32bit)(num4)));
+    exports2.vintEncodedNumber = (0, memoize_1.default)((num4) => {
+      return (0, exports2.bytes)((0, exports2.vintEncode)((0, typedArrayUtils_1.numberToByteArray)(num4, (0, exports2.getEBMLByteLength)(num4))));
     });
     exports2.string = (0, memoize_1.default)((str) => {
       return (0, exports2.bytes)((0, typedArrayUtils_1.stringToByteArray)(str));
@@ -29930,24 +29930,24 @@ var require_ebml = __commonJS({
       return b;
     };
     exports2.build = build;
-    var getEBMLByteLength = (num3) => {
-      if (num3 < 127) {
+    var getEBMLByteLength = (num4) => {
+      if (num4 < 127) {
         return 1;
-      } else if (num3 < 16383) {
+      } else if (num4 < 16383) {
         return 2;
-      } else if (num3 < 2097151) {
+      } else if (num4 < 2097151) {
         return 3;
-      } else if (num3 < 268435455) {
+      } else if (num4 < 268435455) {
         return 4;
-      } else if (num3 < 34359738367) {
+      } else if (num4 < 34359738367) {
         return 5;
-      } else if (num3 < 4398046511103) {
+      } else if (num4 < 4398046511103) {
         return 6;
-      } else if (num3 < 562949953421311) {
+      } else if (num4 < 562949953421311) {
         return 7;
-      } else if (num3 < 0x20000000000000n) {
+      } else if (num4 < 0x20000000000000n) {
         return 8;
-      } else if (num3 < 0xffffffffffffffn) {
+      } else if (num4 < 0xffffffffffffffn) {
         throw new Error("EBMLgetEBMLByteLength: number exceeds Number.MAX_SAFE_INTEGER");
       } else {
         throw new Error("EBMLgetEBMLByteLength: data size must be less than or equal to " + (Math.pow(2, 56) - 2));
@@ -38386,30 +38386,30 @@ var require_nacl_fast = __commonJS({
         return smlen;
       }
       function unpackneg(r, p) {
-        var t = gf(), chk = gf(), num3 = gf(), den = gf(), den2 = gf(), den4 = gf(), den6 = gf();
+        var t = gf(), chk = gf(), num4 = gf(), den = gf(), den2 = gf(), den4 = gf(), den6 = gf();
         set25519(r[2], gf1);
         unpack25519(r[1], p);
-        S(num3, r[1]);
-        M(den, num3, D);
-        Z(num3, num3, r[2]);
+        S(num4, r[1]);
+        M(den, num4, D);
+        Z(num4, num4, r[2]);
         A(den, r[2], den);
         S(den2, den);
         S(den4, den2);
         M(den6, den4, den2);
-        M(t, den6, num3);
+        M(t, den6, num4);
         M(t, t, den);
         pow2523(t, t);
-        M(t, t, num3);
+        M(t, t, num4);
         M(t, t, den);
         M(t, t, den);
         M(r[0], t, den);
         S(chk, r[0]);
         M(chk, chk, den);
-        if (neq25519(chk, num3))
+        if (neq25519(chk, num4))
           M(r[0], r[0], I);
         S(chk, r[0]);
         M(chk, chk, den);
-        if (neq25519(chk, num3))
+        if (neq25519(chk, num4))
           return -1;
         if (par25519(r[0]) === p[31] >> 7)
           Z(r[0], gf0, r[0]);
@@ -52408,11 +52408,11 @@ var require_ip_converter = __commonJS({
           throw new Error("Invalid IPv4 address");
         }
         return parts.map((part) => {
-          const num3 = parseInt(part, 10);
-          if (isNaN(num3) || num3 < 0 || num3 > 255) {
+          const num4 = parseInt(part, 10);
+          if (isNaN(num4) || num4 < 0 || num4 > 255) {
             throw new Error("Invalid IPv4 address part");
           }
-          return num3;
+          return num4;
         });
       }
       static parseIPv6(ip) {
@@ -52422,12 +52422,12 @@ var require_ip_converter = __commonJS({
           throw new Error("Invalid IPv6 address");
         }
         return parts.reduce((bytes, part) => {
-          const num3 = parseInt(part, 16);
-          if (isNaN(num3) || num3 < 0 || num3 > 65535) {
+          const num4 = parseInt(part, 16);
+          if (isNaN(num4) || num4 < 0 || num4 > 65535) {
             throw new Error("Invalid IPv6 address part");
           }
-          bytes.push(num3 >> 8 & 255);
-          bytes.push(num3 & 255);
+          bytes.push(num4 >> 8 & 255);
+          bytes.push(num4 & 255);
           return bytes;
         }, []);
       }
@@ -64228,11 +64228,11 @@ var require_bn = __commonJS({
         }
       } catch (e) {
       }
-      BN.isBN = function isBN(num3) {
-        if (num3 instanceof BN) {
+      BN.isBN = function isBN(num4) {
+        if (num4 instanceof BN) {
           return true;
         }
-        return num3 !== null && typeof num3 === "object" && num3.constructor.wordSize === BN.wordSize && Array.isArray(num3.words);
+        return num4 !== null && typeof num4 === "object" && num4.constructor.wordSize === BN.wordSize && Array.isArray(num4.words);
       };
       BN.max = function max(left, right) {
         if (left.cmp(right) > 0)
@@ -64757,12 +64757,12 @@ var require_bn = __commonJS({
         var hi = this._countBits(w);
         return (this.length - 1) * 26 + hi;
       };
-      function toBitArray(num3) {
-        var w = new Array(num3.bitLength());
+      function toBitArray(num4) {
+        var w = new Array(num4.bitLength());
         for (var bit = 0; bit < w.length; bit++) {
           var off = bit / 26 | 0;
           var wbit = bit % 26;
-          w[bit] = (num3.words[off] & 1 << wbit) >>> wbit;
+          w[bit] = (num4.words[off] & 1 << wbit) >>> wbit;
         }
         return w;
       }
@@ -64805,64 +64805,64 @@ var require_bn = __commonJS({
         }
         return this;
       };
-      BN.prototype.iuor = function iuor(num3) {
-        while (this.length < num3.length) {
+      BN.prototype.iuor = function iuor(num4) {
+        while (this.length < num4.length) {
           this.words[this.length++] = 0;
         }
-        for (var i = 0; i < num3.length; i++) {
-          this.words[i] = this.words[i] | num3.words[i];
+        for (var i = 0; i < num4.length; i++) {
+          this.words[i] = this.words[i] | num4.words[i];
         }
         return this.strip();
       };
-      BN.prototype.ior = function ior(num3) {
-        assert((this.negative | num3.negative) === 0);
-        return this.iuor(num3);
+      BN.prototype.ior = function ior(num4) {
+        assert((this.negative | num4.negative) === 0);
+        return this.iuor(num4);
       };
-      BN.prototype.or = function or(num3) {
-        if (this.length > num3.length)
-          return this.clone().ior(num3);
-        return num3.clone().ior(this);
+      BN.prototype.or = function or(num4) {
+        if (this.length > num4.length)
+          return this.clone().ior(num4);
+        return num4.clone().ior(this);
       };
-      BN.prototype.uor = function uor(num3) {
-        if (this.length > num3.length)
-          return this.clone().iuor(num3);
-        return num3.clone().iuor(this);
+      BN.prototype.uor = function uor(num4) {
+        if (this.length > num4.length)
+          return this.clone().iuor(num4);
+        return num4.clone().iuor(this);
       };
-      BN.prototype.iuand = function iuand(num3) {
+      BN.prototype.iuand = function iuand(num4) {
         var b;
-        if (this.length > num3.length) {
-          b = num3;
+        if (this.length > num4.length) {
+          b = num4;
         } else {
           b = this;
         }
         for (var i = 0; i < b.length; i++) {
-          this.words[i] = this.words[i] & num3.words[i];
+          this.words[i] = this.words[i] & num4.words[i];
         }
         this.length = b.length;
         return this.strip();
       };
-      BN.prototype.iand = function iand(num3) {
-        assert((this.negative | num3.negative) === 0);
-        return this.iuand(num3);
+      BN.prototype.iand = function iand(num4) {
+        assert((this.negative | num4.negative) === 0);
+        return this.iuand(num4);
       };
-      BN.prototype.and = function and(num3) {
-        if (this.length > num3.length)
-          return this.clone().iand(num3);
-        return num3.clone().iand(this);
+      BN.prototype.and = function and(num4) {
+        if (this.length > num4.length)
+          return this.clone().iand(num4);
+        return num4.clone().iand(this);
       };
-      BN.prototype.uand = function uand(num3) {
-        if (this.length > num3.length)
-          return this.clone().iuand(num3);
-        return num3.clone().iuand(this);
+      BN.prototype.uand = function uand(num4) {
+        if (this.length > num4.length)
+          return this.clone().iuand(num4);
+        return num4.clone().iuand(this);
       };
-      BN.prototype.iuxor = function iuxor(num3) {
+      BN.prototype.iuxor = function iuxor(num4) {
         var a;
         var b;
-        if (this.length > num3.length) {
+        if (this.length > num4.length) {
           a = this;
-          b = num3;
+          b = num4;
         } else {
-          a = num3;
+          a = num4;
           b = this;
         }
         for (var i = 0; i < b.length; i++) {
@@ -64876,19 +64876,19 @@ var require_bn = __commonJS({
         this.length = a.length;
         return this.strip();
       };
-      BN.prototype.ixor = function ixor(num3) {
-        assert((this.negative | num3.negative) === 0);
-        return this.iuxor(num3);
+      BN.prototype.ixor = function ixor(num4) {
+        assert((this.negative | num4.negative) === 0);
+        return this.iuxor(num4);
       };
-      BN.prototype.xor = function xor(num3) {
-        if (this.length > num3.length)
-          return this.clone().ixor(num3);
-        return num3.clone().ixor(this);
+      BN.prototype.xor = function xor(num4) {
+        if (this.length > num4.length)
+          return this.clone().ixor(num4);
+        return num4.clone().ixor(this);
       };
-      BN.prototype.uxor = function uxor(num3) {
-        if (this.length > num3.length)
-          return this.clone().iuxor(num3);
-        return num3.clone().iuxor(this);
+      BN.prototype.uxor = function uxor(num4) {
+        if (this.length > num4.length)
+          return this.clone().iuxor(num4);
+        return num4.clone().iuxor(this);
       };
       BN.prototype.inotn = function inotn(width) {
         assert(typeof width === "number" && width >= 0);
@@ -64921,25 +64921,25 @@ var require_bn = __commonJS({
         }
         return this.strip();
       };
-      BN.prototype.iadd = function iadd(num3) {
+      BN.prototype.iadd = function iadd(num4) {
         var r;
-        if (this.negative !== 0 && num3.negative === 0) {
+        if (this.negative !== 0 && num4.negative === 0) {
           this.negative = 0;
-          r = this.isub(num3);
+          r = this.isub(num4);
           this.negative ^= 1;
           return this._normSign();
-        } else if (this.negative === 0 && num3.negative !== 0) {
-          num3.negative = 0;
-          r = this.isub(num3);
-          num3.negative = 1;
+        } else if (this.negative === 0 && num4.negative !== 0) {
+          num4.negative = 0;
+          r = this.isub(num4);
+          num4.negative = 1;
           return r._normSign();
         }
         var a, b;
-        if (this.length > num3.length) {
+        if (this.length > num4.length) {
           a = this;
-          b = num3;
+          b = num4;
         } else {
-          a = num3;
+          a = num4;
           b = this;
         }
         var carry = 0;
@@ -64964,36 +64964,36 @@ var require_bn = __commonJS({
         }
         return this;
       };
-      BN.prototype.add = function add(num3) {
+      BN.prototype.add = function add(num4) {
         var res;
-        if (num3.negative !== 0 && this.negative === 0) {
-          num3.negative = 0;
-          res = this.sub(num3);
-          num3.negative ^= 1;
+        if (num4.negative !== 0 && this.negative === 0) {
+          num4.negative = 0;
+          res = this.sub(num4);
+          num4.negative ^= 1;
           return res;
-        } else if (num3.negative === 0 && this.negative !== 0) {
+        } else if (num4.negative === 0 && this.negative !== 0) {
           this.negative = 0;
-          res = num3.sub(this);
+          res = num4.sub(this);
           this.negative = 1;
           return res;
         }
-        if (this.length > num3.length)
-          return this.clone().iadd(num3);
-        return num3.clone().iadd(this);
+        if (this.length > num4.length)
+          return this.clone().iadd(num4);
+        return num4.clone().iadd(this);
       };
-      BN.prototype.isub = function isub(num3) {
-        if (num3.negative !== 0) {
-          num3.negative = 0;
-          var r = this.iadd(num3);
-          num3.negative = 1;
+      BN.prototype.isub = function isub(num4) {
+        if (num4.negative !== 0) {
+          num4.negative = 0;
+          var r = this.iadd(num4);
+          num4.negative = 1;
           return r._normSign();
         } else if (this.negative !== 0) {
           this.negative = 0;
-          this.iadd(num3);
+          this.iadd(num4);
           this.negative = 1;
           return this._normSign();
         }
-        var cmp = this.cmp(num3);
+        var cmp = this.cmp(num4);
         if (cmp === 0) {
           this.negative = 0;
           this.length = 1;
@@ -65003,9 +65003,9 @@ var require_bn = __commonJS({
         var a, b;
         if (cmp > 0) {
           a = this;
-          b = num3;
+          b = num4;
         } else {
-          a = num3;
+          a = num4;
           b = this;
         }
         var carry = 0;
@@ -65030,16 +65030,16 @@ var require_bn = __commonJS({
         }
         return this.strip();
       };
-      BN.prototype.sub = function sub(num3) {
-        return this.clone().isub(num3);
+      BN.prototype.sub = function sub(num4) {
+        return this.clone().isub(num4);
       };
-      function smallMulTo(self2, num3, out) {
-        out.negative = num3.negative ^ self2.negative;
-        var len = self2.length + num3.length | 0;
+      function smallMulTo(self2, num4, out) {
+        out.negative = num4.negative ^ self2.negative;
+        var len = self2.length + num4.length | 0;
         out.length = len;
         len = len - 1 | 0;
         var a = self2.words[0] | 0;
-        var b = num3.words[0] | 0;
+        var b = num4.words[0] | 0;
         var r = a * b;
         var lo = r & 67108863;
         var carry = r / 67108864 | 0;
@@ -65047,11 +65047,11 @@ var require_bn = __commonJS({
         for (var k = 1; k < len; k++) {
           var ncarry = carry >>> 26;
           var rword = carry & 67108863;
-          var maxJ = Math.min(k, num3.length - 1);
+          var maxJ = Math.min(k, num4.length - 1);
           for (var j = Math.max(0, k - self2.length + 1); j <= maxJ; j++) {
             var i = k - j | 0;
             a = self2.words[i] | 0;
-            b = num3.words[j] | 0;
+            b = num4.words[j] | 0;
             r = a * b + rword;
             ncarry += r / 67108864 | 0;
             rword = r & 67108863;
@@ -65066,9 +65066,9 @@ var require_bn = __commonJS({
         }
         return out.strip();
       }
-      var comb10MulTo = function comb10MulTo2(self2, num3, out) {
+      var comb10MulTo = function comb10MulTo2(self2, num4, out) {
         var a = self2.words;
-        var b = num3.words;
+        var b = num4.words;
         var o = out.words;
         var c = 0;
         var lo;
@@ -65134,7 +65134,7 @@ var require_bn = __commonJS({
         var b9 = b[9] | 0;
         var bl9 = b9 & 8191;
         var bh9 = b9 >>> 13;
-        out.negative = self2.negative ^ num3.negative;
+        out.negative = self2.negative ^ num4.negative;
         out.length = 19;
         lo = Math.imul(al0, bl0);
         mid = Math.imul(al0, bh0);
@@ -65621,20 +65621,20 @@ var require_bn = __commonJS({
       if (!Math.imul) {
         comb10MulTo = smallMulTo;
       }
-      function bigMulTo(self2, num3, out) {
-        out.negative = num3.negative ^ self2.negative;
-        out.length = self2.length + num3.length;
+      function bigMulTo(self2, num4, out) {
+        out.negative = num4.negative ^ self2.negative;
+        out.length = self2.length + num4.length;
         var carry = 0;
         var hncarry = 0;
         for (var k = 0; k < out.length - 1; k++) {
           var ncarry = hncarry;
           hncarry = 0;
           var rword = carry & 67108863;
-          var maxJ = Math.min(k, num3.length - 1);
+          var maxJ = Math.min(k, num4.length - 1);
           for (var j = Math.max(0, k - self2.length + 1); j <= maxJ; j++) {
             var i = k - j;
             var a = self2.words[i] | 0;
-            var b = num3.words[j] | 0;
+            var b = num4.words[j] | 0;
             var r = a * b;
             var lo = r & 67108863;
             ncarry = ncarry + (r / 67108864 | 0) | 0;
@@ -65655,21 +65655,21 @@ var require_bn = __commonJS({
         }
         return out.strip();
       }
-      function jumboMulTo(self2, num3, out) {
+      function jumboMulTo(self2, num4, out) {
         var fftm = new FFTM();
-        return fftm.mulp(self2, num3, out);
+        return fftm.mulp(self2, num4, out);
       }
-      BN.prototype.mulTo = function mulTo(num3, out) {
+      BN.prototype.mulTo = function mulTo(num4, out) {
         var res;
-        var len = this.length + num3.length;
-        if (this.length === 10 && num3.length === 10) {
-          res = comb10MulTo(this, num3, out);
+        var len = this.length + num4.length;
+        if (this.length === 10 && num4.length === 10) {
+          res = comb10MulTo(this, num4, out);
         } else if (len < 63) {
-          res = smallMulTo(this, num3, out);
+          res = smallMulTo(this, num4, out);
         } else if (len < 1024) {
-          res = bigMulTo(this, num3, out);
+          res = bigMulTo(this, num4, out);
         } else {
-          res = jumboMulTo(this, num3, out);
+          res = jumboMulTo(this, num4, out);
         }
         return res;
       };
@@ -65816,25 +65816,25 @@ var require_bn = __commonJS({
         out.length = x.length + y.length;
         return out.strip();
       };
-      BN.prototype.mul = function mul(num3) {
+      BN.prototype.mul = function mul(num4) {
         var out = new BN(null);
-        out.words = new Array(this.length + num3.length);
-        return this.mulTo(num3, out);
+        out.words = new Array(this.length + num4.length);
+        return this.mulTo(num4, out);
       };
-      BN.prototype.mulf = function mulf(num3) {
+      BN.prototype.mulf = function mulf(num4) {
         var out = new BN(null);
-        out.words = new Array(this.length + num3.length);
-        return jumboMulTo(this, num3, out);
+        out.words = new Array(this.length + num4.length);
+        return jumboMulTo(this, num4, out);
       };
-      BN.prototype.imul = function imul(num3) {
-        return this.clone().mulTo(num3, this);
+      BN.prototype.imul = function imul(num4) {
+        return this.clone().mulTo(num4, this);
       };
-      BN.prototype.imuln = function imuln(num3) {
-        assert(typeof num3 === "number");
-        assert(num3 < 67108864);
+      BN.prototype.imuln = function imuln(num4) {
+        assert(typeof num4 === "number");
+        assert(num4 < 67108864);
         var carry = 0;
         for (var i = 0; i < this.length; i++) {
-          var w = (this.words[i] | 0) * num3;
+          var w = (this.words[i] | 0) * num4;
           var lo = (w & 67108863) + (carry & 67108863);
           carry >>= 26;
           carry += w / 67108864 | 0;
@@ -65845,11 +65845,11 @@ var require_bn = __commonJS({
           this.words[i] = carry;
           this.length++;
         }
-        this.length = num3 === 0 ? 1 : this.length;
+        this.length = num4 === 0 ? 1 : this.length;
         return this;
       };
-      BN.prototype.muln = function muln(num3) {
-        return this.clone().imuln(num3);
+      BN.prototype.muln = function muln(num4) {
+        return this.clone().imuln(num4);
       };
       BN.prototype.sqr = function sqr() {
         return this.mul(this);
@@ -65857,8 +65857,8 @@ var require_bn = __commonJS({
       BN.prototype.isqr = function isqr() {
         return this.imul(this.clone());
       };
-      BN.prototype.pow = function pow(num3) {
-        var w = toBitArray(num3);
+      BN.prototype.pow = function pow(num4) {
+        var w = toBitArray(num4);
         if (w.length === 0)
           return new BN(1);
         var res = this;
@@ -66001,26 +66001,26 @@ var require_bn = __commonJS({
       BN.prototype.maskn = function maskn(bits) {
         return this.clone().imaskn(bits);
       };
-      BN.prototype.iaddn = function iaddn(num3) {
-        assert(typeof num3 === "number");
-        assert(num3 < 67108864);
-        if (num3 < 0)
-          return this.isubn(-num3);
+      BN.prototype.iaddn = function iaddn(num4) {
+        assert(typeof num4 === "number");
+        assert(num4 < 67108864);
+        if (num4 < 0)
+          return this.isubn(-num4);
         if (this.negative !== 0) {
-          if (this.length === 1 && (this.words[0] | 0) < num3) {
-            this.words[0] = num3 - (this.words[0] | 0);
+          if (this.length === 1 && (this.words[0] | 0) < num4) {
+            this.words[0] = num4 - (this.words[0] | 0);
             this.negative = 0;
             return this;
           }
           this.negative = 0;
-          this.isubn(num3);
+          this.isubn(num4);
           this.negative = 1;
           return this;
         }
-        return this._iaddn(num3);
+        return this._iaddn(num4);
       };
-      BN.prototype._iaddn = function _iaddn(num3) {
-        this.words[0] += num3;
+      BN.prototype._iaddn = function _iaddn(num4) {
+        this.words[0] += num4;
         for (var i = 0; i < this.length && this.words[i] >= 67108864; i++) {
           this.words[i] -= 67108864;
           if (i === this.length - 1) {
@@ -66032,18 +66032,18 @@ var require_bn = __commonJS({
         this.length = Math.max(this.length, i + 1);
         return this;
       };
-      BN.prototype.isubn = function isubn(num3) {
-        assert(typeof num3 === "number");
-        assert(num3 < 67108864);
-        if (num3 < 0)
-          return this.iaddn(-num3);
+      BN.prototype.isubn = function isubn(num4) {
+        assert(typeof num4 === "number");
+        assert(num4 < 67108864);
+        if (num4 < 0)
+          return this.iaddn(-num4);
         if (this.negative !== 0) {
           this.negative = 0;
-          this.iaddn(num3);
+          this.iaddn(num4);
           this.negative = 1;
           return this;
         }
-        this.words[0] -= num3;
+        this.words[0] -= num4;
         if (this.length === 1 && this.words[0] < 0) {
           this.words[0] = -this.words[0];
           this.negative = 1;
@@ -66055,11 +66055,11 @@ var require_bn = __commonJS({
         }
         return this.strip();
       };
-      BN.prototype.addn = function addn(num3) {
-        return this.clone().iaddn(num3);
+      BN.prototype.addn = function addn(num4) {
+        return this.clone().iaddn(num4);
       };
-      BN.prototype.subn = function subn(num3) {
-        return this.clone().isubn(num3);
+      BN.prototype.subn = function subn(num4) {
+        return this.clone().isubn(num4);
       };
       BN.prototype.iabs = function iabs() {
         this.negative = 0;
@@ -66068,15 +66068,15 @@ var require_bn = __commonJS({
       BN.prototype.abs = function abs() {
         return this.clone().iabs();
       };
-      BN.prototype._ishlnsubmul = function _ishlnsubmul(num3, mul, shift) {
-        var len = num3.length + shift;
+      BN.prototype._ishlnsubmul = function _ishlnsubmul(num4, mul, shift) {
+        var len = num4.length + shift;
         var i;
         this._expand(len);
         var w;
         var carry = 0;
-        for (i = 0; i < num3.length; i++) {
+        for (i = 0; i < num4.length; i++) {
           w = (this.words[i + shift] | 0) + carry;
-          var right = (num3.words[i] | 0) * mul;
+          var right = (num4.words[i] | 0) * mul;
           w -= right & 67108863;
           carry = (w >> 26) - (right / 67108864 | 0);
           this.words[i + shift] = w & 67108863;
@@ -66098,10 +66098,10 @@ var require_bn = __commonJS({
         this.negative = 1;
         return this.strip();
       };
-      BN.prototype._wordDiv = function _wordDiv(num3, mode) {
-        var shift = this.length - num3.length;
+      BN.prototype._wordDiv = function _wordDiv(num4, mode) {
+        var shift = this.length - num4.length;
         var a = this.clone();
-        var b = num3;
+        var b = num4;
         var bhi = b.words[b.length - 1] | 0;
         var bhiBits = this._countBits(bhi);
         shift = 26 - bhiBits;
@@ -66155,8 +66155,8 @@ var require_bn = __commonJS({
           mod: a
         };
       };
-      BN.prototype.divmod = function divmod(num3, mode, positive) {
-        assert(!num3.isZero());
+      BN.prototype.divmod = function divmod(num4, mode, positive) {
+        assert(!num4.isZero());
         if (this.isZero()) {
           return {
             div: new BN(0),
@@ -66164,15 +66164,15 @@ var require_bn = __commonJS({
           };
         }
         var div, mod, res;
-        if (this.negative !== 0 && num3.negative === 0) {
-          res = this.neg().divmod(num3, mode);
+        if (this.negative !== 0 && num4.negative === 0) {
+          res = this.neg().divmod(num4, mode);
           if (mode !== "mod") {
             div = res.div.neg();
           }
           if (mode !== "div") {
             mod = res.mod.neg();
             if (positive && mod.negative !== 0) {
-              mod.iadd(num3);
+              mod.iadd(num4);
             }
           }
           return {
@@ -66180,8 +66180,8 @@ var require_bn = __commonJS({
             mod
           };
         }
-        if (this.negative === 0 && num3.negative !== 0) {
-          res = this.divmod(num3.neg(), mode);
+        if (this.negative === 0 && num4.negative !== 0) {
+          res = this.divmod(num4.neg(), mode);
           if (mode !== "mod") {
             div = res.div.neg();
           }
@@ -66190,12 +66190,12 @@ var require_bn = __commonJS({
             mod: res.mod
           };
         }
-        if ((this.negative & num3.negative) !== 0) {
-          res = this.neg().divmod(num3.neg(), mode);
+        if ((this.negative & num4.negative) !== 0) {
+          res = this.neg().divmod(num4.neg(), mode);
           if (mode !== "div") {
             mod = res.mod.neg();
             if (positive && mod.negative !== 0) {
-              mod.isub(num3);
+              mod.isub(num4);
             }
           }
           return {
@@ -66203,74 +66203,74 @@ var require_bn = __commonJS({
             mod
           };
         }
-        if (num3.length > this.length || this.cmp(num3) < 0) {
+        if (num4.length > this.length || this.cmp(num4) < 0) {
           return {
             div: new BN(0),
             mod: this
           };
         }
-        if (num3.length === 1) {
+        if (num4.length === 1) {
           if (mode === "div") {
             return {
-              div: this.divn(num3.words[0]),
+              div: this.divn(num4.words[0]),
               mod: null
             };
           }
           if (mode === "mod") {
             return {
               div: null,
-              mod: new BN(this.modn(num3.words[0]))
+              mod: new BN(this.modn(num4.words[0]))
             };
           }
           return {
-            div: this.divn(num3.words[0]),
-            mod: new BN(this.modn(num3.words[0]))
+            div: this.divn(num4.words[0]),
+            mod: new BN(this.modn(num4.words[0]))
           };
         }
-        return this._wordDiv(num3, mode);
+        return this._wordDiv(num4, mode);
       };
-      BN.prototype.div = function div(num3) {
-        return this.divmod(num3, "div", false).div;
+      BN.prototype.div = function div(num4) {
+        return this.divmod(num4, "div", false).div;
       };
-      BN.prototype.mod = function mod(num3) {
-        return this.divmod(num3, "mod", false).mod;
+      BN.prototype.mod = function mod(num4) {
+        return this.divmod(num4, "mod", false).mod;
       };
-      BN.prototype.umod = function umod(num3) {
-        return this.divmod(num3, "mod", true).mod;
+      BN.prototype.umod = function umod(num4) {
+        return this.divmod(num4, "mod", true).mod;
       };
-      BN.prototype.divRound = function divRound(num3) {
-        var dm = this.divmod(num3);
+      BN.prototype.divRound = function divRound(num4) {
+        var dm = this.divmod(num4);
         if (dm.mod.isZero())
           return dm.div;
-        var mod = dm.div.negative !== 0 ? dm.mod.isub(num3) : dm.mod;
-        var half = num3.ushrn(1);
-        var r2 = num3.andln(1);
+        var mod = dm.div.negative !== 0 ? dm.mod.isub(num4) : dm.mod;
+        var half = num4.ushrn(1);
+        var r2 = num4.andln(1);
         var cmp = mod.cmp(half);
         if (cmp < 0 || r2 === 1 && cmp === 0)
           return dm.div;
         return dm.div.negative !== 0 ? dm.div.isubn(1) : dm.div.iaddn(1);
       };
-      BN.prototype.modn = function modn(num3) {
-        assert(num3 <= 67108863);
-        var p = (1 << 26) % num3;
+      BN.prototype.modn = function modn(num4) {
+        assert(num4 <= 67108863);
+        var p = (1 << 26) % num4;
         var acc = 0;
         for (var i = this.length - 1; i >= 0; i--) {
-          acc = (p * acc + (this.words[i] | 0)) % num3;
+          acc = (p * acc + (this.words[i] | 0)) % num4;
         }
         return acc;
       };
-      BN.prototype.idivn = function idivn(num3) {
-        assert(num3 <= 67108863);
+      BN.prototype.idivn = function idivn(num4) {
+        assert(num4 <= 67108863);
         var carry = 0;
         for (var i = this.length - 1; i >= 0; i--) {
           var w = (this.words[i] | 0) + carry * 67108864;
-          this.words[i] = w / num3 | 0;
-          carry = w % num3;
+          this.words[i] = w / num4 | 0;
+          carry = w % num4;
         }
         return this.strip();
       };
-      BN.prototype.divn = function divn(num3) {
-        return this.clone().idivn(num3);
+      BN.prototype.divn = function divn(num4) {
+        return this.clone().idivn(num4);
       };
       BN.prototype.egcd = function egcd(p) {
         assert(p.negative === 0);
@@ -66392,13 +66392,13 @@ var require_bn = __commonJS({
         }
         return res;
       };
-      BN.prototype.gcd = function gcd(num3) {
+      BN.prototype.gcd = function gcd(num4) {
         if (this.isZero())
-          return num3.abs();
-        if (num3.isZero())
+          return num4.abs();
+        if (num4.isZero())
           return this.abs();
         var a = this.clone();
-        var b = num3.clone();
+        var b = num4.clone();
         a.negative = 0;
         b.negative = 0;
         for (var shift = 0; a.isEven() && b.isEven(); shift++) {
@@ -66424,8 +66424,8 @@ var require_bn = __commonJS({
         } while (true);
         return b.iushln(shift);
       };
-      BN.prototype.invm = function invm(num3) {
-        return this.egcd(num3).a.umod(num3);
+      BN.prototype.invm = function invm(num4) {
+        return this.egcd(num4).a.umod(num4);
       };
       BN.prototype.isEven = function isEven() {
         return (this.words[0] & 1) === 0;
@@ -66433,8 +66433,8 @@ var require_bn = __commonJS({
       BN.prototype.isOdd = function isOdd() {
         return (this.words[0] & 1) === 1;
       };
-      BN.prototype.andln = function andln(num3) {
-        return this.words[0] & num3;
+      BN.prototype.andln = function andln(num4) {
+        return this.words[0] & num4;
       };
       BN.prototype.bincn = function bincn(bit) {
         assert(typeof bit === "number");
@@ -66463,8 +66463,8 @@ var require_bn = __commonJS({
       BN.prototype.isZero = function isZero() {
         return this.length === 1 && this.words[0] === 0;
       };
-      BN.prototype.cmpn = function cmpn(num3) {
-        var negative = num3 < 0;
+      BN.prototype.cmpn = function cmpn(num4) {
+        var negative = num4 < 0;
         if (this.negative !== 0 && !negative)
           return -1;
         if (this.negative === 0 && negative)
@@ -66475,35 +66475,35 @@ var require_bn = __commonJS({
           res = 1;
         } else {
           if (negative) {
-            num3 = -num3;
+            num4 = -num4;
           }
-          assert(num3 <= 67108863, "Number is too big");
+          assert(num4 <= 67108863, "Number is too big");
           var w = this.words[0] | 0;
-          res = w === num3 ? 0 : w < num3 ? -1 : 1;
+          res = w === num4 ? 0 : w < num4 ? -1 : 1;
         }
         if (this.negative !== 0)
           return -res | 0;
         return res;
       };
-      BN.prototype.cmp = function cmp(num3) {
-        if (this.negative !== 0 && num3.negative === 0)
+      BN.prototype.cmp = function cmp(num4) {
+        if (this.negative !== 0 && num4.negative === 0)
           return -1;
-        if (this.negative === 0 && num3.negative !== 0)
+        if (this.negative === 0 && num4.negative !== 0)
           return 1;
-        var res = this.ucmp(num3);
+        var res = this.ucmp(num4);
         if (this.negative !== 0)
           return -res | 0;
         return res;
       };
-      BN.prototype.ucmp = function ucmp(num3) {
-        if (this.length > num3.length)
+      BN.prototype.ucmp = function ucmp(num4) {
+        if (this.length > num4.length)
           return 1;
-        if (this.length < num3.length)
+        if (this.length < num4.length)
           return -1;
         var res = 0;
         for (var i = this.length - 1; i >= 0; i--) {
           var a = this.words[i] | 0;
-          var b = num3.words[i] | 0;
+          var b = num4.words[i] | 0;
           if (a === b)
             continue;
           if (a < b) {
@@ -66515,38 +66515,38 @@ var require_bn = __commonJS({
         }
         return res;
       };
-      BN.prototype.gtn = function gtn(num3) {
-        return this.cmpn(num3) === 1;
+      BN.prototype.gtn = function gtn(num4) {
+        return this.cmpn(num4) === 1;
       };
-      BN.prototype.gt = function gt(num3) {
-        return this.cmp(num3) === 1;
+      BN.prototype.gt = function gt(num4) {
+        return this.cmp(num4) === 1;
       };
-      BN.prototype.gten = function gten(num3) {
-        return this.cmpn(num3) >= 0;
+      BN.prototype.gten = function gten(num4) {
+        return this.cmpn(num4) >= 0;
       };
-      BN.prototype.gte = function gte(num3) {
-        return this.cmp(num3) >= 0;
+      BN.prototype.gte = function gte(num4) {
+        return this.cmp(num4) >= 0;
       };
-      BN.prototype.ltn = function ltn(num3) {
-        return this.cmpn(num3) === -1;
+      BN.prototype.ltn = function ltn(num4) {
+        return this.cmpn(num4) === -1;
       };
-      BN.prototype.lt = function lt(num3) {
-        return this.cmp(num3) === -1;
+      BN.prototype.lt = function lt(num4) {
+        return this.cmp(num4) === -1;
       };
-      BN.prototype.lten = function lten(num3) {
-        return this.cmpn(num3) <= 0;
+      BN.prototype.lten = function lten(num4) {
+        return this.cmpn(num4) <= 0;
       };
-      BN.prototype.lte = function lte(num3) {
-        return this.cmp(num3) <= 0;
+      BN.prototype.lte = function lte(num4) {
+        return this.cmp(num4) <= 0;
       };
-      BN.prototype.eqn = function eqn(num3) {
-        return this.cmpn(num3) === 0;
+      BN.prototype.eqn = function eqn(num4) {
+        return this.cmpn(num4) === 0;
       };
-      BN.prototype.eq = function eq(num3) {
-        return this.cmp(num3) === 0;
+      BN.prototype.eq = function eq(num4) {
+        return this.cmp(num4) === 0;
       };
-      BN.red = function red(num3) {
-        return new Red(num3);
+      BN.red = function red(num4) {
+        return new Red(num4);
       };
       BN.prototype.toRed = function toRed(ctx) {
         assert(!this.red, "Already a number in reduction context");
@@ -66565,35 +66565,35 @@ var require_bn = __commonJS({
         assert(!this.red, "Already a number in reduction context");
         return this._forceRed(ctx);
       };
-      BN.prototype.redAdd = function redAdd(num3) {
+      BN.prototype.redAdd = function redAdd(num4) {
         assert(this.red, "redAdd works only with red numbers");
-        return this.red.add(this, num3);
+        return this.red.add(this, num4);
       };
-      BN.prototype.redIAdd = function redIAdd(num3) {
+      BN.prototype.redIAdd = function redIAdd(num4) {
         assert(this.red, "redIAdd works only with red numbers");
-        return this.red.iadd(this, num3);
+        return this.red.iadd(this, num4);
       };
-      BN.prototype.redSub = function redSub(num3) {
+      BN.prototype.redSub = function redSub(num4) {
         assert(this.red, "redSub works only with red numbers");
-        return this.red.sub(this, num3);
+        return this.red.sub(this, num4);
       };
-      BN.prototype.redISub = function redISub(num3) {
+      BN.prototype.redISub = function redISub(num4) {
         assert(this.red, "redISub works only with red numbers");
-        return this.red.isub(this, num3);
+        return this.red.isub(this, num4);
       };
-      BN.prototype.redShl = function redShl(num3) {
+      BN.prototype.redShl = function redShl(num4) {
         assert(this.red, "redShl works only with red numbers");
-        return this.red.shl(this, num3);
+        return this.red.shl(this, num4);
       };
-      BN.prototype.redMul = function redMul(num3) {
+      BN.prototype.redMul = function redMul(num4) {
         assert(this.red, "redMul works only with red numbers");
-        this.red._verify2(this, num3);
-        return this.red.mul(this, num3);
+        this.red._verify2(this, num4);
+        return this.red.mul(this, num4);
       };
-      BN.prototype.redIMul = function redIMul(num3) {
+      BN.prototype.redIMul = function redIMul(num4) {
         assert(this.red, "redMul works only with red numbers");
-        this.red._verify2(this, num3);
-        return this.red.imul(this, num3);
+        this.red._verify2(this, num4);
+        return this.red.imul(this, num4);
       };
       BN.prototype.redSqr = function redSqr() {
         assert(this.red, "redSqr works only with red numbers");
@@ -66620,10 +66620,10 @@ var require_bn = __commonJS({
         this.red._verify1(this);
         return this.red.neg(this);
       };
-      BN.prototype.redPow = function redPow(num3) {
-        assert(this.red && !num3.red, "redPow(normalNum)");
+      BN.prototype.redPow = function redPow(num4) {
+        assert(this.red && !num4.red, "redPow(normalNum)");
         this.red._verify1(this);
-        return this.red.pow(this, num3);
+        return this.red.pow(this, num4);
       };
       var primes = {
         k256: null,
@@ -66643,8 +66643,8 @@ var require_bn = __commonJS({
         tmp.words = new Array(Math.ceil(this.n / 13));
         return tmp;
       };
-      MPrime.prototype.ireduce = function ireduce(num3) {
-        var r = num3;
+      MPrime.prototype.ireduce = function ireduce(num4) {
+        var r = num4;
         var rlen;
         do {
           this.split(r, this.tmp);
@@ -66670,8 +66670,8 @@ var require_bn = __commonJS({
       MPrime.prototype.split = function split(input, out) {
         input.iushrn(this.n, 0, out);
       };
-      MPrime.prototype.imulK = function imulK(num3) {
-        return num3.imul(this.k);
+      MPrime.prototype.imulK = function imulK(num4) {
+        return num4.imul(this.k);
       };
       function K256() {
         MPrime.call(
@@ -66708,24 +66708,24 @@ var require_bn = __commonJS({
           input.length -= 9;
         }
       };
-      K256.prototype.imulK = function imulK(num3) {
-        num3.words[num3.length] = 0;
-        num3.words[num3.length + 1] = 0;
-        num3.length += 2;
+      K256.prototype.imulK = function imulK(num4) {
+        num4.words[num4.length] = 0;
+        num4.words[num4.length + 1] = 0;
+        num4.length += 2;
         var lo = 0;
-        for (var i = 0; i < num3.length; i++) {
-          var w = num3.words[i] | 0;
+        for (var i = 0; i < num4.length; i++) {
+          var w = num4.words[i] | 0;
           lo += w * 977;
-          num3.words[i] = lo & 67108863;
+          num4.words[i] = lo & 67108863;
           lo = w * 64 + (lo / 67108864 | 0);
         }
-        if (num3.words[num3.length - 1] === 0) {
-          num3.length--;
-          if (num3.words[num3.length - 1] === 0) {
-            num3.length--;
+        if (num4.words[num4.length - 1] === 0) {
+          num4.length--;
+          if (num4.words[num4.length - 1] === 0) {
+            num4.length--;
           }
         }
-        return num3;
+        return num4;
       };
       function P224() {
         MPrime.call(
@@ -66751,19 +66751,19 @@ var require_bn = __commonJS({
         );
       }
       inherits2(P25519, MPrime);
-      P25519.prototype.imulK = function imulK(num3) {
+      P25519.prototype.imulK = function imulK(num4) {
         var carry = 0;
-        for (var i = 0; i < num3.length; i++) {
-          var hi = (num3.words[i] | 0) * 19 + carry;
+        for (var i = 0; i < num4.length; i++) {
+          var hi = (num4.words[i] | 0) * 19 + carry;
           var lo = hi & 67108863;
           hi >>>= 26;
-          num3.words[i] = lo;
+          num4.words[i] = lo;
           carry = hi;
         }
         if (carry !== 0) {
-          num3.words[num3.length++] = carry;
+          num4.words[num4.length++] = carry;
         }
-        return num3;
+        return num4;
       };
       BN._prime = function prime(name) {
         if (primes[name])
@@ -66848,9 +66848,9 @@ var require_bn = __commonJS({
         }
         return res;
       };
-      Red.prototype.shl = function shl(a, num3) {
+      Red.prototype.shl = function shl(a, num4) {
         this._verify1(a);
-        return this.imod(a.ushln(num3));
+        return this.imod(a.ushln(num4));
       };
       Red.prototype.imul = function imul(a, b) {
         this._verify2(a, b);
@@ -66917,10 +66917,10 @@ var require_bn = __commonJS({
           return this.imod(inv);
         }
       };
-      Red.prototype.pow = function pow(a, num3) {
-        if (num3.isZero())
+      Red.prototype.pow = function pow(a, num4) {
+        if (num4.isZero())
           return new BN(1).toRed(this);
-        if (num3.cmpn(1) === 0)
+        if (num4.cmpn(1) === 0)
           return a.clone();
         var windowSize = 4;
         var wnd = new Array(1 << windowSize);
@@ -66932,12 +66932,12 @@ var require_bn = __commonJS({
         var res = wnd[0];
         var current = 0;
         var currentLen = 0;
-        var start = num3.bitLength() % 26;
+        var start = num4.bitLength() % 26;
         if (start === 0) {
           start = 26;
         }
-        for (i = num3.length - 1; i >= 0; i--) {
-          var word = num3.words[i];
+        for (i = num4.length - 1; i >= 0; i--) {
+          var word = num4.words[i];
           for (var j = start - 1; j >= 0; j--) {
             var bit = word >> j & 1;
             if (res !== wnd[0]) {
@@ -66960,17 +66960,17 @@ var require_bn = __commonJS({
         }
         return res;
       };
-      Red.prototype.convertTo = function convertTo(num3) {
-        var r = num3.umod(this.m);
-        return r === num3 ? r.clone() : r;
+      Red.prototype.convertTo = function convertTo(num4) {
+        var r = num4.umod(this.m);
+        return r === num4 ? r.clone() : r;
       };
-      Red.prototype.convertFrom = function convertFrom(num3) {
-        var res = num3.clone();
+      Red.prototype.convertFrom = function convertFrom(num4) {
+        var res = num4.clone();
         res.red = null;
         return res;
       };
-      BN.mont = function mont(num3) {
-        return new Mont(num3);
+      BN.mont = function mont(num4) {
+        return new Mont(num4);
       };
       function Mont(m) {
         Red.call(this, m);
@@ -66986,11 +66986,11 @@ var require_bn = __commonJS({
         this.minv = this.r.sub(this.minv);
       }
       inherits2(Mont, Red);
-      Mont.prototype.convertTo = function convertTo(num3) {
-        return this.imod(num3.ushln(this.shift));
+      Mont.prototype.convertTo = function convertTo(num4) {
+        return this.imod(num4.ushln(this.shift));
       };
-      Mont.prototype.convertFrom = function convertFrom(num3) {
-        var r = this.imod(num3.mul(this.rinv));
+      Mont.prototype.convertFrom = function convertFrom(num4) {
+        var r = this.imod(num4.mul(this.rinv));
         r.red = null;
         return r;
       };
@@ -67120,14 +67120,14 @@ var require_utils4 = __commonJS({
     utils.zero2 = minUtils.zero2;
     utils.toHex = minUtils.toHex;
     utils.encode = minUtils.encode;
-    function getNAF(num3, w, bits) {
-      var naf = new Array(Math.max(num3.bitLength(), bits) + 1);
+    function getNAF(num4, w, bits) {
+      var naf = new Array(Math.max(num4.bitLength(), bits) + 1);
       var i;
       for (i = 0; i < naf.length; i += 1) {
         naf[i] = 0;
       }
       var ws = 1 << w + 1;
-      var k = num3.clone();
+      var k = num4.clone();
       for (i = 0; i < naf.length; i++) {
         var z;
         var mod = k.andln(ws - 1);
@@ -67654,8 +67654,8 @@ var require_short = __commonJS({
         basis
       };
     };
-    ShortCurve.prototype._getEndoRoots = function _getEndoRoots(num3) {
-      var red = num3 === this.p ? this.red : BN.mont(num3);
+    ShortCurve.prototype._getEndoRoots = function _getEndoRoots(num4) {
+      var red = num4 === this.p ? this.red : BN.mont(num4);
       var tinv = new BN(2).toRed(red).redInvm();
       var ntinv = tinv.redNeg();
       var s = new BN(3).toRed(red).redNeg().redSqrt().redMul(tinv);
@@ -68443,17 +68443,17 @@ var require_edwards = __commonJS({
     }
     inherits2(EdwardsCurve, Base);
     module2.exports = EdwardsCurve;
-    EdwardsCurve.prototype._mulA = function _mulA(num3) {
+    EdwardsCurve.prototype._mulA = function _mulA(num4) {
       if (this.mOneA)
-        return num3.redNeg();
+        return num4.redNeg();
       else
-        return this.a.redMul(num3);
+        return this.a.redMul(num4);
     };
-    EdwardsCurve.prototype._mulC = function _mulC(num3) {
+    EdwardsCurve.prototype._mulC = function _mulC(num4) {
       if (this.oneC)
-        return num3;
+        return num4;
       else
-        return this.c.redMul(num3);
+        return this.c.redMul(num4);
     };
     EdwardsCurve.prototype.jpoint = function jpoint(x, y, z, t) {
       return this.point(x, y, z, t);
@@ -68954,22 +68954,22 @@ var require_utils5 = __commonJS({
       return lo >>> 0;
     }
     exports2.sum64_5_lo = sum64_5_lo;
-    function rotr64_hi(ah, al, num3) {
-      var r = al << 32 - num3 | ah >>> num3;
+    function rotr64_hi(ah, al, num4) {
+      var r = al << 32 - num4 | ah >>> num4;
       return r >>> 0;
     }
     exports2.rotr64_hi = rotr64_hi;
-    function rotr64_lo(ah, al, num3) {
-      var r = ah << 32 - num3 | al >>> num3;
+    function rotr64_lo(ah, al, num4) {
+      var r = ah << 32 - num4 | al >>> num4;
       return r >>> 0;
     }
     exports2.rotr64_lo = rotr64_lo;
-    function shr64_hi(ah, al, num3) {
-      return ah >>> num3;
+    function shr64_hi(ah, al, num4) {
+      return ah >>> num4;
     }
     exports2.shr64_hi = shr64_hi;
-    function shr64_lo(ah, al, num3) {
-      var r = ah << 32 - num3 | al >>> num3;
+    function shr64_lo(ah, al, num4) {
+      var r = ah << 32 - num4 | al >>> num4;
       return r >>> 0;
     }
     exports2.shr64_lo = shr64_lo;
@@ -72069,8 +72069,8 @@ var require_eddsa = __commonJS({
       var y = utils.intFromLE(normed);
       return this.curve.pointFromY(y, xIsOdd);
     };
-    EDDSA.prototype.encodeInt = function encodeInt(num3) {
-      return num3.toArray("le", this.encodingLength);
+    EDDSA.prototype.encodeInt = function encodeInt(num4) {
+      return num4.toArray("le", this.encodingLength);
     };
     EDDSA.prototype.decodeInt = function decodeInt(bytes) {
       return utils.intFromLE(bytes);
@@ -81079,7 +81079,7 @@ var require_chunk = __commonJS({
       }
       get descriptions() {
         return this.params.map(([code, body]) => {
-          const name = (Object.entries(_ErrorChunk.CODE).find(([, num3]) => num3 === code) || [])[0];
+          const name = (Object.entries(_ErrorChunk.CODE).find(([, num4]) => num4 === code) || [])[0];
           return { name, body };
         });
       }
@@ -107541,7 +107541,7 @@ var CharacterTools = class {
     return this.systemRegistry.getAdapter(this.cachedGameSystem ?? "other");
   }
   /**
-   * Tool: get-character
+   * Tool: character get
    * Retrieve detailed information about a specific character
    */
   getToolDefinitions() {
@@ -107623,8 +107623,8 @@ var CharacterTools = class {
         }
       },
       {
-        name: "manage-world-items",
-        description: 'Manage Item documents in Foundry VTT. Specify the operation with "action":\n- "create": Create world-level Items in the sidebar (not actor-attached). Good for reusable libraries. GM-only.\n- "list": List world-level Items with optional type/folder/name filters. Returns names and ids only.\n- "get": Read one world-level Item in full (description, system data, rules) by itemIdentifier (id or exact name). GM-only.\n- "update": Update existing world-level Items by ID. GM-only.\n- "add-to-actor": Create and attach Items directly to an existing actor. GM-only.\n- "remove-from-actor": Delete Items already on an actor, identified by itemIds and/or itemNames (optionally constrained by type). GM-only.\n- "describe": Returns system-specific enum/schema reference for all item field values. Call this BEFORE creating or updating mgt2e items to get valid enum keys for fields like weapon.traits, weapon.scale, armour.form, hardware.system, software.class, associate.relationship, etc. No parameters required beyond action:"describe".',
+        name: "world-items",
+        description: 'Create, update, read or delete world-level Item documents (the Items sidebar, not items on an actor: for those use character items, compendium add_items and quartermaster). Specify the operation with "action":\n- "create": Create world-level Items in the sidebar (not actor-attached). Good for reusable libraries. GM-only.\n- "list": List world-level Items with optional type/folder/name filters. Returns names and ids only.\n- "get": Read one world-level Item in full (description, system data, rules) by itemIdentifier (id or exact name). GM-only.\n- "update": Update existing world-level Items by ID. GM-only.\n- "add-to-actor": Create and attach Items directly to an existing actor. GM-only.\n- "remove-from-actor": Delete Items already on an actor, identified by itemIds and/or itemNames (optionally constrained by type). GM-only.\n- "describe": Returns system-specific enum/schema reference for all item field values. Call this BEFORE creating or updating mgt2e items to get valid enum keys for fields like weapon.traits, weapon.scale, armour.form, hardware.system, software.class, associate.relationship, etc. No parameters required beyond action:"describe".',
         inputSchema: {
           type: "object",
           properties: {
@@ -108831,8 +108831,8 @@ var CompendiumTools = class {
       limit: external_exports.union([
         external_exports.number().min(1).max(1e3),
         external_exports.string().refine((val) => {
-          const num3 = parseInt(val, 10);
-          return !isNaN(num3) && num3 >= 1 && num3 <= 1e3;
+          const num4 = parseInt(val, 10);
+          return !isNaN(num4) && num4 >= 1 && num4 <= 1e3;
         }).transform((val) => parseInt(val, 10))
       ]).optional().default(100)
     });
@@ -109524,7 +109524,7 @@ var SceneTools = class {
       },
       {
         name: "manage-scenes",
-        description: 'Create, update or describe scenes. create: makes a new scene (name required). update: edits an existing scene by id or exact name (rename, background image, size, grid, lighting, navigation). describe: lists all scenes, or one scene with scene_identifier. Never deletes. Background is a Foundry file path (e.g. "worlds/my-world/maps/bridge.webp") or null to clear it; the file must already exist on the Foundry server.',
+        description: 'Create, update or describe scenes. create: makes a new scene (name required). update: edits an existing scene by id or exact name (rename, background image, size, grid, lighting, navigation). describe: one scene in full (scene_identifier required; to see all scenes use scene list, for the scene on screen scene current). Never deletes. Background is a Foundry file path (e.g. "worlds/my-world/maps/bridge.webp") or null to clear it; the file must already exist on the Foundry server.',
         inputSchema: {
           type: "object",
           properties: {
@@ -109970,7 +109970,7 @@ var PlaylistTools = class {
       },
       {
         name: "control-playlist",
-        description: "Playback control for playlists and their sounds, heard by everyone connected. play (starts the playlist), stop, pause and resume (the playlist keeps its place), cycle-mode (sequential -> shuffle -> soundboard), next and previous (skip tracks), play-sound, stop-sound, pause-sound, resume-sound (one track), set-volume {volume 0-1, sound?} (one track, or every track of the playlist), now-playing (what is playing or paused, with positions; playlist optional to look at one playlist), stop-all (silence every playlist; no playlist needed). Playlist and sound accept ids or unique names. To start a scene's own music use update-scene-music; to add tracks use manage-playlists.",
+        description: "Playback control for playlists and their sounds, heard by everyone connected. play (starts the playlist), stop, pause and resume (the playlist keeps its place), cycle-mode (sequential -> shuffle -> soundboard), next and previous (skip tracks), play-sound, stop-sound, pause-sound, resume-sound (one track), set-volume {volume 0-1, sound?} (one track, or every track of the playlist), now-playing (what is playing or paused, with positions; playlist optional to look at one playlist), stop-all (silence every playlist; no playlist needed). Playlist and sound accept ids or unique names. To give a scene its music use audio scene_sound; to add tracks use audio playlist_update.",
         inputSchema: {
           type: "object",
           properties: {
@@ -110426,6 +110426,67 @@ var ActorCreationTools = class {
 
 // dist/tools/actor-management.js
 init_zod();
+
+// dist/tools/actor-statblock-schema.js
+init_zod();
+var ABILITIES = ["str", "dex", "con", "int", "wis", "cha"];
+var SKILLS = ["Acrobatics", "Animal Handling", "Arcana", "Athletics", "Deception", "History", "Insight", "Intimidation", "Investigation", "Medicine", "Nature", "Perception", "Performance", "Persuasion", "Religion", "Sleight of Hand", "Stealth", "Survival"];
+var CREATURE_TYPES = ["humanoid", "undead", "beast", "dragon", "aberration", "construct", "elemental", "fey", "fiend", "giant", "monstrosity", "ooze", "plant", "celestial", "swarm"];
+var SIZES = ["tiny", "small", "medium", "large", "huge", "gargantuan"];
+var feet = external_exports.number().int().min(0);
+var score = external_exports.number().int().min(1).max(30).optional();
+var statblockSchema = external_exports.object({
+  creatureType: external_exports.enum(CREATURE_TYPES).optional(),
+  creatureSubtype: external_exports.string().optional(),
+  size: external_exports.enum(SIZES).optional(),
+  alignment: external_exports.string().optional(),
+  cr: external_exports.union([external_exports.string().regex(/^\d+(\/[248])?$/, 'CR must be a whole number or a fraction like "1/4"'), external_exports.number().finite().min(0)]).optional(),
+  hpFormula: external_exports.string().min(1).optional(),
+  ac: external_exports.number().int().min(0).max(30).optional(),
+  abilities: external_exports.object({ str: score, dex: score, con: score, int: score, wis: score, cha: score }).strict().optional(),
+  savingThrows: external_exports.array(external_exports.enum(ABILITIES)).optional(),
+  speed: external_exports.object({ walk: feet.optional(), fly: feet.optional(), swim: feet.optional(), climb: feet.optional(), burrow: feet.optional(), hover: external_exports.boolean().optional() }).strict().optional(),
+  senses: external_exports.object({ darkvision: feet.optional(), blindsight: feet.optional(), tremorsense: feet.optional(), truesight: feet.optional(), special: external_exports.string().optional() }).strict().optional(),
+  skills: external_exports.array(external_exports.object({ skill: external_exports.enum(SKILLS), proficiency: external_exports.enum(["proficient", "expert"]) }).strict()).optional(),
+  damageImmunities: external_exports.array(external_exports.string()).optional(),
+  damageResistances: external_exports.array(external_exports.string()).optional(),
+  damageVulnerabilities: external_exports.array(external_exports.string()).optional(),
+  conditionImmunities: external_exports.array(external_exports.string()).optional(),
+  languages: external_exports.array(external_exports.string()).optional(),
+  languagesCustom: external_exports.string().optional(),
+  biography: external_exports.string().optional(),
+  source: external_exports.object({ book: external_exports.string().optional(), page: external_exports.string().optional(), rules: external_exports.enum(["2014", "2024"]).optional() }).strict().optional()
+}).strict();
+var num = (description) => ({ type: "number", minimum: 0, description });
+var statblockJsonSchema = {
+  type: "object",
+  description: "npc only. The stat block of a creature you make up (a creature in the books: compendium import). Every field is optional, only what you give is written; hit points go in the actor's hp. Items, attacks, features and spells are added afterwards with create-feature.",
+  additionalProperties: false,
+  properties: {
+    creatureType: { type: "string", enum: [...CREATURE_TYPES] },
+    creatureSubtype: { type: "string", description: 'e.g. "Goblinoid", "Shapechanger"' },
+    size: { type: "string", enum: [...SIZES] },
+    alignment: { type: "string", description: 'e.g. "Neutral Evil"' },
+    cr: { description: 'Challenge rating: 5, "1/4" or 0.25', oneOf: [{ type: "string", pattern: "^\\d+(\\/[248])?$" }, { type: "number", minimum: 0 }] },
+    hpFormula: { type: "string", description: 'Hit dice for re-rolls, e.g. "2d6+2"' },
+    ac: { type: "number", minimum: 0, maximum: 30, description: "A fixed armour class. Leave it out and the sheet works AC out from equipped armour and Dexterity." },
+    abilities: { type: "object", additionalProperties: false, description: "Ability scores 1-30; the ones you leave out stay 10.", properties: Object.fromEntries(ABILITIES.map((a) => [a, { type: "number", minimum: 1, maximum: 30 }])) },
+    savingThrows: { type: "array", items: { type: "string", enum: [...ABILITIES] }, description: "Abilities with saving throw proficiency" },
+    speed: { type: "object", additionalProperties: false, description: "Feet", properties: { walk: num("Walk"), fly: num("Fly"), swim: num("Swim"), climb: num("Climb"), burrow: num("Burrow"), hover: { type: "boolean", description: "Hovers (cannot fall)" } } },
+    senses: { type: "object", additionalProperties: false, description: "Feet", properties: { darkvision: num("Darkvision"), blindsight: num("Blindsight"), tremorsense: num("Tremorsense"), truesight: num("Truesight"), special: { type: "string", description: "Any other sense, as text" } } },
+    skills: { type: "array", description: "Skills with proficiency or expertise", items: { type: "object", additionalProperties: false, properties: { skill: { type: "string", enum: [...SKILLS] }, proficiency: { type: "string", enum: ["proficient", "expert"] } }, required: ["skill", "proficiency"] } },
+    damageImmunities: { type: "array", items: { type: "string" }, description: "acid, bludgeoning, cold, fire, force, lightning, necrotic, piercing, poison, psychic, radiant, slashing, thunder (anything else is accepted with a warning)" },
+    damageResistances: { type: "array", items: { type: "string" }, description: "Same damage types" },
+    damageVulnerabilities: { type: "array", items: { type: "string" }, description: "Same damage types" },
+    conditionImmunities: { type: "array", items: { type: "string" }, description: "blinded, charmed, deafened, exhaustion, frightened, grappled, incapacitated, invisible, paralyzed, petrified, poisoned, prone, restrained, stunned, unconscious" },
+    languages: { type: "array", items: { type: "string" }, description: 'e.g. ["Common", "Goblin"]' },
+    languagesCustom: { type: "string", description: 'Free text, e.g. "telepathy 60 ft."' },
+    biography: { type: "string", description: "HTML shown on the sheet" },
+    source: { type: "object", additionalProperties: false, properties: { book: { type: "string", description: `e.g. "MM'14"` }, page: { type: "string" }, rules: { type: "string", enum: ["2014", "2024"] } } }
+  }
+};
+
+// dist/tools/actor-management.js
 var hpSchema = external_exports.union([
   external_exports.number(),
   external_exports.object({ value: external_exports.number().optional(), max: external_exports.number().optional() }).strict()
@@ -110448,8 +110509,8 @@ var ActorManagementTools = class {
   getToolDefinitions() {
     return [
       {
-        name: "manage-actors",
-        description: 'Create, update, or delete Actor documents in Foundry VTT. Works with any game system.\n- "create": Create one or more actors of any type with arbitrary system data.\n- "update": Update one or more existing actors by ID. Merges into existing system data.\n- "delete": Permanently delete one or more actors by ID.\n- "update-items": Update embedded items on an actor by item ID.\n- "delete-items": Delete embedded items from an actor by item ID.\n- "transfer-items": Move real items (not compendium copies) and/or coins from one actor to another, a chest included: {from, to, itemIds? | itemNames?, quantity?, currency?: {gp, sp...}}. A whole stack moves unless quantity is given; the same item on the receiver is stacked.\n- "describe": Return system-specific actor schema notes (actor types, item restrictions,\n  field paths, skill shorthands). Call this before creating actors in an unfamiliar system.',
+        name: "actors",
+        description: 'Create, update or delete actors (dnd5e): player characters, NPCs and groups; place them on a scene; move their items. For a creature from the books use compendium import; to read an actor use character.\n- "create": Create actors: {actors: [{name, type: npc (default) | character | group, img?, tokenImg?, hp?, token?, statblock?, system?}], folder?}. An npc can carry a full stat block in statblock (CR, abilities, speeds, senses, skills, resistances, languages: all optional). A character starts with a walking speed of 30 ft; its level, class and spell slots come from class items that the players add with Plutonium, so there is no level here. A group is a party roster or a stash (for loot use make-chest). hp is a number (current and max) or {value, max}. system is any other raw field and wins over the stat block. Items and features are added afterwards with compendium add_items and create-feature.\n- "update": Update one or more existing actors by ID. Merges into existing system data.\n- "delete": Permanently delete one or more actors by ID.\n- "update-items": Update embedded items on an actor by item ID.\n- "delete-items": Delete embedded items from an actor by item ID.\n- "transfer-items": Move real items (not compendium copies) and/or coins from one actor to another, a chest included: {from, to, itemIds? | itemNames?, quantity?, currency?: {gp, sp...}}. A whole stack moves unless quantity is given; the same item on the receiver is stacked.\n- "describe": Return system-specific actor schema notes (actor types, item restrictions,\n  field paths, skill shorthands). Call this before creating actors in an unfamiliar system.',
         inputSchema: {
           type: "object",
           properties: {
@@ -110481,7 +110542,8 @@ var ActorManagementTools = class {
                   },
                   type: {
                     type: "string",
-                    description: 'Actor type as defined by the game system (e.g. "traveller", "npc", "creature", "spacecraft", "vehicle", "world").'
+                    enum: ["npc", "character", "group"],
+                    description: "npc (default), character (a player character) or group."
                   },
                   img: {
                     type: "string",
@@ -110500,13 +110562,14 @@ var ActorManagementTools = class {
                     description: `Token options: width and height in squares (2 for a Large creature), disposition (-1 hostile, 0 neutral, 1 friendly), scale (0.2 to 3), actor_link, display_name and display_bars (none, control, owner_hover, hover, owner, always), vision (on/off), vision_range (distance units, e.g. 60), vision_mode (basic, darkvision...), sight {enabled, range, angle, vision_mode, brightness, saturation, contrast}, light {preset: torch|lantern|candle|none, or bright and dim in distance units, color #RRGGBB, alpha, angle, animation {type: torch|pulse|flame..., speed, intensity}}, detection_modes [{id, range}] (e.g. seeAll, feelTremor), lock_rotation, alpha, raw (any other prototype token field as a nested object).`,
                     additionalProperties: true
                   },
+                  statblock: statblockJsonSchema,
                   system: {
                     type: "object",
-                    description: 'System-specific data. Free-form object \u2014 use action:"describe" to get valid field names for the active system.',
+                    description: 'Raw dnd5e system data for anything the other fields do not cover. Free-form object; action:"describe" lists the field names.',
                     additionalProperties: true
                   }
                 },
-                required: ["name", "type"]
+                required: ["name"]
               }
             },
             folder: {
@@ -110714,10 +110777,11 @@ var ActorManagementTools = class {
     const schema23 = external_exports.object({
       actors: external_exports.array(external_exports.object({
         name: external_exports.string().min(1),
-        type: external_exports.string().min(1),
+        type: external_exports.enum(["npc", "character", "group"]).default("npc"),
         img: external_exports.string().optional(),
         tokenImg: external_exports.string().optional(),
         system: external_exports.record(external_exports.any()).optional(),
+        statblock: statblockSchema.optional(),
         hp: hpSchema.optional(),
         token: external_exports.record(external_exports.any()).optional()
       })).min(1),
@@ -110921,7 +110985,7 @@ var EffectManagementTools = class {
   getToolDefinitions() {
     return [
       {
-        name: "manage-effects",
+        name: "effects",
         description: 'Create, update, or delete an ActiveEffect on an Actor or on an embedded Item owned by that Actor. Effect payloads are generic Foundry ActiveEffect document data. Use parentType "item" with parentItemIdentifier for Item-owned effects.',
         inputSchema: {
           type: "object",
@@ -111629,7 +111693,7 @@ var TokenManipulationTools = class {
     return [
       {
         name: "move-token",
-        description: `Move a token to a new position, in pixels (default) or in grid squares with units:"squares" (x and y then count from the top-left corner of the map, like manage-scene-objects, padding handled for you; use x 11 y 11 for the square in column 11, row 11). The token is found on any scene (or pass scene). Moving a token into a teleport region teleports it. By default the token WALKS with Foundry's own movement: it goes around walls (and stops at them), difficult terrain costs more, the movement is recorded for the combat, and the creature's speed is the limit: a move that costs more is refused with the cost and speed (dash:true doubles the speed, used is feet already moved this turn, ignore_speed:true lifts the limit). mode:"teleport" places the token directly, ignoring walls and speed. A walk needs the scene to be the one on screen.`,
+        description: `Move a token to a new position, in pixels (default) or in grid squares with units:"squares" (x and y then count from the top-left corner of the map, like scene-objects, padding handled for you; use x 11 y 11 for the square in column 11, row 11). The token is found on any scene (or pass scene). Moving a token into a teleport region teleports it. By default the token WALKS with Foundry's own movement: it goes around walls (and stops at them), difficult terrain costs more, the movement is recorded for the combat, and the creature's speed is the limit: a move that costs more is refused with the cost and speed (dash:true doubles the speed, used is feet already moved this turn, ignore_speed:true lifts the limit). mode:"teleport" places the token directly, ignoring walls and speed. A walk needs the scene to be the one on screen.`,
         inputSchema: {
           type: "object",
           properties: {
@@ -111662,7 +111726,7 @@ var TokenManipulationTools = class {
       },
       {
         name: "update-token",
-        description: "Update properties of a token already on a scene (found on any scene, or pass scene): updates for position, size, rotation, visibility, disposition, name, elevation; and options for vision and light, in the same form as the token options of manage-actors: vision, vision_range (distance units), vision_mode (basic, darkvision...), sight {enabled, range, angle, vision_mode, brightness...}, light {preset: torch|lantern|candle|none, bright, dim, color, alpha, angle, animation {type, speed, intensity}...}, detection_modes [{id, range}], lock_rotation, alpha, display_name, display_bars, scale, raw {any token field}.",
+        description: "Update properties of a token already on a scene (found on any scene, or pass scene): updates for position, size, rotation, visibility, disposition, name, elevation; and options for vision and light, in the same form as the token options of actors: vision, vision_range (distance units), vision_mode (basic, darkvision...), sight {enabled, range, angle, vision_mode, brightness...}, light {preset: torch|lantern|candle|none, bright, dim, color, alpha, angle, animation {type, speed, intensity}...}, detection_modes [{id, range}], lock_rotation, alpha, display_name, display_bars, scale, raw {any token field}.",
         inputSchema: {
           type: "object",
           properties: {
@@ -112167,8 +112231,8 @@ var DnD5eAddFeatureTool = class {
   getToolDefinitions() {
     return [
       {
-        name: "dnd5e-add-feature",
-        description: '[D&D 5e only] Add a feature, attack, spellcasting setup, or spells to an existing actor. Set featureType to select the mode \u2014 each mode uses only its own parameters:\n\n\u2022 passive \u2014 descriptive trait, no roll (Multiattack, Magic Resistance, Spider Climb).\n  Required: actorIdentifier, featureName\n  Optional: description, uses, sourceRules, sourceBook, sourcePage\n\n\u2022 save \u2014 feature that forces a saving throw (breath weapon, cone of cold, etc.).\n  Required: actorIdentifier, featureName, saveAbility, saveDC, damageParts\n  Optional: description, activationType, uses, halfOnSave, areaType, areaSize (required if areaType set), areaUnits, affectsType\n\n\u2022 attack \u2014 weapon attack with to-hit roll (Claw, Bite, Scimitar, etc.).\n  Required: actorIdentifier, featureName, attackType, damageParts\n  Required when ranged: rangeFt\n  Optional: description, activationType, weaponClass, abilityModifier, attackBonus, proficient, equipped, reachFt, longRangeFt, properties, uses, sourceRules, sourceBook, sourcePage\n\n\u2022 attack-with-save \u2014 attack roll on hit + forced save for bonus damage (e.g. Stinger: piercing hit + CON save or poison damage).\n  Required: actorIdentifier, featureName, attackType, damageParts, saveAbility, saveDC, saveDamageParts\n  Required when ranged: rangeFt\n  Optional: description, activationType, weaponClass, abilityModifier, attackBonus, proficient, equipped, reachFt, longRangeFt, properties, saveOnSave, uses, sourceRules, sourceBook, sourcePage\n\n\u2022 aura \u2014 automatic-damage area, no to-hit, no save (all creatures in range take damage).\n  Required: actorIdentifier, featureName, damageParts, areaType, areaSize\n  Optional: description, activationType, areaUnits, affectsType, uses, sourceRules, sourceBook, sourcePage\n\n\u2022 spellcasting \u2014 configure spell slots and casting ability. Run this BEFORE featureType "spells".\n  Required: actorIdentifier, spellcastingClass, spellcastingLevel\n  Optional: spellcastingAbility (default per class: wizard/artificer\u2192INT, cleric/druid/ranger\u2192WIS, sorcerer/warlock/bard/paladin\u2192CHA), sourceRules\n\n\u2022 spells \u2014 import named spells from compendium. Names must be in English.\n  Required: actorIdentifier, spellNames (max 50)\n  Optional: compendiumPacks (default ["dnd5e.spells"])\n\nUse character list or character get first to find the actorIdentifier.',
+        name: "create-feature",
+        description: '[D&D 5e only] BUILD a custom feature, attack, spellcasting setup, or spells on an existing actor (to copy an existing book feature or monster trait instead, use compendium add_features). Set featureType to select the mode \u2014 each mode uses only its own parameters:\n\n\u2022 passive \u2014 descriptive trait, no roll (Multiattack, Magic Resistance, Spider Climb).\n  Required: actorIdentifier, featureName\n  Optional: description, uses, sourceRules, sourceBook, sourcePage\n\n\u2022 save \u2014 feature that forces a saving throw (breath weapon, cone of cold, etc.).\n  Required: actorIdentifier, featureName, saveAbility, saveDC, damageParts\n  Optional: description, activationType, uses, halfOnSave, areaType, areaSize (required if areaType set), areaUnits, affectsType\n\n\u2022 attack \u2014 weapon attack with to-hit roll (Claw, Bite, Scimitar, etc.).\n  Required: actorIdentifier, featureName, attackType, damageParts\n  Required when ranged: rangeFt\n  Optional: description, activationType, weaponClass, abilityModifier, attackBonus, proficient, equipped, reachFt, longRangeFt, properties, uses, sourceRules, sourceBook, sourcePage\n\n\u2022 attack-with-save \u2014 attack roll on hit + forced save for bonus damage (e.g. Stinger: piercing hit + CON save or poison damage).\n  Required: actorIdentifier, featureName, attackType, damageParts, saveAbility, saveDC, saveDamageParts\n  Required when ranged: rangeFt\n  Optional: description, activationType, weaponClass, abilityModifier, attackBonus, proficient, equipped, reachFt, longRangeFt, properties, saveOnSave, uses, sourceRules, sourceBook, sourcePage\n\n\u2022 aura \u2014 automatic-damage area, no to-hit, no save (all creatures in range take damage).\n  Required: actorIdentifier, featureName, damageParts, areaType, areaSize\n  Optional: description, activationType, areaUnits, affectsType, uses, sourceRules, sourceBook, sourcePage\n\n\u2022 spellcasting \u2014 configure spell slots and casting ability. Run this BEFORE featureType "spells".\n  Required: actorIdentifier, spellcastingClass, spellcastingLevel\n  Optional: spellcastingAbility (default per class: wizard/artificer\u2192INT, cleric/druid/ranger\u2192WIS, sorcerer/warlock/bard/paladin\u2192CHA), sourceRules\n\n\u2022 spells \u2014 import named spells from compendium. Names must be in English.\n  Required: actorIdentifier, spellNames (max 50)\n  Optional: compendiumPacks (default ["dnd5e.spells"])\n\nUse character list or character get first to find the actorIdentifier.',
         inputSchema: {
           type: "object",
           properties: {
@@ -112337,11 +112401,11 @@ var DnD5eAddFeatureTool = class {
                 "warlock",
                 "wizard"
               ],
-              description: "The spellcasting class \u2014 determines slot table and default casting ability. Warlock uses Pact Magic. Required for: spellcasting."
+              description: "The spellcasting class \u2014 gives the default casting ability, and on an NPC how its level counts (half casters count half). Required for: spellcasting."
             },
             spellcastingLevel: {
               type: "number",
-              description: "Class level (1\u201320). Determines how many slots the actor receives. Required for: spellcasting.",
+              description: "Class level (1\u201320). On an NPC it sets the spellcaster level the system derives the slots from; on an actor with class items it is ignored (the classes decide). Required for: spellcasting.",
               minimum: 1,
               maximum: 20
             },
@@ -112441,7 +112505,7 @@ var DnD5eAddFeatureTool = class {
     try {
       const system = await detectGameSystem(this.foundryClient, this.logger);
       if (system !== "dnd5e") {
-        throw new Error(`dnd5e-add-feature (passive) requires D&D 5e. Detected system: "${getCachedSystemId() ?? "unknown"}".`);
+        throw new Error(`create-feature (passive) requires D&D 5e. Detected system: "${getCachedSystemId() ?? "unknown"}".`);
       }
       const result = await this.foundryClient.query("foundry-mcp-bridge.addPassiveFeatureToActor", parsed);
       this.logger.info("Passive feature added successfully", {
@@ -112450,7 +112514,7 @@ var DnD5eAddFeatureTool = class {
       });
       return this.formatPassiveResponse(result, parsed);
     } catch (error) {
-      this.errorHandler.handleToolError(error, "dnd5e-add-feature", "passive feature creation");
+      this.errorHandler.handleToolError(error, "create-feature", "passive feature creation");
     }
   }
   formatPassiveResponse(result, params) {
@@ -112510,7 +112574,7 @@ ${details}`
     try {
       const system = await detectGameSystem(this.foundryClient, this.logger);
       if (system !== "dnd5e") {
-        throw new Error(`dnd5e-add-feature (save) requires D&D 5e. Detected system: "${getCachedSystemId() ?? "unknown"}".`);
+        throw new Error(`create-feature (save) requires D&D 5e. Detected system: "${getCachedSystemId() ?? "unknown"}".`);
       }
       const result = await this.foundryClient.query("foundry-mcp-bridge.addSaveFeatureToActor", parsed);
       this.logger.info("Save feature added successfully", {
@@ -112519,7 +112583,7 @@ ${details}`
       });
       return this.formatSaveResponse(result, parsed);
     } catch (error) {
-      this.errorHandler.handleToolError(error, "dnd5e-add-feature", "save feature creation");
+      this.errorHandler.handleToolError(error, "create-feature", "save feature creation");
     }
   }
   formatSaveResponse(result, params) {
@@ -112613,7 +112677,7 @@ ${details}`
     try {
       const system = await detectGameSystem(this.foundryClient, this.logger);
       if (system !== "dnd5e") {
-        throw new Error(`dnd5e-add-feature (attack) requires D&D 5e. Detected system: "${getCachedSystemId() ?? "unknown"}".`);
+        throw new Error(`create-feature (attack) requires D&D 5e. Detected system: "${getCachedSystemId() ?? "unknown"}".`);
       }
       const result = await this.foundryClient.query("foundry-mcp-bridge.addAttackToActor", {
         ...parsed,
@@ -112625,7 +112689,7 @@ ${details}`
       });
       return this.formatAttackResponse(result, { ...parsed, effectiveAbility }, warnings);
     } catch (error) {
-      this.errorHandler.handleToolError(error, "dnd5e-add-feature", "attack feature creation");
+      this.errorHandler.handleToolError(error, "create-feature", "attack feature creation");
     }
   }
   formatAttackResponse(result, params, warnings) {
@@ -112723,7 +112787,7 @@ ${details}${warningSection}`
     try {
       const system = await detectGameSystem(this.foundryClient, this.logger);
       if (system !== "dnd5e") {
-        throw new Error(`dnd5e-add-feature (attack-with-save) requires D&D 5e. Detected system: "${getCachedSystemId() ?? "unknown"}".`);
+        throw new Error(`create-feature (attack-with-save) requires D&D 5e. Detected system: "${getCachedSystemId() ?? "unknown"}".`);
       }
       const result = await this.foundryClient.query("foundry-mcp-bridge.addAttackWithSaveToActor", {
         ...parsed,
@@ -112735,7 +112799,7 @@ ${details}${warningSection}`
       });
       return this.formatAttackWithSaveResponse(result, { ...parsed, effectiveAbility }, warnings);
     } catch (error) {
-      this.errorHandler.handleToolError(error, "dnd5e-add-feature", "attack+save feature creation");
+      this.errorHandler.handleToolError(error, "create-feature", "attack+save feature creation");
     }
   }
   formatAttackWithSaveResponse(result, params, warnings) {
@@ -112805,7 +112869,7 @@ ${details}${warningSection}`
     try {
       const system = await detectGameSystem(this.foundryClient, this.logger);
       if (system !== "dnd5e") {
-        throw new Error(`dnd5e-add-feature (aura) requires D&D 5e. Detected system: "${getCachedSystemId() ?? "unknown"}".`);
+        throw new Error(`create-feature (aura) requires D&D 5e. Detected system: "${getCachedSystemId() ?? "unknown"}".`);
       }
       const result = await this.foundryClient.query("foundry-mcp-bridge.addAuraToActor", parsed);
       this.logger.info("Aura feature added successfully", {
@@ -112814,7 +112878,7 @@ ${details}${warningSection}`
       });
       return this.formatAuraResponse(result, parsed, warnings);
     } catch (error) {
-      this.errorHandler.handleToolError(error, "dnd5e-add-feature", "aura feature creation");
+      this.errorHandler.handleToolError(error, "create-feature", "aura feature creation");
     }
   }
   formatAuraResponse(result, params, warnings) {
@@ -112876,7 +112940,7 @@ ${details}${warningSection}`
     try {
       const system = await detectGameSystem(this.foundryClient, this.logger);
       if (system !== "dnd5e") {
-        throw new Error(`dnd5e-add-feature (spellcasting) requires D&D 5e. Detected system: "${getCachedSystemId() ?? "unknown"}".`);
+        throw new Error(`create-feature (spellcasting) requires D&D 5e. Detected system: "${getCachedSystemId() ?? "unknown"}".`);
       }
       const result = await this.foundryClient.query("foundry-mcp-bridge.setActorSpellcasting", {
         ...parsed,
@@ -112885,12 +112949,11 @@ ${details}${warningSection}`
       this.logger.info("Actor spellcasting set successfully", { actorId: result.actor?.id });
       return this.formatSpellcastingResponse(result, { ...parsed, effectiveAbility });
     } catch (error) {
-      this.errorHandler.handleToolError(error, "dnd5e-add-feature", "spellcasting setup");
+      this.errorHandler.handleToolError(error, "create-feature", "spellcasting setup");
     }
   }
   formatSpellcastingResponse(result, params) {
-    const isWarlock = params.spellcastingClass === "warlock";
-    const slotsDesc = isWarlock ? `Pact Magic: ${result.spellcasting.slots.pact.max} slot(s) of level ${result.spellcasting.slots.pact.level}` : Object.entries(result.spellcasting.slots).filter(([, n]) => n > 0).map(([k, n]) => `L${k.replace("spell", "")}: ${n}`).join(", ") || "no slots";
+    const slotsDesc = Object.entries(result.spellcasting.slots ?? {}).map(([k, v]) => `${k === "pact" ? "Pact" : `L${k.replace("spell", "")}`}: ${v.value}/${v.max}`).join(", ") || "no slots derived (see the warnings)";
     const summary = `\u2705 Spellcasting configured on "${result.actor.name}" \u2014 ${params.spellcastingClass} level ${params.spellcastingLevel}`;
     const details = [
       `**Actor:** ${result.actor.name} (id: \`${result.actor.id}\`)`,
@@ -112932,7 +112995,7 @@ ${details}${warningSection}`
     try {
       const system = await detectGameSystem(this.foundryClient, this.logger);
       if (system !== "dnd5e") {
-        throw new Error(`dnd5e-add-feature (spells) requires D&D 5e. Detected system: "${getCachedSystemId() ?? "unknown"}".`);
+        throw new Error(`create-feature (spells) requires D&D 5e. Detected system: "${getCachedSystemId() ?? "unknown"}".`);
       }
       const result = await this.foundryClient.query("foundry-mcp-bridge.addSpellsToActor", parsed);
       this.logger.info("Spells import complete", {
@@ -112944,7 +113007,7 @@ ${details}${warningSection}`
       });
       return this.formatSpellsResponse(result, parsed);
     } catch (error) {
-      this.errorHandler.handleToolError(error, "dnd5e-add-feature", "spell import");
+      this.errorHandler.handleToolError(error, "create-feature", "spell import");
     }
   }
   formatSpellsResponse(result, params) {
@@ -113006,526 +113069,6 @@ ${details}${warningSection}`
       message: `${summary}
 
 ${lines.join("\n")}`
-    };
-  }
-};
-
-// dist/tools/dnd5e/npc.js
-init_zod();
-var DAMAGE_CANONICAL2 = /* @__PURE__ */ new Set([
-  "acid",
-  "bludgeoning",
-  "cold",
-  "fire",
-  "force",
-  "lightning",
-  "necrotic",
-  "piercing",
-  "poison",
-  "psychic",
-  "radiant",
-  "slashing",
-  "thunder"
-]);
-var CONDITION_CANONICAL = /* @__PURE__ */ new Set([
-  "blinded",
-  "charmed",
-  "deafened",
-  "exhaustion",
-  "frightened",
-  "grappled",
-  "incapacitated",
-  "invisible",
-  "paralyzed",
-  "petrified",
-  "poisoned",
-  "prone",
-  "restrained",
-  "stunned",
-  "unconscious"
-]);
-function normalizeCR(input) {
-  if (typeof input === "number")
-    return input;
-  if (input.includes("/")) {
-    const [num3, den] = input.split("/").map(Number);
-    return num3 / den;
-  }
-  return parseInt(input, 10);
-}
-function formatCR(value) {
-  if (value === 0)
-    return "0";
-  if (value === 0.125)
-    return "1/8";
-  if (value === 0.25)
-    return "1/4";
-  if (value === 0.5)
-    return "1/2";
-  return String(Math.round(value));
-}
-var DnD5eNpcTools = class {
-  foundryClient;
-  logger;
-  errorHandler;
-  constructor({ foundryClient, logger }) {
-    this.foundryClient = foundryClient;
-    this.logger = logger.child({ component: "DnD5eNpcTools" });
-    this.errorHandler = new ErrorHandler(this.logger);
-  }
-  getToolDefinitions() {
-    return [
-      {
-        name: "dnd5e-create-npc",
-        description: '[D&D 5e only] Create a new NPC actor from scratch with a full Level-2 stat block: identity (name, type, size, alignment, CR), ability scores, saving throw proficiencies, HP (average + formula), AC (default or flat), movement speeds, senses, skill proficiencies, damage immunities/resistances/vulnerabilities, condition immunities, languages, and biography. Items, actions, features, and spells are NOT added by this tool \u2014 use dnd5e-add-feature (featureType: "passive", "save", "attack", "attack-with-save", "aura", "spellcasting", or "spells") to add them after creation. The actor is placed in the "Foundry MCP Creatures" folder.',
-        inputSchema: {
-          type: "object",
-          properties: {
-            // --- Identity ---
-            name: {
-              type: "string",
-              description: "Name of the NPC"
-            },
-            creatureType: {
-              type: "string",
-              enum: [
-                "humanoid",
-                "undead",
-                "beast",
-                "dragon",
-                "aberration",
-                "construct",
-                "elemental",
-                "fey",
-                "fiend",
-                "giant",
-                "monstrosity",
-                "ooze",
-                "plant",
-                "celestial",
-                "swarm"
-              ],
-              description: "Creature type"
-            },
-            creatureSubtype: {
-              type: "string",
-              description: 'Optional subtype (e.g. "Goblinoid", "Shapechanger")',
-              default: ""
-            },
-            size: {
-              type: "string",
-              enum: ["tiny", "small", "medium", "large", "huge", "gargantuan"],
-              description: "Creature size"
-            },
-            alignment: {
-              type: "string",
-              description: 'Alignment string (e.g. "Neutral Evil", "Chaotic Good")',
-              default: ""
-            },
-            cr: {
-              description: 'Challenge Rating \u2014 whole number (0, 1, 5), fraction string ("1/8", "1/4", "1/2"), or decimal number (0.25, 0.5)',
-              oneOf: [
-                { type: "string", pattern: "^\\d+(\\/[248])?$" },
-                { type: "number", minimum: 0 }
-              ]
-            },
-            // --- HP ---
-            hpAverage: {
-              type: "number",
-              description: "Average (fixed) hit points",
-              minimum: 1
-            },
-            hpFormula: {
-              type: "string",
-              description: 'Hit dice formula used for re-rolls (e.g. "2d6", "3d8+9")'
-            },
-            // --- AC ---
-            acMode: {
-              type: "string",
-              enum: ["default", "flat"],
-              description: '"default" \u2014 Foundry calculates AC from equipped items and abilities; "flat" \u2014 set a fixed AC value via acValue'
-            },
-            acValue: {
-              type: "number",
-              description: 'Fixed AC value (0\u201330). Required when acMode is "flat".',
-              minimum: 0,
-              maximum: 30
-            },
-            // --- Ability scores ---
-            abilities: {
-              type: "object",
-              description: "The six ability scores (1\u201330 each)",
-              properties: {
-                str: { type: "number", minimum: 1, maximum: 30 },
-                dex: { type: "number", minimum: 1, maximum: 30 },
-                con: { type: "number", minimum: 1, maximum: 30 },
-                int: { type: "number", minimum: 1, maximum: 30 },
-                wis: { type: "number", minimum: 1, maximum: 30 },
-                cha: { type: "number", minimum: 1, maximum: 30 }
-              },
-              required: ["str", "dex", "con", "int", "wis", "cha"]
-            },
-            // --- Saving throws ---
-            savingThrows: {
-              type: "array",
-              description: "Abilities with saving throw proficiency",
-              items: {
-                type: "string",
-                enum: ["str", "dex", "con", "int", "wis", "cha"]
-              },
-              default: []
-            },
-            // --- Movement ---
-            walkSpeed: {
-              type: "number",
-              description: "Walk speed in feet",
-              minimum: 0,
-              default: 30
-            },
-            flySpeed: {
-              type: "number",
-              description: "Fly speed in feet",
-              minimum: 0,
-              default: 0
-            },
-            swimSpeed: {
-              type: "number",
-              description: "Swim speed in feet",
-              minimum: 0,
-              default: 0
-            },
-            climbSpeed: {
-              type: "number",
-              description: "Climb speed in feet",
-              minimum: 0,
-              default: 0
-            },
-            burrowSpeed: {
-              type: "number",
-              description: "Burrow speed in feet",
-              minimum: 0,
-              default: 0
-            },
-            hover: {
-              type: "boolean",
-              description: "Whether the creature hovers (cannot fall)",
-              default: false
-            },
-            // --- Senses ---
-            darkvision: {
-              type: "number",
-              description: "Darkvision range in feet",
-              minimum: 0,
-              default: 0
-            },
-            blindsight: {
-              type: "number",
-              description: "Blindsight range in feet",
-              minimum: 0,
-              default: 0
-            },
-            tremorsense: {
-              type: "number",
-              description: "Tremorsense range in feet",
-              minimum: 0,
-              default: 0
-            },
-            truesight: {
-              type: "number",
-              description: "Truesight range in feet",
-              minimum: 0,
-              default: 0
-            },
-            specialSenses: {
-              type: "string",
-              description: "Any additional senses not covered by the standard fields",
-              default: ""
-            },
-            // --- Skills ---
-            skills: {
-              type: "array",
-              description: "Skills with proficiency or expertise",
-              items: {
-                type: "object",
-                properties: {
-                  skill: {
-                    type: "string",
-                    enum: [
-                      "Acrobatics",
-                      "Animal Handling",
-                      "Arcana",
-                      "Athletics",
-                      "Deception",
-                      "History",
-                      "Insight",
-                      "Intimidation",
-                      "Investigation",
-                      "Medicine",
-                      "Nature",
-                      "Perception",
-                      "Performance",
-                      "Persuasion",
-                      "Religion",
-                      "Sleight of Hand",
-                      "Stealth",
-                      "Survival"
-                    ]
-                  },
-                  proficiency: {
-                    type: "string",
-                    enum: ["proficient", "expert"],
-                    description: '"proficient" = proficiency bonus once; "expert" = double proficiency'
-                  }
-                },
-                required: ["skill", "proficiency"]
-              },
-              default: []
-            },
-            // --- Damage traits ---
-            damageImmunities: {
-              type: "array",
-              description: 'Damage types the creature is immune to (e.g. ["necrotic", "poison"]). Canonical values: acid, bludgeoning, cold, fire, force, lightning, necrotic, piercing, poison, psychic, radiant, slashing, thunder. Non-canonical values are accepted with a warning.',
-              items: { type: "string" },
-              default: []
-            },
-            damageResistances: {
-              type: "array",
-              description: "Damage types the creature is resistant to. Same canonical set as damageImmunities.",
-              items: { type: "string" },
-              default: []
-            },
-            damageVulnerabilities: {
-              type: "array",
-              description: "Damage types the creature is vulnerable to. Same canonical set as damageImmunities.",
-              items: { type: "string" },
-              default: []
-            },
-            conditionImmunities: {
-              type: "array",
-              description: 'Conditions the creature is immune to (e.g. ["charmed", "frightened"]). Canonical values: blinded, charmed, deafened, exhaustion, frightened, grappled, incapacitated, invisible, paralyzed, petrified, poisoned, prone, restrained, stunned, unconscious. Non-canonical values are accepted with a warning.',
-              items: { type: "string" },
-              default: []
-            },
-            // --- Languages ---
-            languages: {
-              type: "array",
-              description: 'Languages the creature speaks (e.g. ["Common", "Goblin"])',
-              items: { type: "string" },
-              default: []
-            },
-            languagesCustom: {
-              type: "string",
-              description: 'Free-text language note (e.g. "telepathy 60 ft.")',
-              default: ""
-            },
-            // --- Biography & source ---
-            biography: {
-              type: "string",
-              description: "HTML biography text shown in the character sheet",
-              default: ""
-            },
-            sourceBook: {
-              type: "string",
-              description: `Source book abbreviation (e.g. "MM'14", "VGM")`,
-              default: ""
-            },
-            sourcePage: {
-              type: "string",
-              description: "Page number in the source book",
-              default: ""
-            },
-            sourceRules: {
-              type: "string",
-              enum: ["2014", "2024"],
-              description: "Rules edition",
-              default: "2014"
-            }
-          },
-          required: [
-            "name",
-            "creatureType",
-            "size",
-            "cr",
-            "abilities",
-            "hpAverage",
-            "hpFormula",
-            "acMode"
-          ]
-        }
-      }
-    ];
-  }
-  async handleCreateNpc(args) {
-    const schema23 = external_exports.object({
-      // Identity
-      name: external_exports.string().min(1, "name cannot be empty"),
-      creatureType: external_exports.enum([
-        "humanoid",
-        "undead",
-        "beast",
-        "dragon",
-        "aberration",
-        "construct",
-        "elemental",
-        "fey",
-        "fiend",
-        "giant",
-        "monstrosity",
-        "ooze",
-        "plant",
-        "celestial",
-        "swarm"
-      ]),
-      creatureSubtype: external_exports.string().default(""),
-      size: external_exports.enum(["tiny", "small", "medium", "large", "huge", "gargantuan"]),
-      alignment: external_exports.string().default(""),
-      cr: external_exports.union([
-        external_exports.string().regex(/^\d+(\/[248])?$/, 'CR must be a whole number or fraction string (e.g. "0", "1/4", "1/2", "5")'),
-        external_exports.number().finite().min(0)
-      ]),
-      // HP
-      hpAverage: external_exports.number().int().min(1),
-      hpFormula: external_exports.string().min(1, "hpFormula cannot be empty"),
-      // AC
-      acMode: external_exports.enum(["default", "flat"]),
-      acValue: external_exports.number().int().min(0).max(30).optional(),
-      // Abilities
-      abilities: external_exports.object({
-        str: external_exports.number().int().min(1).max(30),
-        dex: external_exports.number().int().min(1).max(30),
-        con: external_exports.number().int().min(1).max(30),
-        int: external_exports.number().int().min(1).max(30),
-        wis: external_exports.number().int().min(1).max(30),
-        cha: external_exports.number().int().min(1).max(30)
-      }),
-      savingThrows: external_exports.array(external_exports.enum(["str", "dex", "con", "int", "wis", "cha"])).default([]),
-      // Movement
-      walkSpeed: external_exports.number().int().min(0).default(30),
-      flySpeed: external_exports.number().int().min(0).default(0),
-      swimSpeed: external_exports.number().int().min(0).default(0),
-      climbSpeed: external_exports.number().int().min(0).default(0),
-      burrowSpeed: external_exports.number().int().min(0).default(0),
-      hover: external_exports.boolean().default(false),
-      // Senses
-      darkvision: external_exports.number().int().min(0).default(0),
-      blindsight: external_exports.number().int().min(0).default(0),
-      tremorsense: external_exports.number().int().min(0).default(0),
-      truesight: external_exports.number().int().min(0).default(0),
-      specialSenses: external_exports.string().default(""),
-      // Skills
-      skills: external_exports.array(external_exports.object({
-        skill: external_exports.enum([
-          "Acrobatics",
-          "Animal Handling",
-          "Arcana",
-          "Athletics",
-          "Deception",
-          "History",
-          "Insight",
-          "Intimidation",
-          "Investigation",
-          "Medicine",
-          "Nature",
-          "Perception",
-          "Performance",
-          "Persuasion",
-          "Religion",
-          "Sleight of Hand",
-          "Stealth",
-          "Survival"
-        ]),
-        proficiency: external_exports.enum(["proficient", "expert"])
-      })).default([]),
-      // Damage & condition traits
-      damageImmunities: external_exports.array(external_exports.string()).default([]),
-      damageResistances: external_exports.array(external_exports.string()).default([]),
-      damageVulnerabilities: external_exports.array(external_exports.string()).default([]),
-      conditionImmunities: external_exports.array(external_exports.string()).default([]),
-      // Languages
-      languages: external_exports.array(external_exports.string()).default([]),
-      languagesCustom: external_exports.string().default(""),
-      // Biography & source
-      biography: external_exports.string().default(""),
-      sourceBook: external_exports.string().default(""),
-      sourcePage: external_exports.string().default(""),
-      sourceRules: external_exports.enum(["2014", "2024"]).default("2014")
-    }).superRefine((data, ctx) => {
-      if (data.acMode === "flat" && data.acValue === void 0) {
-        ctx.addIssue({
-          code: external_exports.ZodIssueCode.custom,
-          path: ["acValue"],
-          message: 'acValue is required when acMode is "flat"'
-        });
-      }
-    });
-    const parsed = schema23.parse(args);
-    const warnings = [];
-    const allDamageValues = [
-      ...parsed.damageImmunities.map((v) => ({ field: "damageImmunities", value: v })),
-      ...parsed.damageResistances.map((v) => ({ field: "damageResistances", value: v })),
-      ...parsed.damageVulnerabilities.map((v) => ({ field: "damageVulnerabilities", value: v }))
-    ];
-    for (const { field, value } of allDamageValues) {
-      if (!DAMAGE_CANONICAL2.has(value)) {
-        const msg = `Unknown damage type "${value}" in ${field} \u2014 verify it matches dnd5e system values`;
-        warnings.push(msg);
-        this.logger.warn(msg, { field, value });
-      }
-    }
-    for (const value of parsed.conditionImmunities) {
-      if (!CONDITION_CANONICAL.has(value)) {
-        const msg = `Unknown condition "${value}" in conditionImmunities \u2014 verify it matches dnd5e system values`;
-        warnings.push(msg);
-        this.logger.warn(msg, { value });
-      }
-    }
-    this.logger.info("Creating D&D 5e NPC", {
-      name: parsed.name,
-      creatureType: parsed.creatureType,
-      cr: parsed.cr,
-      warnings: warnings.length
-    });
-    try {
-      const system = await detectGameSystem(this.foundryClient, this.logger);
-      if (system !== "dnd5e") {
-        throw new Error(`dnd5e-create-npc requires D&D 5e. Detected system: "${getCachedSystemId() ?? "unknown"}".`);
-      }
-      const result = await this.foundryClient.query("foundry-mcp-bridge.createNpcActor", parsed);
-      this.logger.info("NPC created successfully", {
-        actorId: result.actor?.id,
-        actorName: result.actor?.name
-      });
-      return this.formatResponse(result, parsed, warnings);
-    } catch (error) {
-      this.errorHandler.handleToolError(error, "dnd5e-create-npc", "NPC creation");
-    }
-  }
-  formatResponse(result, params, warnings) {
-    const crStr = result.actor?.cr ?? formatCR(normalizeCR(params.cr));
-    const abilityLine = ["str", "dex", "con", "int", "wis", "cha"].map((ab) => `${ab.toUpperCase()} ${params.abilities[ab]}`).join(" / ");
-    const acDisplay = params.acMode === "flat" ? String(params.acValue) : "default (calculated)";
-    const summary = `\u2705 NPC "${result.actor.name}" created (CR ${crStr})`;
-    const lines = [
-      `**Actor:** ${result.actor.name} (id: \`${result.actor.id}\`)`,
-      `**Type:** ${params.creatureType}${params.creatureSubtype ? ` (${params.creatureSubtype})` : ""}, ${params.size}`,
-      `**CR:** ${crStr}  |  **HP:** ${params.hpAverage} (${params.hpFormula})  |  **AC:** ${acDisplay}`,
-      `**Abilities:** ${abilityLine}`
-    ];
-    if (result.actor.folder) {
-      lines.push(`**Folder:** ${result.actor.folder}`);
-    }
-    const warningSection = warnings.length > 0 ? `
-
-\u26A0\uFE0F **Warnings (${warnings.length}):**
-${warnings.map((w) => `- ${w}`).join("\n")}` : "";
-    return {
-      summary,
-      success: true,
-      actor: result.actor,
-      warnings,
-      message: `${summary}
-
-${lines.join("\n")}${warningSection}`
     };
   }
 };
@@ -114591,7 +114134,7 @@ var UploadTools = class {
     return [
       {
         name: "upload-file",
-        description: `Upload an image or an audio file from this computer to the Foundry server, into the current world's own folder (worlds/<world>/uploads/...). Returns the Foundry path, which can be used directly as a scene background (scene update), an actor or token image, or a sound for manage-playlists and manage-scene-objects {kind:"sound"}. Images: png, jpg, webp, gif up to 20 MB. Audio: mp3, ogg, wav, flac, m4a up to 25 MB. The file must really be of the type its name says. Existing files are not replaced unless overwrite is true.`,
+        description: `Upload an image or an audio file from this computer to the Foundry server, into the current world's own folder (worlds/<world>/uploads/...). Returns the Foundry path, which can be used directly as a scene background (scene update), an actor or token image, or a sound for audio (playlist actions) and scene-objects {kind:"sound"}. Images: png, jpg, webp, gif up to 20 MB. Audio: mp3, ogg, wav, flac, m4a up to 25 MB. The file must really be of the type its name says. Existing files are not replaced unless overwrite is true.`,
         inputSchema: {
           type: "object",
           properties: {
@@ -115109,23 +114652,25 @@ var H3_DEFAULTS = {
   promptSuffix: "",
   negativePrompt: ""
 };
+var CHECKPOINT_MAP_PROFILE = {
+  workflow: "checkpoint",
+  checkpoint: "dDBattlemapsSDXL10_upscaleV10.safetensors",
+  diffusionModel: "",
+  textEncoder: "",
+  vae: "sdxl_vae.safetensors",
+  steps: 30,
+  cfg: 2.5,
+  sampler: "dpmpp_2m_sde",
+  scheduler: "karras",
+  width: 1024,
+  height: 1024,
+  promptPrefix: "2d DnD battlemap of ",
+  promptSuffix: ", top-down view, overhead perspective, aerial",
+  negativePrompt: "grid, low angle, isometric, oblique, horizon, text, watermark, logo, caption, people, creatures, monsters, blurry, artifacts"
+};
 var DEFAULT_PROFILES = {
-  map: {
-    workflow: "checkpoint",
-    checkpoint: "dDBattlemapsSDXL10_upscaleV10.safetensors",
-    diffusionModel: "",
-    textEncoder: "",
-    vae: "sdxl_vae.safetensors",
-    steps: 30,
-    cfg: 2.5,
-    sampler: "dpmpp_2m_sde",
-    scheduler: "karras",
-    width: 1024,
-    height: 1024,
-    promptPrefix: "2d DnD battlemap of ",
-    promptSuffix: ", top-down view, overhead perspective, aerial",
-    negativePrompt: "grid, low angle, isometric, oblique, horizon, text, watermark, logo, caption, people, creatures, monsters, blurry, artifacts"
-  },
+  // All four kinds default to MiniMax H3 (it takes reference pictures, which layout build needs).
+  map: { ...H3_DEFAULTS, width: 1664, height: 1216 },
   // MiniMax H3 Image works best from about 4 megapixels up and wants long, detailed prompts.
   portrait: { ...H3_DEFAULTS, width: 1664, height: 2432 },
   token: { ...H3_DEFAULTS, width: 2048, height: 2048 },
@@ -115134,7 +114679,7 @@ var DEFAULT_PROFILES = {
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
 }
-function num(value, fallback) {
+function num2(value, fallback) {
   const n = typeof value === "number" ? value : typeof value === "string" ? Number(value) : NaN;
   return Number.isFinite(n) ? n : fallback;
 }
@@ -115178,7 +114723,7 @@ function tokenOrDefault(value, fallback) {
 }
 function normalizeProfile(raw, fallback) {
   const r = raw && typeof raw === "object" ? raw : {};
-  const size = fitPixels(num(r.width, fallback.width), num(r.height, fallback.height));
+  const size = fitPixels(num2(r.width, fallback.width), num2(r.height, fallback.height));
   const workflow = WORKFLOWS.includes(r.workflow) ? r.workflow : fallback.workflow;
   return {
     workflow,
@@ -115186,8 +114731,8 @@ function normalizeProfile(raw, fallback) {
     diffusionModel: nameOrDefault(r.diffusionModel, fallback.diffusionModel),
     textEncoder: nameOrDefault(r.textEncoder, fallback.textEncoder),
     vae: nameOrDefault(r.vae, fallback.vae),
-    steps: Math.round(clamp(num(r.steps, fallback.steps), LIMITS.minSteps, LIMITS.maxSteps)),
-    cfg: clamp(num(r.cfg, fallback.cfg), LIMITS.minCfg, LIMITS.maxCfg),
+    steps: Math.round(clamp(num2(r.steps, fallback.steps), LIMITS.minSteps, LIMITS.maxSteps)),
+    cfg: clamp(num2(r.cfg, fallback.cfg), LIMITS.minCfg, LIMITS.maxCfg),
     sampler: tokenOrDefault(r.sampler, fallback.sampler),
     scheduler: tokenOrDefault(r.scheduler, fallback.scheduler),
     width: size.width,
@@ -115214,9 +114759,10 @@ function normalizeProfiles(raw) {
     if (legacy && kind !== "map") {
       result[kind] = { ...DEFAULT_PROFILES[kind] };
     } else if (legacy) {
-      result[kind] = normalizeProfile({ ...entry, workflow: "checkpoint" }, DEFAULT_PROFILES[kind]);
+      result[kind] = normalizeProfile({ ...entry, workflow: "checkpoint" }, CHECKPOINT_MAP_PROFILE);
     } else {
-      result[kind] = normalizeProfile(entry, DEFAULT_PROFILES[kind]);
+      const isCheckpointMap = kind === "map" && entry && typeof entry === "object" && entry.workflow === "checkpoint";
+      result[kind] = normalizeProfile(entry, isCheckpointMap ? CHECKPOINT_MAP_PROFILE : DEFAULT_PROFILES[kind]);
     }
   }
   return result;
@@ -116360,7 +115906,7 @@ var JournalTools = class {
   getToolDefinitions() {
     return [
       {
-        name: "manage-journals",
+        name: "journals",
         description: "Create, update, describe or search journals with exact pages (never deletes anything). create: needs name; optional folder (created if missing), ownership (who can see it: none = GM only (default), limited, observer, owner) and pages. update: needs journal (id or exact name); can rename, move to a folder, change ownership, and upsert pages: a page with an id or an exact existing name is changed, otherwise a new page is added at the end. describe: lists all journals, or one journal with its full page contents when journal is given. search {query, search_in?(title|content|both, default both)}: finds journals by title and/or page text, with a snippet for each matching page. Text pages take HTML in content (headings, paragraphs, lists, tables). Image pages take src, a Foundry file path such as the one upload-file returns. pin {scene?, x, y, page?, text?, global?} (create or update) also puts a map pin for the journal on a scene in the same call (grid squares from the top-left; page opens that page; text is the label; global shows it to all players).\nIn text you can write {{actor: Name}}, {{scene: Name}}, {{journal: Name}}, {{item: Name}} or {{rolltable: Name}} (or {{actor: Name | label}}) to insert a clickable Foundry link; unmatched names are reported as warnings. Scripts and event handlers are removed from the HTML.",
         inputSchema: {
           type: "object",
@@ -117045,7 +116591,7 @@ var SceneObjectTools = class {
   getToolDefinitions() {
     return [
       {
-        name: "manage-scene-objects",
+        name: "scene-objects",
         description: `Place tokens, lights, walls, map pins, tiles (pictures laid on the map: rugs, furniture, props), animated effects (torches, braziers, campfires, fog, via Sequencer) and ambient sounds on a scene by grid square, describe what is on a scene, or remove objects this tool created (it never removes anything else). Positions are in GRID SQUARES from the top-left corner of the map image: (0, 0) is the top-left corner of the first square, (2.5, 1.5) the centre of the square in column 2, row 1 (counting from 0). Use preview-scene first to see the numbered grid. describe returns the scene grid size so you know the valid range. place takes objects (up to 200): {kind:"token", actor, x, y} puts the actor's token with its top-left corner at that square (use whole numbers; actor is an id or exact name); {kind:"light", x, y, bright, dim} makes a light at that point with radii in squares (optional color, alpha, angle, rotation, animation, hidden); {kind:"wall", points:[[x1,y1],[x2,y2],...]} draws walls along a chain of points (add closed:true to join the ends) or {kind:"wall", rect:[x,y,width,height]} draws the four walls of a rectangle, with preset wall (default), door, secret_door, invisible (blocks movement only) or window (blocks movement, lets light and sight through), and for doors door_state closed, open or locked; {kind:"note", x, y, journal, page?, text?} puts a map pin (the label text defaults to the journal name) that opens that journal or page when clicked; pins are only seen by players who may read the journal unless global is true. {kind:"tile", x, y, width, height, src, rotation?, alpha?, hidden?, elevation?} lays an image (a path in the Foundry files, e.g. an uploaded prop) over the map with its top-left corner at x, y and the given size in squares; {kind:"tile", x, y, effect, width?, height?} places an animated decor effect (a Sequencer effect, e.g. effect "jb2a.braziers.orange.bordered.01.05x05ft", or a few words such as "campfire" when only one effect matches) on an invisible tile at that square (size in squares, default 1); it keeps burning after reloads and is removed with the tile (remove or all_mine), and it can only be placed on the scene being viewed; find names with describe {search: "brazier"} or walk the groups with describe {browse: ""} (top groups with counts), then describe {browse: "jb2a.campfire"} and so on until it lists the effects; use decor to bring a room to life (braziers, campfires, bats in a cave), not on every map; {kind:"sound", x, y, radius, path, volume?, repeat?, walls?, easing?, hidden?} places a looping ambient sound audible within radius squares (path is an audio file in the Foundry files); tokens also accept width and height in squares (e.g. 2 for a Large creature) to override the actor's size. Use whole or half squares for wall points and make wall ends meet exactly, otherwise light and sight leak through gaps. update takes updates (up to 200): [{id, ...fields}] to change objects this tool placed, without removing them: x and y move it (grid squares; give one to keep the other), and per kind: token name, width, height, hidden, disposition, elevation; light bright, dim, color, alpha, angle, rotation, animation (null stops it), hidden; note text, font_size, icon_size, icon, global; tile width, height, src, rotation, alpha, elevation, hidden; sound radius, path, volume, repeat, walls, easing, hidden; wall door_state (closed, open, locked; doors only, walls cannot be moved; this works on ANY door, including those of a bought map, while every other change is limited to objects this tool placed). check_walls {scene?, fix?, tolerance?} reads the scene walls and reports ends that stop just short of another wall (gaps; with the square they should join), loose ends, doors touching no wall, duplicates, tiny and diagonal walls; fix:true repairs the gaps and duplicates of walls this tool placed (moves ends so they join) and reports the rest. Run it after placing or changing walls, then look at preview-scene. remove needs ids or all_mine:true (optionally with kind) and only removes objects created by this tool. scene is an id or exact name; it defaults to the scene the GM is viewing.`,
         inputSchema: {
           type: "object",
@@ -117214,8 +116760,8 @@ var SceneObjectTools = class {
         }
       },
       {
-        name: "manage-world",
-        description: "World housekeeping: folders, moving, renaming and deleting documents. type is Actor, Scene, JournalEntry, Item, RollTable, Playlist, Macro or Folder; documents are named by id or exact name. list_folders (optional type) shows folders with their parent and size. create_folder {type, name, parent?} makes a folder (nothing happens if it exists). rename {type, identifier, name}. move {type, identifiers, folder, create_folder?} puts documents in a folder (folder null = top level; with type Folder also give folder_type, to nest folders). delete {type, identifiers, confirm: true} permanently deletes documents (max 100 per call, refuses the active scene; deleting a Folder keeps its contents unless delete_contents is true). Without confirm: true it only reports what would go. Needs the Foundry tab open in a browser.",
+        name: "world",
+        description: "World housekeeping for any document type: folders, moving, renaming and deleting (world-items edits the contents of world Items). type is Actor, Scene, JournalEntry, Item, RollTable, Playlist, Macro or Folder; documents are named by id or exact name. list_folders (optional type) shows folders with their parent and size. create_folder {type, name, parent?} makes a folder (nothing happens if it exists). rename {type, identifier, name}. move {type, identifiers, folder, create_folder?} puts documents in a folder (folder null = top level; with type Folder also give folder_type, to nest folders). delete {type, identifiers, confirm: true} permanently deletes documents (max 100 per call, refuses the active scene; deleting a Folder keeps its contents unless delete_contents is true). Without confirm: true it only reports what would go. Needs the Foundry tab open in a browser.",
         inputSchema: {
           type: "object",
           properties: {
@@ -117240,8 +116786,8 @@ var SceneObjectTools = class {
         }
       },
       {
-        name: "manage-regions",
-        description: `Regions are areas of a scene that act when tokens enter, leave or move in them: difficult terrain, traps, pop-up text, teleports. A region with hidden:true never runs its behaviors (Foundry skips them), so leave trap regions visible to the GM (not hidden) and do not declare token or actor constants in a trap macro (they clash with the macro's own variables; use the event variable instead). Shapes are in GRID SQUARES from the top-left corner of the map, like manage-scene-objects. create takes regions (up to 100): {name, one of rect:[x,y,width,height] | ellipse:[centreX,centreY,radiusX,radiusY] | polygon:[[x,y],...], color?, hidden?, display_measurements?, behaviors?}. A behavior is either {preset:"difficult_terrain", cost?} (movement costs cost times as much, default 2) or a raw Foundry behavior {type, name?, system?, disabled?} such as executeMacro (run a world macro on tokenEnter, e.g. a pit trap that rolls a save and damage), displayScrollingText, pauseGame or teleportToken. Run behavior_types first to see exactly which fields each behavior type of this Foundry accepts. link {from, to, two_way?(true), name?, placement?(center|random|relative), choice?, snap?, transition?, duration?} joins two places with a teleport, in the same scene or in two scenes (stairs, doors, cave mouths): from and to are each {scene?, name?, one of rect | ellipse | polygon in grid squares of THAT scene}. It makes a region at each end (purple) with a teleportToken behavior pointing at the other, so a token moved into one appears in the other; two_way:false makes only from -> to (to is just an arrival area). choice:true asks the player first; placement center puts the token in the middle of the destination, random anywhere in it, relative keeps its offset. Make arrival areas a little larger than a token. describe shows where each teleport leads. describe lists the regions of a scene; remove needs ids or all_mine:true and only removes regions this tool created. scene is an id or exact name (default: the scene being viewed). Needs the Foundry tab open in a browser.`,
+        name: "regions",
+        description: `Regions are areas of a scene that act when tokens enter, leave or move in them: difficult terrain, traps, pop-up text, teleports. A region with hidden:true never runs its behaviors (Foundry skips them), so leave trap regions visible to the GM (not hidden) and do not declare token or actor constants in a trap macro (they clash with the macro's own variables; use the event variable instead). Shapes are in GRID SQUARES from the top-left corner of the map, like scene-objects. create takes regions (up to 100): {name, one of rect:[x,y,width,height] | ellipse:[centreX,centreY,radiusX,radiusY] | polygon:[[x,y],...], color?, hidden?, display_measurements?, behaviors?}. A behavior is either {preset:"difficult_terrain", cost?} (movement costs cost times as much, default 2) or a raw Foundry behavior {type, name?, system?, disabled?} such as executeMacro (run a world macro on tokenEnter, e.g. a pit trap that rolls a save and damage), displayScrollingText, pauseGame or teleportToken. behavior_types lists the behavior type names; behavior_types with name: "<type>" (for example executeMacro) shows exactly which fields that type accepts. link {from, to, two_way?(true), name?, placement?(center|random|relative), choice?, snap?, transition?, duration?} joins two places with a teleport, in the same scene or in two scenes (stairs, doors, cave mouths): from and to are each {scene?, name?, one of rect | ellipse | polygon in grid squares of THAT scene}. It makes a region at each end (purple) with a teleportToken behavior pointing at the other, so a token moved into one appears in the other; two_way:false makes only from -> to (to is just an arrival area). choice:true asks the player first; placement center puts the token in the middle of the destination, random anywhere in it, relative keeps its offset. Make arrival areas a little larger than a token. describe shows where each teleport leads. describe lists the regions of a scene; remove needs ids or all_mine:true and only removes regions this tool created. scene is an id or exact name (default: the scene being viewed). Needs the Foundry tab open in a browser.`,
         inputSchema: {
           type: "object",
           properties: {
@@ -117250,7 +116796,7 @@ var SceneObjectTools = class {
             from: linkEndProperties("link: the first end"),
             to: linkEndProperties("link: the second end"),
             two_way: { type: "boolean", description: "link: teleport both ways (default true)" },
-            name: { type: "string", description: "link: base name of the two regions" },
+            name: { type: "string", description: "link: base name of the two regions; behavior_types: the behavior type to describe" },
             placement: { type: "string", enum: ["center", "random", "relative"], description: "link: where arriving tokens appear" },
             choice: { type: "boolean", description: "link: ask the player before teleporting" },
             snap: { type: "boolean", description: "link: snap arriving tokens to the grid (default true)" },
@@ -117576,8 +117122,8 @@ var PlayTools = class {
   getToolDefinitions() {
     return [
       {
-        name: "manage-roll-tables",
-        description: "Create, change, list, describe and roll on Foundry roll tables (random encounters, loot, rumours). create {name, results, description?, formula?, replacement?, display_roll?, folder?}: results is a list of rows {text, description?, weight?} (weight 1 by default) and the tool numbers them in order and picks the dice formula (a table of 6 rows gets 1d6; give a formula such as 2d6 together with range on every row to cover an uneven table). Or give range [low, high] on every row for exact dice ranges. update {table, ...fields}: change name, description, formula or settings; passing results replaces all rows. roll {table, times?, to_chat?}: roll on the table; the result is posted to chat (GM-only roll) unless to_chat is false, and returned either way. list shows every table, describe {table} shows one with its rows. table is an id or exact name. Deleting goes through manage-world (type RollTable). Needs the Foundry tab open in a browser.",
+        name: "roll-tables",
+        description: "Create, change, list, describe and roll on Foundry roll tables (random encounters, loot, rumours). create {name, results, description?, formula?, replacement?, display_roll?, folder?}: results is a list of rows {text, description?, weight?} (weight 1 by default) and the tool numbers them in order and picks the dice formula (a table of 6 rows gets 1d6; give a formula such as 2d6 together with range on every row to cover an uneven table). Or give range [low, high] on every row for exact dice ranges. update {table, ...fields}: change name, description, formula or settings; passing results replaces all rows. roll {table, times?, to_chat?}: roll on the table; the result is posted to chat (GM-only roll) unless to_chat is false, and returned either way. list shows every table, describe {table} shows one with its rows. table is an id or exact name. Deleting goes through world (type RollTable). Needs the Foundry tab open in a browser.",
         inputSchema: {
           type: "object",
           properties: {
@@ -117618,8 +117164,8 @@ var PlayTools = class {
         }
       },
       {
-        name: "manage-macros",
-        description: `Create, change, list, describe and run Foundry macros. create {name, command, type?, img?, folder?}: type script (JavaScript, the default) or chat (the command is sent to chat). Script macros run in the GM's browser with the GM's permissions, so write them carefully. update {macro, ...fields}, list, describe {macro} (shows the code), execute {macro} (runs it now and returns what it returned). macro is an id or exact name. A macro can be run by a region when a token enters it: give manage-regions a behavior {type: "executeMacro", system: {events: ["tokenEnter"], uuid: "Macro.<id>"}}; the uuid is returned when you create the macro. Deleting goes through manage-world (type Macro). Needs the Foundry tab open in a browser.`,
+        name: "macros",
+        description: `Create, change, list, describe and run Foundry macros. create {name, command, type?, img?, folder?}: type script (JavaScript, the default) or chat (the command is sent to chat). Script macros run in the GM's browser with the GM's permissions, so write them carefully. update {macro, ...fields}, list, describe {macro} (shows the code), execute {macro} (runs it now and returns what it returned). macro is an id or exact name. A macro can be run by a region when a token enters it: give regions a behavior {type: "executeMacro", system: {events: ["tokenEnter"], uuid: "Macro.<id>"}}; the uuid is returned when you create the macro. Deleting goes through world (type Macro). Needs the Foundry tab open in a browser.`,
         inputSchema: {
           type: "object",
           properties: {
@@ -117698,7 +117244,7 @@ var ModuleTools = class {
   getToolDefinitions() {
     return [
       {
-        name: "manage-modules",
+        name: "modules",
         description: `Look at the Foundry modules installed on the server and use them. list {filter?: all|active|inactive, search?} shows installed modules (id, title, version, whether active, whether it has a public API). describe {module} shows one module: description, what it requires and conflicts with, the settings it registers (key, name, hint, scope, type, default and current value) and, when active, its public API (function names, one level of nested objects). get_setting {module, key} and set_setting {module, key, value} read and change a module setting (world settings change for everyone). call {module, path, args?} runs a function of the module's public API (game.modules.get(id).api) and returns its result as JSON; path is like "getByTag" or "tags.add", args a list of values; documents in results come back as {documentName, id, uuid, name}. Only active modules that publish an api can be called, and nothing outside that api is reachable; read describe first for the real function names and see the module's own documentation for what the arguments mean. set_active {modules, active, confirm?, dry_run?} switches modules on or off in this world: it adds the modules they require (switching on) or that depend on them (switching off), refuses conflicts, and without confirm: true only reports what it would change. Nothing takes effect until the Foundry page is reloaded (F5); the connection to this tool is never switched off. Changing settings, calling APIs and switching modules are write operations, as with macros: what a module function does is up to that module. Needs the Foundry tab open in a browser.`,
         inputSchema: {
           type: "object",
@@ -117829,7 +117375,7 @@ var PropTools = class {
     return [
       {
         name: "make-prop",
-        description: `Make a prop (a table, crate, rug, statue, campfire, door in the floor...) as a picture with a transparent background and, if you give a position, lay it on a scene as a tile. With prompt it generates the object seen from above on a flat coloured background (key: magenta default, green or blue; pick a colour the object does not contain), removes that background, crops to the object and uploads the PNG to the Foundry files (folder default props). With image (a PNG or JPEG on this computer, for example the local_path of an earlier generate-image) it skips generating and only removes the background, so you can retry with another tolerance (default 60; raise it if a coloured fringe is left, lower it if the object is eaten into). Give x and y (grid squares, top-left corner of the tile) to place it on scene (id or name, default the scene being viewed) with width in squares (default 2; the height keeps the picture's proportions unless you give height) and optional rotation (degrees), alpha, elevation, hidden. Without x and y it only makes and uploads the picture and returns its path for manage-scene-objects {kind:"tile", src}. Generation takes a couple of minutes. Tiles it places are removed with manage-scene-objects remove.`,
+        description: `Make a prop (a table, crate, rug, statue, campfire, door in the floor...) as a picture with a transparent background and, if you give a position, lay it on a scene as a tile. With prompt it generates the object seen from above on a flat coloured background (key: magenta default, green or blue; pick a colour the object does not contain), removes that background, crops to the object and uploads the PNG to the Foundry files (folder default props). With image (a PNG or JPEG on this computer, for example the local_path of an earlier generate-image) it skips generating and only removes the background, so you can retry with another tolerance (default 60; raise it if a coloured fringe is left, lower it if the object is eaten into). Give x and y (grid squares, top-left corner of the tile) to place it on scene (id or name, default the scene being viewed) with width in squares (default 2; the height keeps the picture's proportions unless you give height) and optional rotation (degrees), alpha, elevation, hidden. Without x and y it only makes and uploads the picture and returns its path for scene-objects {kind:"tile", src}. Generation takes a couple of minutes. Tiles it places are removed with scene-objects remove.`,
         inputSchema: {
           type: "object",
           properties: {
@@ -117999,7 +117545,7 @@ var FileBackupTools = class {
         }
       },
       {
-        name: "manage-scene-backups",
+        name: "scene-backups",
         description: `Keep copies of scenes so a rebuild can be undone. backup {scene?, label?} makes a full copy (map, walls, lights, tokens, regions, tiles, pins, sounds, settings) named "<scene> (old <date time> <label>)" in a Backups folder; the copy is not active and not in navigation. list {scene?} shows the backups (all, or of one scene). restore {backup, scene?, confirm} puts a backup's contents back into the original scene (or the scene you name), KEEPING the scene's id so teleports and links still work; without confirm: true it only shows what would change; with it, a safety copy of the current state ("before restore") is made first, so a restore can itself be undone. delete {backup, confirm} removes a backup (only scenes this tool made as backups can be deleted). Layout files (the layout tool) are not part of a backup. Needs the Foundry tab open in a browser.`,
         inputSchema: {
           type: "object",
@@ -118062,7 +117608,7 @@ var AuditTools = class {
     return [
       {
         name: "audit-world",
-        description: "Read-only checklist of what is missing or broken in the world, worst first: scenes without a background, walls, tokens, lights or music; tokens whose actor is gone; teleport regions that are hidden (hidden regions never run), have no destination or point at a region that no longer exists; map pins pointing at a missing journal or page; dark scenes with token vision and no lights; actors still on the default silhouette; player characters nobody owns; empty playlists; duplicate scene names; no active scene. Each finding names the tool that fixes it, and a per-scene table gives the counts. scene limits it to one scene; backup scenes made by manage-scene-backups are skipped unless include_backups is true. Changes nothing. Needs the Foundry tab open in a browser.",
+        description: "Read-only checklist of what is missing or broken in the world, worst first: scenes without a background, walls, tokens, lights or music; tokens whose actor is gone; teleport regions that are hidden (hidden regions never run), have no destination or point at a region that no longer exists; map pins pointing at a missing journal or page; dark scenes with token vision and no lights; actors still on the default silhouette; player characters nobody owns; empty playlists; duplicate scene names; no active scene. Each finding names the tool that fixes it, and a per-scene table gives the counts. scene limits it to one scene; backup scenes made by scene-backups are skipped unless include_backups is true. Changes nothing. Needs the Foundry tab open in a browser.",
         inputSchema: {
           type: "object",
           properties: {
@@ -118568,8 +118114,8 @@ var TableTools = class {
   getToolDefinitions() {
     return [
       {
-        name: "read-table",
-        description: "See what is happening at the table in one call. Sections (with none given, all four are returned): chat: recent chat messages, oldest first, each with who said it, the text, flavor, whispers and for rolls the formula, total, each die and the roll type (attack, skill, save...). Pass chat:true or {limit (default 20, max 100), since_id (only messages after this id; pass the latestId of your last read to see only what is new), since (timestamp), rolls_only, whispers:false (leave out whispers)}. The result has latestId. combat: the combat tracker: round, whose turn it is and every combatant with initiative, hit points, armour class and conditions. null when no combat is running. party: the player characters with hit points, armour class, conditions, level, passive Perception, gold, inspiration and which player has them. players: who is connected, their character and the scene they are viewing.",
+        name: "table-state",
+        description: "See what is happening at the table in one call: chat, players, party and scene (not roll tables: that is roll-tables). Sections (with none given, all four are returned): chat: recent chat messages, oldest first, each with who said it, the text, flavor, whispers and for rolls the formula, total, each die and the roll type (attack, skill, save...). Pass chat:true or {limit (default 20, max 100), since_id (only messages after this id; pass the latestId of your last read to see only what is new), since (timestamp), rolls_only, whispers:false (leave out whispers)}. The result has latestId. combat: the combat tracker: round, whose turn it is and every combatant with initiative, hit points, armour class and conditions. null when no combat is running. party: the player characters with hit points, armour class, conditions, level, passive Perception, gold, inspiration and which player has them. players: who is connected, their character and the scene they are viewing.",
         inputSchema: {
           type: "object",
           properties: {
@@ -118676,7 +118222,7 @@ var RevealTools = class {
 
 // dist/tools/combat-tools.js
 init_zod();
-var ACTIONS = ["status", "start", "add", "remove", "roll", "set_initiative", "next", "previous", "next_round", "damage", "heal", "defeat", "stabilize", "death_saves", "boss", "end", "attack", "check"];
+var ACTIONS = ["status", "start", "add", "remove", "roll", "set_initiative", "next", "previous", "next_round", "damage", "heal", "defeat", "stabilize", "death_saves", "boss", "end", "attack", "cast", "check"];
 var schema13 = external_exports.object({
   action: external_exports.enum(ACTIONS),
   scene: external_exports.string().min(1).optional(),
@@ -118688,6 +118234,9 @@ var schema13 = external_exports.object({
   amounts: external_exports.array(external_exports.object({ target: external_exports.string().min(1), amount: external_exports.number().positive() }).strict()).max(60).optional(),
   defeated: external_exports.boolean().optional(),
   attacker: external_exports.string().min(1).optional(),
+  caster: external_exports.string().min(1).optional(),
+  level: external_exports.number().int().min(1).max(9).optional(),
+  activity: external_exports.string().min(1).optional(),
   item: external_exports.string().min(1).optional(),
   targets: external_exports.array(external_exports.string().min(1)).max(20).optional(),
   advantage: external_exports.boolean().optional(),
@@ -118718,7 +118267,7 @@ var CombatTools = class {
     return [
       {
         name: "combat",
-        description: `Run the combat tracker (Foundry's own, so tracker modules keep working). Every action returns a short readout: round, whose turn, and one line per combatant in order (initiative, name, hp, conditions). ACTIONS: status; start {scene?, who?, roll?, begin?, surprised?} makes the encounter from tokens on the scene (who = list of: "all" (default), "hostile", "friendly", "neutral", "players", "npcs", or token/actor names; hidden tokens are included), rolls initiative for the ones without one (roll: missing (default) | npcs | all | none) and begins it (begin:false to only set it up); add {who, roll?} adds more tokens mid-fight; remove {names}; roll {names? | roll?} rolls initiative (default for everyone still without one); set_initiative {initiative:[{name, value}]}; next, previous, next_round move the turn (the first next begins the combat); damage / heal {amounts:[{target, amount}]} apply to combatants (or scene tokens) by name, through the system rules (temp HP, resistances are the system's job) and report hp before and after; defeat {names, defeated?(true)} marks defeated or not; stabilize {names} makes dying characters stable (3 death save successes, 0 failures); death_saves {names, success?, failure?} sets the death save counts (0 to 3; the sheet shows them; 3 failures mark the character dead and defeated); boss {names, style?, hide_name?} / boss {clear:true} puts the Bossbar health bar at the top of every player's screen for the creatures named (replacing the earlier ones; no names lists the current ones): ONLY for a dangerous mini-boss or boss, the moment you want the table to feel that an enemy is very strong (Klarg, Yeemik, a dragon), never for ordinary encounters or packs; it shows the true hit point proportion, and clear it when the fight ends; surprised (on start) lists creatures that get the Surprised status for the first round; a character reduced to 0 hp by damage here becomes unconscious and prone; with Monk's Combat Details on, NPCs are marked defeated automatically at 0 hp (no defeat call needed), a heal brings a defeated creature back (revived:true), and a start or next with someone lacking an initiative is refused with a clear message (roll or set_initiative first); end ends and deletes the encounter. ATTACK AND CHECK (the dnd5e system does the maths: modifiers, advantage, critical hits, resistances, chat cards): attack {attacker, item?, targets?, advantage?, disadvantage?, apply?(true)} uses an item of the attacker (default its first attack or save): spends its charges or slot, rolls the attack against each target (the target is targeted first, so the roll uses its AC and the card shows hit or miss), rolls damage on a hit (double dice on a crit) and applies it, reporting roll, natural, hit, damage and hp before and after; a save item (a breath weapon) rolls damage once and each target rolls a saving throw against its DC; apply:false rolls without applying. Before rolling, the distance from attacker to each target token is checked against the weapon reach or the range: out of range is refused (ignore_range:true rolls anyway), beyond normal range rolls with disadvantage; the result lists warnings, such as an attack made outside the attacker turn or a target already at 0 hp. check {who:[names], skill | ability | save, dc?, advantage?, disadvantage?} rolls a skill (perception or prc), an ability check or a saving throw (dex or dexterity) for each name and reports totals and success against dc. Rolls are posted to the GM only unless public:true. attacker, targets and who match combatants, then scene tokens, then actors. Names match exactly, else part of a name or the actor name. Needs the Foundry tab open in a browser.`,
+        description: `Run the combat tracker (Foundry's own, so tracker modules keep working). Every action returns a short readout: round, whose turn, and one line per combatant in order (initiative, name, hp, conditions). ACTIONS: status; start {scene?, who?, roll?, begin?, surprised?} makes the encounter from tokens on the scene (who = list of: "all" (default), "hostile", "friendly", "neutral", "players", "npcs", or token/actor names; hidden tokens are included), rolls initiative for the ones without one (roll: missing (default) | npcs | all | none) and begins it (begin:false to only set it up); add {who, roll?} adds more tokens mid-fight; remove {names}; roll {names? | roll?} rolls initiative (default for everyone still without one); set_initiative {initiative:[{name, value}]}; next, previous, next_round move the turn (the first next begins the combat); damage / heal {amounts:[{target, amount}]} apply to combatants (or scene tokens) by name, through the system rules (temp HP, resistances are the system's job) and report hp before and after; defeat {names, defeated?(true)} marks defeated or not; stabilize {names} makes dying characters stable (3 death save successes, 0 failures); death_saves {names, success?, failure?} sets the death save counts (0 to 3; the sheet shows them; 3 failures mark the character dead and defeated); boss {names, style?, hide_name?} / boss {clear:true} puts the Bossbar health bar at the top of every player's screen for the creatures named (replacing the earlier ones; no names lists the current ones): ONLY for a dangerous mini-boss or boss, the moment you want the table to feel that an enemy is very strong (Klarg, Yeemik, a dragon), never for ordinary encounters or packs; it shows the true hit point proportion, and clear it when the fight ends; surprised (on start) lists creatures that get the Surprised status for the first round; a character reduced to 0 hp by damage here becomes unconscious and prone; with Monk's Combat Details on, NPCs are marked defeated automatically at 0 hp (no defeat call needed), a heal brings a defeated creature back (revived:true), and a start or next with someone lacking an initiative is refused with a clear message (roll or set_initiative first); end ends and deletes the encounter. ATTACK AND CHECK (the dnd5e system does the maths: modifiers, advantage, critical hits, resistances, chat cards): attack {attacker, item?, targets?, advantage?, disadvantage?, apply?(true)} uses an item of the attacker (default its first attack or save): spends its charges or slot, rolls the attack against each target (the target is targeted first, so the roll uses its AC and the card shows hit or miss), rolls damage on a hit (double dice on a crit) and applies it, reporting roll, natural, hit, damage and hp before and after; a save item (a breath weapon) rolls damage once and each target rolls a saving throw against its DC; apply:false rolls without applying. Before rolling, the distance from attacker to each target token is checked against the weapon reach or the range: out of range is refused (ignore_range:true rolls anyway), beyond normal range rolls with disadvantage; the result lists warnings, such as an attack made outside the attacker turn or a target already at 0 hp. cast {caster, item, targets?, level?, activity?, apply?(true)} casts a spell or uses any item, whatever it does, and spends the spell slot as the system does (level upcasts; cantrips, at-will and innate spells spend none; with no slot left it is refused). An attack or save spell works like attack; a damage spell (Magic Missile) rolls its damage and applies it to each target; a healing spell rolls the healing and applies it to the targets (name them); any other (Sleep, Bless, a utility spell) posts its card, spends the slot and returns a note telling you to apply the effect yourself (token condition, effects, combat damage). The result shows the slot before and after, and concentration:true for a concentration spell. Slots are read from the sheet: the system derives them from the class levels, so they grow when a character levels up. check {who:[names], skill | ability | save, dc?, advantage?, disadvantage?} rolls a skill (perception or prc), an ability check or a saving throw (dex or dexterity) for each name and reports totals and success against dc. Rolls are posted to the GM only unless public:true. attacker, targets and who match combatants, then scene tokens, then actors. Names match exactly, else part of a name or the actor name. Needs the Foundry tab open in a browser.`,
         inputSchema: {
           type: "object",
           properties: {
@@ -118732,16 +118281,19 @@ var CombatTools = class {
             amounts: { type: "array", items: { type: "object", properties: { target: { type: "string" }, amount: { type: "number" } }, required: ["target", "amount"], additionalProperties: false }, description: "damage, heal: [{target, amount}]" },
             defeated: { type: "boolean", description: "defeat: true (default) marks defeated, false revives" },
             attacker: { type: "string", description: "attack: who attacks (combatant, token or actor name)" },
-            item: { type: "string", description: "attack: the weapon, spell or feature to use (default the first attack)" },
-            targets: { type: "array", items: { type: "string" }, description: "attack: who is attacked (names)" },
-            advantage: { type: "boolean", description: "attack, check: roll with advantage" },
-            disadvantage: { type: "boolean", description: "attack, check: roll with disadvantage" },
-            apply: { type: "boolean", description: "attack: apply the damage (default true)" },
+            caster: { type: "string", description: "cast: who casts or uses the item (combatant, token or actor name)" },
+            level: { type: "number", description: "cast: the spell slot level to spend, to upcast (default the spell level)" },
+            activity: { type: "string", description: "cast: which activity of the item, by name or type (attack, save, damage, heal, utility), when it has several" },
+            item: { type: "string", description: "attack: the weapon, spell or feature to use (default the first attack). cast: the spell or item (required)" },
+            targets: { type: "array", items: { type: "string" }, description: "attack, cast: who is attacked or affected (names)" },
+            advantage: { type: "boolean", description: "attack, cast, check: roll with advantage" },
+            disadvantage: { type: "boolean", description: "attack, cast, check: roll with disadvantage" },
+            apply: { type: "boolean", description: "attack, cast: apply the damage or healing (default true)" },
             skill: { type: "string", description: "check: a skill, e.g. perception or prc" },
             ability: { type: "string", description: "check: an ability check, e.g. dex" },
             save: { type: "string", description: "check: a saving throw, e.g. wis" },
             dc: { type: "number", description: "check: the difficulty; success is reported against it" },
-            consume: { type: "boolean", description: "attack: spend the item charges, ammunition or spell slot (default true)" },
+            consume: { type: "boolean", description: "attack, cast: spend the item charges, ammunition or spell slot (default true)" },
             ignore_range: { type: "boolean", description: "attack: roll even when a target is out of range" },
             surprised: { type: "array", items: { type: "string" }, description: "start: creatures (names) surprised in the first round" },
             success: { type: "number", description: "death_saves: death save successes to set (0 to 3)" },
@@ -118749,7 +118301,7 @@ var CombatTools = class {
             clear: { type: "boolean", description: "boss: take the boss bar down" },
             style: { type: "string", description: "boss: bar style id or name (default, default-ice, default-grass, default-oak, evil, gears, ooze, royal, segmented, steampunk)" },
             hide_name: { type: "boolean", description: "boss: hide the creature name on the bar (default false)" },
-            public: { type: "boolean", description: "attack, check: post the rolls for everyone (default: GM only, so hidden monsters are not given away)" }
+            public: { type: "boolean", description: "attack, cast, check: post the rolls for everyone (default: GM only, so hidden monsters are not given away)" }
           },
           required: ["action"],
           additionalProperties: false
@@ -119003,7 +118555,7 @@ var CompendiumHub = class {
             hp: { description: "import (pack): hit points override, a number or {value, max}" },
             img: { type: "string", description: "import (pack): portrait path" },
             token_img: { type: "string", description: "import (pack): token picture path" },
-            token: { type: "object", description: "import (pack): token options as in manage-actors", additionalProperties: true },
+            token: { type: "object", description: "import (pack): token options as in actors", additionalProperties: true },
             actor: { type: "string", description: "add_items, add_features: actor id or name" },
             items: { type: "array", items: {}, description: "add_items: item names or {name, quantity?, pack?}" },
             feature_names: { type: "array", items: { type: "string" }, description: "add_features: English feature names (max 50)" },
@@ -119176,7 +118728,7 @@ function createHubs(allDefs, h) {
   const withAction = (actions, from, handler) => route(Object.keys(actions), from, (a, args) => handler({ ...args, action: actions[a] }));
   const token = buildHub({
     name: "token",
-    intro: "Everything about a token already on a scene: move it, change it, read it, delete it, set its conditions. A token is found by its id or its name (token name, else actor name; an ambiguous name is refused with the ids). To put new tokens on a map use manage-scene-objects place or manage-actors place.",
+    intro: "Everything about a token already on a scene: move it, change it, read it, delete it, set its conditions. A token is found by its id or its name (token name, else actor name; an ambiguous name is refused with the ids). To put new tokens on a map use scene-objects place or actors place.",
     routes: [
       route(["move"], "move-token", (_a, args) => h.moveToken(args)),
       route(["update"], "update-token", (_a, args) => h.updateToken(args)),
@@ -119188,7 +118740,7 @@ function createHubs(allDefs, h) {
   });
   const character = buildHub({
     name: "character",
-    intro: "Read characters and NPCs (actors): list them, read a sheet, read one item, spell or effect in full, or search their items. Changing actors is manage-actors; using an item is use-item.",
+    intro: "Read characters and NPCs (actors): list them, read a sheet, read one item, spell or effect in full, or search their items. Changing actors is actors; using an item is use-item.",
     routes: [
       route(["list"], "list-characters", (_a, args) => h.listCharacters(args)),
       route(["get"], "get-character", (_a, args) => h.getCharacter(args)),
@@ -119207,7 +118759,7 @@ function createHubs(allDefs, h) {
   });
   const scene = buildHub({
     name: "scene",
-    intro: "Scenes and the world: list scenes, read the scene on screen, switch to another (this moves the players), create or edit one, and read the world and system info. Maps, walls, lights and tokens on a scene are manage-scene-objects, preview-scene and layout.",
+    intro: "Scenes and the world: list scenes, read the scene on screen, switch to another (this moves the players), create or edit one, and read the world and system info. Maps, walls, lights and tokens on a scene are scene-objects, preview-scene and layout.",
     routes: [
       route(["list"], "list-scenes", (_a, args) => h.listScenes(args)),
       route(["current"], "get-current-scene", (_a, args) => h.getCurrentScene(args)),
@@ -119218,12 +118770,20 @@ function createHubs(allDefs, h) {
   });
   const audio = buildHub({
     name: "audio",
-    intro: "Music and sound: build and read playlists, control playback, bind music to a scene, and set a scene's music and ambient sounds in one go. Upload audio files first with upload-file.",
+    intro: "Music and sound. Playlists: playlist_create, playlist_update, playlist_delete, playlist_describe (give scene to also see that scene's music and ambient sounds). Playback: control. A scene's own music and ambient sounds: scene_sound. Upload audio files first with upload-file.",
     routes: [
-      withAction({ create_playlist: "create", update_playlist: "update", delete_playlist: "delete", describe_playlists: "describe" }, "manage-playlists", h.managePlaylists),
+      withAction({ playlist_create: "create", playlist_update: "update", playlist_delete: "delete" }, "manage-playlists", h.managePlaylists),
+      // One read action: the playlists, and with scene also what that scene has (its music and ambient sounds).
+      route(["playlist_describe"], "manage-playlists", async (_a, args) => {
+        const { scene: sceneName, ...rest } = args ?? {};
+        const playlists = await h.managePlaylists({ ...rest, action: "describe" });
+        if (!sceneName)
+          return playlists;
+        const sound = await h.setupSceneSound({ scene: sceneName, action: "describe" });
+        return { ...playlists, sceneSound: sound };
+      }),
       route(["control"], "control-playlist", (_a, args) => h.controlPlaylist(args)),
-      route(["scene_music"], "update-scene-music", (_a, args) => h.updateSceneMusic(args)),
-      withAction({ scene_sound: "apply", describe_scene_sound: "describe" }, "setup-scene-sound", h.setupSceneSound)
+      withAction({ scene_sound: "apply" }, "setup-scene-sound", h.setupSceneSound)
     ]
   });
   const hubs = [token, character, ownership, scene, audio];
@@ -119235,7 +118795,7 @@ function createHubs(allDefs, h) {
 
 // dist/tools/party-tools.js
 init_zod();
-var ACTIONS2 = ["status", "rest", "xp", "level_up"];
+var ACTIONS2 = ["status", "rest", "xp"];
 var schema16 = external_exports.object({
   action: external_exports.enum(ACTIONS2),
   who: external_exports.array(external_exports.string().min(1)).max(30).optional(),
@@ -119243,9 +118803,7 @@ var schema16 = external_exports.object({
   spend_hit_dice: external_exports.boolean().optional(),
   new_day: external_exports.boolean().optional(),
   amount: external_exports.number().int().min(1).max(1e7).optional(),
-  split: external_exports.boolean().optional(),
-  actor: external_exports.string().min(1).optional(),
-  class: external_exports.string().min(1).optional()
+  split: external_exports.boolean().optional()
 }).strict();
 var PartyTools = class {
   foundryClient;
@@ -119258,7 +118816,7 @@ var PartyTools = class {
     return [
       {
         name: "party",
-        description: `Look after the party (dnd5e): rests, experience points and level-ups, using the system's own rest and advancement code (hit dice, spell slots, features and uses recover as they normally do; the rest posts its chat card). who is a list of "party" (default: characters owned by a player), "all_characters", or names. ACTIONS: status {who?} one row per character: level, xp (value/next level), hp, hit dice, readyToLevelUp. rest {type: short | long, who?, spend_hit_dice?(true: spends hit dice on a short rest automatically), new_day?(true: a long rest starts a new day)} rests each character and reports hp before and after. xp {amount, who?, split?} gives each character that much XP, or with split divides it among them, and flags those who now have enough for the next level. level_up {actor, class?} opens the system's level-up window for that character on the GM screen (the choices there are made by the GM: hit points, features, ability score improvements); class is needed only for multiclass characters. Needs the Foundry tab open in a browser.`,
+        description: `Look after the party (dnd5e): rests and experience points, using the system's own rest and advancement code (hit dice, spell slots, features and uses recover as they normally do; the rest posts its chat card). who is a list of "party" (default: characters owned by a player), "all_characters", or names. ACTIONS: status {who?} one row per character: level, xp (value/next level), hp, hit dice, readyToLevelUp. rest {type: short | long, who?, spend_hit_dice?(true: spends hit dice on a short rest automatically), new_day?(true: a long rest starts a new day)} rests each character and reports hp before and after. xp {amount, who?, split?} gives each character that much XP, or with split divides it among them, and flags those who now have enough for the next level. Levelling up is not a tool: the players do it themselves with Plutonium (status shows readyToLevelUp).`,
         inputSchema: {
           type: "object",
           properties: {
@@ -119268,9 +118826,7 @@ var PartyTools = class {
             spend_hit_dice: { type: "boolean", description: "rest (short): spend hit dice automatically (default true)" },
             new_day: { type: "boolean", description: "rest (long): count it as a new day (default true)" },
             amount: { type: "number", description: "xp: experience points to give" },
-            split: { type: "boolean", description: "xp: divide the amount among the characters instead of giving each the full amount" },
-            actor: { type: "string", description: "level_up: the character" },
-            class: { type: "string", description: "level_up: which class gains the level (multiclass only)" }
+            split: { type: "boolean", description: "xp: divide the amount among the characters instead of giving each the full amount" }
           },
           required: ["action"],
           additionalProperties: false
@@ -120033,7 +119589,7 @@ var SceneSoundTools = class {
     return [
       {
         name: "setup-scene-sound",
-        description: `Give a scene its sound in one call: the music that plays when the scene is shown and the ambient sounds placed on the map. music: {playlist?, files?, sound?, volume?, repeat?, clear?, play?}. Give files (paths in the Foundry files, e.g. from upload-file or browse-files) to put them in a playlist named playlist (default "<scene name> music"; made if missing, new files added if it exists), or give just playlist to use an existing one; sound picks one track to start with; repeat defaults to true for a single file; clear:true takes the music off the scene; play:true also starts it now. ambient: [{path, x, y, radius, volume?, repeat?, walls?, easing?, hidden?}] places looping sounds at a point in GRID SQUARES (radius in squares, heard within it; walls block them by default); replace_ambient (default true when ambient is given) first removes the ambient sounds this tool placed before; clear_ambient:true removes them without adding any. action describe shows the scene's music and ambient sounds. Needs the Foundry tab open in a browser.`,
+        description: 'Give a scene its sound in one call: the music that plays when the scene is shown and the ambient sounds placed on the map. music: {playlist?, files?, sound?, volume?, repeat?, clear?, play?}. Give files (paths in the Foundry files, e.g. from upload-file or browse-files) to put them in a playlist named playlist (default "<scene name> music"; made if missing, new files added if it exists), or give just playlist to use an existing one; sound picks one track to start with; repeat defaults to true for a single file; clear:true takes the music off the scene; play:true also starts it now. ambient: [{path, x, y, radius, volume?, repeat?, walls?, easing?, hidden?}] places looping sounds at a point in GRID SQUARES (radius in squares, heard within it; walls block them by default); replace_ambient (default true when ambient is given) first removes the ambient sounds this tool placed before; clear_ambient:true removes them without adding any. To read what a scene has, use audio playlist_describe with scene. Needs the Foundry tab open in a browser.',
         inputSchema: {
           type: "object",
           properties: {
@@ -120219,11 +119775,11 @@ var FILLS = {
 var SHAPE_KINDS = ["rect", "ellipse", "polygon", "path", "cells", "door"];
 var MAX_PIXELS = 4096 * 4096;
 var HEX = /^#[0-9a-fA-F]{6}$/;
-function num2(v) {
+function num3(v) {
   return typeof v === "number" && Number.isFinite(v);
 }
 function nums(v, count, label, what) {
-  if (!Array.isArray(v) || v.length !== count || !v.every(num2)) {
+  if (!Array.isArray(v) || v.length !== count || !v.every(num3)) {
     throw new Error(`${label}: ${what} must be ${count} numbers`);
   }
   return v;
@@ -120259,10 +119815,10 @@ function normalizeShape(raw, label, layoutSnap) {
   if (s.fill !== void 0 && !FILLS[s.fill]) {
     throw new Error(`${label}: fill must be one of ${Object.keys(FILLS).join(", ")}`);
   }
-  if (s.snap !== void 0 && (!num2(s.snap) || s.snap < 0 || s.snap > 5)) {
+  if (s.snap !== void 0 && (!num3(s.snap) || s.snap < 0 || s.snap > 5)) {
     throw new Error(`${label}: snap must be a number from 0 to 5`);
   }
-  if (s.rotate !== void 0 && !num2(s.rotate))
+  if (s.rotate !== void 0 && !num3(s.rotate))
     throw new Error(`${label}: rotate must be degrees`);
   if (s.label !== void 0 && !Number.isInteger(s.label))
     throw new Error(`${label}: label must be a whole number`);
@@ -120273,7 +119829,7 @@ function normalizeShape(raw, label, layoutSnap) {
     const at = nums(s.at, 2, label, "at [x, y]");
     if (s.dir !== "h" && s.dir !== "v")
       throw new Error(`${label}: dir must be "h" or "v"`);
-    if (s.size !== void 0 && (!num2(s.size) || s.size <= 0 || s.size > 20)) {
+    if (s.size !== void 0 && (!num3(s.size) || s.size <= 0 || s.size > 20)) {
       throw new Error(`${label}: size must be a number of squares from 0 to 20`);
     }
     if (s.state !== void 0 && !["closed", "open", "locked"].includes(s.state)) {
@@ -120314,7 +119870,7 @@ function normalizeShape(raw, label, layoutSnap) {
     s.polygon = points(s.polygon, 3, `${label} polygon`).map((p) => [sn(p[0]), sn(p[1])]);
   } else if (s.shape === "path") {
     s.path = points(s.path, 2, `${label} path`).map((p) => [sn(p[0]), sn(p[1])]);
-    if (s.width !== void 0 && (!num2(s.width) || s.width <= 0 || s.width > 50)) {
+    if (s.width !== void 0 && (!num3(s.width) || s.width <= 0 || s.width > 50)) {
       throw new Error(`${label}: width must be a number of squares from 0 to 50`);
     }
   } else {
@@ -121172,21 +120728,21 @@ function pickSpots(layout, r, shapeIndex, count, options = {}) {
         continue;
       if (chosen.some((q) => Math.abs(q.c - p.c) < fw && Math.abs(q.row - p.row) < fh))
         continue;
-      let score;
+      let score2;
       if (chosen.length === 0) {
-        score = p.d * 4 - Math.hypot(p.c - cx, p.row - cy) * 0.3;
+        score2 = p.d * 4 - Math.hypot(p.c - cx, p.row - cy) * 0.3;
       } else if (spread3) {
         let minDist = Infinity;
         for (const q of chosen)
           minDist = Math.min(minDist, Math.hypot(q.c - p.c, q.row - p.row));
         for (const [ax, ay] of anchors)
           minDist = Math.min(minDist, Math.hypot(ax - p.c, ay - p.row) * 1.5);
-        score = minDist * 3 + p.d;
+        score2 = minDist * 3 + p.d;
       } else {
-        score = -Math.hypot(chosen[0].c - p.c, chosen[0].row - p.row) * 3 + p.d;
+        score2 = -Math.hypot(chosen[0].c - p.c, chosen[0].row - p.row) * 3 + p.d;
       }
-      if (score > bestScore) {
-        bestScore = score;
+      if (score2 > bestScore) {
+        bestScore = score2;
         best = p;
       }
     }
@@ -121307,9 +120863,9 @@ function alignToImage(layout, image, maxShift = 1.5) {
   let best = { sx: 0, sy: 0, score: scoreAtZero };
   for (let sy = -n; sy <= n; sy++) {
     for (let sx = -n; sx <= n; sx++) {
-      const score = correlate(sx, sy);
-      if (score > best.score + 0.01)
-        best = { sx, sy, score };
+      const score2 = correlate(sx, sy);
+      if (score2 > best.score + 0.01)
+        best = { sx, sy, score: score2 };
     }
   }
   const round2 = (v) => Math.round(v * 1e3) / 1e3;
@@ -121936,7 +121492,7 @@ var LayoutTools = class {
     return [
       {
         name: "layout",
-        description: "Build a map layout step by step (rooms, corridors, roads, rivers, buildings, doors), see it at once as a text map, adjust it, then render a flat-colour sketch for generate-image (reference_images + <Picture 1>) and derive walls and doors for the scene. Layouts are saved, so you can come back to them. " + shapeHelp + ' TOWNS: a shape {shape:"building", rect:[x,y,w,h], doors:[{side:"n|s|e|w", offset?(squares along the wall, default centred), size?(1), secret?, state?}], fill?(building), label?} adds a block with its doors in one go (start the layout with wall_fills:["building"] so walls go around buildings instead of inside rooms); any shape accepts repeat:{count, step:[dx,dy]} to make count copies in a row (a street of houses). portals {layout} lists every door with the square outside and inside it and the building it belongs to, ready for linking enterable buildings to interior scenes with manage-regions link. Painting order is the list order: later shapes cover earlier ones (rooms first, then corridors, then doors; paint rock to carve). ACTIONS: new {name, columns, rows, grid_size?(64), background?(rock; grass outdoors), snap?(1), wall_fills?, reference?} starts a layout. add {layout, shapes, after?} adds shapes and returns their ids and the text map. update {layout, id, set?, move?:[cols,rows], front?, back?, after?} changes one shape (set null to clear a field). remove {layout, ids}. show {layout} returns the text map (one character per square with column and row numbers; add region to zoom, shapes_list for every shape and its numbers) or, with png:true, a picture with the numbered grid, shape ids and the reference page showing through, for checking against a book map. reference traces a picture: set {layout, reference:{image, origin:[px,py], cell_px}} where image is a PNG/JPEG on this computer, origin the pixel where square (0,0) starts and cell_px the pixels per square; show png:true then lays your shapes over it (show_reference:false hides it, hide_shapes:true shows only the picture and grid so you can calibrate origin and cell_px). render {layout} writes the clean sketch PNG (no grid or labels) and returns its file path and a legend sentence for the prompt. walls {layout} returns wall and door objects (chains around everything drawn with the wall_fills, default floor, at half-square steps; doors become door walls, with secret and state closed/open/locked). apply_walls {layout, scene?, replace?, shift?, dry_run?} builds them and PLACES them on the scene in one step, once the generated map is the scene background: the scene must have the same number of columns and rows as the layout (the generated picture and the layout line up square for square); replace (default true) first removes the walls this tool placed before, so it can be run again after the layout changes; shift [dx, dy] moves everything by squares to match the picture; dry_run only counts. Then check with preview-scene and nudge anything that is off. CHECK, PLACE AND LIGHT: check {layout, scene?} finds problems without looking at a picture: open areas that nothing connects, doors with rock on a side and shapes outside the layout; with scene (id or name) it also reads what is on that scene and reports tokens or pins on solid rock, tokens sharing a square and lights buried in rock. place {layout, scene?, items:[...], shift?, dry_run?} puts tokens, lights and pins INSIDE named shapes without you picking coordinates: each item {kind:"token"|"light"|"note", in: shape id, label number or name, count?(1), spread?(true), ...} where a token has actor, name?, hidden?, width?, height?, disposition?; a light has bright, dim, color?, animation?; a pin has journal, page?, text?. Spots are away from walls, spread apart, on floor (not rock or water), and avoid squares already taken on the scene. lights {layout, scene?, dry_run?, min_area?, bright?, dim?, color?(#ffa040), animation?(torch), include_outdoor?, replace?} proposes torch lights for every room or cave big enough (one per ~40 squares, away from walls; outdoors skipped unless include_outdoor) and places them; replace first removes the lights the tools placed. align {layout, image, max_shift?(1.5)} compares a generated picture with the layout and returns the shift in squares that best makes its floor match, for apply_walls shift. build {layout, scene_name, prompt, upload_folder?(maps), filename?, scene_grid_size?(64), scene_options?, auto_align?(true), walls?(true)} does the whole chain in one call: render the sketch, generate the map (prompt is your description of the look; the legend sentence is added), upload it, create the scene (scene_options: darkness, fog_mode, token_vision, initial_view, grid_alpha ... as in the scene tool, create), align and place the walls and doors. Needs the layout to have columns and rows whose pixel size is a multiple of 32. set {layout, snap?, background?, wall_fills?, reference?} changes layout settings. undo {layout, steps?} and redo {layout, steps?} step back and forward through the changes (add, update, remove, set; the last 40 are kept and saved with the layout); every change reports how many undo and redo steps there are. list; delete {layout}. Works without Foundry.',
+        description: "Build a map layout step by step (rooms, corridors, roads, rivers, buildings, doors), see it at once as a text map, adjust it, then render a flat-colour sketch for generate-image (reference_images + <Picture 1>) and derive walls and doors for the scene. Layouts are saved, so you can come back to them. " + shapeHelp + ' TOWNS: a shape {shape:"building", rect:[x,y,w,h], doors:[{side:"n|s|e|w", offset?(squares along the wall, default centred), size?(1), secret?, state?}], fill?(building), label?} adds a block with its doors in one go (start the layout with wall_fills:["building"] so walls go around buildings instead of inside rooms); any shape accepts repeat:{count, step:[dx,dy]} to make count copies in a row (a street of houses). portals {layout} lists every door with the square outside and inside it and the building it belongs to, ready for linking enterable buildings to interior scenes with regions link. Painting order is the list order: later shapes cover earlier ones (rooms first, then corridors, then doors; paint rock to carve). ACTIONS: new {name, columns, rows, grid_size?(64), background?(rock; grass outdoors), snap?(1), wall_fills?, reference?} starts a layout. add {layout, shapes, after?} adds shapes and returns their ids and the text map. update {layout, id, set?, move?:[cols,rows], front?, back?, after?} changes one shape (set null to clear a field). remove {layout, ids}. show {layout} returns the text map (one character per square with column and row numbers; add region to zoom, shapes_list for every shape and its numbers) or, with png:true, a picture with the numbered grid, shape ids and the reference page showing through, for checking against a book map. reference traces a picture: set {layout, reference:{image, origin:[px,py], cell_px}} where image is a PNG/JPEG on this computer, origin the pixel where square (0,0) starts and cell_px the pixels per square; show png:true then lays your shapes over it (show_reference:false hides it, hide_shapes:true shows only the picture and grid so you can calibrate origin and cell_px). render {layout} writes the clean sketch PNG (no grid or labels) and returns its file path and a legend sentence for the prompt. walls {layout} returns wall and door objects (chains around everything drawn with the wall_fills, default floor, at half-square steps; doors become door walls, with secret and state closed/open/locked). apply_walls {layout, scene?, replace?, shift?, dry_run?} builds them and PLACES them on the scene in one step, once the generated map is the scene background: the scene must have the same number of columns and rows as the layout (the generated picture and the layout line up square for square); replace (default true) first removes the walls this tool placed before, so it can be run again after the layout changes; shift [dx, dy] moves everything by squares to match the picture; dry_run only counts. Then check with preview-scene and nudge anything that is off. CHECK, PLACE AND LIGHT: check {layout, scene?} finds problems without looking at a picture: open areas that nothing connects, doors with rock on a side and shapes outside the layout; with scene (id or name) it also reads what is on that scene and reports tokens or pins on solid rock, tokens sharing a square and lights buried in rock. place {layout, scene?, items:[...], shift?, dry_run?} puts tokens, lights and pins INSIDE named shapes without you picking coordinates: each item {kind:"token"|"light"|"note", in: shape id, label number or name, count?(1), spread?(true), ...} where a token has actor, name?, hidden?, width?, height?, disposition?; a light has bright, dim, color?, animation?; a pin has journal, page?, text?. Spots are away from walls, spread apart, on floor (not rock or water), and avoid squares already taken on the scene. lights {layout, scene?, dry_run?, min_area?, bright?, dim?, color?(#ffa040), animation?(torch), include_outdoor?, replace?} proposes torch lights for every room or cave big enough (one per ~40 squares, away from walls; outdoors skipped unless include_outdoor) and places them; replace first removes the lights the tools placed. align {layout, image, max_shift?(1.5)} compares a generated picture with the layout and returns the shift in squares that best makes its floor match, for apply_walls shift. build {layout, scene_name, prompt, upload_folder?(maps), filename?, scene_grid_size?(64), scene_options?, auto_align?(true), walls?(true)} does the whole chain in one call: render the sketch, generate the map (prompt is your description of the look; the legend sentence is added), upload it, create the scene (scene_options: darkness, fog_mode, token_vision, initial_view, grid_alpha ... as in the scene tool, create), align and place the walls and doors. Needs the layout to have columns and rows whose pixel size is a multiple of 32. set {layout, snap?, background?, wall_fills?, reference?} changes layout settings. undo {layout, steps?} and redo {layout, steps?} step back and forward through the changes (add, update, remove, set; the last 40 are kept and saved with the layout); every change reports how many undo and redo steps there are. list; delete {layout}. Works without Foundry.',
         inputSchema: {
           type: "object",
           properties: {
@@ -122282,7 +121838,7 @@ var LayoutTools = class {
       removedOldWalls: removed,
       wallSegmentsCreated: created,
       ...check ? { wallCheck: check } : {},
-      next: "Open preview-scene to check where the walls fall on the picture; the generated art often draws its walls a little inside or outside the floor edge, so use shift or manage-scene-objects to adjust."
+      next: "Open preview-scene to check where the walls fall on the picture; the generated art often draws its walls a little inside or outside the floor edge, so use shift or scene-objects to adjust."
     };
   }
   /** After placing walls: join ends that stop just short, drop duplicates, and report what is left. Never fails the placement. */
@@ -122305,7 +121861,7 @@ var LayoutTools = class {
       return {
         fixed: plan.remove.length,
         remaining: left.length,
-        ...left.length > 0 ? { issues: left.slice(0, 10).map((i) => i.message), note: "Check these on preview-scene; loose ends are fine at open edges. Run manage-scene-objects check_walls to see all." } : {}
+        ...left.length > 0 ? { issues: left.slice(0, 10).map((i) => i.message), note: "Check these on preview-scene; loose ends are fine at open edges. Run scene-objects check_walls to see all." } : {}
       };
     } catch (error) {
       this.logger.warn("Wall check after placing failed", { error: error instanceof Error ? error.message : String(error) });
@@ -122726,7 +122282,7 @@ var InspectTools = class {
     return [
       {
         name: "inspect-document",
-        description: `Read-only look at the raw data in the Foundry world, to check exact field names and values instead of guessing. Never changes anything. list: documents of a type (${TYPES.join(", ")}), with optional search text. get: one document's data as JSON, by type + identifier (id or exact name) or by uuid (also works for compendium entries). Embedded collections (a scene's tokens and walls, an actor's items) are summarised as counts unless include_embedded is true; to read them, pass embedded_type (e.g. "Token", "Wall", "Item") to list them and embedded_identifier to read one. path reads one part (e.g. "system.attributes.hp" or "levels.0"); depth limits nesting (default 5, deeper levels shown as placeholders); max_chars caps the output (default 20000, up to 100000). schema: the fields a document type has, with kinds (StringField, NumberField, ...), whether required, and allowed choices; type or embedded_type is a name as in Foundry CONFIG, e.g. "Scene", "Wall" or "Region". Use schema before writing data for a type you have not used before.`,
+        description: `Fallback: a read-only look at the raw data of any Foundry document, to check exact field names and values instead of guessing (for characters, scenes and tokens the character, scene and token tools answer more clearly). Never changes anything. list: documents of a type (${TYPES.join(", ")}), with optional search text. get: one document's data as JSON, by type + identifier (id or exact name) or by uuid (also works for compendium entries). Embedded collections (a scene's tokens and walls, an actor's items) are summarised as counts unless include_embedded is true; to read them, pass embedded_type (e.g. "Token", "Wall", "Item") to list them and embedded_identifier to read one. path reads one part (e.g. "system.attributes.hp" or "levels.0"); depth limits nesting (default 5, deeper levels shown as placeholders); max_chars caps the output (default 20000, up to 100000). schema: the fields a document type has, with kinds (StringField, NumberField, ...), whether required, and allowed choices; type or embedded_type is a name as in Foundry CONFIG, e.g. "Scene", "Wall" or "Region". Use schema before writing data for a type you have not used before.`,
         inputSchema: {
           type: "object",
           properties: {
@@ -123672,7 +123228,6 @@ async function startBackend() {
   const actorManagementTools = new ActorManagementTools({ foundryClient, logger, systemRegistry });
   const effectManagementTools = new EffectManagementTools({ foundryClient, logger });
   const dnd5eAddFeatureTool = new DnD5eAddFeatureTool({ foundryClient, logger });
-  const dnd5eNpcTools = new DnD5eNpcTools({ foundryClient, logger });
   const dnd5eFeaturesFromCompendiumTools = new DnD5eFeaturesFromCompendiumTools({
     foundryClient,
     logger
@@ -123861,7 +123416,6 @@ async function startBackend() {
     ...actorManagementTools.getToolDefinitions(),
     ...effectManagementTools.getToolDefinitions(),
     ...dnd5eAddFeatureTool.getToolDefinitions(),
-    ...dnd5eNpcTools.getToolDefinitions(),
     ...chatControlTools.getToolDefinitions(),
     ...diceRollTools.getToolDefinitions(),
     ...ownershipTools.getToolDefinitions(),
@@ -123890,7 +123444,6 @@ async function startBackend() {
     manageScenes: (a) => sceneTools.handleManageScenes(a),
     managePlaylists: (a) => playlistTools.handleManagePlaylists(a),
     controlPlaylist: (a) => playlistTools.handleControlPlaylist(a),
-    updateSceneMusic: (a) => sceneTools.handleUpdateSceneMusic(a),
     setupSceneSound: (a) => sceneSoundTools.handleSetupSceneSound(a)
   });
   const mergedAway = new Set(MERGED_TOOL_NAMES);
@@ -123959,20 +123512,17 @@ async function startBackend() {
                   case "use-item":
                     result2 = await characterTools.handleUseItem(args2);
                     break;
-                  case "manage-world-items":
+                  case "world-items":
                     result2 = await characterTools.handleManageWorldItems(args2);
                     break;
-                  case "manage-actors":
+                  case "actors":
                     result2 = await actorManagementTools.handleManageActors(args2);
                     break;
-                  case "manage-effects":
+                  case "effects":
                     result2 = await effectManagementTools.handleManageEffects(args2);
                     break;
-                  case "dnd5e-add-feature":
+                  case "create-feature":
                     result2 = await dnd5eAddFeatureTool.handleAddFeature(args2);
-                    break;
-                  case "dnd5e-create-npc":
-                    result2 = await dnd5eNpcTools.handleCreateNpc(args2);
                     break;
                   case "chat":
                     if (args2?.action === "read" || args2?.queue === false) {
@@ -124003,7 +123553,7 @@ async function startBackend() {
                   case "check-map-status":
                   case "cancel-map-job":
                     throw new Error(`The ${name2} tool is switched off. Use generate-image with kind "map" instead.`);
-                  case "manage-scene-objects":
+                  case "scene-objects":
                     result2 = await sceneObjectTools.handleManageSceneObjects(args2);
                     break;
                   case "inspect-document":
@@ -124015,19 +123565,19 @@ async function startBackend() {
                   case "measure-grid":
                     result2 = await sceneObjectTools.handleMeasureGrid(args2);
                     break;
-                  case "manage-regions":
+                  case "regions":
                     result2 = await sceneObjectTools.handleManageRegions(args2);
                     break;
-                  case "manage-roll-tables":
+                  case "roll-tables":
                     result2 = await playTools.handleManageRollTables(args2);
                     break;
                   case "layout":
                     result2 = await layoutTools.handleLayout(args2);
                     break;
-                  case "manage-macros":
+                  case "macros":
                     result2 = await playTools.handleManageMacros(args2);
                     break;
-                  case "manage-modules":
+                  case "modules":
                     result2 = await moduleTools.handleManageModules(args2);
                     break;
                   case "make-prop":
@@ -124036,7 +123586,7 @@ async function startBackend() {
                   case "browse-files":
                     result2 = await fileBackupTools.handleBrowseFiles(args2);
                     break;
-                  case "manage-scene-backups":
+                  case "scene-backups":
                     result2 = await fileBackupTools.handleManageSceneBackups(args2);
                     break;
                   case "make-actor-art":
@@ -124075,7 +123625,7 @@ async function startBackend() {
                   case "reveal":
                     result2 = await revealTools.handleReveal(args2);
                     break;
-                  case "read-table":
+                  case "table-state":
                     result2 = await tableTools.handleReadTable(args2);
                     break;
                   case "table-watch":
@@ -124099,10 +123649,10 @@ async function startBackend() {
                   case "audit-world":
                     result2 = await auditTools.handleAuditWorld(args2);
                     break;
-                  case "manage-world":
+                  case "world":
                     result2 = await sceneObjectTools.handleManageWorld(args2);
                     break;
-                  case "manage-journals":
+                  case "journals":
                     result2 = await journalTools.handleManageJournals(args2);
                     break;
                   case "upload-file":
@@ -124180,7 +123730,7 @@ async function startBackend() {
     process.exit(0);
   });
 }
-var AFTER_SPEECH_TOOLS = /* @__PURE__ */ new Set(["reveal", "scene", "token", "manage-scene-objects", "manage-regions", "combat", "use-item", "time", "audio"]);
+var AFTER_SPEECH_TOOLS = /* @__PURE__ */ new Set(["reveal", "scene", "token", "scene-objects", "regions", "combat", "use-item", "time", "audio"]);
 var hasLock = acquireLock();
 (async function main() {
   if (!hasLock) {
