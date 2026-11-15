@@ -2477,6 +2477,233 @@ index 0000000..df1f22f
 +  }
 +  return out;
 +}
+diff --git a/packages/foundry-module/src/calendaria-utils.test.ts b/packages/foundry-module/src/calendaria-utils.test.ts
+new file mode 100644
+index 0000000..f6dc449
+--- /dev/null
++++ b/packages/foundry-module/src/calendaria-utils.test.ts
+@@ -0,0 +1,100 @@
++/** Calendaria through its API (faked). */
++import { afterEach, describe, expect, it, vi } from 'vitest';
++import { calendariaApi, calendariaCalendars, calendariaStatus, calendariaWeather, plain } from './calendaria-utils.js';
++import { worldTime } from './world-time.js';
++import { permissionManager } from './permissions.js';
++
++const fakeApi = () => {
++  const state = { weather: { id: 'clear', label: 'Clear' } as any, calendar: 'gregorian' };
++  return {
++    state,
++    getCurrentWeather: vi.fn(() => state.weather),
++    getTemperature: vi.fn(() => 12),
++    formatTemperature: vi.fn((t: number) => `${t}°C`),
++    getAllMoonPhases: vi.fn(() => [{ name: 'Luna', phase: 'Full Moon' }]),
++    getCurrentSeason: vi.fn(() => ({ name: 'Winter' })),
++    getCurrentFestival: vi.fn(() => null),
++    isRestDay: vi.fn(() => true),
++    getSunrise: vi.fn(() => 7.95),
++    getSunset: vi.fn(() => 16.05),
++    getAllCalendarMetadata: vi.fn(() => [{ id: 'gregorian', name: 'Gregorian' }, { id: 'harptos', name: 'Calendar of Harptos' }]),
++    getActiveCalendar: vi.fn(() => ({ id: state.calendar })),
++    setActiveCalendar: vi.fn(async (id: string) => void (state.calendar = id)),
++    getWeatherPresets: vi.fn(() => [{ id: 'clear', label: 'Clear' }, { id: 'rain', label: 'Rain' }]),
++    setWeather: vi.fn(async (id: string) => void (state.weather = { id, label: id })),
++    generateWeather: vi.fn(async () => void (state.weather = { id: 'fog', label: 'Fog' })),
++    clearWeather: vi.fn(async () => void (state.weather = null)),
++    getWeatherForecast: vi.fn(() => [{ day: 1, id: 'rain' }]),
++  };
++};
++
++describe('plain', () => {
++  it('turns maps and sets into plain data and cuts long output', () => {
++    expect(plain(new Map([['a', 1]]))).toEqual({ a: 1 });
++    expect(plain(new Set([1, 2]))).toEqual([1, 2]);
++    expect(String(plain('x'.repeat(50), 10))).toContain('(cut)');
++  });
++});
++
++describe('calendariaStatus', () => {
++  it('collects weather, moons, season, rest day and sunrise and sunset, and skips what the version lacks', async () => {
++    const out = await calendariaStatus(fakeApi(), 100);
++    expect(out).toMatchObject({ weather: { id: 'clear' }, temperature: '12°C', moons: [{ phase: 'Full Moon' }], season: { name: 'Winter' }, restDay: true, calendariaSunrise: '07:57', calendariaSunset: '16:03' });
++    expect(out.festival).toBeUndefined();
++    expect(await calendariaStatus({}, 0)).toEqual({});
++  });
++  it('shows an API error as data, not a crash', async () => {
++    const api = { getCurrentWeather: () => { throw new Error('no zone'); } };
++    expect((await calendariaStatus(api, 0)).weather).toEqual({ error: 'no zone' });
++  });
++});
++
++describe('calendariaCalendars and weather', () => {
++  it('lists the calendars with the active one', async () => {
++    expect(await calendariaCalendars(fakeApi())).toEqual({ current: 'gregorian', options: [{ value: 'gregorian', label: 'Gregorian' }, { value: 'harptos', label: 'Calendar of Harptos' }] });
++  });
++  it('reads, sets, generates and clears the weather, and lists presets', async () => {
++    const api = fakeApi();
++    expect(await calendariaWeather(api, {})).toMatchObject({ weather: { id: 'clear' }, temperature: '12°C' });
++    expect(await calendariaWeather(api, { preset: 'Rain', forecast: 3 })).toMatchObject({ set: 'rain', weather: { id: 'rain' }, forecast: [{ id: 'rain' }] });
++    expect(await calendariaWeather(api, { generate: true })).toMatchObject({ generated: true, weather: { id: 'fog' } });
++    expect(await calendariaWeather(api, { clear: true })).toMatchObject({ cleared: true });
++    expect(await calendariaWeather(api, { list: true })).toEqual({ success: true, presets: [{ id: 'clear', label: 'Clear' }, { id: 'rain', label: 'Rain' }] });
++    await expect(calendariaWeather(api, { preset: 'tornado' })).rejects.toThrow('options: clear, rain');
++  });
++});
++
++describe('worldTime with and without Calendaria', () => {
++  afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
++  const allowWrites = () => vi.spyOn(permissionManager, 'checkWritePermission').mockReturnValue({ allowed: true } as any);
++  const calendar = { days: { hoursPerDay: 24, minutesPerHour: 60, secondsPerMinute: 60 }, months: { values: [] }, years: { yearZero: 0 }, sunrise: () => 28000, sunset: () => 58000, formatTimestamp: () => 'x', name: 'Gregorian' };
++  const setup = (api: any | null, active = true) => {
++    vi.stubGlobal('CALENDARIA', api ? { api } : undefined);
++    vi.stubGlobal('game', {
++      time: { calendar, components: { year: 1970, month: 0, day: 2, dayOfMonth: 2, hour: 9, minute: 0, second: 0 }, worldTime: 205200, advance: vi.fn(), set: vi.fn() },
++      modules: { get: (id: string) => (id === 'calendaria' ? { active } : undefined) },
++      settings: { settings: new Map(), get: vi.fn() },
++      i18n: { localize: (k: string) => k },
++      combat: null,
++    });
++  };
++
++  it('has no weather without the module', async () => {
++    setup(null, false);
++    allowWrites();
++    await expect(worldTime({ action: 'weather' })).rejects.toThrow('needs the Calendaria module');
++  });
++
++  it('lists and switches calendars through Calendaria', async () => {
++    const api = fakeApi();
++    setup(api);
++    // listing needs no write permission; switching does
++    expect(await worldTime({ action: 'calendar' })).toMatchObject({ current: 'gregorian', options: [{ value: 'gregorian' }, { value: 'harptos' }] });
++    await expect(worldTime({ action: 'calendar', calendar: 'harptos' })).rejects.toThrow('Access denied');
++    allowWrites();
++    await expect(worldTime({ action: 'calendar', calendar: 'greyhawk' })).rejects.toThrow('options: gregorian, harptos');
++    expect(await worldTime({ action: 'calendar', calendar: 'harptos' })).toMatchObject({ success: true, switchedTo: 'Calendar of Harptos' });
++    expect(api.setActiveCalendar).toHaveBeenCalledWith('harptos');
++    expect(await worldTime({ action: 'weather' })).toMatchObject({ weather: { id: 'clear' } });
++  });
++});
+diff --git a/packages/foundry-module/src/calendaria-utils.ts b/packages/foundry-module/src/calendaria-utils.ts
+new file mode 100644
+index 0000000..8cc020a
+--- /dev/null
++++ b/packages/foundry-module/src/calendaria-utils.ts
+@@ -0,0 +1,115 @@
++/**
++ * Calendaria (the calendar, clock and weather module) through its public API, CALENDARIA.api.
++ * The world clock itself is still Foundry's (game.time), which Calendaria follows; this adds what only Calendaria knows:
++ * weather, moons, festivals, sunrise and sunset, and its own calendars. Every call is guarded: the module's answers are
++ * shown as plain data, and a function a version does not have is skipped, never fatal.
++ */
++
++/** The Calendaria API when the module is active, else null. */
++export function calendariaApi(g: any = (globalThis as any).game): any | null {
++  const active = g?.modules?.get?.('calendaria')?.active;
++  const api = (globalThis as any).CALENDARIA?.api;
++  return active && api ? api : null;
++}
++
++/** Plain, small data for a tool result: documents and class instances become plain objects, long text is cut. */
++export function plain(value: unknown, maxChars = 1500): unknown {
++  try {
++    const text = JSON.stringify(value, (_k, v) => (typeof v === 'function' ? undefined : v instanceof Map ? Object.fromEntries(v) : v instanceof Set ? [...v] : v));
++    if (text === undefined) return undefined;
++    if (text.length <= maxChars) return JSON.parse(text);
++    return `${text.slice(0, maxChars)}... (cut)`;
++  } catch {
++    return String(value);
++  }
++}
++
++/** Run an API function if this version has it. */
++export async function ask(api: any, name: string, ...args: unknown[]): Promise<unknown> {
++  const fn = api?.[name];
++  if (typeof fn !== 'function') return undefined;
++  try {
++    return await fn.apply(api, args);
++  } catch (error) {
++    return { error: error instanceof Error ? error.message : String(error) };
++  }
++}
++
++const hours = (h: unknown): string | undefined => {
++  if (typeof h !== 'number' || !Number.isFinite(h)) return undefined;
++  const total = Math.round(h * 60);
++  return `${String(Math.floor(total / 60) % 24).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
++};
++
++/** What Calendaria adds to a status: weather, moons, the season, a festival, sunrise and sunset. */
++export async function calendariaStatus(api: any, worldTime: number): Promise<Record<string, unknown>> {
++  const out: Record<string, unknown> = {};
++  const set = (key: string, value: unknown) => {
++    if (value !== undefined && value !== null) out[key] = plain(value);
++  };
++  set('weather', await ask(api, 'getCurrentWeather'));
++  set('temperature', await ask(api, 'formatTemperature', await ask(api, 'getTemperature')));
++  set('moons', await ask(api, 'getAllMoonPhases'));
++  set('season', await ask(api, 'getCurrentSeason', worldTime));
++  const festival = await ask(api, 'getCurrentFestival');
++  set('festival', festival);
++  const rest = await ask(api, 'isRestDay');
++  if (rest === true) out.restDay = true;
++  const sunrise = hours(await ask(api, 'getSunrise'));
++  const sunset = hours(await ask(api, 'getSunset'));
++  if (sunrise) out.calendariaSunrise = sunrise;
++  if (sunset) out.calendariaSunset = sunset;
++  return out;
++}
++
++/** The calendars Calendaria has, and the active one. */
++export async function calendariaCalendars(api: any): Promise<{ current?: string; options: Array<{ value: string; label: string }> }> {
++  const meta = (await ask(api, 'getAllCalendarMetadata')) as any;
++  const list = Array.isArray(meta) ? meta : meta && typeof meta === 'object' ? Object.values(meta) : [];
++  const options = list
++    .map((c: any) => ({ value: String(c?.id ?? c?.value ?? c?.key ?? ''), label: String(c?.name ?? c?.label ?? c?.id ?? '') }))
++    .filter(o => o.value);
++  const active = (await ask(api, 'getActiveCalendar')) as any;
++  const current = active?.id ?? active?.metadata?.id;
++  return { ...(current ? { current: String(current) } : {}), options };
++}
++
++export interface WeatherRequest {
++  preset?: string;
++  generate?: boolean;
++  clear?: boolean;
++  forecast?: number;
++  list?: boolean;
++}
++
++/** Read or change the weather. With nothing asked it reports the current weather. */
++export async function calendariaWeather(api: any, data: WeatherRequest): Promise<Record<string, unknown>> {
++  const out: Record<string, unknown> = { success: true };
++  if (data.list) {
++    const presets = (await ask(api, 'getWeatherPresets')) as any;
++    const list = Array.isArray(presets) ? presets : presets && typeof presets === 'object' ? Object.values(presets) : [];
++    out.presets = list.map((p: any) => ({ id: p?.id, label: p?.label ?? p?.name })).filter((p: any) => p.id);
++    return out;
++  }
++  if (data.clear) {
++    await ask(api, 'clearWeather');
++    out.cleared = true;
++  } else if (data.generate) {
++    await ask(api, 'generateWeather');
++    out.generated = true;
++  } else if (data.preset) {
++    const presets = (await ask(api, 'getWeatherPresets')) as any;
++    const list = (Array.isArray(presets) ? presets : presets && typeof presets === 'object' ? Object.values(presets) : []) as any[];
++    const key = data.preset.toLowerCase();
++    const match = list.find(p => String(p?.id ?? '').toLowerCase() === key) ?? list.find(p => String(p?.label ?? p?.name ?? '').toLowerCase() === key);
++    if (list.length && !match) throw new Error(`Unknown weather "${data.preset}"; options: ${list.map(p => p?.id).filter(Boolean).join(', ')}`);
++    const result = (await ask(api, 'setWeather', match?.id ?? data.preset)) as any;
++    if (result?.error) throw new Error(`Calendaria refused the weather: ${result.error}`);
++    out.set = match?.id ?? data.preset;
++  }
++  out.weather = plain(await ask(api, 'getCurrentWeather'));
++  const temp = await ask(api, 'getTemperature');
++  if (typeof temp === 'number') out.temperature = plain(await ask(api, 'formatTemperature', temp));
++  if (data.forecast) out.forecast = plain(await ask(api, 'getWeatherForecast', { days: data.forecast }), 3000);
++  return out;
++}
 diff --git a/packages/foundry-module/src/character-state-utils.test.ts b/packages/foundry-module/src/character-state-utils.test.ts
 new file mode 100644
 index 0000000..424321f
@@ -9543,7 +9770,7 @@ index 0000000..07712cf
 +  });
 +});
 diff --git a/packages/foundry-module/src/data-access.ts b/packages/foundry-module/src/data-access.ts
-index eecda7e..13b84bc 100644
+index eecda7e..6ace3c0 100644
 --- a/packages/foundry-module/src/data-access.ts
 +++ b/packages/foundry-module/src/data-access.ts
 @@ -1,6 +1,157 @@
@@ -16018,7 +16245,7 @@ index eecda7e..13b84bc 100644
        const actor = this.findActorByIdentifier(data.actorIdentifier);
        if (!actor) {
          throw new Error(`Actor not found: "${data.actorIdentifier}"`);
-@@ -10812,77 +15951,47 @@ export class FoundryDataAccess {
+@@ -10812,77 +15951,48 @@ export class FoundryDataAccess {
        const cls = data.spellcastingClass as string;
        const lvl = data.spellcastingLevel as number;
        const ability = data.effectiveAbility as string;
@@ -16112,7 +16339,8 @@ index eecda7e..13b84bc 100644
 +        if ((key.startsWith('spell') || key === 'pact') && Number(v?.max) > 0 && !hadSlots(key) && Number(v?.value ?? 0) < Number(v.max)) fill[`system.spells.${key}.value`] = Number(v.max);
 +      }
 +      if (Object.keys(fill).length) await actor.update(fill);
-+      for (const [key, v] of Object.entries(spells)) {
++      // read again: the system prepares its data afresh after an update
++      for (const [key, v] of Object.entries((actor.system?.spells ?? {}) as Record<string, any>)) {
 +        if ((key.startsWith('spell') || key === 'pact') && Number(v?.max) > 0) slots[key] = { value: Number(v.value ?? 0), max: Number(v.max) };
        }
  
@@ -16125,7 +16353,7 @@ index eecda7e..13b84bc 100644
          warnings,
        };
      } catch (error) {
-@@ -11274,10 +16383,15 @@ export class FoundryDataAccess {
+@@ -11274,10 +16384,15 @@ export class FoundryDataAccess {
        name: string;
        type: string;
        img?: string;
@@ -16142,7 +16370,7 @@ index eecda7e..13b84bc 100644
      const folderName = params.folder ?? 'Foundry MCP Actors';
      const folderId = await this.getOrCreateFolder(folderName, 'Actor');
  
-@@ -11286,6 +16400,19 @@ export class FoundryDataAccess {
+@@ -11286,6 +16401,19 @@ export class FoundryDataAccess {
      const docs = params.actors.map(a => {
        const doc: Record<string, any> = { name: a.name, type: a.type };
        if (a.img) doc.img = a.img;
@@ -16162,7 +16390,7 @@ index eecda7e..13b84bc 100644
  
        // Merge system data, adding safe defaults for systems that require certain
        // fields to exist during data preparation (avoids non-fatal init errors).
-@@ -11423,6 +16550,27 @@ export class FoundryDataAccess {
+@@ -11423,6 +16551,27 @@ export class FoundryDataAccess {
          };
        }
  
@@ -16190,7 +16418,7 @@ index eecda7e..13b84bc 100644
        doc.system = systemData;
        if (folderId) doc.folder = folderId;
        return doc;
-@@ -11436,6 +16584,7 @@ export class FoundryDataAccess {
+@@ -11436,6 +16585,7 @@ export class FoundryDataAccess {
      return {
        created: (created as any[]).map(a => ({ id: a.id, name: a.name, type: a.type })),
        total: created.length,
@@ -16198,7 +16426,7 @@ index eecda7e..13b84bc 100644
      };
    }
  
-@@ -11471,7 +16620,16 @@ export class FoundryDataAccess {
+@@ -11471,7 +16621,16 @@ export class FoundryDataAccess {
     * Merges supplied fields into the actor (top-level keys overwrite).
     */
    async updateActors(
@@ -16216,7 +16444,7 @@ index eecda7e..13b84bc 100644
    ): Promise<{ updated: Array<{ id: string; name: string }>; total: number }> {
      const updatedActors: Array<{ id: string; name: string }> = [];
  
-@@ -11481,7 +16639,12 @@ export class FoundryDataAccess {
+@@ -11481,7 +16640,12 @@ export class FoundryDataAccess {
  
        const patch: Record<string, any> = {};
        if (u.name !== undefined) patch.name = u.name;
@@ -16229,7 +16457,7 @@ index eecda7e..13b84bc 100644
        if (u.system !== undefined) {
          // Build a single patch.system nested object so Foundry deep-merges everything
          // in one pass without flat-key vs nested-key conflicts.
-@@ -11504,6 +16667,19 @@ export class FoundryDataAccess {
+@@ -11504,6 +16668,19 @@ export class FoundryDataAccess {
          }
          patch.system = systemPatch;
        }
@@ -16249,7 +16477,7 @@ index eecda7e..13b84bc 100644
  
        await actor.update(patch);
        updatedActors.push({ id: actor.id, name: u.name ?? actor.name });
-@@ -11706,6 +16882,199 @@ export class FoundryDataAccess {
+@@ -11706,6 +16883,199 @@ export class FoundryDataAccess {
      return { deleted: existing, total: existing.length };
    }
  
@@ -16449,7 +16677,7 @@ index eecda7e..13b84bc 100644
    /**
     * Delete one or more actors by ID.
     */
-@@ -11735,113 +17104,6 @@ function slugify(name: string, fallback = 'feature'): string {
+@@ -11735,113 +17105,6 @@ function slugify(name: string, fallback = 'feature'): string {
    );
  }
  
@@ -16563,7 +16791,7 @@ index eecda7e..13b84bc 100644
  // =============================================================================
  // Live compendium templates — Tier 2 of the build strategy for hand-built features.
  //
-@@ -12005,112 +17267,3 @@ const ATTACK_WITH_SAVE_DAMAGE_CANONICAL = new Set([
+@@ -12005,112 +17268,3 @@ const ATTACK_WITH_SAVE_DAMAGE_CANONICAL = new Set([
    'thunder',
  ]);
  
@@ -27423,10 +27651,10 @@ index 0000000..955383a
 +}
 diff --git a/packages/foundry-module/src/world-time.ts b/packages/foundry-module/src/world-time.ts
 new file mode 100644
-index 0000000..e808212
+index 0000000..fa9130e
 --- /dev/null
 +++ b/packages/foundry-module/src/world-time.ts
-@@ -0,0 +1,137 @@
+@@ -0,0 +1,167 @@
 +/**
 + * The world-time query: read and move Foundry's world clock (game.time) on the world calendar,
 + * which dnd5e extends with sunrise, sunset and calendars such as Harptos. Advancing the clock is
@@ -27435,10 +27663,11 @@ index 0000000..e808212
 + */
 +import { permissionManager } from './permissions.js';
 +import { ERROR_MESSAGES } from './constants.js';
++import { calendariaApi, calendariaCalendars, calendariaStatus, calendariaWeather } from './calendaria-utils.js';
 +import { describeDuration, describeTime, durationSeconds, secondsUntil, yearZeroWarning, type TimeTarget } from './time-utils.js';
 +
 +export interface WorldTimeRequest {
-+  action?: 'status' | 'advance' | 'until' | 'set' | 'calendar';
++  action?: 'status' | 'advance' | 'until' | 'set' | 'calendar' | 'weather';
 +  seconds?: number;
 +  rounds?: number;
 +  minutes?: number;
@@ -27451,6 +27680,11 @@ index 0000000..e808212
 +  hour?: number;
 +  minute?: number;
 +  calendar?: string;
++  preset?: string;
++  generate?: boolean;
++  clear?: boolean;
++  forecast?: number;
++  list?: boolean;
 +}
 +
 +const TARGETS: TimeTarget[] = ['dawn', 'sunrise', 'morning', 'noon', 'afternoon', 'dusk', 'sunset', 'evening', 'midnight'];
@@ -27471,12 +27705,18 @@ index 0000000..e808212
 +      const cfg = g.settings.get('dnd5e', 'calendarConfig') ?? {};
 +      if (cfg.dailyRecovery !== undefined) out.dailyRecovery = !!cfg.dailyRecovery;
 +    }
++    const api = calendariaApi(g);
++    if (api) out.calendaria = await calendariaStatus(api, time.worldTime);
 +    if (inCombat) out.note = 'A combat is running: each round already moves the clock by 6 seconds';
 +    return out;
 +  }
 +
-+  const gate = permissionManager.checkWritePermission('modifyScene', {});
-+  if (!gate.allowed) throw new Error(`${ERROR_MESSAGES.ACCESS_DENIED}: ${gate.reason}`);
++  // reading the weather or listing the calendars changes nothing
++  const readOnly = (action === 'weather' && !data.preset && !data.generate && !data.clear) || (action === 'calendar' && !data.calendar);
++  if (!readOnly) {
++    const gate = permissionManager.checkWritePermission('modifyScene', {});
++    if (!gate.allowed) throw new Error(`${ERROR_MESSAGES.ACCESS_DENIED}: ${gate.reason}`);
++  }
 +  const before = now();
 +
 +  if (action === 'advance' || action === 'until') {
@@ -27534,7 +27774,25 @@ index 0000000..e808212
 +    return { success: true, before: `${before.date}, ${before.time}`, ...now(), ...(warning ? { warning } : {}) };
 +  }
 +
++  if (action === 'weather') {
++    const api = calendariaApi(g);
++    if (!api) throw new Error('Weather needs the Calendaria module, which is not active in this world');
++    return calendariaWeather(api, data);
++  }
++
 +  if (action === 'calendar') {
++    const api = calendariaApi(g);
++    if (api) {
++      const { current, options } = await calendariaCalendars(api);
++      if (!data.calendar) return { success: true, ...(current ? { current } : {}), options };
++      const key = String(data.calendar).toLowerCase();
++      const wanted = options.find(o => o.value.toLowerCase() === key) ?? options.find(o => o.label.toLowerCase().includes(key));
++      if (!wanted) throw new Error(`Unknown calendar "${data.calendar}"; options: ${options.map(o => o.value).join(', ')}`);
++      const switchTo = typeof api.setActiveCalendar === 'function' ? api.setActiveCalendar.bind(api) : api.switchCalendar?.bind(api);
++      if (!switchTo) throw new Error('This version of Calendaria cannot switch calendars from here');
++      await switchTo(wanted.value);
++      return { success: true, ...now(), switchedTo: wanted.label, note: 'Calendaria changes how the same world time is shown (the date moves, the world time does not).' };
++    }
 +    const setting = g.settings?.settings?.get?.('dnd5e.calendar');
 +    if (!setting) throw new Error('Choosing a calendar needs the dnd5e system');
 +    const list = ((globalThis as any).CONFIG?.DND5E?.calendar?.calendars ?? []) as any[];
@@ -27562,7 +27820,7 @@ index 0000000..e808212
 +    };
 +  }
 +
-+  throw new Error('action must be status, advance, until, set or calendar');
++  throw new Error('action must be status, advance, until, set, calendar or weather');
 +}
 diff --git a/packages/foundry-module/styles/map-generation.css b/packages/foundry-module/styles/map-generation.css
 new file mode 100644
@@ -59362,10 +59620,10 @@ index 0000000..d1ed467
 +}
 diff --git a/packages/mcp-server/src/tools/time-tools.ts b/packages/mcp-server/src/tools/time-tools.ts
 new file mode 100644
-index 0000000..75fc363
+index 0000000..565a62e
 --- /dev/null
 +++ b/packages/mcp-server/src/tools/time-tools.ts
-@@ -0,0 +1,70 @@
+@@ -0,0 +1,80 @@
 +import { z } from 'zod';
 +import type { FoundryClient } from '../foundry-client.js';
 +import type { Logger } from '../logger.js';
@@ -59374,7 +59632,7 @@ index 0000000..75fc363
 +
 +const schema = z
 +  .object({
-+    action: z.enum(['status', 'advance', 'until', 'set', 'calendar']).default('status'),
++    action: z.enum(['status', 'advance', 'until', 'set', 'calendar', 'weather']).default('status'),
 +    seconds: z.number().min(0).optional(),
 +    rounds: z.number().min(0).optional(),
 +    minutes: z.number().min(0).optional(),
@@ -59387,6 +59645,11 @@ index 0000000..75fc363
 +    hour: z.number().int().min(0).optional(),
 +    minute: z.number().int().min(0).optional(),
 +    calendar: z.string().min(1).optional(),
++    preset: z.string().min(1).optional(),
++    generate: z.boolean().optional(),
++    clear: z.boolean().optional(),
++    forecast: z.number().int().min(1).max(14).optional(),
++    list: z.boolean().optional(),
 +  })
 +  .strict();
 +
@@ -59404,11 +59667,11 @@ index 0000000..75fc363
 +      {
 +        name: 'time',
 +        description:
-+          "In-game time on the world calendar (Foundry's world clock, which dnd5e extends with sunrise, sunset and the Gregorian, Harptos, Greyhawk and Khorvaire calendars). Moving the clock is Foundry's own, so effect durations, dnd5e daily recovery and the calendar display players see all follow it. status: date, weekday, time, part of the day (night, dawn, morning, afternoon, dusk, evening), season, sunrise and sunset. advance {seconds?, rounds?, minutes?, hours?, days?}: time passes (a short rest is 1 hour, a long rest 8 hours, a day of travel about 8 hours on the road); says when new days began. until {until: dawn | sunrise | morning | noon | afternoon | dusk | sunset | evening | midnight}: advances to the next one (for example a night watch until dawn). set {year?, month? (number from 1 or name), day?, hour?, minute?}: jumps to a date and time (start of a campaign; prefer advance afterwards). calendar {calendar?}: lists the calendars or switches to one (harptos for the Forgotten Realms). During combat each round already moves the clock 6 seconds; do not add rounds by hand. Use party rest for rests (it recovers hit dice and features) and then advance the clock by the rest's length.",
++          "In-game time on the world calendar (Foundry's world clock, which dnd5e extends with sunrise, sunset and the Gregorian, Harptos, Greyhawk and Khorvaire calendars). Moving the clock is Foundry's own, so effect durations, dnd5e daily recovery and the calendar display players see all follow it. status: date, weekday, time, part of the day (night, dawn, morning, afternoon, dusk, evening), season, sunrise and sunset. advance {seconds?, rounds?, minutes?, hours?, days?}: time passes (a short rest is 1 hour, a long rest 8 hours, a day of travel about 8 hours on the road); says when new days began. until {until: dawn | sunrise | morning | noon | afternoon | dusk | sunset | evening | midnight}: advances to the next one (for example a night watch until dawn). set {year?, month? (number from 1 or name), day?, hour?, minute?}: jumps to a date and time (start of a campaign; prefer advance afterwards). calendar {calendar?}: lists the calendars or switches to one (harptos for the Forgotten Realms). With the Calendaria module active, status also carries calendaria: the weather and temperature, the moon phases, the season, today's festival, and that module's own sunrise and sunset; calendar lists and switches the calendars Calendaria has; and weather {preset? | generate? | clear? | forecast? | list?} reads the weather (no option), sets it to a preset, rolls new weather for the season, clears it, shows a forecast, or lists the presets (the weather is data and the HUD: use scene atmosphere for the visual effect on a map). During combat each round already moves the clock 6 seconds; do not add rounds by hand. Use party rest for rests (it recovers hit dice and features) and then advance the clock by the rest's length.",
 +        inputSchema: {
 +          type: 'object',
 +          properties: {
-+            action: { type: 'string', enum: ['status', 'advance', 'until', 'set', 'calendar'], description: 'default status' },
++            action: { type: 'string', enum: ['status', 'advance', 'until', 'set', 'calendar', 'weather'], description: 'default status' },
 +            seconds: { type: 'number', description: 'advance' },
 +            rounds: { type: 'number', description: 'advance: 6 seconds each' },
 +            minutes: { type: 'number', description: 'advance' },
@@ -59420,7 +59683,12 @@ index 0000000..75fc363
 +            day: { type: 'number', description: 'set: day of the month, from 1' },
 +            hour: { type: 'number', description: 'set' },
 +            minute: { type: 'number', description: 'set' },
-+            calendar: { type: 'string', description: 'calendar: gregorian, harptos, greyhawk or khorvaire' },
++            calendar: { type: 'string', description: 'calendar: the calendar id (list them with no value)' },
++            preset: { type: 'string', description: 'weather: set the weather to this preset (list shows them)' },
++            generate: { type: 'boolean', description: 'weather: roll new weather for the season and climate zone' },
++            clear: { type: 'boolean', description: 'weather: clear the current weather' },
++            forecast: { type: 'number', description: 'weather: also show the forecast for this many days (1 to 14)' },
++            list: { type: 'boolean', description: 'weather: list the weather presets' },
 +          },
 +          additionalProperties: false,
 +        },

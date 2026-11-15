@@ -113978,7 +113978,7 @@ var TableWatchTools = class {
 init_zod();
 var TARGETS = ["dawn", "sunrise", "morning", "noon", "afternoon", "dusk", "sunset", "evening", "midnight"];
 var schema3 = external_exports.object({
-  action: external_exports.enum(["status", "advance", "until", "set", "calendar"]).default("status"),
+  action: external_exports.enum(["status", "advance", "until", "set", "calendar", "weather"]).default("status"),
   seconds: external_exports.number().min(0).optional(),
   rounds: external_exports.number().min(0).optional(),
   minutes: external_exports.number().min(0).optional(),
@@ -113990,7 +113990,12 @@ var schema3 = external_exports.object({
   day: external_exports.number().int().min(1).optional(),
   hour: external_exports.number().int().min(0).optional(),
   minute: external_exports.number().int().min(0).optional(),
-  calendar: external_exports.string().min(1).optional()
+  calendar: external_exports.string().min(1).optional(),
+  preset: external_exports.string().min(1).optional(),
+  generate: external_exports.boolean().optional(),
+  clear: external_exports.boolean().optional(),
+  forecast: external_exports.number().int().min(1).max(14).optional(),
+  list: external_exports.boolean().optional()
 }).strict();
 var TimeTools = class {
   foundryClient;
@@ -114003,11 +114008,11 @@ var TimeTools = class {
     return [
       {
         name: "time",
-        description: "In-game time on the world calendar (Foundry's world clock, which dnd5e extends with sunrise, sunset and the Gregorian, Harptos, Greyhawk and Khorvaire calendars). Moving the clock is Foundry's own, so effect durations, dnd5e daily recovery and the calendar display players see all follow it. status: date, weekday, time, part of the day (night, dawn, morning, afternoon, dusk, evening), season, sunrise and sunset. advance {seconds?, rounds?, minutes?, hours?, days?}: time passes (a short rest is 1 hour, a long rest 8 hours, a day of travel about 8 hours on the road); says when new days began. until {until: dawn | sunrise | morning | noon | afternoon | dusk | sunset | evening | midnight}: advances to the next one (for example a night watch until dawn). set {year?, month? (number from 1 or name), day?, hour?, minute?}: jumps to a date and time (start of a campaign; prefer advance afterwards). calendar {calendar?}: lists the calendars or switches to one (harptos for the Forgotten Realms). During combat each round already moves the clock 6 seconds; do not add rounds by hand. Use party rest for rests (it recovers hit dice and features) and then advance the clock by the rest's length.",
+        description: "In-game time on the world calendar (Foundry's world clock, which dnd5e extends with sunrise, sunset and the Gregorian, Harptos, Greyhawk and Khorvaire calendars). Moving the clock is Foundry's own, so effect durations, dnd5e daily recovery and the calendar display players see all follow it. status: date, weekday, time, part of the day (night, dawn, morning, afternoon, dusk, evening), season, sunrise and sunset. advance {seconds?, rounds?, minutes?, hours?, days?}: time passes (a short rest is 1 hour, a long rest 8 hours, a day of travel about 8 hours on the road); says when new days began. until {until: dawn | sunrise | morning | noon | afternoon | dusk | sunset | evening | midnight}: advances to the next one (for example a night watch until dawn). set {year?, month? (number from 1 or name), day?, hour?, minute?}: jumps to a date and time (start of a campaign; prefer advance afterwards). calendar {calendar?}: lists the calendars or switches to one (harptos for the Forgotten Realms). With the Calendaria module active, status also carries calendaria: the weather and temperature, the moon phases, the season, today's festival, and that module's own sunrise and sunset; calendar lists and switches the calendars Calendaria has; and weather {preset? | generate? | clear? | forecast? | list?} reads the weather (no option), sets it to a preset, rolls new weather for the season, clears it, shows a forecast, or lists the presets (the weather is data and the HUD: use scene atmosphere for the visual effect on a map). During combat each round already moves the clock 6 seconds; do not add rounds by hand. Use party rest for rests (it recovers hit dice and features) and then advance the clock by the rest's length.",
         inputSchema: {
           type: "object",
           properties: {
-            action: { type: "string", enum: ["status", "advance", "until", "set", "calendar"], description: "default status" },
+            action: { type: "string", enum: ["status", "advance", "until", "set", "calendar", "weather"], description: "default status" },
             seconds: { type: "number", description: "advance" },
             rounds: { type: "number", description: "advance: 6 seconds each" },
             minutes: { type: "number", description: "advance" },
@@ -114019,7 +114024,12 @@ var TimeTools = class {
             day: { type: "number", description: "set: day of the month, from 1" },
             hour: { type: "number", description: "set" },
             minute: { type: "number", description: "set" },
-            calendar: { type: "string", description: "calendar: gregorian, harptos, greyhawk or khorvaire" }
+            calendar: { type: "string", description: "calendar: the calendar id (list them with no value)" },
+            preset: { type: "string", description: "weather: set the weather to this preset (list shows them)" },
+            generate: { type: "boolean", description: "weather: roll new weather for the season and climate zone" },
+            clear: { type: "boolean", description: "weather: clear the current weather" },
+            forecast: { type: "number", description: "weather: also show the forecast for this many days (1 to 14)" },
+            list: { type: "boolean", description: "weather: list the weather presets" }
           },
           additionalProperties: false
         }
