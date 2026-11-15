@@ -28706,7 +28706,7 @@ index 096f27b..903a94e 100644
      "@vitest/coverage-v8": "^3.2.4",
      "esbuild": "^0.19.0",
 diff --git a/packages/mcp-server/src/backend.ts b/packages/mcp-server/src/backend.ts
-index 8967e33..e7741f5 100644
+index 8967e33..65b47c1 100644
 --- a/packages/mcp-server/src/backend.ts
 +++ b/packages/mcp-server/src/backend.ts
 @@ -27,27 +27,66 @@ import { ActorCreationTools } from './tools/actor-creation.js';
@@ -29230,7 +29230,19 @@ index 8967e33..e7741f5 100644
    const autoStartComfyUI = async () => {
      try {
        logger.info('Auto-starting ComfyUI service...');
-@@ -1521,293 +1789,270 @@ async function startBackend(): Promise<void> {
+@@ -1488,6 +1756,11 @@ async function startBackend(): Promise<void> {
+   const server = net.createServer(socket => {
+     socket.setEncoding('utf8');
+ 
++    // A client that drops its connection abruptly (ECONNRESET) must not take the whole backend down.
++    socket.on('error', err => {
++      logger.debug('Control connection error', { error: err.message });
++    });
++
+     let buffer = '';
+ 
+     socket.on('data', async (chunk: string) => {
+@@ -1521,293 +1794,270 @@ async function startBackend(): Promise<void> {
              const { name, args } = (msg.params || {}) as { name: string; args?: any };
  
              try {
@@ -29670,7 +29682,7 @@ index 8967e33..e7741f5 100644
  
                const payload = {
                  content: [
-@@ -1880,6 +2125,9 @@ async function startBackend(): Promise<void> {
+@@ -1880,6 +2130,9 @@ async function startBackend(): Promise<void> {
  // Check lock BEFORE any async operations
  // If another instance is running, wait forever silently (don't exit)
  // This prevents Claude Desktop from seeing a "server closed" error
@@ -46880,7 +46892,7 @@ index 0000000..51666a5
 +});
 diff --git a/packages/mcp-server/src/tools/image-generation.ts b/packages/mcp-server/src/tools/image-generation.ts
 new file mode 100644
-index 0000000..835f38a
+index 0000000..6178718
 --- /dev/null
 +++ b/packages/mcp-server/src/tools/image-generation.ts
 @@ -0,0 +1,382 @@
@@ -46934,7 +46946,7 @@ index 0000000..835f38a
 +const generateSchema = z
 +  .object({
 +    kind: z.enum(IMAGE_KINDS),
-+    prompt: z.string().min(1).max(2000),
++    prompt: z.string().min(1).max(4000),
 +    name: z.string().max(80).optional(),
 +    negative_prompt: z.string().max(1000).optional(),
 +    width: z.number().int().min(64).max(4096).optional(),
@@ -47936,10 +47948,10 @@ index 0000000..232585f
 +}
 diff --git a/packages/mcp-server/src/tools/layout-actions.test.ts b/packages/mcp-server/src/tools/layout-actions.test.ts
 new file mode 100644
-index 0000000..81e5a4c
+index 0000000..f86e653
 --- /dev/null
 +++ b/packages/mcp-server/src/tools/layout-actions.test.ts
-@@ -0,0 +1,285 @@
+@@ -0,0 +1,287 @@
 +import { afterAll, describe, expect, it, vi } from 'vitest';
 +import { promises as fs } from 'fs';
 +import os from 'os';
@@ -48172,7 +48184,8 @@ index 0000000..81e5a4c
 +    });
 +    expect(generate).toHaveBeenCalledTimes(1);
 +    const gen = generate.mock.calls[0]![0];
-+    expect(gen).toMatchObject({ kind: 'map', width: 768, height: 512, upload: false });
++    // A size the image model keeps exactly: the layout's shape, 2 megapixels, multiples of 32.
++    expect(gen).toMatchObject({ kind: 'map', width: 1824, height: 1216, upload: false });
 +    expect(gen.prompt).toContain('<Picture 1>');
 +    expect(gen.prompt).toContain('Damp cave with torches.');
 +    expect(upload).toHaveBeenCalledWith(expect.objectContaining({ folder: 'maps' }));
@@ -48205,17 +48218,18 @@ index 0000000..81e5a4c
 +    expect(result.walls).toBeUndefined();
 +
 +    await expect(tools.handleLayout({ action: 'build', layout: 'build two', prompt: 'p' })).rejects.toThrow('scene_name');
-+    await expect(tools.handleLayout({ action: 'build', layout: 'build two', scene_name: 'S' })).rejects.toThrow('prompt');
 +    const bare = make();
 +    await newLayout(bare.tools, 'build three');
 +    await expect(bare.tools.handleLayout({ action: 'build', layout: 'build three', scene_name: 'S', prompt: 'p' })).rejects.toThrow('not available');
 +  });
 +
-+  it('refuses a size the image model cannot make', async () => {
-+    const { tools } = make({ generate: vi.fn(), upload: vi.fn() });
++  it('asks an odd-sized layout at a size with exactly its shape', async () => {
++    const generate = vi.fn(async () => ({ success: true }));
++    const { tools } = make({ generate, upload: vi.fn() });
 +    await tools.handleLayout({ action: 'new', name: 'odd size', columns: 21, rows: 15, grid_size: 48 });
 +    await tools.handleLayout({ action: 'add', layout: 'odd size', shapes: [{ shape: 'room', at: [2, 2], size: [4, 4] }] });
-+    await expect(tools.handleLayout({ action: 'build', layout: 'odd size', scene_name: 'S', prompt: 'p' })).rejects.toThrow('multiples of 32');
++    await expect(tools.handleLayout({ action: 'build', layout: 'odd size', scene_name: 'S' })).rejects.toThrow('no file');
++    expect(generate.mock.calls[0]![0]).toMatchObject({ width: 2016, height: 1440 });
 +  });
 +
 +  it('stops with a clear message when generation fails', async () => {
@@ -48506,7 +48520,7 @@ index 0000000..bdfdd49
 +});
 diff --git a/packages/mcp-server/src/tools/layout-analysis.ts b/packages/mcp-server/src/tools/layout-analysis.ts
 new file mode 100644
-index 0000000..bd7d3ef
+index 0000000..c6aa67d
 --- /dev/null
 +++ b/packages/mcp-server/src/tools/layout-analysis.ts
 @@ -0,0 +1,590 @@
@@ -48813,7 +48827,7 @@ index 0000000..bd7d3ef
 +/** Find a shape by id, label number or name (exact, then partial). */
 +export function resolveShape(layout: NormalizedLayout, ref: number | string): { shape: LayoutShape; index: number } {
 +  const shapes = layout.shapes;
-+  const non = (s: LayoutShape) => s.shape !== 'door';
++  const non = (s: LayoutShape) => s.shape !== 'door' && s.shape !== 'wall';
 +  const byId = (id: number) => shapes.findIndex(s => s.id === id && non(s));
 +  if (typeof ref === 'number') {
 +    let i = byId(ref);
@@ -49102,10 +49116,10 @@ index 0000000..bd7d3ef
 +}
 diff --git a/packages/mcp-server/src/tools/layout-doc.ts b/packages/mcp-server/src/tools/layout-doc.ts
 new file mode 100644
-index 0000000..a55921f
+index 0000000..cd75a14
 --- /dev/null
 +++ b/packages/mcp-server/src/tools/layout-doc.ts
-@@ -0,0 +1,659 @@
+@@ -0,0 +1,666 @@
 +/**
 + * Layout documents: a map layout that is built up in steps. Shapes get ids, can be added,
 + * moved, changed and removed, and every change can be seen at once as a text map. Shapes
@@ -49148,6 +49162,8 @@ index 0000000..a55921f
 +  nextId: number;
 +  shapes: LayoutShape[];
 +  reference?: LayoutReference;
++  /** The look of the map for build (style, mood, materials), when no prompt is given there. */
++  look?: string;
 +  /** Earlier states, oldest first, for undo. */
 +  undo?: HistoryEntry[];
 +  /** States that undo stepped back from, most recent last, for redo. */
@@ -49531,6 +49547,8 @@ index 0000000..a55921f
 +      ...(s.name ? { name: s.name } : {}),
 +      ...(s.rotate ? { rotate: s.rotate } : {}),
 +      ...(s.secret ? { secret: true } : {}),
++      ...(s.contents ? { contents: s.contents } : {}),
++      ...(s.feature ? { feature: s.feature, in: s.in_area, place: s.place } : {}),
 +      geometry,
 +    };
 +  });
@@ -49549,6 +49567,9 @@ index 0000000..a55921f
 +  sand: ':',
 +  wood: 'w',
 +  door: '+',
++  forest: 'T',
++  dirt: '%',
++  snow: '*',
 +};
 +
 +export interface Region {
@@ -49765,6 +49786,256 @@ index 0000000..a55921f
 +function hideShapes(layout: NormalizedLayout, hide: boolean): NormalizedLayout {
 +  return hide ? { ...layout, shapes: [] } : layout;
 +}
+diff --git a/packages/mcp-server/src/tools/layout-features.ts b/packages/mcp-server/src/tools/layout-features.ts
+new file mode 100644
+index 0000000..a799026
+--- /dev/null
++++ b/packages/mcp-server/src/tools/layout-features.ts
+@@ -0,0 +1,244 @@
++/**
++ * Features: objects in a room (altar, beds, shelves, a well) drawn on the layout sketch as flat
++ * markers in roughly the object's own colour, at a spot chosen from words ("north wall", "centre",
++ * "corners"), so the image model paints the object exactly there. Markers count as floor for walls
++ * and checks; token placement keeps off them.
++ */
++
++export interface PlanFeature {
++  /** What it is: "stone altar", "bunk bed", "bookshelves", "well"... */
++  what: string;
++  /** north wall, south wall, east wall, west wall, centre, corners, north-west corner... (default from the object). */
++  at?: string;
++  count?: number;
++  /** [along the wall, out from the wall] in squares, to override the usual size. */
++  size?: number[];
++}
++
++interface Kind {
++  re: RegExp;
++  along: number;
++  depth: number;
++  round?: boolean;
++  /** Runs the whole length of the wall (shelves). */
++  fullWall?: boolean;
++  color: string;
++  colorName: string;
++  at: string;
++}
++
++const BROWN = { color: '#7a5230', colorName: 'brown' };
++const GREY = { color: '#8c8c8c', colorName: 'grey' };
++
++const KINDS: Kind[] = [
++  { re: /shel|bookcase|rack/, along: 0, depth: 0.6, fullWall: true, color: '#5c3a1e', colorName: 'dark brown', at: 'north wall' },
++  { re: /bed|bunk|cot|bedroll|hammock/, along: 1, depth: 2, ...BROWN, at: 'west wall' },
++  { re: /altar/, along: 2, depth: 1, ...GREY, at: 'north wall' },
++  { re: /sarcophag|coffin|tomb|bier/, along: 1, depth: 2, ...GREY, at: 'centre' },
++  { re: /throne/, along: 1, depth: 1, color: '#8a6d3b', colorName: 'gold-brown', at: 'north wall' },
++  { re: /table|desk|workbench|counter|bench|bar\b/, along: 2, depth: 1, ...BROWN, at: 'centre' },
++  { re: /well/, along: 2, depth: 2, round: true, ...GREY, at: 'centre' },
++  { re: /pool|fountain|basin|pond|cistern/, along: 3, depth: 3, round: true, color: '#4a78b0', colorName: 'blue', at: 'centre' },
++  { re: /brazier|fire|torch|hearth|campfire|bonfire|forge/, along: 1, depth: 1, round: true, color: '#c03024', colorName: 'red', at: 'centre' },
++  { re: /statue|pillar|column|idol|obelisk|totem/, along: 1, depth: 1, round: true, color: '#a8a8a8', colorName: 'light grey', at: 'centre' },
++  { re: /barrel|keg|cask|urn/, along: 1, depth: 1, round: true, ...BROWN, at: 'corners' },
++  { re: /chest|crate|box|sack|coffer/, along: 1, depth: 1, ...BROWN, at: 'corners' },
++  { re: /rug|carpet|mat\b/, along: 3, depth: 2, color: '#7a2e2e', colorName: 'dark red', at: 'centre' },
++  { re: /rubble|debris|boulder|rocks|stalagmite/, along: 1.5, depth: 1.5, round: true, color: '#5e5e5e', colorName: 'dark grey', at: 'centre' },
++  { re: /cage|pen/, along: 2, depth: 2, color: '#4d4d4d', colorName: 'dark grey', at: 'corners' },
++  { re: /tree|oak|pine|willow/, along: 2, depth: 2, round: true, color: '#2f6b2a', colorName: 'deep green', at: 'corners' },
++  { re: /tent|pavilion|yurt/, along: 3, depth: 3, color: '#c9b48a', colorName: 'beige', at: 'centre' },
++  { re: /wagon|cart|carriage/, along: 3, depth: 2, ...BROWN, at: 'centre' },
++  { re: /hay|bale|haystack/, along: 1, depth: 1, color: '#d6b84a', colorName: 'straw yellow', at: 'corners' },
++  { re: /stall|booth/, along: 2, depth: 1, color: '#9b5d3a', colorName: 'red-brown', at: 'centre' },
++];
++const DEFAULT_KIND: Kind = { re: /./, along: 1, depth: 1, ...BROWN, at: 'centre' };
++
++export function kindOf(what: string): Kind {
++  const w = what.toLowerCase();
++  return KINDS.find(k => k.re.test(w)) ?? DEFAULT_KIND;
++}
++
++type Side = 'n' | 's' | 'e' | 'w';
++type Corner = 'nw' | 'ne' | 'sw' | 'se';
++type Spot = { kind: 'wall'; side: Side } | { kind: 'centre' } | { kind: 'corners'; corners: Corner[] };
++
++const SIDE_WORDS: Record<Side, string> = { n: 'north wall', s: 'south wall', e: 'east wall', w: 'west wall' };
++
++export function parseSpot(at: string): Spot {
++  const t = at.toLowerCase().replace(/[-_]/g, ' ');
++  const has = (re: RegExp) => re.test(t);
++  const north = has(/\bnorth|\btop\b|\bn\b/);
++  const south = has(/\bsouth|\bbottom\b|\bs\b/);
++  const east = has(/\beast|\bright\b|\be\b/);
++  const west = has(/\bwest|\bleft\b|\bw\b/);
++  if (has(/corner|\bnw\b|\bne\b|\bsw\b|\bse\b/)) {
++    const all: Corner[] = ['nw', 'ne', 'sw', 'se'];
++    const short = t.match(/\b(nw|ne|sw|se)\b/);
++    if (short) return { kind: 'corners', corners: [short[1] as Corner] };
++    const picked = all.filter(c => (c[0] === 'n' ? north : south) && (c[1] === 'w' ? west : east));
++    if (picked.length > 0 && (north || south) && (east || west)) return { kind: 'corners', corners: picked };
++    if (north || south || east || west) {
++      return { kind: 'corners', corners: all.filter(c => (north && c[0] === 'n') || (south && c[0] === 's') || (east && c[1] === 'e') || (west && c[1] === 'w')) };
++    }
++    return { kind: 'corners', corners: all };
++  }
++  if (has(/cent|middle/)) return { kind: 'centre' };
++  if (north) return { kind: 'wall', side: 'n' };
++  if (south) return { kind: 'wall', side: 's' };
++  if (east) return { kind: 'wall', side: 'e' };
++  if (west) return { kind: 'wall', side: 'w' };
++  return { kind: 'centre' };
++}
++
++type Box = [number, number, number, number];
++
++function clash(a: Box, b: Box, margin = 0.2): boolean {
++  return a[0] < b[0] + b[2] + margin && b[0] < a[0] + a[2] + margin && a[1] < b[1] + b[3] + margin && b[1] < a[1] + a[3] + margin;
++}
++
++const r2 = (v: number) => Math.round(v * 100) / 100;
++
++/**
++ * Feature shapes for one area. `mode` rect: the area is this rectangle; inset: the area is a cave
++ * or round room inside this box, so spots are pulled in from the edges.
++ */
++export function featureShapes(
++  area: string,
++  mode: 'rect' | 'inset',
++  box: Box,
++  features: PlanFeature[],
++  existing: Box[] = [],
++  /** The floor of the room the markers stand on, so they count as that floor. */
++  floor = 'floor'
++): { shapes: any[]; warnings: string[] } {
++  let [x, y, w, h] = box;
++  if (mode === 'inset') {
++    const ix = w * 0.16;
++    const iy = h * 0.16;
++    [x, y, w, h] = [x + ix, y + iy, w - 2 * ix, h - 2 * iy];
++  }
++  const taken: Box[] = [...existing];
++  const shapes: any[] = [];
++  const warnings: string[] = [];
++  const inset = 0.2;
++
++  features.forEach((raw, i) => {
++    const f: any = typeof raw === 'string' ? { what: raw } : raw;
++    const label = `${area} features[${i}]`;
++    if (!f || typeof f.what !== 'string' || !f.what.trim()) throw new Error(`${label}: needs what`);
++    const what = f.what.trim();
++    // "round table", "circular rug": drawn as a circle whatever the object usually is.
++    const kind = /\b(round|circular)\b/i.test(what) ? { ...kindOf(what), round: true, along: Math.max(kindOf(what).along, kindOf(what).depth), depth: Math.max(kindOf(what).along, kindOf(what).depth) } : kindOf(what);
++    const spot = parseSpot(typeof f.at === 'string' && f.at.trim() ? f.at : kind.at);
++    const count = Math.max(1, Math.min(12, Math.round(Number(f.count ?? 1))));
++    let along = kind.along;
++    let depth = kind.depth;
++    if (Array.isArray(f.size) && f.size.length === 2 && f.size.every((n: unknown) => typeof n === 'number' && n > 0)) {
++      [along, depth] = [f.size[0], f.size[1]];
++    }
++
++    const boxes: Array<{ b: Box; place: string }> = [];
++    const free = (b: Box) => b[0] >= x - 1e-6 && b[1] >= y - 1e-6 && b[0] + b[2] <= x + w + 1e-6 && b[1] + b[3] <= y + h + 1e-6 && !taken.some(t => clash(t, b)) && !boxes.some(t => clash(t.b, b));
++
++    if (spot.kind === 'wall') {
++      const horizontal = spot.side === 'n' || spot.side === 's';
++      const length = horizontal ? w : h;
++      const start = horizontal ? x : y;
++      // Shelves run the wall's length, shortened where something (shelves on the next wall) is in the way.
++      let a = along;
++      if (kind.fullWall && !Array.isArray(f.size)) {
++        a = Math.max(1, length - 1.2);
++        const at = (len: number, c: number): Box =>
++          spot.side === 'n' ? [c - len / 2, y + inset, len, depth] : spot.side === 's' ? [c - len / 2, y + h - inset - depth, len, depth] : spot.side === 'w' ? [x + inset, c - len / 2, depth, len] : [x + w - inset - depth, c - len / 2, depth, len];
++        while (a > 1.5) {
++          const half = a / 2;
++          const fits = [start + length / 2, start + 0.3 + half, start + length - 0.3 - half].some(c => free(at(a, c)));
++          if (fits) break;
++          a -= 0.5;
++        }
++      }
++      const footprint = (c: number): Box => {
++        if (spot.side === 'n') return [c - a / 2, y + inset, a, depth];
++        if (spot.side === 's') return [c - a / 2, y + h - inset - depth, a, depth];
++        if (spot.side === 'w') return [x + inset, c - a / 2, depth, a];
++        return [x + w - inset - depth, c - a / 2, depth, a];
++      };
++      const lo = start + 0.3 + a / 2;
++      const hi = start + length - 0.3 - a / 2;
++      const cands: number[] = [];
++      if (hi <= lo) cands.push(start + length / 2);
++      else for (let c = lo; c <= hi + 1e-6; c += 0.25) cands.push(c);
++      // Evenly along the wall; if that leaves some out, spread them right out to the ends instead.
++      const tryTargets = (targets: number[]): Box[] => {
++        const got: Box[] = [];
++        for (const target of targets) {
++          const best = cands
++            .map(c => ({ c, d: Math.abs(c - target) }))
++            .sort((p, q) => p.d - q.d)
++            .find(({ c }) => free(footprint(c)) && !got.some(g => clash(g, footprint(c))));
++          if (best) got.push(footprint(best.c));
++        }
++        return got;
++      };
++      let got = tryTargets(Array.from({ length: count }, (_, k) => start + (length * (k + 1)) / (count + 1)));
++      if (got.length < count && count > 1 && cands.length > 1) {
++        const lo2 = cands[0]!;
++        const hi2 = cands[cands.length - 1]!;
++        const spread = tryTargets(Array.from({ length: count }, (_, k) => lo2 + ((hi2 - lo2) * k) / (count - 1)));
++        if (spread.length > got.length) got = spread;
++      }
++      for (const b of got) boxes.push({ b, place: SIDE_WORDS[spot.side] });
++    } else if (spot.kind === 'corners') {
++      // One per corner asked for; with a count, only that many corners.
++      const wanted = f.count === undefined ? spot.corners : spot.corners.slice(0, count);
++      const names: Record<Corner, string> = { nw: 'north-west', ne: 'north-east', sw: 'south-west', se: 'south-east' };
++      for (const c of wanted) {
++        const bx = c[1] === 'w' ? x + inset + 0.1 : x + w - inset - 0.1 - along;
++        const by = c[0] === 'n' ? y + inset + 0.1 : y + h - inset - 0.1 - depth;
++        const b: Box = [bx, by, along, depth];
++        if (free(b)) boxes.push({ b, place: `${names[c]} corner` });
++      }
++    } else {
++      // Centre: a row along the longer side of the room, around its middle.
++      const horizontal = w >= h;
++      const a = along;
++      const cx = x + w / 2;
++      const cy = y + h / 2;
++      const step = a + 1;
++      const tries = [0, 0.5, -0.5, 1, -1, 1.5, -1.5, 2, -2];
++      for (let k = 0; k < count; k++) {
++        const off = (k - (count - 1) / 2) * step;
++        for (const t of tries) {
++          const b: Box = horizontal ? [cx + off - a / 2, cy - depth / 2 + t, a, depth] : [cx - depth / 2 + t, cy + off - a / 2, depth, a];
++          if (free(b)) {
++            boxes.push({ b, place: 'centre' });
++            break;
++          }
++        }
++      }
++    }
++
++    const asked = spot.kind === 'corners' && f.count === undefined ? spot.corners.length : spot.kind === 'corners' ? Math.min(count, spot.corners.length) : count;
++    if (boxes.length < asked) warnings.push(`${area}: room for only ${boxes.length} of ${asked} "${what}"`);
++    for (const { b, place } of boxes) {
++      taken.push(b);
++      const common = {
++        snap: 0,
++        fill: floor,
++        color: kind.color,
++        name: `${area}: ${what}`,
++        feature: what,
++        in_area: area,
++        place,
++        marker: kind.colorName,
++      };
++      if (kind.round) {
++        shapes.push({ shape: 'ellipse', ellipse: [r2(b[0] + b[2] / 2), r2(b[1] + b[3] / 2), r2(b[2] / 2), r2(b[3] / 2)], ...common });
++      } else {
++        shapes.push({ shape: 'rect', rect: [r2(b[0]), r2(b[1]), r2(b[2]), r2(b[3])], ...common });
++      }
++    }
++  });
++  return { shapes, warnings };
++}
 diff --git a/packages/mcp-server/src/tools/layout-image.ts b/packages/mcp-server/src/tools/layout-image.ts
 new file mode 100644
 index 0000000..5cc3d03
@@ -49803,6 +50074,1605 @@ index 0000000..5cc3d03
 +  }
 +  cached = { key, image };
 +  return image;
++}
+diff --git a/packages/mcp-server/src/tools/layout-plan-building.ts b/packages/mcp-server/src/tools/layout-plan-building.ts
+new file mode 100644
+index 0000000..7bd1daa
+--- /dev/null
++++ b/packages/mcp-server/src/tools/layout-plan-building.ts
+@@ -0,0 +1,325 @@
++/**
++ * The building style of a plan: rooms packed inside one footprint, sharing thin walls, like the
++ * inside of a house, tavern or keep. The footprint is cut again and again in two (a BSP) so each
++ * room gets about the floor it asked for; many cuts are tried and the one that lets the most links
++ * become doors on shared walls wins. Walls are drawn as thin lines; doors sit on them.
++ */
++
++import { featureShapes } from './layout-features.js';
++import type { PlanArea, PlanLink, PlanResult } from './layout-plan.js';
++
++type Rect = [number, number, number, number];
++type Side = 'n' | 's' | 'e' | 'w';
++
++const WEIGHTS: Record<string, number> = { tiny: 12, small: 24, medium: 40, large: 72, huge: 120 };
++const MIN_SIDE = 3;
++
++interface Leaf {
++  name: string;
++  rect: Rect;
++}
++interface Cut {
++  /** Wall line [x0, y0, x1, y1]. */
++  line: [number, number, number, number];
++}
++
++function weightOf(a: PlanArea, rand: () => number): number {
++  if (Array.isArray(a.size)) return a.size[0]! * a.size[1]!;
++  const base = WEIGHTS[(typeof a.size === 'string' ? a.size : 'medium').toLowerCase()] ?? 36;
++  return base * (0.85 + rand() * 0.3);
++}
++
++/** Cut a rect among the items (in order), keeping each part's floor close to its weight. */
++function partition(rect: Rect, items: Array<{ name: string; w: number }>, rand: () => number, leaves: Leaf[], cuts: Cut[]): boolean {
++  if (items.length === 1) {
++    leaves.push({ name: items[0]!.name, rect });
++    return true;
++  }
++  const total = items.reduce((s, i) => s + i.w, 0);
++  // Where to divide the list: as balanced as possible, sometimes the next best for variety.
++  const options: Array<{ k: number; diff: number }> = [];
++  let acc = 0;
++  for (let k = 1; k < items.length; k++) {
++    acc += items[k - 1]!.w;
++    options.push({ k, diff: Math.abs(acc / total - 0.5) });
++  }
++  options.sort((a, b) => a.diff - b.diff);
++  const pick = options[rand() < 0.75 || options.length === 1 ? 0 : 1]!;
++  const left = items.slice(0, pick.k);
++  const right = items.slice(pick.k);
++  const share = left.reduce((s, i) => s + i.w, 0) / total;
++  const [x, y, w, h] = rect;
++  const vertical = w > h * 1.15 ? true : h > w * 1.15 ? false : rand() < 0.5;
++  if (vertical) {
++    const cut = Math.round(x + w * share);
++    if (cut - x < MIN_SIDE || x + w - cut < MIN_SIDE) return false;
++    cuts.push({ line: [cut, y, cut, y + h] });
++    return partition([x, y, cut - x, h], left, rand, leaves, cuts) && partition([cut, y, x + w - cut, h], right, rand, leaves, cuts);
++  }
++  const cut = Math.round(y + h * share);
++  if (cut - y < MIN_SIDE || y + h - cut < MIN_SIDE) return false;
++  cuts.push({ line: [x, cut, x + w, cut] });
++  return partition([x, y, w, cut - y], left, rand, leaves, cuts) && partition([x, cut, w, y + h - cut], right, rand, leaves, cuts);
++}
++
++/** The wall two rects share: vertical (x fixed) or horizontal (y fixed), with its extent. */
++function shared(a: Rect, b: Rect): { horizontal: boolean; line: number; from: number; to: number } | undefined {
++  const [ax, ay, aw, ah] = a;
++  const [bx, by, bw, bh] = b;
++  if (ax + aw === bx || bx + bw === ax) {
++    const from = Math.max(ay, by);
++    const to = Math.min(ay + ah, by + bh);
++    if (to - from > 0) return { horizontal: false, line: ax + aw === bx ? bx : ax, from, to };
++  }
++  if (ay + ah === by || by + bh === ay) {
++    const from = Math.max(ax, bx);
++    const to = Math.min(ax + aw, bx + bw);
++    if (to - from > 0) return { horizontal: true, line: ay + ah === by ? by : ay, from, to };
++  }
++  return undefined;
++}
++
++function shuffle<T>(list: T[], rand: () => number): T[] {
++  const out = [...list];
++  for (let i = out.length - 1; i > 0; i--) {
++    const j = Math.floor(rand() * (i + 1));
++    [out[i], out[j]] = [out[j]!, out[i]!];
++  }
++  return out;
++}
++
++function touchesSide(r: Rect, fp: Rect, side: Side): boolean {
++  if (side === 'n') return r[1] === fp[1];
++  if (side === 's') return r[1] + r[3] === fp[1] + fp[3];
++  if (side === 'w') return r[0] === fp[0];
++  return r[0] + r[2] === fp[0] + fp[2];
++}
++
++export interface BuildingOptions {
++  footprint?: number[];
++  /** Floor of the rooms (default wood). */
++  floor?: string;
++  /** What is around the building (default grass). */
++  surround?: string;
++  entrance?: { area: string; side?: Side };
++}
++
++export function buildBuilding(areas: PlanArea[], links: PlanLink[], rand: () => number, seed: number, warnings: string[], opts: BuildingOptions): PlanResult {
++  if (areas.length > 16) throw new Error('A building plan holds at most 16 rooms; split a bigger building into floors or wings');
++  const weights = areas.map(a => ({ name: a.name, w: weightOf(a, rand) }));
++  const total = weights.reduce((s, i) => s + i.w, 0);
++  let fw: number;
++  let fh: number;
++  if (opts.footprint) {
++    [fw, fh] = [Math.round(opts.footprint[0]!), Math.round(opts.footprint[1]!)];
++    if (!(fw >= 4 && fh >= 4 && fw <= 56 && fh <= 56)) throw new Error('footprint must be [width, height], 4 to 56 squares each');
++  } else {
++    const aspect = 1.25 + rand() * 0.4;
++    fw = Math.max(MIN_SIDE * 2, Math.round(Math.sqrt(total * aspect)));
++    fh = Math.max(MIN_SIDE * 2, Math.round(total / fw));
++  }
++  const margin = 2;
++  // A building always has a way in: by default the first room, on the south side.
++  if (!opts.entrance) opts = { ...opts, entrance: { area: areas[0]!.name } };
++  const entranceSide: Side | undefined = opts.entrance ? (opts.entrance.side ?? 's') : undefined;
++  const fp: Rect = [margin + (entranceSide === 'w' ? 1 : 0), margin + (entranceSide === 'n' ? 1 : 0), fw, fh];
++  const columns = fw + margin * 2 + (entranceSide === 'w' || entranceSide === 'e' ? 1 : 0);
++  const rows = fh + margin * 2 + (entranceSide === 'n' || entranceSide === 's' ? 1 : 0);
++  if (columns > 64 || rows > 64) throw new Error(`The building came out ${columns} x ${rows} squares; the largest map is 64 x 64. Use fewer or smaller rooms.`);
++
++  // Try many cuts; keep the one where the most links are walls the rooms share.
++  let best: { leaves: Leaf[]; cuts: Cut[]; score: number } | undefined;
++  for (let trial = 0; trial < 600; trial++) {
++    const leaves: Leaf[] = [];
++    const cuts: Cut[] = [];
++    if (!partition(fp, shuffle(weights, rand), rand, leaves, cuts)) continue;
++    const at = new Map(leaves.map(l => [l.name, l.rect]));
++    let score = 0;
++    for (const l of links) {
++      const s = shared(at.get(l.from)!, at.get(l.to)!);
++      const need = l.via === 'open' ? 3 : 2;
++      if (!s || s.to - s.from < need) score += 100;
++    }
++    for (const leaf of leaves) {
++      const want = weights.find(w => w.name === leaf.name)!.w;
++      const got = leaf.rect[2] * leaf.rect[3];
++      score += (Math.abs(got - want) / want) * 6;
++      const ratio = Math.max(leaf.rect[2], leaf.rect[3]) / Math.min(leaf.rect[2], leaf.rect[3]);
++      if (ratio > 2.6) score += (ratio - 2.6) * 8;
++    }
++    if (opts.entrance && entranceSide) {
++      const r = at.get(opts.entrance.area)!;
++      if (!touchesSide(r, fp, entranceSide)) score += 60;
++    }
++    score += rand() * 0.5;
++    if (!best || score < best.score) best = { leaves, cuts, score };
++  }
++  if (!best) throw new Error('The rooms do not fit the footprint; make it bigger or the rooms fewer (each room needs at least 3 x 3)');
++  const rectOf = new Map(best.leaves.map(l => [l.name, l.rect]));
++
++  // Wall segments: the outline and every cut, as unit pieces so openings can be taken out.
++  type Seg = { horizontal: boolean; line: number; from: number; to: number };
++  const segs: Seg[] = [
++    { horizontal: true, line: fp[1], from: fp[0], to: fp[0] + fw },
++    { horizontal: true, line: fp[1] + fh, from: fp[0], to: fp[0] + fw },
++    { horizontal: false, line: fp[0], from: fp[1], to: fp[1] + fh },
++    { horizontal: false, line: fp[0] + fw, from: fp[1], to: fp[1] + fh },
++    ...best.cuts.map(c => {
++      const [x0, y0, x1, y1] = c.line;
++      return y0 === y1 ? { horizontal: true, line: y0, from: Math.min(x0, x1), to: Math.max(x0, x1) } : { horizontal: false, line: x0, from: Math.min(y0, y1), to: Math.max(y0, y1) };
++    }),
++  ];
++  const openings: Seg[] = [];
++  const doors: any[] = [];
++  const realized: PlanResult['links'] = [];
++  const joined = new Set<string>();
++  const key = (a: string, b: string) => [a, b].sort().join('|');
++
++  const addDoor = (from: string, to: string, l: { via: string; locked?: boolean }) => {
++    const s = shared(rectOf.get(from)!, rectOf.get(to)!);
++    if (!s || s.to - s.from < 1) return false;
++    if (l.via === 'open') {
++      // An archway: most of the shared wall, leaving a square at each end where it can.
++      const len = s.to - s.from;
++      const gap = len >= 4 ? len - 2 : Math.max(1, len - 1);
++      const start = s.from + Math.floor((len - gap) / 2);
++      openings.push({ horizontal: s.horizontal, line: s.line, from: start, to: start + gap });
++      realized.push({ from, to, via: 'open' });
++    } else {
++      const size = 1;
++      // Centred on the shared wall (half squares allowed), away from the walls that meet it.
++      const start = Math.round(((s.from + s.to) / 2 - size / 2) * 2) / 2;
++      doors.push({
++        shape: 'door',
++        at: s.horizontal ? [start, s.line] : [s.line, start],
++        dir: s.horizontal ? 'h' : 'v',
++        size,
++        ...(l.via === 'secret' ? { secret: true } : {}),
++        ...(l.locked ? { state: 'locked' } : {}),
++        name: `${from} / ${to}`,
++      });
++      realized.push({ from, to, via: l.via === 'secret' ? 'secret' : 'door', door: `${l.via === 'secret' ? 'secret ' : l.locked ? 'locked ' : ''}door at ${s.horizontal ? `${start},${s.line}` : `${s.line},${start}`}` });
++    }
++    joined.add(key(from, to));
++    return true;
++  };
++
++  for (const l of links) {
++    if (!addDoor(l.from, l.to, { via: l.via === 'corridor' || l.via === 'tunnel' ? 'door' : l.via, locked: l.locked })) {
++      warnings.push(`"${l.from}" and "${l.to}" do not share a wall in this arrangement, so there is no door between them (try another seed or a footprint)`);
++    }
++  }
++
++  // Every room must be reachable: add doors where a room is cut off.
++  const start = opts.entrance?.area ?? areas[0]!.name;
++  for (let guard = 0; guard < areas.length * 2; guard++) {
++    const reach = new Set([start]);
++    let grew = true;
++    while (grew) {
++      grew = false;
++      for (const k of joined) {
++        const [a, b] = k.split('|') as [string, string];
++        if (reach.has(a) !== reach.has(b)) {
++          reach.add(a);
++          reach.add(b);
++          grew = true;
++        }
++      }
++    }
++    const cutOff = areas.find(a => !reach.has(a.name));
++    if (!cutOff) break;
++    // The reachable neighbour with the longest shared wall.
++    let pickName: string | undefined;
++    let pickLen = 0;
++    for (const r of reach) {
++      const s = shared(rectOf.get(cutOff.name)!, rectOf.get(r)!);
++      if (s && s.to - s.from > pickLen) {
++        pickLen = s.to - s.from;
++        pickName = r;
++      }
++    }
++    if (!pickName) {
++      // No reachable neighbour yet: join it to any neighbour, the chain will reach later.
++      for (const other of areas) {
++        if (other.name === cutOff.name || joined.has(key(other.name, cutOff.name))) continue;
++        const s = shared(rectOf.get(cutOff.name)!, rectOf.get(other.name)!);
++        if (s && s.to - s.from >= 1) {
++          pickName = other.name;
++          break;
++        }
++      }
++    }
++    if (!pickName) break;
++    addDoor(cutOff.name, pickName, { via: 'door' });
++    warnings.push(`Added a door between "${cutOff.name}" and "${pickName}" so every room can be reached`);
++  }
++
++  // The way in: a door in the outer wall and a path out to the map edge.
++  const ground: any[] = [];
++  if (opts.entrance && entranceSide) {
++    const r = rectOf.get(opts.entrance.area)!;
++    let side = entranceSide;
++    if (!touchesSide(r, fp, side)) {
++      const other = (['s', 'w', 'e', 'n'] as Side[]).find(sd => touchesSide(r, fp, sd));
++      if (other) {
++        warnings.push(`"${opts.entrance.area}" does not reach the ${side} wall; its way in is on the ${other} side`);
++        side = other;
++      }
++    }
++    if (touchesSide(r, fp, side)) {
++      const horizontal = side === 'n' || side === 's';
++      const lo = horizontal ? r[0] : r[1];
++      const len = horizontal ? r[2] : r[3];
++      const size = len >= 6 ? 2 : 1;
++      const startAt = lo + Math.floor((len - size) / 2);
++      const line = side === 'n' ? r[1] : side === 's' ? r[1] + r[3] : side === 'w' ? r[0] : r[0] + r[2];
++      doors.push({ shape: 'door', at: horizontal ? [startAt, line] : [line, startAt], dir: horizontal ? 'h' : 'v', size, name: `${opts.entrance.area} / outside` });
++      const mid = startAt + size / 2;
++      const edge = side === 'n' ? -1 : side === 's' ? rows + 1 : side === 'w' ? -1 : columns + 1;
++      ground.push({ shape: 'path', path: horizontal ? [[mid, line], [mid, edge]] : [[line, mid], [edge, mid]], width: size + 1, fill: 'road', snap: 0, name: 'path to the door' });
++      realized.push({ from: opts.entrance.area, to: `outside (${side})`, via: 'door' });
++    } else {
++      warnings.push(`"${opts.entrance.area}" has no outer wall, so the way in is left out`);
++    }
++  }
++
++  // Wall lines: segments minus openings.
++  const wallShapes: any[] = [];
++  for (const s of segs) {
++    let pieces: Array<[number, number]> = [[s.from, s.to]];
++    for (const o of openings) {
++      if (o.horizontal !== s.horizontal || o.line !== s.line) continue;
++      pieces = pieces.flatMap(([a, b]): Array<[number, number]> => (o.to <= a || o.from >= b ? [[a, b]] : ([[a, Math.max(a, o.from)], [Math.min(b, o.to), b]] as Array<[number, number]>).filter(([p, q]) => q - p > 0)));
++    }
++    for (const [a, b] of pieces) wallShapes.push({ shape: 'wall', path: s.horizontal ? [[a, s.line], [b, s.line]] : [[s.line, a], [s.line, b]] });
++  }
++
++  const floor = opts.floor ?? 'wood';
++  const roomShapes = areas.map(a => ({
++    shape: 'rect',
++    rect: rectOf.get(a.name)!,
++    name: a.name,
++    fill: a.fill ?? floor,
++    ...(a.contents ? { contents: a.contents } : {}),
++    area: true,
++  }));
++  const featureList: any[] = [];
++  for (const a of areas) {
++    if (!a.features?.length) continue;
++    const { shapes, warnings: w } = featureShapes(a.name, 'rect', rectOf.get(a.name)!, a.features, [], a.fill ?? floor);
++    featureList.push(...shapes);
++    warnings.push(...w);
++  }
++
++  return {
++    columns,
++    rows,
++    background: opts.surround ?? 'grass',
++    wallFills: [...new Set(roomShapes.map(r => r.fill))],
++    shapes: [...ground, ...roomShapes, ...wallShapes, ...doors, ...featureList],
++    areas: areas.map(a => ({ name: a.name, shape: 'room' as const, rect: rectOf.get(a.name)! })),
++    links: realized,
++    seed,
++    warnings,
++  };
++}
+diff --git a/packages/mcp-server/src/tools/layout-plan-styles.test.ts b/packages/mcp-server/src/tools/layout-plan-styles.test.ts
+new file mode 100644
+index 0000000..8c700b7
+--- /dev/null
++++ b/packages/mcp-server/src/tools/layout-plan-styles.test.ts
+@@ -0,0 +1,178 @@
++import { describe, expect, it } from 'vitest';
++import { buildPlan } from './layout-plan.js';
++import { checkLayout } from './layout-analysis.js';
++import { mapPrompt } from './layout-prompt.js';
++import { normalizeShape, renderLayout, wallsFromLayout, type NormalizedLayout } from './layout-utils.js';
++
++function asLayout(plan: ReturnType<typeof buildPlan>): NormalizedLayout {
++  return {
++    columns: plan.columns,
++    rows: plan.rows,
++    size: 16,
++    background: plan.background,
++    wallFills: plan.wallFills ?? ['floor'],
++    shapes: plan.shapes.map((s, i) => ({ ...normalizeShape(s, `s${i}`, 1), id: i + 1 })),
++  };
++}
++
++const TAVERN = {
++  style: 'building' as const,
++  areas: [
++    { name: 'common room', size: 'large', features: [{ what: 'bar counter', at: 'north wall' }, { what: 'round table', count: 3 }] },
++    { name: 'kitchen', size: 'small', features: [{ what: 'hearth', at: 'east wall' }] },
++    { name: 'storeroom', size: 'small', features: [{ what: 'barrel', at: 'corners' }] },
++    { name: 'guest room', size: 'small', features: [{ what: 'bed', at: 'west wall' }] },
++    { name: "owner's room", size: 'small' },
++  ],
++  links: [
++    ['common room', 'kitchen'],
++    ['kitchen', 'storeroom'],
++    ['common room', 'guest room'],
++    ['common room', "owner's room", 'door'],
++  ],
++  entrance: { area: 'common room', side: 's' },
++};
++
++describe('building style', () => {
++  it('packs the rooms in one footprint with thin walls, doors on them and a front door', () => {
++    for (const seed of [1, 2, 3, 4, 5, 6, 7, 8]) {
++      const plan = buildPlan({ ...TAVERN, seed });
++      const layout = asLayout(plan);
++      const check = checkLayout(layout);
++      expect(check.errors).toEqual([]);
++      expect(check.warnings).toEqual([]);
++      expect(plan.background).toBe('grass');
++      expect(plan.shapes.filter(s => s.shape === 'wall').length).toBeGreaterThanOrEqual(5);
++      const doors = plan.shapes.filter(s => s.shape === 'door');
++      expect(doors.length).toBeGreaterThanOrEqual(5); // four links and the front door
++      // Walls: one Foundry wall per line piece, doors among them, no doubled outline.
++      const { walls } = wallsFromLayout(layout);
++      expect(walls.filter(w => w.preset).length).toBe(doors.length);
++      const keys = walls.filter(w => !w.preset).map(w => JSON.stringify(w.points));
++      expect(new Set(keys).size).toBe(keys.length);
++      // Every wall is one of the drawn lines: nothing traced round the furniture.
++      expect(walls.filter(w => !w.preset && !w.fixed)).toHaveLength(0);
++    }
++  });
++
++  it('turns an open link into an archway: no wall and no door between the two rooms', () => {
++    const plan = buildPlan({
++      style: 'building',
++      seed: 5,
++      areas: [{ name: 'hall', size: 'large' }, { name: 'gallery', size: 'medium' }],
++      links: [['hall', 'gallery', 'open']],
++    });
++    expect(plan.links[0]!.via).toBe('open');
++    // Only the front door every building gets: none between the two rooms.
++    const doors = plan.shapes.filter(s => s.shape === 'door');
++    expect(doors.map(d => d.name)).toEqual(['hall / outside']);
++    expect(checkLayout(asLayout(plan)).warnings).toEqual([]);
++  });
++
++  it('adds a door when a room would be cut off, and says so', () => {
++    const plan = buildPlan({
++      style: 'building',
++      seed: 2,
++      areas: [{ name: 'a' }, { name: 'b' }, { name: 'c' }],
++      links: [['a', 'b']],
++    });
++    expect(plan.warnings.some(w => w.includes('so every room can be reached'))).toBe(true);
++    expect(checkLayout(asLayout(plan)).warnings).toEqual([]);
++  });
++
++  it('asks the image model for real walls on the lines', () => {
++    const prompt = mapPrompt(asLayout(buildPlan({ ...TAVERN, seed: 1 })));
++    expect(prompt).toMatch(/near-black lines = walls/);
++    expect(prompt).toMatch(/Paint a real stone or timber wall along every near-black line/);
++    expect(prompt).toMatch(/is the common room/);
++    expect(prompt).toMatch(/the inside of a building|In <Picture 1>/);
++  });
++});
++
++describe('outdoor style', () => {
++  const CAMP = {
++    style: 'outdoor' as const,
++    ground: 'forest',
++    areas: [
++      { name: 'camp', size: 'large', features: [{ what: 'campfire' }, { what: 'tent', at: 'north wall', count: 2 }] },
++      { name: 'hut', shape: 'building', size: 'small' },
++      { name: 'pond', shape: 'round', size: 'small', fill: 'water' },
++      { name: 'lookout', size: 'small' },
++    ],
++    links: [['camp', 'hut'], ['camp', 'pond'], ['camp', 'lookout', 'road']],
++    entrance: { area: 'camp', side: 'w' },
++  };
++
++  it('lays clearings and paths on open ground, with walls only round buildings', () => {
++    for (const seed of [1, 2, 3, 4, 5]) {
++      const plan = buildPlan({ ...CAMP, seed });
++      expect(plan.background).toBe('forest');
++      expect(plan.wallFills).toEqual(['building']);
++      const layout = asLayout(plan);
++      const check = checkLayout(layout);
++      expect(check.errors).toEqual([]);
++      expect(check.warnings).toEqual([]);
++      expect(plan.shapes.filter(s => s.shape === 'path' && s.fill === 'road').length).toBeGreaterThanOrEqual(3);
++      // The hut has a door where the path reaches it, and its walls come out.
++      const doors = plan.shapes.filter(s => s.shape === 'door');
++      expect(doors).toHaveLength(1);
++      const { walls } = wallsFromLayout(layout);
++      expect(walls.some(w => w.preset === 'door')).toBe(true);
++      const prompt = mapPrompt(layout);
++      expect(prompt).toMatch(/dark green = dense forest/);
++      expect(prompt).toMatch(/is the camp/);
++    }
++  });
++
++  it('draws a stream as water, not a road', () => {
++    const plan = buildPlan({ style: 'outdoor', seed: 3, areas: [{ name: 'mill', shape: 'building' }, { name: 'meadow' }], links: [['mill', 'meadow', 'stream']] });
++    expect(plan.shapes.some(s => s.shape === 'path' && s.fill === 'water')).toBe(true);
++    expect(plan.shapes.filter(s => s.shape === 'door')).toHaveLength(0);
++  });
++});
++
++describe('trimming', () => {
++  it('leaves little empty rock round a dungeon', () => {
++    const plan = buildPlan({ seed: 9, areas: [{ name: 'a' }, { name: 'b' }, { name: 'c' }], links: [['a', 'b'], ['b', 'c']] });
++    const layout = asLayout(plan);
++    const { rgb, width, height } = renderLayout({ ...layout, size: 1 });
++    // Every edge column and row is rock, but the second one in from it is not all rock somewhere.
++    const rockAt = (x: number, y: number) => rgb[(y * width + x) * 3] === 20;
++    let edgeFloor = 0;
++    for (let x = 0; x < width; x++) if (!rockAt(x, 0) || !rockAt(x, height - 1)) edgeFloor++;
++    expect(edgeFloor).toBe(0);
++    let nearFloor = 0;
++    for (let x = 0; x < width; x++) if (!rockAt(x, 1)) nearFloor++;
++    for (let y = 0; y < height; y++) if (!rockAt(1, y)) nearFloor++;
++    expect(nearFloor).toBeGreaterThan(0);
++  });
++});
++
++describe('furniture shapes', () => {
++  it('draws anything called round as a circle', async () => {
++    const { featureShapes } = await import('./layout-features.js');
++    const { shapes } = featureShapes('hall', 'rect', [0, 0, 10, 8], [{ what: 'round table' }, { what: 'long table', at: 'south wall' }]);
++    expect(shapes[0]!.shape).toBe('ellipse');
++    expect(shapes[1]!.shape).toBe('rect');
++  });
++});
++
++describe('doors on buildings', () => {
++  it('never runs a door past the corner of the building', () => {
++    for (let seed = 1; seed <= 30; seed++) {
++      const plan = buildPlan({
++        style: 'outdoor',
++        seed,
++        areas: [{ name: 'square', size: 'large' }, { name: 'hut', shape: 'building', size: 'small' }, { name: 'barn', shape: 'building', size: 'medium' }],
++        links: [['square', 'hut'], ['square', 'barn', 'road']],
++      });
++      for (const d of plan.shapes.filter(s => s.shape === 'door')) {
++        const owner = plan.areas.find(a => {
++          const [x, y, w, h] = a.rect;
++          return d.dir === 'v' ? (d.at[0] === x || d.at[0] === x + w) && d.at[1] >= y && d.at[1] + d.size <= y + h : (d.at[1] === y || d.at[1] === y + h) && d.at[0] >= x && d.at[0] + d.size <= x + w;
++        });
++        expect(owner?.shape, `seed ${seed} door ${JSON.stringify(d.at)} ${d.dir} ${d.size}`).toBe('building');
++      }
++    }
++  });
++});
+diff --git a/packages/mcp-server/src/tools/layout-plan.test.ts b/packages/mcp-server/src/tools/layout-plan.test.ts
+new file mode 100644
+index 0000000..d45562b
+--- /dev/null
++++ b/packages/mcp-server/src/tools/layout-plan.test.ts
+@@ -0,0 +1,234 @@
++import { afterAll, describe, expect, it, vi } from 'vitest';
++import { promises as fs } from 'fs';
++import os from 'os';
++import path from 'path';
++import { buildPlan } from './layout-plan.js';
++import { featureShapes, parseSpot } from './layout-features.js';
++import { mapPrompt, roomSentences } from './layout-prompt.js';
++import { checkLayout } from './layout-analysis.js';
++import { normalizeShape, renderLayout, wallsFromLayout, type NormalizedLayout } from './layout-utils.js';
++import { LayoutTools, exactPictureSize } from './layout.js';
++
++const folder = path.join(os.tmpdir(), `layout-plan-test-${Date.now()}`);
++afterAll(async () => {
++  await fs.rm(folder, { recursive: true, force: true });
++});
++
++function tools() {
++  const logger: any = { info: vi.fn(), debug: vi.fn(), error: vi.fn(), warn: vi.fn(), child: () => logger };
++  return new LayoutTools({ logger, folder });
++}
++
++function asLayout(plan: ReturnType<typeof buildPlan>): NormalizedLayout {
++  return {
++    columns: plan.columns,
++    rows: plan.rows,
++    size: 64,
++    background: plan.background,
++    wallFills: ['floor'],
++    shapes: plan.shapes.map((s, i) => ({ ...normalizeShape(s, `s${i}`, 1), id: i + 1 })),
++  };
++}
++
++const DUNGEON = {
++  areas: [
++    { name: 'guard room', size: 'small', contents: 'a table with dice and two stools' },
++    { name: 'shrine', size: 'medium', features: [{ what: 'stone altar', at: 'north wall' }, { what: 'brazier', at: 'north wall', count: 2 }] },
++    { name: 'library', size: 'medium', features: [{ what: 'bookshelves', at: 'north wall' }, { what: 'reading table' }] },
++    { name: 'barracks', size: 'large', features: [{ what: 'bunk bed', at: 'west wall', count: 4 }] },
++    { name: 'vault', size: 'tiny', contents: 'an iron chest' },
++  ],
++  links: [
++    ['guard room', 'shrine'],
++    ['shrine', 'library', 'door'],
++    ['guard room', 'barracks', 'corridor'],
++    { from: 'barracks', to: 'vault', via: 'secret' },
++  ],
++  entrance: { area: 'guard room', side: 's' },
++};
++
++describe('buildPlan', () => {
++  it('lays out a connected dungeon with doors, a secret door and an entrance', () => {
++    const plan = buildPlan({ ...DUNGEON, seed: 42 });
++    expect(plan.warnings).toEqual([]);
++    const layout = asLayout(plan);
++    const check = checkLayout(layout);
++    expect(check.errors).toEqual([]);
++    expect(check.warnings).toEqual([]);
++    const doors = plan.shapes.filter(s => s.shape === 'door');
++    expect(doors).toHaveLength(2);
++    expect(doors.some(d => d.secret)).toBe(true);
++    // The entrance corridor reaches the south edge.
++    expect(plan.shapes.some(s => s.shape === 'cells' && s.cells.some((c: number[]) => c[1] === plan.rows - 1))).toBe(true);
++    // Walls come out and the doors are among them.
++    const { walls } = wallsFromLayout(layout);
++    expect(walls.filter(w => w.preset).length).toBe(2);
++  });
++
++  it('is repeatable with a seed and varies with another', () => {
++    const a = buildPlan({ ...DUNGEON, seed: 7 });
++    const b = buildPlan({ ...DUNGEON, seed: 7 });
++    const c = buildPlan({ ...DUNGEON, seed: 8 });
++    expect(a.shapes).toEqual(b.shapes);
++    expect(JSON.stringify(a.areas)).not.toEqual(JSON.stringify(c.areas));
++  });
++
++  it('stays connected over many seeds and shapes of plan', () => {
++    const names = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
++    const sizes = ['tiny', 'small', 'medium', 'large'];
++    const vias = ['corridor', 'door', 'corridor', 'open', 'secret'];
++    let failures = 0;
++    for (let seed = 1; seed <= 200; seed++) {
++      const n = 3 + (seed % 6);
++      const areas = names.slice(0, n).map((name, i) => ({ name, size: sizes[(seed + i) % sizes.length], shape: (seed + i) % 7 === 0 ? 'round' : 'room' }));
++      const links: any[] = [];
++      for (let i = 1; i < n; i++) links.push([names[i], names[(i * seed) % i], vias[(seed + i) % vias.length]]);
++      if (n > 4) links.push([names[0], names[n - 1]]); // a loop
++      const plan = buildPlan({ areas, links, seed });
++      const check = checkLayout(asLayout(plan));
++      if (check.errors.length || check.warnings.length || plan.warnings.some(w => w.startsWith('No way'))) {
++        failures++;
++        console.log(seed, check.errors, check.warnings, plan.warnings);
++      }
++    }
++    expect(failures).toBe(0);
++  });
++
++  it('makes caves with rough outlines and winding tunnels, all joined', () => {
++    for (const seed of [1, 2, 3, 4, 5]) {
++      const plan = buildPlan({
++        style: 'cave',
++        seed,
++        areas: [{ name: 'mouth', size: 'medium' }, { name: 'pool cave', size: 'large', features: [{ what: 'pool' }] }, { name: 'den', size: 'small' }],
++        links: [['mouth', 'pool cave'], ['pool cave', 'den']],
++        entrance: 'mouth',
++      });
++      expect(plan.shapes.filter(s => s.shape === 'polygon')).toHaveLength(3);
++      expect(plan.shapes.filter(s => s.shape === 'path').length).toBeGreaterThanOrEqual(3);
++      const check = checkLayout(asLayout(plan));
++      expect(check.warnings).toEqual([]);
++    }
++  });
++
++  it('explains bad requests', () => {
++    expect(() => buildPlan({ areas: [] })).toThrow(/areas/);
++    expect(() => buildPlan({ areas: [{ name: 'a' }, { name: 'A' }] })).toThrow(/names must differ/);
++    expect(() => buildPlan({ areas: [{ name: 'a' }, { name: 'b' }], links: [['a', 'zz']] })).toThrow(/no area called "zz"/);
++    expect(() => buildPlan({ areas: [{ name: 'a', size: 'gigantic' }] })).toThrow(/size/);
++  });
++});
++
++describe('features', () => {
++  it('reads where an object goes', () => {
++    expect(parseSpot('north wall')).toEqual({ kind: 'wall', side: 'n' });
++    expect(parseSpot('along the west wall')).toEqual({ kind: 'wall', side: 'w' });
++    expect(parseSpot('middle')).toEqual({ kind: 'centre' });
++    expect(parseSpot('north-east corner')).toEqual({ kind: 'corners', corners: ['ne'] });
++    expect(parseSpot('corners')).toEqual({ kind: 'corners', corners: ['nw', 'ne', 'sw', 'se'] });
++  });
++
++  it('places objects inside the room without overlapping', () => {
++    const { shapes, warnings } = featureShapes('shrine', 'rect', [2, 2, 8, 6], [
++      { what: 'stone altar', at: 'north wall' },
++      { what: 'brazier', at: 'north wall', count: 2 },
++      { what: 'barrel', at: 'south corners' },
++      { what: 'bunk bed', at: 'east wall', count: 3 },
++    ]);
++    // The south-east barrel takes the space of a third bed: said, not silently dropped.
++    expect(warnings).toEqual(['shrine: room for only 2 of 3 "bunk bed"']);
++    const boxes = shapes.map(s => (s.rect ? s.rect : [s.ellipse[0] - s.ellipse[2], s.ellipse[1] - s.ellipse[3], s.ellipse[2] * 2, s.ellipse[3] * 2]));
++    for (const b of boxes) {
++      expect(b[0]).toBeGreaterThanOrEqual(2);
++      expect(b[1]).toBeGreaterThanOrEqual(2);
++      expect(b[0] + b[2]).toBeLessThanOrEqual(10);
++      expect(b[1] + b[3]).toBeLessThanOrEqual(8);
++    }
++    for (let i = 0; i < boxes.length; i++) {
++      for (let j = i + 1; j < boxes.length; j++) {
++        const [a, b] = [boxes[i]!, boxes[j]!];
++        const overlap = a[0] < b[0] + b[2] && b[0] < a[0] + a[2] && a[1] < b[1] + b[3] && b[1] < a[1] + a[3];
++        expect(overlap).toBe(false);
++      }
++    }
++    // The altar is centred on the north wall, the braziers either side of it.
++    const altar = shapes.find(s => s.feature === 'stone altar')!;
++    expect(altar.rect[0] + altar.rect[2] / 2).toBeCloseTo(6, 0);
++    const braziers = shapes.filter(s => s.feature === 'brazier').map(s => s.ellipse[0]);
++    expect(Math.min(...braziers)).toBeLessThan(5);
++    expect(Math.max(...braziers)).toBeGreaterThan(7);
++  });
++});
++
++describe('prompt', () => {
++  it('says where each area is and what each marker stands for', () => {
++    const layout = asLayout(buildPlan({ ...DUNGEON, seed: 42 }));
++    const sentences = roomSentences(layout).join(' ');
++    expect(sentences).toMatch(/is the guard room: a table with dice/);
++    expect(sentences).toMatch(/is the vault: an iron chest/);
++    expect(sentences).toMatch(/In the shrine, .*grey rectangle against its north wall marks a stone altar/);
++    expect(sentences).toMatch(/brown rectangles along its west wall each mark a bunk bed/);
++    const prompt = mapPrompt(layout, 'A ruined dwarven hold.');
++    expect(prompt.startsWith('A ruined dwarven hold.')).toBe(true);
++    expect(prompt).toMatch(/<Picture 1> is the exact floor plan/);
++    expect(prompt).toMatch(/no text/);
++  });
++});
++
++describe('sketch details', () => {
++  it('draws a secret door as wall, not as an orange door', () => {
++    const layout: NormalizedLayout = {
++      columns: 4,
++      rows: 4,
++      size: 8,
++      background: 'rock',
++      wallFills: ['floor'],
++      shapes: [{ shape: 'door', at: [2, 0], dir: 'v', size: 4, secret: true, fill: 'door' } as any],
++    };
++    const { rgb } = renderLayout(layout);
++    expect([...rgb.slice(0, 3)]).toEqual([20, 20, 20]);
++    expect([...rgb].some(v => v === 230)).toBe(false);
++  });
++
++  it('picks a picture size the image model keeps exactly', () => {
++    expect(exactPictureSize(24, 16)).toEqual({ width: 1824, height: 1216 });
++    const s = exactPictureSize(27, 19)!;
++    expect(s.width / 27).toBe(s.height / 19);
++    expect(s.width % 32).toBe(0);
++    expect(s.height % 32).toBe(0);
++    expect(s.width * s.height).toBeGreaterThanOrEqual(2 * 1024 * 1024);
++    // No exact size within 2048: the closest shape, under 1% off.
++    const near = exactPictureSize(42, 33)!;
++    expect(Math.max(near.width, near.height)).toBeLessThanOrEqual(2048);
++    expect(Math.abs(near.width / near.height / (42 / 33) - 1)).toBeLessThan(0.01);
++  });
++
++  it('fits shelves on two walls that meet in a corner', () => {
++    const { shapes, warnings } = featureShapes('library', 'rect', [4, 18, 7, 6], [
++      { what: 'bookshelves', at: 'north wall' },
++      { what: 'bookshelves', at: 'east wall' },
++    ]);
++    expect(warnings).toEqual([]);
++    expect(shapes).toHaveLength(2);
++  });
++});
++
++describe('layout tool: plan and furnish', () => {
++  it('plans, refuses to overwrite without replace, re-plans, furnishes and renders a prompt', async () => {
++    const t = tools();
++    const first = await t.handleLayout({ action: 'plan', name: 'Test Keep', seed: 3, look: 'An old keep.', ...DUNGEON });
++    expect(first.success).toBe(true);
++    expect(first.map).toContain('#');
++    expect(first.areas).toHaveLength(5);
++    await expect(t.handleLayout({ action: 'plan', name: 'Test Keep', ...DUNGEON })).rejects.toThrow(/replace/);
++    const again = await t.handleLayout({ action: 'plan', name: 'Test Keep', replace: true, seed: 4, look: 'An old keep.', ...DUNGEON });
++    expect(again.seed).toBe(4);
++    const furnished = await t.handleLayout({ action: 'furnish', layout: 'test-keep', in: 'vault', features: [{ what: 'treasure chest', at: 'north wall' }], contents: 'a cold, dusty strongroom' });
++    expect(furnished.ids).toHaveLength(1);
++    const render = await t.handleLayout({ action: 'render', layout: 'test-keep' });
++    expect(render.prompt.startsWith('An old keep.')).toBe(true);
++    expect(render.prompt).toMatch(/treasure chest/);
++    expect(render.prompt).toMatch(/is the vault: a cold, dusty strongroom/);
++    const undo = await t.handleLayout({ action: 'undo', layout: 'test-keep' });
++    expect(undo.undone).toEqual(['furnish vault']);
++  });
++});
+diff --git a/packages/mcp-server/src/tools/layout-plan.ts b/packages/mcp-server/src/tools/layout-plan.ts
+new file mode 100644
+index 0000000..bab4e85
+--- /dev/null
++++ b/packages/mcp-server/src/tools/layout-plan.ts
+@@ -0,0 +1,838 @@
++/**
++ * Layout plans: describe a place as areas and the links between them, and get a finished layout
++ * (rooms placed, corridors routed, doors on the walls, caves with rough edges) without working out
++ * a single coordinate. A seed makes it repeatable; another seed gives another arrangement.
++ */
++
++import { featureShapes, type PlanFeature } from './layout-features.js';
++import { buildBuilding } from './layout-plan-building.js';
++import { shiftShape } from './layout-town.js';
++import { FILLS, normalizeShape, shapePolygons } from './layout-utils.js';
++
++export type AreaShape = 'room' | 'round' | 'cave' | 'clearing' | 'building';
++export type LinkKind = 'corridor' | 'door' | 'open' | 'secret' | 'tunnel' | 'path' | 'road' | 'stream';
++export type PlanStyle = 'dungeon' | 'cave' | 'building' | 'outdoor';
++type Side = 'n' | 's' | 'e' | 'w';
++
++export interface PlanArea {
++  name: string;
++  /** tiny, small, medium, large, huge, or [width, height] in squares. */
++  size?: string | number[];
++  shape?: AreaShape;
++  /** What is in the area, in words, for the image prompt. */
++  contents?: string;
++  /** floor (default), grass, sand, water, wood, stone... */
++  fill?: string;
++  /** Objects drawn as markers at chosen spots (altar, beds, shelves...). */
++  features?: PlanFeature[];
++}
++
++export interface PlanLink {
++  from: string;
++  to: string;
++  via: LinkKind;
++  /** A door where the corridor leaves `from` (corridor links; door links always have one). */
++  door: boolean;
++  locked: boolean;
++  /** Corridor length in squares (corridor and tunnel links). */
++  length?: number;
++}
++
++export interface PlanSpec {
++  areas: unknown[];
++  links?: unknown[];
++  seed?: number;
++  /** dungeon (rooms and corridors, default), cave (rough caves, tunnels), building (rooms packed in one footprint) or outdoor. */
++  style?: PlanStyle;
++  /** building: [width, height] of the building in squares (default from the rooms). */
++  footprint?: number[];
++  /** building: floor of the rooms (default wood). */
++  floor?: string;
++  /** The ground: around a building (default grass) or under an outdoor map (default grass; forest, sand, snow, dirt...). */
++  ground?: string;
++  /** An area that opens to the edge of the map, e.g. {area: "guard room", side: "s"}. */
++  entrance?: unknown;
++  /** Corridor width in squares (default 2). */
++  corridor_width?: number;
++}
++
++export interface PlannedArea {
++  name: string;
++  shape: AreaShape;
++  rect: [number, number, number, number];
++}
++
++export interface PlanResult {
++  columns: number;
++  rows: number;
++  background: string;
++  /** Raw layout shapes, in painting order (corridors, areas, doors, features). */
++  shapes: any[];
++  areas: PlannedArea[];
++  links: Array<{ from: string; to: string; via: LinkKind; door?: string }>;
++  seed: number;
++  warnings: string[];
++  /** Fills that get walls round them (default floor). */
++  wallFills?: string[];
++}
++
++const SIZES: Record<string, [number, number]> = {
++  tiny: [4, 4],
++  small: [6, 5],
++  medium: [8, 6],
++  large: [11, 8],
++  huge: [15, 11],
++};
++
++const MAX_SQUARES = 64; // 64 squares at 64 px = 4096 px, the largest picture
++const MARGIN = 2; // rock between the outermost area and the map edge
++
++/** Small, fast, seeded random numbers (mulberry32). */
++export function rng(seed: number): () => number {
++  let a = seed >>> 0;
++  return () => {
++    a = (a + 0x6d2b79f5) >>> 0;
++    let t = a;
++    t = Math.imul(t ^ (t >>> 15), t | 1);
++    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
++    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
++  };
++}
++
++const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
++
++// ===== Reading the request =====
++
++function readAreas(raw: unknown[], style: PlanStyle): PlanArea[] {
++  if (!Array.isArray(raw) || raw.length === 0) throw new Error('plan needs areas: [{name, size?, shape?, contents?, features?}]');
++  if (raw.length > 30) throw new Error('A plan holds at most 30 areas; split a bigger place into several maps');
++  const seen = new Set<string>();
++  return raw.map((r, i) => {
++    const label = `areas[${i}]`;
++    if (typeof r === 'string') r = { name: r };
++    if (!r || typeof r !== 'object') throw new Error(`${label}: must be {name, ...}`);
++    const a: any = r;
++    if (typeof a.name !== 'string' || !a.name.trim()) throw new Error(`${label}: needs a name`);
++    const name = a.name.trim();
++    const key = name.toLowerCase();
++    if (seen.has(key)) throw new Error(`${label}: two areas are called "${name}"; names must differ`);
++    seen.add(key);
++    const shape: AreaShape = a.shape ?? (style === 'cave' ? 'cave' : style === 'outdoor' ? 'clearing' : 'room');
++    if (!['room', 'round', 'cave', 'clearing', 'building'].includes(shape)) throw new Error(`${label}: shape must be room, round, cave, clearing or building`);
++    if (a.fill !== undefined && (typeof a.fill !== 'string' || !FILLS[a.fill])) throw new Error(`${label}: fill must be one of ${Object.keys(FILLS).join(', ')}`);
++    if (a.size !== undefined) {
++      const ok =
++        (typeof a.size === 'string' && SIZES[a.size.toLowerCase()]) ||
++        (Array.isArray(a.size) && a.size.length === 2 && a.size.every((n: unknown) => isNum(n) && n >= 2 && n <= 30));
++      if (!ok) throw new Error(`${label}: size must be tiny, small, medium, large, huge or [width, height] (2 to 30 squares)`);
++    }
++    if (a.features !== undefined && !Array.isArray(a.features)) throw new Error(`${label}: features must be a list`);
++    return {
++      name,
++      shape,
++      ...(a.size !== undefined ? { size: a.size } : {}),
++      ...(typeof a.contents === 'string' && a.contents.trim() ? { contents: a.contents.trim() } : {}),
++      ...(typeof a.fill === 'string' ? { fill: a.fill } : {}),
++      ...(a.features ? { features: a.features } : {}),
++    };
++  });
++}
++
++function readLinks(raw: unknown[] | undefined, areas: PlanArea[], style: PlanStyle): PlanLink[] {
++  const names = new Map(areas.map(a => [a.name.toLowerCase(), a.name]));
++  const find = (n: unknown, label: string): string => {
++    if (typeof n !== 'string') throw new Error(`${label}: name an area`);
++    const hit = names.get(n.trim().toLowerCase());
++    if (!hit) throw new Error(`${label}: no area called "${n}" (areas: ${areas.map(a => a.name).join(', ')})`);
++    return hit;
++  };
++  return (raw ?? []).map((r, i) => {
++    const label = `links[${i}]`;
++    let l: any = r;
++    if (Array.isArray(r)) l = { from: r[0], to: r[1], via: r[2] };
++    if (!l || typeof l !== 'object') throw new Error(`${label}: must be {from, to, via?} or [from, to, via?]`);
++    const via: LinkKind = l.via ?? (style === 'cave' ? 'tunnel' : style === 'outdoor' ? 'path' : style === 'building' ? 'door' : 'corridor');
++    if (!['corridor', 'door', 'open', 'secret', 'tunnel', 'path', 'road', 'stream'].includes(via)) {
++      throw new Error(`${label}: via must be corridor, door, open, secret, tunnel, path, road or stream`);
++    }
++    const from = find(l.from, `${label}.from`);
++    const to = find(l.to, `${label}.to`);
++    if (from === to) throw new Error(`${label}: links an area to itself`);
++    if (l.length !== undefined && (!isNum(l.length) || l.length < 1 || l.length > 20)) {
++      throw new Error(`${label}: length must be 1 to 20 squares`);
++    }
++    return {
++      from,
++      to,
++      via,
++      door: via === 'door' || via === 'secret' || !!l.door || !!l.locked,
++      locked: !!l.locked,
++      ...(l.length !== undefined ? { length: l.length } : {}),
++    };
++  });
++}
++
++// ===== Placing areas =====
++
++type Rect = [number, number, number, number];
++
++function sizeOf(a: PlanArea, rand: () => number): [number, number] {
++  if (Array.isArray(a.size)) return [Math.round(a.size[0]!), Math.round(a.size[1]!)];
++  const base = SIZES[(typeof a.size === 'string' ? a.size : 'medium').toLowerCase()]!;
++  let w = base[0] + Math.floor(rand() * 3) - 1;
++  let h = base[1] + Math.floor(rand() * 3) - 1;
++  if (a.shape === 'round') w = h = Math.max(w, h);
++  else if (rand() < 0.5) [w, h] = [h, w];
++  return [Math.max(3, w), Math.max(3, h)];
++}
++
++function gapFor(link: PlanLink | undefined, rand: () => number): number {
++  if (!link) return 4;
++  if (link.via === 'open') return 0;
++  if (link.via === 'door' || link.via === 'secret') return 1;
++  if (link.via === 'path' || link.via === 'road' || link.via === 'stream') return link.length ?? 3 + Math.floor(rand() * 5);
++  return link.length ?? 3 + Math.floor(rand() * 4);
++}
++
++function overlaps(a: Rect, b: Rect, margin: number): boolean {
++  return a[0] < b[0] + b[2] + margin && b[0] < a[0] + a[2] + margin && a[1] < b[1] + b[3] + margin && b[1] < a[1] + a[3] + margin;
++}
++
++/** Candidate spots for a new area next to an anchor, on each side, with `gap` squares between. */
++function candidates(anchor: Rect, w: number, h: number, gap: number, minOverlap: number): Array<{ rect: Rect; side: Side }> {
++  const [ax, ay, aw, ah] = anchor;
++  const out: Array<{ rect: Rect; side: Side }> = [];
++  const ovX = Math.min(minOverlap, w, aw);
++  const ovY = Math.min(minOverlap, h, ah);
++  for (let x = ax - w + ovX; x <= ax + aw - ovX; x++) {
++    out.push({ rect: [x, ay - gap - h, w, h], side: 'n' });
++    out.push({ rect: [x, ay + ah + gap, w, h], side: 's' });
++  }
++  for (let y = ay - h + ovY; y <= ay + ah - ovY; y++) {
++    out.push({ rect: [ax - gap - w, y, w, h], side: 'w' });
++    out.push({ rect: [ax + aw + gap, y, w, h], side: 'e' });
++  }
++  return out;
++}
++
++function bounds(rects: Rect[]): Rect {
++  const x0 = Math.min(...rects.map(r => r[0]));
++  const y0 = Math.min(...rects.map(r => r[1]));
++  const x1 = Math.max(...rects.map(r => r[0] + r[2]));
++  const y1 = Math.max(...rects.map(r => r[1] + r[3]));
++  return [x0, y0, x1 - x0, y1 - y0];
++}
++
++function placeAreas(areas: PlanArea[], links: PlanLink[], rand: () => number, warnings: string[]): Map<string, Rect> {
++  const placed = new Map<string, Rect>();
++  const sizes = new Map(areas.map(a => [a.name, sizeOf(a, rand)]));
++  const linkBetween = (a: string, b: string) => links.find(l => (l.from === a && l.to === b) || (l.from === b && l.to === a));
++
++  // Breadth-first from the first area, so each new area sits next to one it is linked to.
++  const order: string[] = [];
++  const queue = [areas[0]!.name];
++  const seen = new Set(queue);
++  while (order.length < areas.length) {
++    if (queue.length === 0) {
++      const next = areas.find(a => !seen.has(a.name))!;
++      warnings.push(`"${next.name}" is not linked to the rest; it is placed nearby with no way in (add a link)`);
++      queue.push(next.name);
++      seen.add(next.name);
++    }
++    const name = queue.shift()!;
++    order.push(name);
++    for (const l of links) {
++      const other = l.from === name ? l.to : l.to === name ? l.from : undefined;
++      if (other && !seen.has(other)) {
++        seen.add(other);
++        queue.push(other);
++      }
++    }
++  }
++
++  for (const name of order) {
++    const [w, h] = sizes.get(name)!;
++    if (placed.size === 0) {
++      placed.set(name, [0, 0, w, h]);
++      continue;
++    }
++    const anchors = [...placed.keys()].filter(p => linkBetween(p, name));
++    // Next to an area it is linked to; if there is no room there, next to any area (a longer corridor).
++    const tryAnchors = [...anchors, ...[...placed.keys()].reverse().filter(p => !anchors.includes(p))];
++    let best: { rect: Rect; score: number } | undefined;
++    let anchorName = tryAnchors[0]!;
++    for (const anchorTry of tryAnchors) {
++      if (best) break;
++      anchorName = anchorTry;
++      const anchor = placed.get(anchorName)!;
++      const link = linkBetween(anchorName, name);
++      // Areas placed next to an area they are not linked to keep a corridor's distance, joined by routing later.
++      const minOverlap = link?.via === 'open' || link?.via === 'door' || link?.via === 'secret' ? 3 : 2;
++    for (let extra = 0; extra <= 12 && !best; extra += 2) {
++      const gap = (link ? gapFor(link, rand) : 4) + extra;
++      const all = [...placed.entries()];
++      for (const c of candidates(anchor, w, h, gap, minOverlap)) {
++        // Linked areas may come as close as their link needs; others keep 3 squares away so corridors fit between.
++        const clash = all.some(([other, r]) => {
++          if (other === anchorName) return overlaps(c.rect, r, 0);
++          const l2 = linkBetween(other, name);
++          return overlaps(c.rect, r, l2 ? Math.min(3, gapFor(l2, () => 0)) : 3);
++        });
++        if (clash) continue;
++        // Other linked areas already placed: prefer spots near them too.
++        let near = 0;
++        for (const other of anchors.slice(1)) {
++          const r = placed.get(other)!;
++          near += Math.hypot(r[0] + r[2] / 2 - (c.rect[0] + w / 2), r[1] + r[3] / 2 - (c.rect[1] + h / 2));
++        }
++        const b = bounds([...placed.values(), c.rect]);
++        // Compact, roughly 3:2 like a screen, a little random so seeds differ.
++        const aspect = Math.abs(Math.log(b[2] / b[3] / 1.5));
++        const score = b[2] * b[3] * 0.035 + aspect * 6 + near * 0.3 + rand() * 4;
++        if (!best || score < best.score) best = { rect: c.rect, score };
++      }
++    }
++    }
++    if (!best) throw new Error(`Could not find room for "${name}" next to "${anchorName}"; make areas smaller or link them differently`);
++    placed.set(name, best.rect);
++  }
++  return placed;
++}
++
++// ===== Routing corridors =====
++
++interface Grid {
++  w: number;
++  h: number;
++  /** 0 free, 1 blocked. */
++  blocked: Uint8Array;
++  /** Index of the area covering a cell (+1), 0 none. */
++  area: Int16Array;
++  corridor: Uint8Array;
++}
++
++function makeGrid(columns: number, rows: number, rects: Rect[]): Grid {
++  const g: Grid = {
++    w: columns,
++    h: rows,
++    blocked: new Uint8Array(columns * rows),
++    area: new Int16Array(columns * rows),
++    corridor: new Uint8Array(columns * rows),
++  };
++  rects.forEach((r, i) => {
++    for (let y = r[1]; y < r[1] + r[3]; y++) for (let x = r[0]; x < r[0] + r[2]; x++) g.area[y * columns + x] = i + 1;
++  });
++  return g;
++}
++
++/** A* with a square brush of `bw` cells, 4 directions, a cost for turns. Returns brush top-left cells. */
++function route(
++  g: Grid,
++  start: [number, number],
++  isGoal: (x: number, y: number) => boolean,
++  heuristic: (x: number, y: number) => number,
++  ends: Set<number>,
++  bw: number,
++  edgeOk: (x: number, y: number) => boolean,
++  /** through: may pass through other areas (dearly) when no clean way exists; open: outdoors, where nothing walls a path in. */
++  relaxed: false | 'through' | 'open' = false
++): Array<[number, number]> | undefined {
++  const DIRS: Array<[number, number]> = [[1, 0], [-1, 0], [0, 1], [0, -1]];
++  const { w, h } = g;
++  const cellCost = (x: number, y: number): number => {
++    if (x < 0 || y < 0 || x + bw > w || y + bw > h) return Infinity;
++    let cost = 1;
++    for (let dy = 0; dy < bw; dy++) {
++      for (let dx = 0; dx < bw; dx++) {
++        const cx = x + dx;
++        const cy = y + dy;
++        if ((cx === 0 || cy === 0 || cx === w - 1 || cy === h - 1) && !edgeOk(cx, cy)) return Infinity;
++        const idx = cy * w + cx;
++        const a = g.area[idx]!;
++        if (a && !ends.has(a)) {
++          if (!relaxed) return Infinity;
++          cost += relaxed === 'open' ? 6 : 12;
++        }
++        // Do not run along another area's wall (that would open it); stepping out of an end area is fine.
++        for (const [nx, ny] of [[cx + 1, cy], [cx - 1, cy], [cx, cy + 1], [cx, cy - 1]] as Array<[number, number]>) {
++          if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
++          const na = g.area[ny * w + nx]!;
++          if (na && !ends.has(na) && !a) {
++            if (!relaxed) return Infinity;
++            if (relaxed === 'through') cost += 4;
++          }
++          if (na && !a) cost += 3; // hugging an end area's wall
++        }
++        if (g.corridor[idx]) cost -= 0.4;
++      }
++    }
++    return Math.max(0.2, cost / (bw * bw));
++  };
++  const key = (x: number, y: number, d: number) => (y * w + x) * 5 + d;
++  const gScore = new Map<number, number>();
++  const came = new Map<number, number>();
++  // Simple binary heap.
++  const heap: Array<[number, number]> = [];
++  const push = (f: number, k: number) => {
++    heap.push([f, k]);
++    let i = heap.length - 1;
++    while (i > 0) {
++      const p = (i - 1) >> 1;
++      if (heap[p]![0] <= heap[i]![0]) break;
++      [heap[p], heap[i]] = [heap[i]!, heap[p]!];
++      i = p;
++    }
++  };
++  const pop = (): [number, number] | undefined => {
++    if (heap.length === 0) return undefined;
++    const top = heap[0]!;
++    const last = heap.pop()!;
++    if (heap.length > 0) {
++      heap[0] = last;
++      let i = 0;
++      for (;;) {
++        const l = 2 * i + 1;
++        const r = l + 1;
++        let m = i;
++        if (l < heap.length && heap[l]![0] < heap[m]![0]) m = l;
++        if (r < heap.length && heap[r]![0] < heap[m]![0]) m = r;
++        if (m === i) break;
++        [heap[m], heap[i]] = [heap[i]!, heap[m]!];
++        i = m;
++      }
++    }
++    return top;
++  };
++  const s = key(start[0], start[1], 4);
++  gScore.set(s, 0);
++  push(heuristic(start[0], start[1]), s);
++  let found: number | undefined;
++  let guard = 0;
++  while (heap.length > 0 && guard++ < 400000) {
++    const [, k] = pop()!;
++    const d = k % 5;
++    const cell = (k - d) / 5;
++    const x = cell % w;
++    const y = (cell - x) / w;
++    if (isGoal(x, y)) {
++      found = k;
++      break;
++    }
++    const base = gScore.get(k)!;
++    DIRS.forEach(([dx, dy], nd) => {
++      const nx = x + dx;
++      const ny = y + dy;
++      const c = cellCost(nx, ny);
++      if (!Number.isFinite(c)) return;
++      const turn = d !== 4 && d !== nd ? 2.5 : 0;
++      const nk = key(nx, ny, nd);
++      const ng = base + c + turn;
++      if (ng < (gScore.get(nk) ?? Infinity)) {
++        gScore.set(nk, ng);
++        came.set(nk, k);
++        push(ng + heuristic(nx, ny), nk);
++      }
++    });
++  }
++  if (found === undefined) return undefined;
++  const path: Array<[number, number]> = [];
++  let k: number | undefined = found;
++  while (k !== undefined) {
++    const cell = (k - (k % 5)) / 5;
++    path.push([cell % w, (cell - (cell % w)) / w]);
++    k = came.get(k);
++  }
++  return path.reverse();
++}
++
++/** Where a corridor leaves a rect area: the side and the door bar on its wall line. */
++function doorWhereLeaving(path: Array<[number, number]>, rect: Rect, bw: number, maxSize = 2): { at: [number, number]; dir: 'h' | 'v'; size: number } | undefined {
++  const inside = (x: number, y: number) => x + bw > rect[0] && x < rect[0] + rect[2] && y + bw > rect[1] && y < rect[1] + rect[3];
++  // The door covers the corridor's width where it meets the wall, but never runs past the room's corner.
++  const span = (from: number, lo: number, hi: number): [number, number] => {
++    let a = Math.max(from, lo);
++    let b = Math.min(from + bw, hi);
++    if (b - a > maxSize) {
++      const extra = b - a - maxSize;
++      a += extra / 2;
++      b -= extra / 2;
++    }
++    return [a, b];
++  };
++  for (let i = 1; i < path.length; i++) {
++    const [px, py] = path[i - 1]!;
++    const [x, y] = path[i]!;
++    if (inside(px, py) && !inside(x, y)) {
++      if (x !== px) {
++        const [a, b] = span(y, rect[1], rect[1] + rect[3]);
++        return { at: [x > px ? rect[0] + rect[2] : rect[0], a], dir: 'v', size: b - a };
++      }
++      const [a, b] = span(x, rect[0], rect[0] + rect[2]);
++      return { at: [a, y > py ? rect[1] + rect[3] : rect[1]], dir: 'h', size: b - a };
++    }
++  }
++  return undefined;
++}
++
++/** Paths through cell centres, with only the corners kept. */
++function corners(path: Array<[number, number]>, offset: number): number[][] {
++  const pts = path.map(([x, y]) => [x + offset, y + offset]);
++  const out: number[][] = [pts[0]!];
++  for (let i = 1; i < pts.length - 1; i++) {
++    const [ax, ay] = out[out.length - 1]!;
++    const [bx, by] = pts[i]!;
++    const [cx, cy] = pts[i + 1]!;
++    if ((bx! - ax!) * (cy! - by!) !== (by! - ay!) * (cx! - bx!)) out.push(pts[i]!);
++  }
++  out.push(pts[pts.length - 1]!);
++  return out;
++}
++
++/** A winding version of a path for tunnels: long legs get bends of up to `amp` squares. */
++function wander(points: number[][], amp: number, rand: () => number): number[][] {
++  const out: number[][] = [points[0]!];
++  for (let i = 1; i < points.length; i++) {
++    const [x0, y0] = points[i - 1]!;
++    const [x1, y1] = points[i]!;
++    const len = Math.hypot(x1! - x0!, y1! - y0!);
++    const n = Math.floor(len / 3);
++    for (let k = 1; k < n; k++) {
++      const t = k / n;
++      const nx = -(y1! - y0!) / len;
++      const ny = (x1! - x0!) / len;
++      const j = (rand() * 2 - 1) * amp;
++      out.push([Math.round((x0! + (x1! - x0!) * t + nx * j) * 100) / 100, Math.round((y0! + (y1! - y0!) * t + ny * j) * 100) / 100]);
++    }
++    out.push(points[i]!);
++  }
++  return out;
++}
++
++/** A rough cave outline that stays inside its rect. */
++function caveOutline(rect: Rect, rand: () => number): number[][] {
++  const [x, y, w, h] = rect;
++  const cx = x + w / 2;
++  const cy = y + h / 2;
++  const n = Math.max(18, Math.min(40, Math.round((w + h) * 1.6)));
++  const harmonics = [2, 3, 5].map(f => ({ f, a: 0.05 + rand() * 0.07, p: rand() * Math.PI * 2 }));
++  const pts: number[][] = [];
++  for (let i = 0; i < n; i++) {
++    const t = (i / n) * Math.PI * 2;
++    let r = 0.88;
++    for (const hm of harmonics) r += hm.a * Math.sin(hm.f * t + hm.p);
++    r += (rand() - 0.5) * 0.08;
++    r = Math.min(1, Math.max(0.6, r));
++    pts.push([Math.round((cx + Math.cos(t) * (w / 2) * r) * 100) / 100, Math.round((cy + Math.sin(t) * (h / 2) * r) * 100) / 100]);
++  }
++  return pts;
++}
++
++// ===== The whole plan =====
++
++export function buildPlan(spec: PlanSpec): PlanResult {
++  const style: PlanStyle = spec.style ?? 'dungeon';
++  if (!['dungeon', 'cave', 'building', 'outdoor'].includes(style)) throw new Error('style must be dungeon, cave, building or outdoor');
++  for (const [k, v] of [['ground', spec.ground], ['floor', spec.floor]] as const) {
++    if (v !== undefined && !FILLS[v]) throw new Error(`${k} must be one of ${Object.keys(FILLS).join(', ')}`);
++  }
++  const seed = isNum(spec.seed) ? Math.floor(spec.seed) : Math.floor(Math.random() * 1e9);
++  const rand = rng(seed);
++  const warnings: string[] = [];
++  const areas = readAreas(spec.areas, style);
++  const links = readLinks(spec.links, areas, style);
++  if (links.length === 0 && areas.length > 1) {
++    // Nothing said: chain them in the order given.
++    for (let i = 1; i < areas.length; i++) {
++      const via: LinkKind = style === 'cave' ? 'tunnel' : style === 'outdoor' ? 'path' : style === 'building' ? 'door' : 'corridor';
++      links.push({ from: areas[i - 1]!.name, to: areas[i]!.name, via, door: via === 'door', locked: false });
++    }
++    warnings.push('No links given: the areas are joined one after another in the order listed');
++  }
++  const bw = Math.max(1, Math.min(3, Math.round(spec.corridor_width ?? 2)));
++
++  let entrance: { area: string; side?: Side } | undefined;
++  if (spec.entrance !== undefined) {
++    const e: any = typeof spec.entrance === 'string' ? { area: spec.entrance } : spec.entrance;
++    const hit = areas.find(a => a.name.toLowerCase() === String(e?.area ?? '').trim().toLowerCase());
++    if (!hit) throw new Error(`entrance: no area called "${e?.area}"`);
++    if (e.side !== undefined && !['n', 's', 'e', 'w'].includes(e.side)) throw new Error('entrance.side must be n, s, e or w');
++    entrance = { area: hit.name, ...(e.side ? { side: e.side } : {}) };
++  }
++
++  if (style === 'building') {
++    if (spec.footprint !== undefined && !(Array.isArray(spec.footprint) && spec.footprint.length === 2 && spec.footprint.every(isNum))) {
++      throw new Error('footprint must be [width, height] in squares');
++    }
++    return buildBuilding(areas, links, rand, seed, warnings, {
++      ...(spec.footprint ? { footprint: spec.footprint } : {}),
++      ...(spec.floor ? { floor: spec.floor } : {}),
++      ...(spec.ground ? { surround: spec.ground } : {}),
++      ...(entrance ? { entrance } : {}),
++    });
++  }
++
++  const outdoor = style === 'outdoor';
++  const background = spec.ground ?? (outdoor ? 'grass' : 'rock');
++  // Rectangles that doors go on: rooms, and buildings outdoors.
++  const isRect = (s: AreaShape | undefined) => s === 'room' || s === 'building';
++  if (outdoor) {
++    for (const a of areas) {
++      if (a.fill) continue;
++      a.fill = a.shape === 'building' ? 'building' : a.shape === 'room' ? 'stone' : background === 'forest' || background === 'dirt' ? 'grass' : 'dirt';
++    }
++  } else {
++    for (const a of areas) if (a.shape === 'building' && !a.fill) a.fill = 'building';
++  }
++
++  const placed = placeAreas(areas, links, rand, warnings);
++
++  // Move everything so the map starts at the margin; leave room for corridors to run outside.
++  const b = bounds([...placed.values()]);
++  const pad = MARGIN + (outdoor ? 1 : 0) + (entrance ? 2 : 0);
++  const columns = b[2] + pad * 2;
++  const rows = b[3] + pad * 2;
++  const rects: Rect[] = areas.map(a => {
++    const r = placed.get(a.name)!;
++    return [r[0] - b[0] + pad, r[1] - b[1] + pad, r[2], r[3]];
++  });
++  const index = new Map(areas.map((a, i) => [a.name, i]));
++  const grid = makeGrid(columns, rows, rects);
++
++  const corridorShapes: any[] = [];
++  const doorShapes: any[] = [];
++  const realized: PlanResult['links'] = [];
++  const centre = (r: Rect): [number, number] => [
++    Math.max(r[0], Math.min(r[0] + r[2] - bw, Math.floor(r[0] + r[2] / 2 - bw / 2))),
++    Math.max(r[1], Math.min(r[1] + r[3] - bw, Math.floor(r[1] + r[3] / 2 - bw / 2))),
++  ];
++  const paint = (path: Array<[number, number]>, width: number) => {
++    for (const [x, y] of path) for (let dy = 0; dy < width; dy++) for (let dx = 0; dx < width; dx++) grid.corridor[(y + dy) * columns + x + dx] = 1;
++  };
++  const corridorShape = (path: Array<[number, number]>, width: number, winding: boolean, name: string, fill?: string, drawnWidth?: number): any => {
++    if (winding) {
++      const pts = wander(corners(path, width / 2), outdoor ? 0.7 : 0.35, rand);
++      return { shape: 'path', path: pts, width: drawnWidth ?? width + 0.3, snap: 0, name, ...(fill ? { fill } : {}) };
++    }
++    const cells: number[][] = [];
++    const seenCell = new Set<number>();
++    for (const [x, y] of path) {
++      for (let dy = 0; dy < width; dy++) {
++        for (let dx = 0; dx < width; dx++) {
++          const idx = (y + dy) * columns + x + dx;
++          const a = grid.area[idx]!;
++          // Inside a rectangular room the floor is drawn already; a round room or cave may have rock in its box corners.
++          if (seenCell.has(idx) || (a && isRect(areas[a - 1]!.shape))) continue;
++          seenCell.add(idx);
++          cells.push([x + dx, y + dy]);
++        }
++      }
++    }
++    return cells.length > 0 ? { shape: 'cells', cells, name } : undefined;
++  };
++
++  for (const l of links) {
++    const ia = index.get(l.from)!;
++    const ib = index.get(l.to)!;
++    const ra = rects[ia]!;
++    const rb = rects[ib]!;
++    if (l.via === 'open') {
++      // Side by side: touching along an edge for at least two squares (a corner does not count).
++      const spanX = Math.min(ra[0] + ra[2], rb[0] + rb[2]) - Math.max(ra[0], rb[0]);
++      const spanY = Math.min(ra[1] + ra[3], rb[1] + rb[3]) - Math.max(ra[1], rb[1]);
++      const touching = (spanX >= 2 && spanY >= 0) || (spanY >= 2 && spanX >= 0);
++      if (!touching || !isRect(areas[ia]!.shape) || !isRect(areas[ib]!.shape)) {
++        warnings.push(`"${l.from}" and "${l.to}" should be open to each other but are not side by side; joined by a corridor instead`);
++      } else {
++        realized.push({ from: l.from, to: l.to, via: 'open' });
++        continue;
++      }
++    }
++    const width = l.via === 'door' || l.via === 'secret' ? 1 : l.via === 'road' ? Math.max(bw, 3) : l.via === 'stream' ? Math.max(1, bw - 1) : bw;
++    const ends = new Set([ia + 1, ib + 1]);
++    const goal = centre(rb);
++    // A rectangular room is reached at its wall; a cave or round room only at its middle (its box corners are rock).
++    const goalRoom = isRect(areas[ib]!.shape);
++    const findPath = (relaxed: false | 'through' | 'open') =>
++      route(
++        grid,
++        centre(ra),
++        (x, y) => (goalRoom ? x + width > rb[0] && x < rb[0] + rb[2] && y + width > rb[1] && y < rb[1] + rb[3] : x === goal[0] && y === goal[1]),
++        (x, y) => Math.abs(x - goal[0]) + Math.abs(y - goal[1]),
++        ends,
++        width,
++        () => false,
++        relaxed
++      );
++    // Outdoors nothing walls a path in, so it may brush past other areas from the start.
++    let path = findPath(outdoor ? 'open' : false);
++    if (!path && !outdoor) {
++      // Boxed in: let the corridor run through other areas, as dungeons often do.
++      path = findPath('through');
++      if (path) warnings.push(`The way from "${l.from}" to "${l.to}" passes through another area (there was no room for a separate corridor)`);
++    }
++    if (!path) {
++      warnings.push(`No way found for a corridor from "${l.from}" to "${l.to}"; they are not joined`);
++      continue;
++    }
++    paint(path, width);
++    const aShape = areas[ia]!.shape;
++    const bShape = areas[ib]!.shape;
++    const winding = outdoor || l.via === 'tunnel' || l.via === 'path' || l.via === 'road' || l.via === 'stream' || (aShape === 'cave' && bShape === 'cave' && l.via === 'corridor');
++    const fill = l.via === 'stream' ? 'water' : outdoor || l.via === 'path' || l.via === 'road' ? 'road' : undefined;
++    const shape = corridorShape(path, width, winding, `${l.from} to ${l.to}`, fill, l.via === 'stream' ? width + 0.5 : undefined);
++    if (shape) corridorShapes.push(shape);
++    let doorNote: string | undefined;
++    // Outdoors, a path into a building ends at a door; indoors only links that ask for one get it.
++    const doorEnd = outdoor ? (aShape === 'building' ? 'a' : bShape === 'building' ? 'b' : undefined) : isRect(aShape) ? 'a' : isRect(bShape) ? 'b' : undefined;
++    if ((l.door || (outdoor && doorEnd)) && l.via !== 'stream') {
++      const where = doorEnd === 'a' ? doorWhereLeaving(path, ra, width) : doorEnd === 'b' ? doorWhereLeaving([...path].reverse(), rb, width) : undefined;
++      if (where) {
++        doorShapes.push({
++          shape: 'door',
++          at: where.at,
++          dir: where.dir,
++          size: where.size,
++          ...(l.via === 'secret' ? { secret: true } : {}),
++          ...(l.locked ? { state: 'locked' } : {}),
++          name: `${l.from} / ${l.to}`,
++        });
++        doorNote = `${l.via === 'secret' ? 'secret ' : l.locked ? 'locked ' : ''}door at ${where.at[0]},${where.at[1]}`;
++      } else {
++        warnings.push(`The door between "${l.from}" and "${l.to}" was left out: doors go on the wall of a rectangular room`);
++      }
++    }
++    realized.push({ from: l.from, to: l.to, via: l.via, ...(doorNote ? { door: doorNote } : {}) });
++  }
++
++  let entranceSide: Side | undefined;
++  if (entrance) {
++    const i = index.get(entrance.area)!;
++    const r = rects[i]!;
++    const side: Side =
++      entrance.side ??
++      ((): Side => {
++        const d = { n: r[1], s: rows - (r[1] + r[3]), w: r[0], e: columns - (r[0] + r[2]) };
++        return (Object.entries(d).sort((x, y) => x[1] - y[1])[0]![0] as Side) ?? 's';
++      })();
++    const atEdge = (x: number, y: number) =>
++      side === 'n' ? y === 0 : side === 's' ? y + bw === rows : side === 'w' ? x === 0 : x + bw === columns;
++    const path = route(
++      grid,
++      centre(r),
++      atEdge,
++      (x, y) => (side === 'n' ? y : side === 's' ? rows - y : side === 'w' ? x : columns - x),
++      new Set([i + 1]),
++      bw,
++      (x, y) => (side === 'n' ? y === 0 : side === 's' ? y === rows - 1 : side === 'w' ? x === 0 : x === columns - 1),
++      outdoor ? 'open' : false
++    );
++    if (path) {
++      paint(path, bw);
++      const shape = corridorShape(path, bw, areas[i]!.shape === 'cave' || style === 'cave' || outdoor, `entrance to ${entrance.area}`, outdoor ? 'road' : undefined);
++      if (shape) {
++        // A winding entrance must still reach the edge: extend its last point past it.
++        if (shape.shape === 'path') {
++          const last = shape.path[shape.path.length - 1];
++          if (side === 'n') last[1] = -1;
++          else if (side === 's') last[1] = rows + 1;
++          else if (side === 'w') last[0] = -1;
++          else last[0] = columns + 1;
++        }
++        corridorShapes.push(shape);
++      }
++      realized.push({ from: entrance.area, to: `map edge (${side})`, via: style === 'cave' ? 'tunnel' : outdoor ? 'path' : 'corridor' });
++      entranceSide = side;
++    } else {
++      warnings.push(`No way found from "${entrance.area}" to the ${side} edge`);
++    }
++  }
++
++  // Areas on top of corridors, then doors, then features.
++  const areaShapes = areas.map((a, i) => {
++    const r = rects[i]!;
++    const common = {
++      name: a.name,
++      ...(a.fill ? { fill: a.fill } : {}),
++      ...(a.contents ? { contents: a.contents } : {}),
++      area: true,
++    };
++    if (a.shape === 'round') return { shape: 'ellipse', ellipse: [r[0] + r[2] / 2, r[1] + r[3] / 2, r[2] / 2, r[3] / 2], snap: 0, ...common };
++    if (a.shape === 'cave' || a.shape === 'clearing') return { shape: 'polygon', polygon: caveOutline(r, rand), snap: 0, ...common };
++    return { shape: 'rect', rect: r, ...common };
++  });
++
++  const featureList: any[] = [];
++  areas.forEach((a, i) => {
++    if (!a.features?.length) return;
++    const { shapes, warnings: w } = featureShapes(a.name, isRect(a.shape) ? 'rect' : 'inset', rects[i]!, a.features, [], a.fill ?? 'floor');
++    featureList.push(...shapes);
++    warnings.push(...w);
++  });
++
++  // Walls go round every floor the areas and corridors use (outdoors: only round buildings).
++  const wallFills = outdoor
++    ? [...new Set(areas.filter(a => a.shape === 'building').map(a => a.fill ?? 'building'))]
++    : [...new Set(['floor', ...areas.map(a => a.fill ?? 'floor').filter(f => f !== 'water' && f !== 'rock')])];
++
++  const result = trim(
++    {
++      columns,
++      rows,
++      background,
++      wallFills,
++      shapes: [...corridorShapes, ...areaShapes, ...doorShapes, ...featureList],
++      areas: areas.map((a, i) => ({ name: a.name, shape: a.shape!, rect: rects[i]! })),
++      links: realized,
++      seed,
++      warnings,
++    },
++    outdoor ? 2 : 1,
++    entranceSide
++  );
++  if (result.columns > MAX_SQUARES || result.rows > MAX_SQUARES) {
++    throw new Error(
++      `The plan came out ${result.columns} x ${result.rows} squares; the largest map is ${MAX_SQUARES} x ${MAX_SQUARES}. Use fewer or smaller areas, shorter corridors (length), or split it into two maps.`
++    );
++  }
++  return result;
++}
++
++/**
++ * Cut away the empty ground round the plan, leaving `margin` squares on each side (none on the
++ * side an entrance runs out of, so it still reaches the edge). More of the picture goes to the map.
++ */
++function trim(plan: PlanResult, margin: number, keepSide?: Side): PlanResult {
++  let x0 = Infinity;
++  let y0 = Infinity;
++  let x1 = -Infinity;
++  let y1 = -Infinity;
++  for (const raw of plan.shapes) {
++    if (raw.shape === 'door' || /^entrance to /.test(raw.name ?? '')) continue;
++    for (const poly of shapePolygons(normalizeShape(raw, 'trim', 0), 1)) {
++      for (const [x, y] of poly) {
++        x0 = Math.min(x0, x);
++        y0 = Math.min(y0, y);
++        x1 = Math.max(x1, x);
++        y1 = Math.max(y1, y);
++      }
++    }
++  }
++  if (!Number.isFinite(x0)) return plan;
++  let left = Math.max(0, Math.floor(x0) - margin);
++  let top = Math.max(0, Math.floor(y0) - margin);
++  let right = Math.min(plan.columns, Math.ceil(x1) + margin);
++  let bottom = Math.min(plan.rows, Math.ceil(y1) + margin);
++  if (keepSide === 'w') left = 0;
++  if (keepSide === 'n') top = 0;
++  if (keepSide === 'e') right = plan.columns;
++  if (keepSide === 's') bottom = plan.rows;
++  if (left === 0 && top === 0 && right === plan.columns && bottom === plan.rows) return plan;
++  return {
++    ...plan,
++    columns: right - left,
++    rows: bottom - top,
++    shapes: plan.shapes.map(s => shiftShape(s, -left, -top)),
++    areas: plan.areas.map(a => ({ ...a, rect: [a.rect[0] - left, a.rect[1] - top, a.rect[2], a.rect[3]] as [number, number, number, number] })),
++    links: plan.links.map(l => (l.door ? { ...l, door: l.door.replace(/at (-?[\d.]+),(-?[\d.]+)/, (_m, x, y) => `at ${Number(x) - left},${Number(y) - top}`) } : l)),
++  };
 +}
 diff --git a/packages/mcp-server/src/tools/layout-polish.test.ts b/packages/mcp-server/src/tools/layout-polish.test.ts
 new file mode 100644
@@ -49909,6 +51779,471 @@ index 0000000..5df82b5
 +    expect(result.shift).toEqual([0, 0]);
 +  });
 +});
+diff --git a/packages/mcp-server/src/tools/layout-prompt.ts b/packages/mcp-server/src/tools/layout-prompt.ts
+new file mode 100644
+index 0000000..3ea6f85
+--- /dev/null
++++ b/packages/mcp-server/src/tools/layout-prompt.ts
+@@ -0,0 +1,185 @@
++/**
++ * The image prompt for a layout, written from the layout itself: where each described area is
++ * ("the upper-left room is the shrine: ..."), and what each feature marker stands for. A test with
++ * MiniMax H3 showed it places objects well from such sentences, while words drawn on the sketch
++ * made it follow the floor plan less closely; so the sketch carries shapes and colours only.
++ */
++
++import { legendFor, shapePolygons, type LayoutShape, type NormalizedLayout } from './layout-utils.js';
++
++export const DEFAULT_LOOK =
++  'A top-down fantasy battlemap seen from directly above, painted in a detailed hand-drawn tabletop RPG battlemap style with soft shadows and warm torchlight.';
++
++/** The default look for each plan style, when none is given. */
++export const STYLE_LOOKS: Record<string, string> = {
++  dungeon: DEFAULT_LOOK,
++  cave: 'A top-down fantasy battlemap of a natural underground cave seen from directly above, painted in a detailed hand-drawn tabletop RPG battlemap style, rough rock walls, damp stone, soft shadows.',
++  building:
++    'A top-down fantasy battlemap of the inside of a building seen from directly above with the roof removed, painted in a detailed hand-drawn tabletop RPG battlemap style, warm lamplight and soft shadows.',
++  outdoor:
++    'A top-down fantasy battlemap of an outdoor place seen from directly above, painted in a detailed hand-drawn tabletop RPG battlemap style, natural daylight, soft shadows, rich ground detail.',
++};
++
++type Shape = LayoutShape & { contents?: string; area?: boolean; feature?: string; in_area?: string; place?: string; marker?: string };
++
++function box(shape: LayoutShape): [number, number, number, number] {
++  let x0 = Infinity;
++  let y0 = Infinity;
++  let x1 = -Infinity;
++  let y1 = -Infinity;
++  for (const poly of shapePolygons(shape, 1)) {
++    for (const [x, y] of poly) {
++      x0 = Math.min(x0, x);
++      y0 = Math.min(y0, y);
++      x1 = Math.max(x1, x);
++      y1 = Math.max(y1, y);
++    }
++  }
++  return [x0, y0, x1 - x0, y1 - y0];
++}
++
++const POSITION: Record<string, string> = {
++  'top,left': 'upper-left',
++  'top,centre': 'top-middle',
++  'top,right': 'upper-right',
++  'middle,left': 'middle-left',
++  'middle,centre': 'central',
++  'middle,right': 'middle-right',
++  'bottom,left': 'lower-left',
++  'bottom,centre': 'bottom-middle',
++  'bottom,right': 'lower-right',
++};
++
++function position(b: [number, number, number, number], columns: number, rows: number): string {
++  const cx = b[0] + b[2] / 2;
++  const cy = b[1] + b[3] / 2;
++  const col = cx < columns / 3 ? 'left' : cx > (2 * columns) / 3 ? 'right' : 'centre';
++  const row = cy < rows / 3 ? 'top' : cy > (2 * rows) / 3 ? 'bottom' : 'middle';
++  return POSITION[`${row},${col}`]!;
++}
++
++function noun(s: Shape): string {
++  const fill = s.fill ?? 'floor';
++  if (fill === 'grass') return s.shape === 'rect' ? 'lawn' : 'grassy clearing';
++  if (fill === 'dirt') return 'clearing';
++  if (fill === 'water') return 'pond';
++  if (fill === 'building') return 'building';
++  if (fill === 'sand') return 'sandy area';
++  if (fill === 'snow') return 'snowy area';
++  if (fill === 'forest') return 'thicket';
++  if (fill === 'stone' && s.shape !== 'rect') return 'paved area';
++  if (s.shape === 'ellipse') return 'round chamber';
++  if (s.shape === 'polygon') return s.area ? 'cave' : 'area';
++  if (s.shape === 'path') return 'passage';
++  if (s.shape === 'cells') return 'area';
++  return 'room';
++}
++
++const NUMBERS = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve'];
++const article = (w: string) => (/^[aeiou]/i.test(w) ? 'an' : 'a');
++
++/** "the shrine", "the owner's room", but "Klarg's Cave" as it is. */
++function called(name: string): string {
++  return /^[A-Z]/.test(name) ? name : `the ${name}`;
++}
++
++/** Sentences describing every area that has a description or features, and every feature marker. */
++export function roomSentences(layout: NormalizedLayout): string[] {
++  const shapes = layout.shapes as Shape[];
++  const features = shapes.filter(s => s.feature);
++  const featureAreas = new Set(features.map(f => f.in_area));
++  const areas = shapes.filter(s => s.shape !== 'door' && !s.feature && (s.contents || (s.name && featureAreas.has(s.name))));
++  if (areas.length === 0 && features.length === 0) return [];
++
++  const info = areas.map(s => {
++    const b = box(s);
++    const squares = b[2] * b[3];
++    const adj = squares >= 90 ? 'large ' : squares <= 25 ? 'small ' : '';
++    return { s, b, pos: position(b, layout.columns, layout.rows), noun: noun(s), adj };
++  });
++  // Two areas in the same part of the map: tell them apart by direction.
++  const groups = new Map<string, typeof info>();
++  for (const i of info) {
++    const k = `${i.pos} ${i.noun}`;
++    groups.set(k, [...(groups.get(k) ?? []), i]);
++  }
++  const desc = new Map<Shape, string>();
++  for (const [, g] of groups) {
++    if (g.length === 1) {
++      desc.set(g[0]!.s, `the ${g[0]!.adj}${g[0]!.pos} ${g[0]!.noun}`);
++      continue;
++    }
++    const spreadX = Math.max(...g.map(i => i.b[0])) - Math.min(...g.map(i => i.b[0]));
++    const spreadY = Math.max(...g.map(i => i.b[1])) - Math.min(...g.map(i => i.b[1]));
++    const byX = spreadX >= spreadY;
++    const sorted = [...g].sort((p, q) => (byX ? p.b[0] - q.b[0] : p.b[1] - q.b[1]));
++    const words = byX ? ['western', 'eastern'] : ['northern', 'southern'];
++    sorted.forEach((i, n) => {
++      const which =
++        sorted.length === 2
++          ? `the ${words[n]} one of the two ${i.pos} ${i.noun}s`
++          : `the ${['first', 'second', 'third', 'fourth', 'fifth', 'sixth'][n] ?? `${n + 1}th`} ${i.pos} ${i.noun} from the ${byX ? 'west' : 'north'}`;
++      desc.set(i.s, which);
++    });
++  }
++
++  const out: string[] = [];
++  for (const i of info) {
++    const d = desc.get(i.s)!;
++    const name = i.s.name ? ` is ${called(i.s.name)}` : '';
++    const text = i.s.contents ? `${name ? ':' : ' has'} ${i.s.contents.replace(/\.\s*$/, '')}` : '';
++    out.push(`${d.charAt(0).toUpperCase()}${d.slice(1)}${name}${text}.`);
++  }
++
++  if (features.length > 0) {
++    out.push('Flat coloured shapes mark furniture: paint the real object exactly there and at that size, in natural colours and materials, never the flat marker colour.');
++    // Group by area and object.
++    const byArea = new Map<string, Shape[]>();
++    for (const f of features) byArea.set(f.in_area ?? '', [...(byArea.get(f.in_area ?? '') ?? []), f]);
++    for (const [area, list] of byArea) {
++      const objects = new Map<string, Shape[]>();
++      for (const f of list) objects.set(`${f.feature}|${f.marker}|${f.shape}`, [...(objects.get(`${f.feature}|${f.marker}|${f.shape}`) ?? []), f]);
++      const parts: string[] = [];
++      for (const [, fs] of objects) {
++        const f = fs[0]!;
++        const n = fs.length;
++        const form = f.shape === 'ellipse' ? (n > 1 ? 'circles' : 'circle') : n > 1 ? 'rectangles' : 'rectangle';
++        const places = [...new Set(fs.map(x => x.place ?? 'centre'))];
++        let where: string;
++        if (places.every(p => p.endsWith('corner')) && places.length > 1) where = 'in its corners';
++        else if (places.length === 1) {
++          const p = places[0]!;
++          where = p === 'centre' ? 'in the middle' : p.endsWith('corner') ? `in its ${p}` : `${n > 1 ? 'along' : 'against'} its ${p}`;
++        } else where = `by its ${places.join(' and ')}`;
++        const what = f.feature!;
++        // "marks" reads right for "an altar" and for "bookshelves" alike.
++        const thing = /[^s]s$/i.test(what) ? what : `${article(what)} ${what}`;
++        parts.push(n > 1 ? `the ${NUMBERS[n] ?? n} ${f.marker} ${form} ${where} each mark ${thing}` : `the ${f.marker} ${form} ${where} marks ${thing}`);
++      }
++      const intro = area ? `In ${called(area)}, ` : '';
++      const joined = parts.length > 1 ? `${parts.slice(0, -1).join('; ')}; and ${parts[parts.length - 1]}` : parts[0]!;
++      const sentence = `${intro}${joined}.`;
++      out.push(sentence.charAt(0).toUpperCase() + sentence.slice(1));
++    }
++  }
++  return out;
++}
++
++/** The whole prompt for build: the look, the floor plan and its legend, the rooms, and no text. */
++export function mapPrompt(layout: NormalizedLayout, look?: string): string {
++  const rooms = roomSentences(layout);
++  const wallLines = layout.shapes.some(s => s.shape === 'wall');
++  return [
++    (look ?? DEFAULT_LOOK).trim(),
++    '<Picture 1> is the exact floor plan to follow.',
++    legendFor(layout),
++    'Keep every room, corridor and wall exactly where it is in <Picture 1>.',
++    wallLines
++      ? 'Paint a real stone or timber wall along every near-black line, exactly where and as thin as it is (never a flat black line), and a wooden door on each orange bar.'
++      : '',
++    ...rooms,
++    'The finished map has no text, no letters, no numbers, no grid lines and no characters.',
++  ]
++    .filter(Boolean)
++    .join(' ');
++}
+diff --git a/packages/mcp-server/src/tools/layout-snap.test.ts b/packages/mcp-server/src/tools/layout-snap.test.ts
+new file mode 100644
+index 0000000..e238c13
+--- /dev/null
++++ b/packages/mcp-server/src/tools/layout-snap.test.ts
+@@ -0,0 +1,89 @@
++import { describe, expect, it } from 'vitest';
++import { snapWallsToImage } from './layout-snap.js';
++import { fillAt, rasterize } from './layout-analysis.js';
++import { normalizeShape, renderLayout, wallsFromLayout, type NormalizedLayout } from './layout-utils.js';
++import type { DecodedImage } from './layout-image.js';
++
++function layout(shapes: any[], columns = 16, rows = 12): NormalizedLayout {
++  return {
++    columns,
++    rows,
++    size: 32,
++    background: 'rock',
++    wallFills: ['floor'],
++    shapes: shapes.map((s, i) => ({ ...normalizeShape(s, `s${i}`, 0), id: i + 1 })),
++  };
++}
++
++/** The "painted" picture: a layout rendered to RGBA. */
++function picture(l: NormalizedLayout): DecodedImage {
++  const { width, height, rgb } = renderLayout(l);
++  const data = new Uint8Array(width * height * 4);
++  for (let i = 0; i < width * height; i++) {
++    data[i * 4] = rgb[i * 3]!;
++    data[i * 4 + 1] = rgb[i * 3 + 1]!;
++    data[i * 4 + 2] = rgb[i * 3 + 2]!;
++    data[i * 4 + 3] = 255;
++  }
++  return { width, height, data };
++}
++
++function snap(planned: NormalizedLayout, painted: NormalizedLayout) {
++  const { walls } = wallsFromLayout(planned);
++  const raster = rasterize(planned);
++  const report = snapWallsToImage(walls, picture(painted), {
++    columns: planned.columns,
++    rows: planned.rows,
++    inside: (x, y) => fillAt(raster, x, y) === 'floor',
++  });
++  return { walls, report };
++}
++
++describe('snapWallsToImage', () => {
++  it('leaves walls alone when the picture matches the plan', () => {
++    const room = [{ shape: 'rect', rect: [3, 3, 8, 6] }];
++    const { walls, report } = snap(layout(room), layout(room));
++    expect(report.runsMoved).toBe(0);
++    expect(walls[0]!.points).toEqual([[3, 3], [11, 3], [11, 9], [3, 9]]);
++  });
++
++  it('moves the run the picture painted elsewhere, and keeps the corners joined', () => {
++    const planned = layout([{ shape: 'rect', rect: [3, 3, 8, 6] }]);
++    // The painter made the room a quarter of a square wider on its east side.
++    const painted = layout([{ shape: 'rect', rect: [3, 3, 8.25, 6] }]);
++    const { walls, report } = snap(planned, painted);
++    expect(report.runsMoved).toBe(1);
++    expect(walls[0]!.points).toEqual([[3, 3], [11.25, 3], [11.25, 9], [3, 9]]);
++  });
++
++  it('never moves a wall further than about half a square, and doors follow their wall', () => {
++    const planned = layout([
++      { shape: 'rect', rect: [2, 2, 5, 6] },
++      { shape: 'rect', rect: [8, 2, 5, 6] },
++      { shape: 'cells', cells: [[7, 4]] },
++      { shape: 'door', at: [7, 4], dir: 'v', size: 1 },
++    ]);
++    // The west room is painted a quarter square shorter on its north side; the doorway is as planned.
++    const painted = layout([
++      { shape: 'rect', rect: [2, 2.25, 5, 5.75] },
++      { shape: 'rect', rect: [8, 2, 5, 6] },
++      { shape: 'cells', cells: [[7, 4]] },
++    ]);
++    const { walls, report } = snap(planned, painted);
++    expect(report.largestMove).toBeLessThanOrEqual(0.45);
++    const door = walls.find(w => w.preset)!;
++    expect(door.points).toEqual([[7, 4], [7, 5]]);
++    const north = walls.flatMap(w => (w.preset ? [] : w.points)).filter(p => p[0]! <= 7 && Math.abs(p[1]! - 2.25) <= 0.07); // within the 1/16-square sampling step
++    expect(north.length).toBeGreaterThanOrEqual(2);
++  });
++
++  it('keeps interior wall lines where they are', () => {
++    const planned = layout([
++      { shape: 'rect', rect: [2, 2, 12, 8], fill: 'floor' },
++      { shape: 'wall', path: [[8, 2], [8, 10]] },
++    ]);
++    const { walls } = snap(planned, planned);
++    const line = walls.find(w => w.fixed)!;
++    expect(line.points).toEqual([[8, 2], [8, 10]]);
++  });
++});
+diff --git a/packages/mcp-server/src/tools/layout-snap.ts b/packages/mcp-server/src/tools/layout-snap.ts
+new file mode 100644
+index 0000000..c559628
+--- /dev/null
++++ b/packages/mcp-server/src/tools/layout-snap.ts
+@@ -0,0 +1,173 @@
++/**
++ * Snap walls onto the generated picture. The layout says where a room's edge should be; the image
++ * model paints it close to that, but not always on it (a corridor drawn a little narrower, a tunnel
++ * painted straighter). For every straight wall run, look across the edge in the picture, find where
++ * the floor stops looking like floor, and move the run there, never more than about half a square.
++ * Only edges between a floor and something clearly different are moved; thin interior wall lines,
++ * which the picture draws centred on the line, stay where they are.
++ */
++
++import type { DecodedImage } from './layout-image.js';
++import type { WallObject } from './layout-utils.js';
++
++export interface SnapOptions {
++  columns: number;
++  rows: number;
++  /** Is this point (in squares, wall coordinates) on the inside: a floor the walls go round? */
++  inside: (x: number, y: number) => boolean;
++  /** Largest move in squares (default 0.45). */
++  maxMove?: number;
++}
++
++export interface SnapReport {
++  runsLooked: number;
++  runsMoved: number;
++  /** Average move of the runs that moved, in squares. */
++  averageMove: number;
++  largestMove: number;
++}
++
++const STEP = 1 / 16;
++
++function brightnessAt(img: DecodedImage, px: number, py: number): number {
++  const x = Math.min(img.width - 1, Math.max(0, Math.round(px)));
++  const y = Math.min(img.height - 1, Math.max(0, Math.round(py)));
++  const o = (y * img.width + x) * 4;
++  return 0.299 * img.data[o]! + 0.587 * img.data[o + 1]! + 0.114 * img.data[o + 2]!;
++}
++
++/**
++ * How far to move one straight axis-aligned run [a, b] on `line` (horizontal: y = line, from x a
++ * to b). Positive moves go towards +x / +y. Returns 0 when the picture gives no clear answer.
++ */
++function runOffset(img: DecodedImage, opts: SnapOptions, horizontal: boolean, line: number, a: number, b: number): number {
++  const sx = img.width / opts.columns;
++  const sy = img.height / opts.rows;
++  const len = b - a;
++  if (len < 0.75) return 0;
++  // Which side is the floor?
++  const mid = (a + b) / 2;
++  const probe = 0.3;
++  const plusInside = horizontal ? opts.inside(mid, line + probe) : opts.inside(line + probe, mid);
++  const minusInside = horizontal ? opts.inside(mid, line - probe) : opts.inside(line - probe, mid);
++  if (plusInside === minusInside) return 0;
++  const inward = plusInside ? 1 : -1; // direction from the line into the floor
++
++  // Average brightness across the run at each offset t (towards the floor is +t here).
++  const samples = Math.max(3, Math.min(40, Math.round(len * 4)));
++  const at = (t: number): number => {
++    let sum = 0;
++    for (let k = 0; k < samples; k++) {
++      const along = a + 0.2 + ((len - 0.4) * (k + 0.5)) / samples;
++      const across = line + inward * t;
++      const [x, y] = horizontal ? [along, across] : [across, along];
++      sum += brightnessAt(img, x * sx, y * sy);
++    }
++    return sum / samples;
++  };
++  const avg = (from: number, to: number) => {
++    let s = 0;
++    let n = 0;
++    for (let t = from; t <= to + 1e-9; t += STEP) {
++      s += at(t);
++      n++;
++    }
++    return s / n;
++  };
++  const inRef = avg(0.55, 0.8);
++  const outRef = avg(-0.8, -0.6);
++  if (Math.abs(inRef - outRef) < 30) return 0; // the picture shows no clear edge here
++  // Walk from the floor outwards; the edge is where it stops looking like floor (three quarters of the way to the outside look).
++  const like = (t: number) => (at(t) - outRef) / (inRef - outRef);
++  const max = opts.maxMove ?? 0.45;
++  let edge: number | undefined;
++  let prev = like(0.55);
++  for (let t = 0.55 - STEP; t >= -max - 1e-9; t -= STEP) {
++    const cur = like(t);
++    if (prev >= 0.75 && cur < 0.75) {
++      edge = t + STEP * ((prev - 0.75) / (prev - cur));
++      break;
++    }
++    prev = cur;
++  }
++  if (edge === undefined) return 0;
++  if (edge > max) return 0; // the floor stops well inside: probably furniture or shadow, not the wall
++  const move = Math.round(edge * 16) / 16;
++  if (Math.abs(move) < 0.1) return 0;
++  // edge is measured towards the floor; the line moves by that much in the inward direction.
++  return inward * move;
++}
++
++/**
++ * Move the walls (not doors, not walls marked fixed) onto the picture, keeping chains joined at
++ * their corners; doors move with the wall they sit in. Walls are changed in place.
++ */
++export function snapWallsToImage(walls: Array<WallObject & { fixed?: boolean }>, img: DecodedImage, opts: SnapOptions): SnapReport {
++  let looked = 0;
++  const moves: number[] = [];
++  // Moves of runs by line, so doors can follow: key "h|line" or "v|line" -> [{a, b, d}]
++  const byLine = new Map<string, Array<{ a: number; b: number; d: number }>>();
++
++  for (const w of walls) {
++    if (w.preset || w.fixed || w.points.length < 2) continue;
++    const pts = w.points.map(p => [p[0]!, p[1]!]);
++    const n = pts.length;
++    const segCount = w.closed ? n : n - 1;
++    const offsets: Array<{ dx: number; dy: number; horizontal: boolean | undefined }> = [];
++    for (let i = 0; i < segCount; i++) {
++      const [x0, y0] = pts[i]!;
++      const [x1, y1] = pts[(i + 1) % n]!;
++      const horizontal = y0 === y1 ? true : x0 === x1 ? false : undefined;
++      if (horizontal === undefined) {
++        offsets.push({ dx: 0, dy: 0, horizontal });
++        continue;
++      }
++      looked++;
++      const line = horizontal ? y0! : x0!;
++      const a = Math.min(horizontal ? x0! : y0!, horizontal ? x1! : y1!);
++      const b = Math.max(horizontal ? x0! : y0!, horizontal ? x1! : y1!);
++      const d = runOffset(img, opts, horizontal, line, a, b);
++      if (d !== 0) moves.push(Math.abs(d));
++      const key = `${horizontal ? 'h' : 'v'}|${line}`;
++      byLine.set(key, [...(byLine.get(key) ?? []), { a, b, d }]);
++      offsets.push(horizontal ? { dx: 0, dy: d, horizontal } : { dx: d, dy: 0, horizontal });
++    }
++    // Each point moves with the runs that meet at it (a corner takes x from one, y from the other).
++    const moved = pts.map((p, i) => {
++      const before = w.closed ? offsets[(i - 1 + segCount) % segCount] : i > 0 ? offsets[i - 1] : undefined;
++      const after = i < segCount ? offsets[i] : undefined;
++      let dx = 0;
++      let dy = 0;
++      for (const o of [before, after]) {
++        if (!o) continue;
++        if (o.horizontal === true) dy = before && after && before.horizontal === after.horizontal ? (before.dy + after.dy) / 2 : o.dy;
++        if (o.horizontal === false) dx = before && after && before.horizontal === after.horizontal ? (before.dx + after.dx) / 2 : o.dx;
++      }
++      return [Math.round((p[0]! + dx) * 1000) / 1000, Math.round((p[1]! + dy) * 1000) / 1000];
++    });
++    w.points = moved;
++  }
++
++  // Doors follow the wall runs beside them on the same line.
++  for (const w of walls) {
++    if (!w.preset || w.points.length !== 2) continue;
++    const [[x0, y0], [x1, y1]] = w.points as [[number, number], [number, number]];
++    const horizontal = y0 === y1;
++    const line = horizontal ? y0 : x0;
++    const a = Math.min(horizontal ? x0 : y0, horizontal ? x1 : y1);
++    const b = Math.max(horizontal ? x0 : y0, horizontal ? x1 : y1);
++    const runs = (byLine.get(`${horizontal ? 'h' : 'v'}|${line}`) ?? []).filter(r => Math.abs(r.b - a) < 0.6 || Math.abs(r.a - b) < 0.6);
++    if (runs.length === 0) continue;
++    const d = runs.reduce((s, r) => s + r.d, 0) / runs.length;
++    if (d === 0) continue;
++    w.points = horizontal ? [[x0, y0 + d], [x1, y1 + d]] : [[x0 + d, y0], [x1 + d, y1]];
++  }
++
++  const average = moves.length ? moves.reduce((s, m) => s + m, 0) / moves.length : 0;
++  return {
++    runsLooked: looked,
++    runsMoved: moves.length,
++    averageMove: Math.round(average * 100) / 100,
++    largestMove: moves.length ? Math.max(...moves) : 0,
++  };
++}
 diff --git a/packages/mcp-server/src/tools/layout-store.test.ts b/packages/mcp-server/src/tools/layout-store.test.ts
 new file mode 100644
 index 0000000..050b841
@@ -50424,7 +52759,7 @@ index 0000000..0b23198
 +});
 diff --git a/packages/mcp-server/src/tools/layout-town.ts b/packages/mcp-server/src/tools/layout-town.ts
 new file mode 100644
-index 0000000..bf6e11b
+index 0000000..8667fa6
 --- /dev/null
 +++ b/packages/mcp-server/src/tools/layout-town.ts
 @@ -0,0 +1,213 @@
@@ -50497,7 +52832,7 @@ index 0000000..bf6e11b
 +  });
 +}
 +
-+function shiftShape(raw: any, dx: number, dy: number): any {
++export function shiftShape(raw: any, dx: number, dy: number): any {
 +  const s = { ...raw };
 +  const move = (p: unknown) => (Array.isArray(p) ? [p[0] + dx, p[1] + dy] : p);
 +  if (s.rect) s.rect = [s.rect[0] + dx, s.rect[1] + dy, s.rect[2], s.rect[3]];
@@ -50506,7 +52841,7 @@ index 0000000..bf6e11b
 +  if (s.at) s.at = move(s.at);
 +  if (s.polygon) s.polygon = s.polygon.map(move);
 +  if (s.path) s.path = s.path.map(move);
-+  if (s.cells) s.cells = s.cells.map((c: number[]) => [c[0]! + dx, c[1]! + dy, c[2], c[3]]);
++  if (s.cells) s.cells = s.cells.map((c: number[]) => (c.length === 2 ? [c[0]! + dx, c[1]! + dy] : [c[0]! + dx, c[1]! + dy, c[2], c[3]]));
 +  return s;
 +}
 +
@@ -50643,10 +52978,10 @@ index 0000000..bf6e11b
 +}
 diff --git a/packages/mcp-server/src/tools/layout-utils.ts b/packages/mcp-server/src/tools/layout-utils.ts
 new file mode 100644
-index 0000000..6d96a10
+index 0000000..0238b29
 --- /dev/null
 +++ b/packages/mcp-server/src/tools/layout-utils.ts
-@@ -0,0 +1,583 @@
+@@ -0,0 +1,728 @@
 +/**
 + * Layout sketches for map generation: draw rooms, corridors, roads, rivers and doors as flat
 + * colour shapes in grid squares, write a PNG, and optionally derive wall lines from the floor.
@@ -50669,11 +53004,16 @@ index 0000000..6d96a10
 +  sand: { color: [235, 215, 150], colorName: 'pale yellow', meaning: 'sand' },
 +  wood: { color: [170, 120, 30], colorName: 'amber', meaning: 'wooden planks' },
 +  door: { color: [230, 120, 20], colorName: 'orange', meaning: 'door' },
++  forest: { color: [45, 90, 40], colorName: 'dark green', meaning: 'dense forest, tree canopy seen from above' },
++  dirt: { color: [140, 110, 75], colorName: 'earth brown', meaning: 'bare trampled earth' },
++  snow: { color: [245, 248, 252], colorName: 'white', meaning: 'snow' },
 +};
 +
-+export const SHAPE_KINDS = ['rect', 'ellipse', 'polygon', 'path', 'cells', 'door'] as const;
++export const SHAPE_KINDS = ['rect', 'ellipse', 'polygon', 'path', 'cells', 'door', 'wall'] as const;
 +export const MAX_SHAPES = 300;
 +export const MAX_PIXELS = 4096 * 4096;
++/** Thickness of an interior wall line in squares (a quarter square reads as a wall to the image model). */
++export const WALL_WIDTH = 0.3;
 +
 +export interface LayoutShape {
 +  shape: (typeof SHAPE_KINDS)[number];
@@ -50706,6 +53046,15 @@ index 0000000..6d96a10
 +  /** door: closed (default), open or locked. */
 +  state?: 'closed' | 'open' | 'locked';
 +  name?: string;
++  /** What is in this area, in words, for the image prompt. */
++  contents?: string;
++  /** Made by plan as one of its areas. */
++  area?: boolean;
++  /** A furniture marker: what the object is, the area it is in, where in it, and the marker colour's name. */
++  feature?: string;
++  in_area?: string;
++  place?: string;
++  marker?: string;
 +}
 +
 +export interface LayoutSpec {
@@ -50784,6 +53133,18 @@ index 0000000..6d96a10
 +  if (s.label !== undefined && !Number.isInteger(s.label)) throw new Error(`${label}: label must be a whole number`);
 +  const snap = s.snap ?? layoutSnap;
 +  const sn = (v: number) => round4(snapTo(v, snap));
++
++  if (s.shape === 'wall') {
++    // An interior wall: a thin dark line in the picture and one Foundry wall along it (doors cut it).
++    s.fill = 'rock';
++    s.path = points(s.path, 2, `${label} wall`).map(p => [sn(p[0]!), sn(p[1]!)]);
++    if (s.width !== undefined && (!num(s.width) || s.width < 0.1 || s.width > 1)) {
++      throw new Error(`${label}: a wall's width must be 0.1 to 1 square`);
++    }
++    delete s.rotate;
++    delete s.color;
++    return s as LayoutShape;
++  }
 +
 +  if (s.shape === 'door') {
 +    s.fill = 'door';
@@ -50919,9 +53280,18 @@ index 0000000..6d96a10
 +  if (shape.shape === 'polygon') {
 +    return [shape.polygon!.map(p => [p[0]!, p[1]!] as [number, number])];
 +  }
-+  if (shape.shape === 'path') {
-+    const half = (shape.width ?? 2) / 2;
++  if (shape.shape === 'path' || shape.shape === 'wall') {
++    const half = (shape.width ?? (shape.shape === 'wall' ? WALL_WIDTH : 2)) / 2;
 +    const pts = shape.path!.map(p => [p[0]!, p[1]!] as [number, number]);
++    if (shape.shape === 'wall' && pts.length >= 2) {
++      // Walls reach past their end points by half their width, so corners close.
++      const stretch = (a: [number, number], b: [number, number]): [number, number] => {
++        const len = Math.hypot(a[0] - b[0], a[1] - b[1]) || 1;
++        return [a[0] + ((a[0] - b[0]) / len) * half, a[1] + ((a[1] - b[1]) / len) * half];
++      };
++      pts[0] = stretch(pts[0]!, pts[1]!);
++      pts[pts.length - 1] = stretch(pts[pts.length - 1]!, pts[pts.length - 2]!);
++    }
 +    const polys: Poly[] = [];
 +    for (let i = 0; i + 1 < pts.length; i++) {
 +      const [x1, y1] = pts[i]!;
@@ -51026,7 +53396,8 @@ index 0000000..6d96a10
 +    rgb[i * 3 + 2] = bg[2];
 +  }
 +  for (const shape of layout.shapes) {
-+    const [r, g, b] = colorFor(shape);
++    // A secret door must look like plain wall in the picture: drawn in the wall colour.
++    const [r, g, b] = shape.shape === 'door' && shape.secret ? colorFor({ fill: 'rock' }) : colorFor(shape);
 +    for (const poly of shapePolygons(shape, layout.size)) {
 +      scanPolygon(poly, width, height, (y, x0, x1) => {
 +        let o = (y * width + x0) * 3;
@@ -51096,6 +53467,8 @@ index 0000000..6d96a10
 +  closed?: boolean;
 +  preset?: 'door' | 'secret_door';
 +  door_state?: 'closed' | 'open' | 'locked';
++  /** An interior wall line: the picture draws it centred on the line, so it is never snapped. Not sent to Foundry. */
++  fixed?: boolean;
 +}
 +
 +const CELL = 2; // wall resolution: half a square
@@ -51112,7 +53485,8 @@ index 0000000..6d96a10
 +  const isWall = new Set(layout.wallFills);
 +  if (isWall.has(layout.background)) inside.fill(1);
 +  for (const shape of layout.shapes) {
-+    if (shape.shape === 'door') continue;
++    // Furniture markers stand on the floor of their room: they never get walls of their own.
++    if (shape.shape === 'door' || shape.shape === 'wall' || shape.feature) continue;
 +    const value = isWall.has(shape.fill ?? 'floor') ? 1 : 0;
 +    for (const poly of shapePolygons(shape, CELL)) {
 +      scanPolygon(poly, w, h, (y, x0, x1) => inside.fill(value, y * w + x0, y * w + x1 + 1));
@@ -51154,6 +53528,16 @@ index 0000000..6d96a10
 +      preset: s.secret ? 'secret_door' : 'door',
 +      door_state: s.state ?? 'closed',
 +    });
++  }
++
++  // Interior wall lines become walls of their own: drop the floor edges that lie along them.
++  const lines = wallLines(layout);
++  for (const [x0, y0, x1, y1] of lines) {
++    if (y0 === y1) {
++      for (let x = Math.round(Math.min(x0, x1) * CELL); x < Math.round(Math.max(x0, x1) * CELL); x++) edges.delete(`h,${x},${Math.round(y0 * CELL)}`);
++    } else if (x0 === x1) {
++      for (let y = Math.round(Math.min(y0, y1) * CELL); y < Math.round(Math.max(y0, y1) * CELL); y++) edges.delete(`v,${Math.round(x0 * CELL)},${y}`);
++    }
 +  }
 +
 +  // Merge unit edges into straight runs.
@@ -51212,22 +53596,118 @@ index 0000000..6d96a10
 +    const last = chain[chain.length - 1]!;
 +    if (chain.length > 3 && first[0] === last[0] && first[1] === last[1]) {
 +      chain.pop();
-+      walls.push({ kind: 'wall', points: chain, closed: true });
++      walls.push({ kind: 'wall', points: smoothClosed(chain), closed: true });
 +    } else {
-+      walls.push({ kind: 'wall', points: chain });
++      walls.push({ kind: 'wall', points: smooth(chain) });
++    }
++  }
++
++  // Wall lines, with a gap wherever a door sits on them.
++  const doorSpans = layout.shapes
++    .filter(s => s.shape === 'door')
++    .map(s => {
++      const [x, y] = s.at as [number, number];
++      const len = s.size ?? 1;
++      return s.dir === 'h' ? { horizontal: true, line: y, a: x, b: x + len } : { horizontal: false, line: x, a: y, b: y + len };
++    });
++  for (const [x0, y0, x1, y1] of lines) {
++    const horizontal = y0 === y1;
++    const vertical = x0 === x1;
++    if (!horizontal && !vertical) {
++      walls.push({ kind: 'wall', points: [[x0, y0], [x1, y1]], fixed: true });
++      continue;
++    }
++    const line = horizontal ? y0 : x0;
++    let pieces: Array<[number, number]> = [[Math.min(horizontal ? x0 : y0, horizontal ? x1 : y1), Math.max(horizontal ? x0 : y0, horizontal ? x1 : y1)]];
++    for (const d of doorSpans) {
++      if (d.horizontal !== horizontal || Math.abs(d.line - line) > 0.3) continue;
++      pieces = pieces.flatMap(([a, b]): Array<[number, number]> => {
++        if (d.b <= a || d.a >= b) return [[a, b]];
++        return [[a, Math.max(a, d.a)], [Math.min(b, d.b), b]].filter(([p, q]) => q - p > 0.05) as Array<[number, number]>;
++      });
++    }
++    for (const [a, b] of pieces) {
++      walls.push({ kind: 'wall', points: horizontal ? [[a, line], [b, line]] : [[line, a], [line, b]], fixed: true });
 +    }
 +  }
 +
 +  return { walls: [...walls, ...doors], segments: edges.size };
 +}
 +
++/**
++ * Walls traced round curved shapes (caves, round rooms, rotated shapes) come out as half-square
++ * stairs; straighten them into slopes that follow the curve (Douglas-Peucker, a third of a square).
++ * Corners of a square room are far more than that off any line, so rooms keep their corners.
++ */
++const SMOOTH = 0.34;
++
++function smooth(points: number[][]): number[][] {
++  if (points.length <= 2) return points;
++  const [ax, ay] = points[0]!;
++  const [bx, by] = points[points.length - 1]!;
++  const len = Math.hypot(bx! - ax!, by! - ay!);
++  let worst = -1;
++  let worstAt = 0;
++  for (let i = 1; i < points.length - 1; i++) {
++    const [px, py] = points[i]!;
++    const d = len === 0 ? Math.hypot(px! - ax!, py! - ay!) : Math.abs((bx! - ax!) * (ay! - py!) - (ax! - px!) * (by! - ay!)) / len;
++    if (d > worst) {
++      worst = d;
++      worstAt = i;
++    }
++  }
++  if (worst <= SMOOTH) return [points[0]!, points[points.length - 1]!];
++  return [...smooth(points.slice(0, worstAt + 1)).slice(0, -1), ...smooth(points.slice(worstAt))];
++}
++
++/** smooth() for a closed loop: split it at the point farthest from its start. */
++function smoothClosed(points: number[][]): number[][] {
++  if (points.length < 4) return points;
++  const [ax, ay] = points[0]!;
++  let far = 1;
++  let farD = -1;
++  points.forEach(([x, y], i) => {
++    const d = Math.hypot(x! - ax!, y! - ay!);
++    if (d > farD) {
++      farD = d;
++      far = i;
++    }
++  });
++  const one = smooth(points.slice(0, far + 1));
++  const two = smooth([...points.slice(far), points[0]!]);
++  const loop = [...one.slice(0, -1), ...two.slice(0, -1)];
++  return loop.length >= 3 ? loop : points;
++}
++
++/** Every interior wall line as straight pieces [x0, y0, x1, y1] in squares. */
++export function wallLines(layout: NormalizedLayout): Array<[number, number, number, number]> {
++  const out: Array<[number, number, number, number]> = [];
++  for (const s of layout.shapes) {
++    if (s.shape !== 'wall' || !s.path) continue;
++    for (let i = 0; i + 1 < s.path.length; i++) {
++      const [x0, y0] = s.path[i]!;
++      const [x1, y1] = s.path[i + 1]!;
++      if (x0 === x1 && y0 === y1) continue;
++      out.push([x0!, y0!, x1!, y1!]);
++    }
++  }
++  return out;
++}
++
 +/** A sentence for the image prompt that says what each colour in the sketch means. */
 +export function legendFor(layout: NormalizedLayout): string {
 +  const used = new Set<string>([layout.background]);
++  const hasWallLines = layout.shapes.some(s => s.shape === 'wall');
++  let rockShapes = false;
 +  for (const s of layout.shapes) {
-+    if (!s.color && s.fill) used.add(s.fill);
++    if (s.shape === 'wall') continue;
++    if (!s.color && s.fill && !(s.shape === 'door' && s.secret)) used.add(s.fill);
++    if (s.fill === 'rock') rockShapes = true;
 +  }
-+  const parts = [...used].map(f => `${FILLS[f]!.colorName} = ${FILLS[f]!.meaning}`);
++  const parts = [...used].map(f =>
++    f === 'rock' && hasWallLines ? `${FILLS.rock!.colorName} = solid rock and walls` : `${FILLS[f]!.colorName} = ${FILLS[f]!.meaning}`
++  );
++  if (hasWallLines && !used.has('rock')) parts.push(`near-black lines = walls${rockShapes ? ' and solid rock' : ''}`);
 +  return `In <Picture 1>: ${parts.join('; ')}.`;
 +}
 diff --git a/packages/mcp-server/src/tools/layout.test.ts b/packages/mcp-server/src/tools/layout.test.ts
@@ -51356,10 +53836,10 @@ index 0000000..5b5d028
 +
 diff --git a/packages/mcp-server/src/tools/layout.ts b/packages/mcp-server/src/tools/layout.ts
 new file mode 100644
-index 0000000..511e95f
+index 0000000..3221eb9
 --- /dev/null
 +++ b/packages/mcp-server/src/tools/layout.ts
-@@ -0,0 +1,907 @@
+@@ -0,0 +1,1084 @@
 +import { promises as fs } from 'fs';
 +import { checkWalls, planFixes, type CheckWall } from './wall-check-utils.js';
 +import path from 'path';
@@ -51369,6 +53849,12 @@ index 0000000..511e95f
 +import { FILLS, encodePng, legendFor, renderLayout, wallsFromLayout } from './layout-utils.js';
 +import { decodeImage } from './layout-image.js';
 +import { doorPortals, expandShapeSpecs, groundInsertIndex } from './layout-town.js';
++import { buildPlan } from './layout-plan.js';
++import { featureShapes } from './layout-features.js';
++import { STYLE_LOOKS, mapPrompt } from './layout-prompt.js';
++import { snapWallsToImage } from './layout-snap.js';
++import { fillAt } from './layout-analysis.js';
++import { shapePolygons } from './layout-utils.js';
 +import {
 +  alignToImage,
 +  checkLayout,
@@ -51414,6 +53900,28 @@ index 0000000..511e95f
 +const MAX_TEXT_COLUMNS = 110;
 +const MAX_TEXT_ROWS = 80;
 +
++/**
++ * The smallest picture of at least 2 megapixels (what MiniMax H3 needs) that has exactly the
++ * layout's shape, a whole number of pixels per square and sides that are multiples of 32
++ * (or, when none fits, the closest shape: under 1% off).
++ */
++export function exactPictureSize(columns: number, rows: number, maxSide = 2048): { width: number; height: number } | undefined {
++  const min = 2 * 1024 * 1024;
++  for (let p = Math.ceil(Math.sqrt(min / (columns * rows))); p * Math.max(columns, rows) <= maxSide; p++) {
++    if ((columns * p) % 32 === 0 && (rows * p) % 32 === 0) return { width: columns * p, height: rows * p };
++  }
++  // No exact size fits: the closest shape (multiples of 32, at least 2 megapixels, within maxSide).
++  const ratio = columns / rows;
++  let best: { width: number; height: number; error: number } | undefined;
++  for (let width = 32; width <= maxSide; width += 32) {
++    const height = Math.round(width / ratio / 32) * 32;
++    if (height < 32 || height > maxSide || width * height < min) continue;
++    const error = Math.abs(width / height / ratio - 1);
++    if (!best || error < best.error - 1e-9) best = { width, height, error };
++  }
++  return best && best.error < 0.01 ? { width: best.width, height: best.height } : undefined;
++}
++
 +const region = z
 +  .object({
 +    x: z.number().min(0),
@@ -51425,7 +53933,20 @@ index 0000000..511e95f
 +
 +const schema = z
 +  .object({
-+    action: z.enum(['new', 'add', 'update', 'remove', 'show', 'render', 'walls', 'apply_walls', 'check', 'place', 'lights', 'align', 'build', 'portals', 'set', 'undo', 'redo', 'list', 'delete']),
++    action: z.enum(['plan', 'furnish', 'new', 'add', 'update', 'remove', 'show', 'render', 'walls', 'apply_walls', 'check', 'place', 'lights', 'align', 'build', 'portals', 'set', 'undo', 'redo', 'list', 'delete']),
++    areas: z.array(z.any()).min(1).max(30).optional(),
++    links: z.array(z.any()).max(80).optional(),
++    seed: z.number().int().optional(),
++    look: z.string().min(1).max(1500).optional(),
++    style: z.enum(['dungeon', 'cave', 'building', 'outdoor']).optional(),
++    footprint: z.array(z.number()).length(2).optional(),
++    floor: z.string().optional(),
++    ground: z.string().optional(),
++    entrance: z.any().optional(),
++    corridor_width: z.number().int().min(1).max(3).optional(),
++    features: z.array(z.any()).min(1).max(40).optional(),
++    in: z.union([z.string().min(1), z.number()]).optional(),
++    contents: z.string().max(600).optional(),
 +    layout: z.string().min(1).optional(),
 +    name: z.string().min(1).max(60).optional(),
 +    columns: z.number().optional(),
@@ -51516,19 +54037,55 @@ index 0000000..511e95f
 +      {
 +        name: 'layout',
 +        description:
-+          'Build a map layout step by step (rooms, corridors, roads, rivers, buildings, doors), see it at once as a text map, adjust it, then render a flat-colour sketch for generate-image (reference_images + <Picture 1>) and derive walls and doors for the scene. Layouts are saved, so you can come back to them. ' +
++          'Make battlemaps: a floor-plan layout, the painted map generated from it, and the scene with walls and doors. ' +
++          'EASIEST WAY (no coordinates): 1) plan {name, style?, areas, links, look?, entrance?, seed?} describes the place and the tool lays it out: areas [{name, size?: tiny|small|medium|large|huge|[w,h], shape?, fill?, contents?: "what is in it, in words", features?: [{what:"stone altar", at?:"north wall"|"south wall"|"east wall"|"west wall"|"centre"|"corners"|"north-west corner", count?, size?:[along, out]}]}], links [[from, to, via?] or {from, to, via?, door?, locked?, length?}], entrance {area, side?: n|s|e|w} for the way in from the map edge, look = the style/mood for the picture (each style has a default). STYLES: dungeon (default): rooms cut in rock joined by corridors; via corridor|door (doorway with a door)|open (side by side, no wall)|secret. cave: rough caves (shape cave) joined by winding tunnels. building: the inside of one building, rooms packed together sharing thin walls (a tavern, house, keep floor); via door|open (archway)|secret; footprint [w,h]?, floor? (wood), ground? (grass round it); entrance puts the front door on that side with a path out. outdoor: open ground (ground grass, forest for woodland, sand, snow, dirt) with areas as clearings (default), building (a roof with walls and doors where paths arrive), room (a paved square) or round; via path (default)|road (wider)|stream (water)|open. It returns the text map, where each area went and any warnings; plan again with replace:true and another seed for a different arrangement. Features are drawn as small markers so the object is painted exactly there; contents only goes in the prompt, so put the important objects in features. 2) build {layout, scene_name} renders, generates (the prompt is written for you from contents and features), creates the scene and places walls and doors. 3) place / lights put tokens and lights in areas by name. furnish {layout, in: area, features, contents?} adds features or contents to an area of any layout. ' +
++          'BY HAND (tracing a book map, towns, odd shapes): build the layout step by step, see it at once as a text map, adjust it, then render a flat-colour sketch for generate-image and derive walls and doors. Layouts are saved, so you can come back to them. ' +
 +          shapeHelp +
++          ' A shape may also have contents (words for the prompt).' +
 +          ' TOWNS: a shape {shape:"building", rect:[x,y,w,h], doors:[{side:"n|s|e|w", offset?(squares along the wall, default centred), size?(1), secret?, state?}], fill?(building), label?} adds a block with its doors in one go (start the layout with wall_fills:["building"] so walls go around buildings instead of inside rooms); any shape accepts repeat:{count, step:[dx,dy]} to make count copies in a row (a street of houses). portals {layout} lists every door with the square outside and inside it and the building it belongs to, ready for linking enterable buildings to interior scenes with regions link. Painting order is the list order: later shapes cover earlier ones (rooms first, then corridors, then doors; paint rock to carve). ' +
 +          'ACTIONS: new {name, columns, rows, grid_size?(64), background?(rock; grass outdoors), snap?(1), wall_fills?, reference?} starts a layout. add {layout, shapes, after?} adds shapes and returns their ids and the text map. update {layout, id, set?, move?:[cols,rows], front?, back?, after?} changes one shape (set null to clear a field). remove {layout, ids}. ' +
 +          'show {layout} returns the text map (one character per square with column and row numbers; add region to zoom, shapes_list for every shape and its numbers) or, with png:true, a picture with the numbered grid, shape ids and the reference page showing through, for checking against a book map. ' +
 +          'reference traces a picture: set {layout, reference:{image, origin:[px,py], cell_px}} where image is a PNG/JPEG on this computer, origin the pixel where square (0,0) starts and cell_px the pixels per square; show png:true then lays your shapes over it (show_reference:false hides it, hide_shapes:true shows only the picture and grid so you can calibrate origin and cell_px). ' +
-+          'render {layout} writes the clean sketch PNG (no grid or labels) and returns its file path and a legend sentence for the prompt. walls {layout} returns wall and door objects (chains around everything drawn with the wall_fills, default floor, at half-square steps; doors become door walls, with secret and state closed/open/locked). apply_walls {layout, scene?, replace?, shift?, dry_run?} builds them and PLACES them on the scene in one step, once the generated map is the scene background: the scene must have the same number of columns and rows as the layout (the generated picture and the layout line up square for square); replace (default true) first removes the walls this tool placed before, so it can be run again after the layout changes; shift [dx, dy] moves everything by squares to match the picture; dry_run only counts. Then check with preview-scene and nudge anything that is off. CHECK, PLACE AND LIGHT: check {layout, scene?} finds problems without looking at a picture: open areas that nothing connects, doors with rock on a side and shapes outside the layout; with scene (id or name) it also reads what is on that scene and reports tokens or pins on solid rock, tokens sharing a square and lights buried in rock. place {layout, scene?, items:[...], shift?, dry_run?} puts tokens, lights and pins INSIDE named shapes without you picking coordinates: each item {kind:"token"|"light"|"note", in: shape id, label number or name, count?(1), spread?(true), ...} where a token has actor, name?, hidden?, width?, height?, disposition?; a light has bright, dim, color?, animation?; a pin has journal, page?, text?. Spots are away from walls, spread apart, on floor (not rock or water), and avoid squares already taken on the scene. lights {layout, scene?, dry_run?, min_area?, bright?, dim?, color?(#ffa040), animation?(torch), include_outdoor?, replace?} proposes torch lights for every room or cave big enough (one per ~40 squares, away from walls; outdoors skipped unless include_outdoor) and places them; replace first removes the lights the tools placed. align {layout, image, max_shift?(1.5)} compares a generated picture with the layout and returns the shift in squares that best makes its floor match, for apply_walls shift. build {layout, scene_name, prompt, upload_folder?(maps), filename?, scene_grid_size?(64), scene_options?, auto_align?(true), walls?(true)} does the whole chain in one call: render the sketch, generate the map (prompt is your description of the look; the legend sentence is added), upload it, create the scene (scene_options: darkness, fog_mode, token_vision, initial_view, grid_alpha ... as in the scene tool, create), align and place the walls and doors. Needs the layout to have columns and rows whose pixel size is a multiple of 32. set {layout, snap?, background?, wall_fills?, reference?} changes layout settings. undo {layout, steps?} and redo {layout, steps?} step back and forward through the changes (add, update, remove, set; the last 40 are kept and saved with the layout); every change reports how many undo and redo steps there are. list; delete {layout}. Works without Foundry.',
++          'render {layout} writes the clean sketch PNG (no grid or labels) and returns its file path and a legend sentence for the prompt. walls {layout} returns wall and door objects (chains around everything drawn with the wall_fills, default floor, at half-square steps; doors become door walls, with secret and state closed/open/locked). apply_walls {layout, scene?, replace?, shift?, image?, dry_run?} builds them and PLACES them on the scene in one step (image: the generated map on this computer, to move each wall run onto the edge painted there; build does this by itself), once the generated map is the scene background: the scene must have the same number of columns and rows as the layout (the generated picture and the layout line up square for square); replace (default true) first removes the walls this tool placed before, so it can be run again after the layout changes; shift [dx, dy] moves everything by squares to match the picture; dry_run only counts. Then check with preview-scene and nudge anything that is off. CHECK, PLACE AND LIGHT: check {layout, scene?} finds problems without looking at a picture: open areas that nothing connects, doors with rock on a side and shapes outside the layout; with scene (id or name) it also reads what is on that scene and reports tokens or pins on solid rock, tokens sharing a square and lights buried in rock. place {layout, scene?, items:[...], shift?, dry_run?} puts tokens, lights and pins INSIDE named shapes without you picking coordinates: each item {kind:"token"|"light"|"note", in: shape id, label number or name, count?(1), spread?(true), ...} where a token has actor, name?, hidden?, width?, height?, disposition?; a light has bright, dim, color?, animation?; a pin has journal, page?, text?. Spots are away from walls, spread apart, on floor (not rock or water), and avoid squares already taken on the scene. lights {layout, scene?, dry_run?, min_area?, bright?, dim?, color?(#ffa040), animation?(torch), include_outdoor?, replace?} proposes torch lights for every room or cave big enough (one per ~40 squares, away from walls; outdoors skipped unless include_outdoor) and places them; replace first removes the lights the tools placed. align {layout, image, max_shift?(1.5)} compares a generated picture with the layout and returns the shift in squares that best makes its floor match, for apply_walls shift. build {layout, scene_name, prompt?, upload_folder?(maps), filename?, scene_grid_size?(64), scene_options?, auto_align?(true), walls?(true)} does the whole chain in one call: render the sketch, generate the map (prompt = the look, default the layout look; the legend, the areas and features are added), upload it, create the scene (scene_options: darkness, fog_mode, token_vision, initial_view, grid_alpha ... as in the scene tool, create), align and place the walls and doors. Takes 1-3 minutes. render also returns the prompt build would use. set {layout, snap?, background?, wall_fills?, reference?, look?} changes layout settings. undo {layout, steps?} and redo {layout, steps?} step back and forward through the changes (add, update, remove, set; the last 40 are kept and saved with the layout); every change reports how many undo and redo steps there are. list; delete {layout}. Works without Foundry.',
 +        inputSchema: {
 +          type: 'object',
 +          properties: {
-+            action: { type: 'string', enum: ['new', 'add', 'update', 'remove', 'show', 'render', 'walls', 'apply_walls', 'check', 'place', 'lights', 'align', 'build', 'portals', 'set', 'undo', 'redo', 'list', 'delete'] },
-+            layout: { type: 'string', description: 'Layout name or id (new: use name)' },
-+            name: { type: 'string', description: 'new: layout name' },
++            action: { type: 'string', enum: ['plan', 'furnish', 'new', 'add', 'update', 'remove', 'show', 'render', 'walls', 'apply_walls', 'check', 'place', 'lights', 'align', 'build', 'portals', 'set', 'undo', 'redo', 'list', 'delete'] },
++            layout: { type: 'string', description: 'Layout name or id (new and plan: use name)' },
++            name: { type: 'string', description: 'new/plan: layout name' },
++            areas: {
++              type: 'array',
++              maxItems: 30,
++              description: 'plan: the rooms or caves',
++              items: {
++                type: 'object',
++                properties: {
++                  name: { type: 'string' },
++                  size: { description: 'tiny, small, medium (default), large, huge, or [width, height] in squares' },
++                  shape: { type: 'string', enum: ['room', 'round', 'cave', 'clearing', 'building'] },
++                  contents: { type: 'string', description: 'what is in it, in words (goes in the image prompt)' },
++                  fill: { type: 'string', enum: fillNames },
++                  features: {
++                    type: 'array',
++                    description: 'objects drawn as markers: {what, at?, count?, size?}',
++                    items: { type: 'object', properties: { what: { type: 'string' }, at: { type: 'string' }, count: { type: 'number' }, size: { type: 'array', items: { type: 'number' } } }, required: ['what'] },
++                  },
++                },
++                required: ['name'],
++              },
++            },
++            links: { type: 'array', maxItems: 80, description: 'plan: [from, to, via?] or {from, to, via?: corridor|door|open|secret|tunnel|path|road|stream, door?, locked?, length?}', items: {} },
++            seed: { type: 'number', description: 'plan: repeat an arrangement (another seed gives another one)' },
++            look: { type: 'string', description: 'plan/set: the look of the map for build (style, mood, materials)' },
++            style: { type: 'string', enum: ['dungeon', 'cave', 'building', 'outdoor'], description: 'plan: dungeon (rooms and corridors, default), cave (caves and tunnels), building (rooms packed inside one building, thin walls) or outdoor (clearings, paths, buildings on open ground)' },
++            footprint: { type: 'array', items: { type: 'number' }, description: 'plan building: [width, height] of the building in squares (default from the rooms)' },
++            floor: { type: 'string', enum: fillNames, description: 'plan building: floor of the rooms (default wood)' },
++            ground: { type: 'string', enum: fillNames, description: 'plan: the ground round a building or under an outdoor map (default grass; forest for woodland, sand, snow, dirt)' },
++            entrance: { description: 'plan: {area, side?: n|s|e|w} a way in from the map edge' },
++            corridor_width: { type: 'number', description: 'plan: corridor width in squares (1-3, default 2)' },
++            features: { type: 'array', description: 'furnish: [{what, at?, count?, size?}]', items: { type: 'object', additionalProperties: true } },
++            in: { type: ['string', 'number'], description: 'furnish: the area (name, id or label)' },
++            contents: { type: 'string', description: 'furnish: what is in the area, in words' },
 +            columns: { type: 'number', description: 'new: width in squares (4 to 200)' },
 +            rows: { type: 'number', description: 'new: height in squares (4 to 200)' },
 +            grid_size: { type: 'number', description: 'new: pixels per square (default 64)' },
@@ -51616,7 +54173,7 @@ index 0000000..511e95f
 +            color: { type: 'string', description: 'lights: #RRGGBB (default #ffa040)' },
 +            animation: { type: 'string', description: 'lights: animation (default torch)' },
 +            include_outdoor: { type: 'boolean', description: 'lights: also light grass, road and sand shapes' },
-+            image: { type: 'string', description: 'align: PNG or JPEG of the generated map on this computer' },
++            image: { type: 'string', description: 'align, apply_walls: PNG or JPEG of the generated map on this computer (apply_walls snaps the walls onto it)' },
 +            max_shift: { type: 'number', description: 'align: largest shift to try, in squares (default 1.5)' },
 +            prompt: { type: 'string', description: 'build: the look of the map (the legend of the layout is added)' },
 +            scene_name: { type: 'string', description: 'build: name of the scene to create' },
@@ -51641,6 +54198,8 @@ index 0000000..511e95f
 +        return { success: true, layouts: await this.store.list(), folder: this.store.folder };
 +      case 'new':
 +        return this.handleNew(a);
++      case 'plan':
++        return this.handlePlan(a);
 +      case 'delete': {
 +        const id = this.need(a);
 +        await this.store.load(id);
@@ -51679,10 +54238,54 @@ index 0000000..511e95f
 +    return this.summary(doc, 'new', []);
 +  }
 +
++  /** Lay out a whole place from areas and links, as a new layout (or a new arrangement of one, with replace). */
++  private async handlePlan(a: Args): Promise<any> {
++    const name = a.name ?? a.layout;
++    if (!name) throw new Error('plan needs name');
++    if (!a.areas) throw new Error('plan needs areas: [{name, size?, shape?, contents?, features?}]');
++    const exists = await this.store.exists(name);
++    if (exists && !a.replace) {
++      throw new Error(`A layout named "${name}" already exists; pass replace:true to plan it again (another seed gives another arrangement), or use another name`);
++    }
++    const plan = buildPlan({
++      areas: a.areas,
++      ...(a.links ? { links: a.links } : {}),
++      ...(a.seed !== undefined ? { seed: a.seed } : {}),
++      ...(a.style ? { style: a.style } : {}),
++      ...(a.entrance !== undefined ? { entrance: a.entrance } : {}),
++      ...(a.corridor_width !== undefined ? { corridor_width: a.corridor_width } : {}),
++      ...(a.footprint ? { footprint: a.footprint } : {}),
++      ...(a.floor ? { floor: a.floor } : {}),
++      ...(a.ground ? { ground: a.ground } : {}),
++    });
++    const doc = createDoc({
++      name,
++      columns: plan.columns,
++      rows: plan.rows,
++      background: plan.background,
++      ...(plan.wallFills ? { wall_fills: plan.wallFills } : {}),
++    });
++    doc.look = a.look ?? STYLE_LOOKS[a.style ?? 'dungeon'];
++    addShapes(doc, plan.shapes);
++    await this.store.save(doc);
++    const check = checkLayout(layoutOf(doc));
++    const problems = [...plan.warnings, ...check.errors, ...check.warnings];
++    this.logger.info('Layout planned', { layout: doc.id, seed: plan.seed, columns: plan.columns, rows: plan.rows });
++    return {
++      ...this.summary(doc, 'plan', []),
++      seed: plan.seed,
++      areas: plan.areas.map(p => ({ name: p.name, shape: p.shape, at: [p.rect[0], p.rect[1]], size: [p.rect[2], p.rect[3]] })),
++      links: plan.links,
++      ...(problems.length > 0 ? { warnings: problems } : {}),
++      next:
++        'Check the text map. For a different arrangement, plan again with replace:true and another seed (or change sizes and links). show png:true draws it with the feature markers. Then build {layout, scene_name}: the image prompt is written from contents and features (render shows it).',
++    };
++  }
++
 +  private async handleExisting(a: Args): Promise<any> {
 +    const doc = await this.store.load(this.need(a));
 +    // A change that fails must leave the saved layout and the copy in memory as they were.
-+    const backup = ['add', 'update', 'remove', 'set'].includes(a.action) ? captureState(doc) : null;
++    const backup = ['add', 'update', 'remove', 'set', 'furnish'].includes(a.action) ? captureState(doc) : null;
 +    try {
 +      return await this.runExisting(doc, a);
 +    } catch (error) {
@@ -51721,6 +54324,36 @@ index 0000000..511e95f
 +        await this.store.save(doc);
 +        return this.summary(doc, 'update', [a.id]);
 +      }
++      case 'furnish': {
++        if (a.in === undefined) throw new Error('furnish needs in (the area: name, id or label)');
++        if (!a.features && a.contents === undefined) throw new Error('furnish needs features or contents');
++        const before = captureState(doc);
++        const { shape } = resolveShape(layoutOf(doc), a.in);
++        if (shape.feature) throw new Error(`${a.in} is a feature, not an area`);
++        if (!shape.name) shape.name = `area ${shape.id}`;
++        if (a.contents !== undefined) {
++          if (a.contents.trim()) shape.contents = a.contents.trim();
++          else delete shape.contents;
++        }
++        let ids: number[] = [];
++        let warnings: string[] = [];
++        if (a.features) {
++          const boxOf = (s: any): [number, number, number, number] => {
++            const pts = shapePolygons(s, 1).flat();
++            const xs = pts.map(p => p[0]);
++            const ys = pts.map(p => p[1]);
++            return [Math.min(...xs), Math.min(...ys), Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys)];
++          };
++          const mode = shape.shape === 'rect' && !shape.rotate ? 'rect' : 'inset';
++          const existing = doc.shapes.filter(s => s.feature && s.in_area === shape.name).map(boxOf);
++          const made = featureShapes(shape.name, mode, boxOf(shape), a.features, existing, shape.fill ?? 'floor');
++          warnings = made.warnings;
++          if (made.shapes.length > 0) ids = addShapes(doc, made.shapes);
++        }
++        commitChange(doc, `furnish ${shape.name}`, before);
++        await this.store.save(doc);
++        return { ...this.summary(doc, 'furnish', ids), ...(warnings.length > 0 ? { warnings } : {}) };
++      }
 +      case 'remove': {
 +        if (!a.ids) throw new Error('remove needs ids');
 +        const before = captureState(doc);
@@ -51743,6 +54376,7 @@ index 0000000..511e95f
 +          for (const f of a.wall_fills) if (!FILLS[f]) throw new Error(`wall_fills: unknown fill "${f}"`);
 +          doc.wallFills = a.wall_fills;
 +        }
++        if (a.look !== undefined) doc.look = a.look;
 +        if (a.reference === null) delete doc.reference;
 +        else if (a.reference) {
 +          doc.reference = { image: a.reference.image, origin: a.reference.origin, cellPx: a.reference.cell_px };
@@ -51789,15 +54423,31 @@ index 0000000..511e95f
 +
 +  /** Build the walls and doors and place them on the scene, in chunks Foundry accepts. */
 +  private async applyWalls(doc: LayoutDoc, a: Args): Promise<any> {
-+    const { walls, segments } = wallsFromLayout(layoutOf(doc));
++    const layout = layoutOf(doc);
++    const { walls, segments } = wallsFromLayout(layout);
 +    if (walls.length === 0) throw new Error('The layout has nothing to put walls around yet');
 +    const [dx, dy] = a.shift ?? [0, 0];
-+    const placed = walls.map(w => ({
++    const shifted = walls.map(w => ({
 +      ...w,
 +      points: w.points.map(p => [Math.round((p[0]! + dx) * 100) / 100, Math.round((p[1]! + dy) * 100) / 100]),
 +    }));
++    // With the generated picture: move each wall run onto the edge actually painted there.
++    let snapped: any;
++    if (a.image) {
++      const raster = rasterize(layout);
++      const wallFills = new Set(layout.wallFills);
++      snapped = snapWallsToImage(shifted, await decodeImage(a.image), {
++        columns: doc.columns,
++        rows: doc.rows,
++        inside: (x, y) => wallFills.has(fillAt(raster, x - dx, y - dy)),
++      });
++    }
++    const placed = shifted.map(({ fixed: _fixed, ...w }) => ({
++      ...w,
++      points: w.points.map(p => [Math.round(p[0]! * 100) / 100, Math.round(p[1]! * 100) / 100]),
++    }));
 +    const doors = placed.filter(w => w.preset).length;
-+    const plan = { walls: placed.length - doors, doors, segments };
++    const plan = { walls: placed.length - doors, doors, segments, ...(snapped ? { snappedToPicture: snapped } : {}) };
 +    if (a.dry_run) return { success: true, layout: doc.id, dryRun: true, ...plan };
 +
 +    const client = this.foundryClient;
@@ -52090,14 +54740,16 @@ index 0000000..511e95f
 +  private async build(doc: LayoutDoc, a: Args): Promise<any> {
 +    if (!this.generate || !this.upload) throw new Error('build needs image generation and upload, which are not available here');
 +    if (!a.scene_name) throw new Error('build needs scene_name');
-+    if (!a.prompt) throw new Error('build needs prompt (describe the look of the map)');
-+    const width = doc.columns * doc.size;
-+    const height = doc.rows * doc.size;
++    // A size the image model keeps exactly (multiples of 32, about 2 megapixels, the layout's own shape),
++    // so the picture is not stretched against the grid.
++    const exact = exactPictureSize(doc.columns, doc.rows);
++    const width = exact?.width ?? doc.columns * doc.size;
++    const height = exact?.height ?? doc.rows * doc.size;
 +    if (width % 32 !== 0 || height % 32 !== 0) {
 +      throw new Error(`The picture would be ${width} x ${height} pixels; the image model needs multiples of 32. Change the layout columns, rows or grid_size (set grid_size 32, 64 or pick even columns for 48).`);
 +    }
 +    const steps: string[] = [];
-+    const sketch = await this.render(doc);
++    const sketch = await this.render(doc, a.prompt);
 +    steps.push('sketch rendered');
 +    const generated = await this.generate({
 +      kind: 'map',
@@ -52105,7 +54757,7 @@ index 0000000..511e95f
 +      height,
 +      upload: false,
 +      reference_images: [sketch.file],
-+      prompt: `<Picture 1> is the exact floor plan to follow. ${sketch.legend} ${a.prompt} No text, no numbers, no grid lines, no characters.`,
++      prompt: sketch.prompt,
 +    });
 +    if (generated?.success === false) throw new Error(generated.error || 'The map could not be generated');
 +    const localPath: string | undefined = generated?.local_path;
@@ -52141,7 +54793,8 @@ index 0000000..511e95f
 +    if (a.auto_align !== false && !a.shift) {
 +      try {
 +        alignment = alignToImage(layoutOf(doc), await decodeImage(localPath));
-+        if (alignment.quality !== 'none') shift = alignment.shift;
++        // Only a clear match moves the walls; a weak one is more often wrong than right.
++        if (alignment.quality === 'good') shift = alignment.shift;
 +        steps.push(`aligned (shift ${shift[0]}, ${shift[1]}, match ${alignment.score})`);
 +      } catch (error) {
 +        steps.push(`alignment skipped: ${error instanceof Error ? error.message : 'failed'}`);
@@ -52150,8 +54803,11 @@ index 0000000..511e95f
 +
 +    let walls: any;
 +    if (a.walls !== false) {
-+      walls = await this.applyWalls(doc, { ...a, scene: sceneId, shift });
-+      steps.push(`${walls.walls} walls and ${walls.doors} doors placed`);
++      walls = await this.applyWalls(doc, { ...a, scene: sceneId, shift, ...(a.auto_align !== false ? { image: localPath } : {}) });
++      steps.push(
++        `${walls.walls} walls and ${walls.doors} doors placed` +
++          (walls.snappedToPicture ? `, ${walls.snappedToPicture.runsMoved} of ${walls.snappedToPicture.runsLooked} wall runs moved onto the painted edges` : '')
++      );
 +    }
 +    return {
 +      success: true,
@@ -52159,7 +54815,7 @@ index 0000000..511e95f
 +      scene: { id: sceneId, name: a.scene_name },
 +      image: { local: localPath, uploaded: uploaded.path },
 +      ...(alignment ? { alignment } : {}),
-+      ...(walls ? { walls: { walls: walls.walls, doors: walls.doors, shift } } : {}),
++      ...(walls ? { walls: { walls: walls.walls, doors: walls.doors, shift, ...(walls.snappedToPicture ? { snapped: walls.snappedToPicture } : {}) } } : {}),
 +      steps,
 +      next: 'Look at the result with preview-scene (layers and text mode help in crowded scenes), then place tokens and lights with layout place and lights.',
 +    };
@@ -52222,7 +54878,7 @@ index 0000000..511e95f
 +    };
 +  }
 +
-+  private async render(doc: LayoutDoc): Promise<any> {
++  private async render(doc: LayoutDoc, look?: string): Promise<any> {
 +    if (doc.shapes.length === 0) throw new Error('The layout has no shapes yet');
 +    const layout = layoutOf(doc);
 +    const { width, height, rgb } = renderLayout(layout);
@@ -52237,8 +54893,9 @@ index 0000000..511e95f
 +      height,
 +      grid: { columns: doc.columns, rows: doc.rows, squarePixels: doc.size },
 +      legend: legendFor(layout),
++      prompt: mapPrompt(layout, look ?? doc.look),
 +      hint:
-+        'Pass file in generate-image reference_images and say that <Picture 1> is the exact floor plan to follow, then add the legend sentence (and say what any custom colour means). Remove numbers or text in the prompt. Use the same grid size for the scene.' +
++        'build uses this prompt (prompt there changes only the look). By hand: pass file in generate-image reference_images with this prompt, and use the same grid size for the scene.' +
 +        (multiple ? '' : ' The image model rounds sizes to multiples of 32; pick columns and rows so width and height are multiples of 32 to avoid a slight stretch.'),
 +    };
 +  }
@@ -59986,7 +62643,7 @@ index 0000000..5550792
 +  });
 +});
 diff --git a/packages/mcp-server/src/tools/token-manipulation.ts b/packages/mcp-server/src/tools/token-manipulation.ts
-index 6afedf1..db2946c 100644
+index 6afedf1..f95c11c 100644
 --- a/packages/mcp-server/src/tools/token-manipulation.ts
 +++ b/packages/mcp-server/src/tools/token-manipulation.ts
 @@ -24,27 +24,33 @@ export class TokenManipulationTools {
@@ -60186,15 +62843,20 @@ index 6afedf1..db2946c 100644
        });
  
        this.logger.debug('Token updated successfully', { tokenId, result });
-@@ -251,6 +321,7 @@ export class TokenManipulationTools {
+@@ -249,8 +319,11 @@ export class TokenManipulationTools {
+       return {
+         success: true,
          tokenId,
-         updated: true,
+-        updated: true,
++        updated: !(result as any)?.note,
          appliedUpdates: updates,
++        ...((result as any)?.position ? { position: (result as any).position } : {}),
++        ...((result as any)?.note ? { note: (result as any).note } : {}),
 +        ...(real_name !== undefined ? { realName: real_name } : {}),
        };
      } catch (error) {
        this.logger.error('Failed to update token', error);
-@@ -296,15 +367,17 @@ export class TokenManipulationTools {
+@@ -296,15 +369,17 @@ export class TokenManipulationTools {
    async handleGetTokenDetails(args: any): Promise<any> {
      const schema = z.object({
        tokenId: z.string(),
