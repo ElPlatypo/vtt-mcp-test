@@ -90454,8 +90454,9 @@ var init_adapter = __esm({
           }
         }
         if (actorData.type === "npc") {
-          const creatureType = system.details?.type?.value ?? system.details?.type;
-          if (creatureType) {
+          const rawType = system.details?.type;
+          const creatureType = typeof rawType === "string" ? rawType : rawType?.value;
+          if (typeof creatureType === "string" && creatureType) {
             stats.creatureType = creatureType;
           }
           const size = system.traits?.size?.value ?? system.traits?.size ?? system.size;

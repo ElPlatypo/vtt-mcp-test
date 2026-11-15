@@ -3135,10 +3135,10 @@ index 0000000..7b10937
 +}
 diff --git a/packages/foundry-module/src/combat-actions.test.ts b/packages/foundry-module/src/combat-actions.test.ts
 new file mode 100644
-index 0000000..4bfa1b8
+index 0000000..5181542
 --- /dev/null
 +++ b/packages/foundry-module/src/combat-actions.test.ts
-@@ -0,0 +1,220 @@
+@@ -0,0 +1,254 @@
 +/** Attacks, saves and checks through the dnd5e activity and actor roll APIs (stubbed). */
 +import { describe, expect, it, vi } from 'vitest';
 +import { performAttack, performCheck, pickActivity, resolveKey } from './combat-actions.js';
@@ -3359,12 +3359,46 @@ index 0000000..4bfa1b8
 +    expect(tokenRealName({})).toBeUndefined();
 +  });
 +});
++
++describe('riders (the extra save of an attack)', () => {
++  function biter(dc = 11) {
++    const a = attacker('attack', { damage: 5 });
++    const rider: any = { id: 'sv', type: 'save', save: { ability: new Set(['str']), dc: { value: dc } }, effects: [{ _id: 'e1', onSave: false }] };
++    const effect = { id: 'e1', name: 'Bite', statuses: new Set(['prone']) };
++    a.activity.id = 'at';
++    const item: any = { id: 'i1', name: 'Bite', effects: { get: (id: string) => (id === 'e1' ? effect : undefined) }, system: { activities: { values: () => [a.activity, rider] } } };
++    a.activity.item = item;
++    a.actor = { items: { contents: [item] } };
++    return a;
++  }
++  it('rolls the save after a hit and applies the status on a failure', async () => {
++    const a = biter();
++    const t = target('Mira', 20, 13);
++    (t.actor as any).toggleStatusEffect = vi.fn(async () => undefined);
++    const r = await performAttack(a, [t], {});
++    expect(r.results[0].riders[0]).toMatchObject({ ability: 'str', dc: 11, save: 10, saved: false, applied: ['prone'], effect: 'prone' });
++    expect((t.actor as any).toggleStatusEffect).toHaveBeenCalledWith('prone', { active: true });
++  });
++  it('applies nothing when the save succeeds, and nothing without a hit', async () => {
++    const a = biter(8);
++    const t = target('Mira', 20, 13);
++    (t.actor as any).toggleStatusEffect = vi.fn();
++    const r = await performAttack(a, [t], {});
++    expect(r.results[0].riders[0]).toMatchObject({ saved: true });
++    expect(r.results[0].riders[0].applied).toBeUndefined();
++    expect((t.actor as any).toggleStatusEffect).not.toHaveBeenCalled();
++    const miss = biter();
++    miss.activity.rollAttack = vi.fn(async () => [roll(5, { isSuccess: false, options: { target: 13 } })]);
++    const r2 = await performAttack(miss, [target('Mira', 20, 13)], {});
++    expect(r2.results[0].riders).toBeUndefined();
++  });
++});
 diff --git a/packages/foundry-module/src/combat-actions.ts b/packages/foundry-module/src/combat-actions.ts
 new file mode 100644
-index 0000000..024f94d
+index 0000000..615341a
 --- /dev/null
 +++ b/packages/foundry-module/src/combat-actions.ts
-@@ -0,0 +1,318 @@
+@@ -0,0 +1,386 @@
 +/**
 + * Monster and character actions in combat: roll an attack (and damage, and apply it), roll a
 + * saving-throw ability against targets, or roll a check. Works through the dnd5e activity and actor
@@ -3625,6 +3659,74 @@ index 0000000..024f94d
 +    const looks = healthLooks(t.actor, after <= 0);
 +    if (looks) row.looks = looks;
 +  }
++  const riders = await applyRiders(activity, t, apply, message);
++  if (riders.length) row.riders = riders;
++}
++
++/**
++ * The extra save an attack carries ("or be knocked prone"): a sibling save activity of the same item. Roll the target's
++ * save against its DC; on a failure (or always, if the effect says so) apply the effect's statuses. What cannot be applied
++ * is said plainly, never left silent.
++ */
++export async function applyRiders(activity: any, t: NamedActor, apply: boolean, message: Record<string, any>): Promise<Array<Record<string, any>>> {
++  const item = activity?.item;
++  const all: any[] = [...(item?.system?.activities?.values?.() ?? [])];
++  const out: Array<Record<string, any>> = [];
++  for (const rider of all) {
++    if (rider === activity || rider.id === activity.id || rider.type !== 'save') continue;
++    const abilities = rider.save?.ability;
++    const ability = abilities instanceof Set ? [...abilities][0] : Array.isArray(abilities) ? abilities[0] : abilities;
++    const dc = Number(rider.save?.dc?.value ?? 0);
++    const row: Record<string, any> = { ability, dc };
++    const effects = (rider.effects ?? []).map((e: any) => ({ doc: item.effects?.get?.(e._id), onSave: !!e.onSave })).filter((e: any) => e.doc);
++    const statuses = [...new Set(effects.flatMap((e: any) => [...(e.doc.statuses ?? [])]))] as string[];
++    row.effect = statuses.length ? statuses.join(', ') : effects.map((e: any) => e.doc.name).join(', ') || undefined;
++    if (!ability || !dc) {
++      row.note = 'rider not applied: the save has no ability or DC';
++      out.push(row);
++      continue;
++    }
++    if (!t.actor || typeof t.actor.rollSavingThrow !== 'function') {
++      row.note = 'rider not applied: the target cannot roll a save';
++      out.push(row);
++      continue;
++    }
++    const rolls = await t.actor.rollSavingThrow({ ability, target: dc }, NO_DIALOG, message);
++    const result = total(rolls?.[0] ? [rolls[0]] : []);
++    const saved = result >= dc;
++    row.save = result;
++    row.saved = saved;
++    if (!apply) {
++      out.push(row);
++      continue;
++    }
++    const toApply = effects.filter((e: any) => !saved || e.onSave);
++    if (!toApply.length) {
++      out.push(row);
++      continue;
++    }
++    const done: string[] = [];
++    for (const e of toApply) {
++      const ids = [...(e.doc.statuses ?? [])] as string[];
++      if (ids.length && typeof t.actor.toggleStatusEffect === 'function') {
++        for (const id of ids) {
++          await t.actor.toggleStatusEffect(id, { active: true });
++          done.push(id);
++        }
++      } else if (typeof t.actor.createEmbeddedDocuments === 'function' && e.doc.toObject) {
++        const data = e.doc.toObject();
++        delete data._id;
++        data.origin = item.uuid;
++        await t.actor.createEmbeddedDocuments('ActiveEffect', [data]);
++        done.push(e.doc.name);
++      } else {
++        row.note = `rider not applied: ${e.doc.name || 'the effect'} could not be added`;
++      }
++    }
++    if (done.length) row.applied = done;
++    out.push(row);
++  }
++  return out;
 +}
 +
 +export interface CheckRequest {
@@ -9632,10 +9734,10 @@ index 0000000..26606a1
 +});
 diff --git a/packages/foundry-module/src/data-access.token-scene.test.ts b/packages/foundry-module/src/data-access.token-scene.test.ts
 new file mode 100644
-index 0000000..23ecb89
+index 0000000..4d4fd12
 --- /dev/null
 +++ b/packages/foundry-module/src/data-access.token-scene.test.ts
-@@ -0,0 +1,100 @@
+@@ -0,0 +1,128 @@
 +/** move-token and update-token find a token on any scene, and update-token takes vision/light options. */
 +import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 +import { FoundryDataAccess } from './data-access.js';
@@ -9671,7 +9773,7 @@ index 0000000..23ecb89
 +    const { da, b } = setup();
 +    const r = await da.moveToken({ tokenId: 'tb', x: 128, y: 64, animate: false });
 +    expect(r.success).toBe(true);
-+    expect(b.update).toHaveBeenCalledWith({ x: 128, y: 64 }, { animate: false });
++    expect(b.update).toHaveBeenCalledWith({ x: 128, y: 64 }, { teleport: true, animate: false });
 +  });
 +
 +  it('takes a scene by name and reports a token that is not there', async () => {
@@ -9736,9 +9838,37 @@ index 0000000..23ecb89
 +    expect(b.update).not.toHaveBeenCalled();
 +  });
 +});
++
++describe('a position in a token update is a placement', () => {
++  beforeEach(() => vi.unstubAllGlobals());
++  afterEach(() => vi.unstubAllGlobals());
++
++  it('teleports past walls, ends a stuck movement first, and reports where the token is', async () => {
++    const { da, a } = setup();
++    const token: any = a.tokens.get('ta');
++    token.stopMovement = vi.fn(async () => undefined);
++    const r = await da.updateToken({ tokenId: 'ta', updates: { x: 640, y: 320, hidden: false } });
++    expect(token.stopMovement).toHaveBeenCalled();
++    expect(a.update).toHaveBeenCalledWith({ hidden: false });
++    expect(a.update).toHaveBeenCalledWith({ x: 640, y: 320 }, { teleport: true, animate: false });
++    expect(r).toMatchObject({ success: true, position: { x: 640, y: 320 }, updatedProperties: expect.arrayContaining(['x', 'y', 'hidden']) });
++    expect(r.note).toBeUndefined();
++  });
++
++  it('says so, with the real position, when Foundry leaves the token somewhere else', async () => {
++    const { da, a } = setup();
++    const token: any = a.tokens.get('ta');
++    token.x = 100;
++    token.y = 100;
++    a.update.mockImplementation(async () => undefined); // the update is swallowed
++    const r = await da.updateToken({ tokenId: 'ta', updates: { x: 640 } });
++    expect(r.position).toEqual({ x: 100, y: 100 });
++    expect(r.note).toContain('left it at 100, 100');
++  });
++});
 diff --git a/packages/foundry-module/src/data-access.token-squares.test.ts b/packages/foundry-module/src/data-access.token-squares.test.ts
 new file mode 100644
-index 0000000..07712cf
+index 0000000..b50a33c
 --- /dev/null
 +++ b/packages/foundry-module/src/data-access.token-squares.test.ts
 @@ -0,0 +1,72 @@
@@ -9786,13 +9916,13 @@ index 0000000..07712cf
 +  it('converts squares to pixels with the padding offset', async () => {
 +    const { da, b } = setup();
 +    const r = await da.moveToken({ tokenId: 'tb', x: 11, y: 2.5, units: 'squares', animate: false });
-+    expect(b.update).toHaveBeenCalledWith({ x: 320 + 11 * 64, y: 320 + 2.5 * 64 }, { animate: false });
++    expect(b.update).toHaveBeenCalledWith({ x: 320 + 11 * 64, y: 320 + 2.5 * 64 }, { teleport: true, animate: false });
 +    expect(r).toMatchObject({ success: true, newPosition: { x: 1024, y: 480 }, newSquares: { x: 11, y: 2.5 }, scene: { id: 'sb', name: 'Town' } });
 +  });
 +  it('keeps pixels the default and refuses bad units and squares off the map', async () => {
 +    const { da, b } = setup();
 +    await da.moveToken({ tokenId: 'tb', x: 640, y: 640, animate: false });
-+    expect(b.update).toHaveBeenCalledWith({ x: 640, y: 640 }, { animate: false });
++    expect(b.update).toHaveBeenCalledWith({ x: 640, y: 640 }, { teleport: true, animate: false });
 +    await expect(da.moveToken({ tokenId: 'tb', x: 1, y: 1, units: 'feet' as any })).rejects.toThrow('units must be pixels or squares');
 +    await expect(da.moveToken({ tokenId: 'tb', x: 21, y: 1, units: 'squares' })).rejects.toThrow('inside the map');
 +    await expect(da.moveToken({ tokenId: 'tb', x: -1, y: 1, units: 'squares' })).rejects.toThrow('inside the map');
@@ -9815,7 +9945,7 @@ index 0000000..07712cf
 +  });
 +});
 diff --git a/packages/foundry-module/src/data-access.ts b/packages/foundry-module/src/data-access.ts
-index eecda7e..6ace3c0 100644
+index eecda7e..a5f7163 100644
 --- a/packages/foundry-module/src/data-access.ts
 +++ b/packages/foundry-module/src/data-access.ts
 @@ -1,6 +1,157 @@
@@ -10468,7 +10598,7 @@ index eecda7e..6ace3c0 100644
          dimensions: {
            width: (targetScene.dimensions as any)?.width || (targetScene as any).width || 0,
            height: (targetScene.dimensions as any)?.height || (targetScene as any).height || 0,
-@@ -8101,199 +8423,4991 @@ export class FoundryDataAccess {
+@@ -8101,199 +8423,4993 @@ export class FoundryDataAccess {
      }
    }
  
@@ -12061,6 +12191,8 @@ index eecda7e..6ace3c0 100644
 +              const infos: TokenLike[] = sceneTokens.map(t => ({ id: t.id, name: t.name, actorName: t.actor?.name, realName: tokenRealName(t) }));
 +              const { picked } = pickTokens(infos, [entry.target]);
 +              actors = picked.map(p => ({ name: p.name ?? '?', actor: sceneTokens.find(t => t.id === p.id)?.actor }));
++              // no token by that name: an actor with no token on the scene (a character off the map) by its own name
++              if (actors.length === 0) actors = resolveNamed([entry.target]).map(r => ({ name: r.name, actor: r.actor }));
 +            }
 +            actors = actors.filter(a => a.actor);
 +            if (actors.length === 0) missing.push(entry.target);
@@ -15631,7 +15763,7 @@ index eecda7e..6ace3c0 100644
            await pl.playAll();
            return { success: true, action: 'play', playlist: info };
          case 'stop':
-@@ -8304,20 +13418,48 @@ export class FoundryDataAccess {
+@@ -8304,20 +13420,48 @@ export class FoundryDataAccess {
            return { success: true, action: 'cycle-mode', playlist: info, mode: pl.mode as number };
          case 'play-sound':
          case 'stop-sound': {
@@ -15686,7 +15818,7 @@ index eecda7e..6ace3c0 100644
        }
      } catch (error) {
        throw new Error(
-@@ -8468,6 +13610,59 @@ export class FoundryDataAccess {
+@@ -8468,6 +13612,75 @@ export class FoundryDataAccess {
      }
    }
  
@@ -15743,10 +15875,26 @@ index eecda7e..6ace3c0 100644
 +    throw new Error(`Token ${identifier} not found in scene "${scene.name}" (no token with that id or name)`);
 +  }
 +
++  /**
++   * Put a token at a position as a teleport: Foundry's movement then ignores walls and does not animate, and a movement
++   * left half-done by an earlier walk (a token stopped at a wall) is ended first, since it would swallow the update.
++   */
++  private async placeToken(token: any, scene: any, target: { x: number; y: number }): Promise<{ x: number; y: number }> {
++    try {
++      if (typeof token.stopMovement === 'function') await token.stopMovement();
++      else token.object?.stopAnimation?.();
++    } catch {
++      // nothing to stop
++    }
++    await token.update({ x: target.x, y: target.y }, { teleport: true, animate: false });
++    const fresh = scene.tokens?.get?.(token.id) ?? token;
++    return { x: Number(fresh.x), y: Number(fresh.y) };
++  }
++
    /**
     * Move a token to a new position on the scene
     */
-@@ -8476,6 +13671,12 @@ export class FoundryDataAccess {
+@@ -8476,6 +13689,12 @@ export class FoundryDataAccess {
      x: number;
      y: number;
      animate?: boolean;
@@ -15759,7 +15907,7 @@ index eecda7e..6ace3c0 100644
    }): Promise<any> {
      this.validateFoundryState();
  
-@@ -8489,33 +13690,79 @@ export class FoundryDataAccess {
+@@ -8489,33 +13708,72 @@ export class FoundryDataAccess {
      }
  
      try {
@@ -15807,17 +15955,10 @@ index eecda7e..6ace3c0 100644
 -      if (!token) {
 -        throw new Error(`Token ${data.tokenId} not found in current scene`);
 +      if (!walked) {
-+        // Update token position
-+        await token.update(
-+          {
-+            x: target.x,
-+            y: target.y,
-+          },
-+          { animate: data.animate !== false }
-+        );
++        // A teleport: walls and speed are ignored on purpose, and a movement stuck from an earlier walk is ended
++        const fresh = await this.placeToken(token, scene, target);
 +        // An update can be dropped (for example while the GM changes scene): say so instead of claiming the move.
-+        const fresh = scene.tokens?.get?.(token.id) ?? token;
-+        if (Math.round(Number(fresh.x)) !== Math.round(target.x) || Math.round(Number(fresh.y)) !== Math.round(target.y)) {
++        if (Math.round(fresh.x) !== Math.round(target.x) || Math.round(fresh.y) !== Math.round(target.y)) {
 +          this.auditLog('moveToken', data, 'failure', 'position unchanged after update');
 +          return {
 +            success: false,
@@ -15826,7 +15967,7 @@ index eecda7e..6ace3c0 100644
 +            scene: { id: scene.id, name: scene.name },
 +            moved: false,
 +            position: { x: fresh.x, y: fresh.y },
-+            note: 'Foundry did not apply the move (the token is still where it was). Check that the scene is not being changed and try again.',
++            note: 'Foundry did not apply the move (the token is not at the target). position shows where it is. Check that the scene is not being changed and try again.',
 +          };
 +        }
        }
@@ -15856,7 +15997,7 @@ index eecda7e..6ace3c0 100644
        };
      } catch (error) {
        this.auditLog(
-@@ -8530,10 +13777,125 @@ export class FoundryDataAccess {
+@@ -8530,10 +13788,125 @@ export class FoundryDataAccess {
      }
    }
  
@@ -15983,7 +16124,7 @@ index eecda7e..6ace3c0 100644
      this.validateFoundryState();
  
      // Use permission system
-@@ -8546,23 +13908,21 @@ export class FoundryDataAccess {
+@@ -8546,23 +13919,33 @@ export class FoundryDataAccess {
      }
  
      try {
@@ -15991,13 +16132,13 @@ index eecda7e..6ace3c0 100644
 -      if (!scene) {
 -        throw new Error('No active scene found');
 -      }
-+      const { token } = this.findSceneToken(data.tokenId, data.scene);
- 
+-
 -      const token = scene.tokens.get(data.tokenId);
 -      if (!token) {
 -        throw new Error(`Token ${data.tokenId} not found in current scene`);
 -      }
--
++      const { token } = this.findSceneToken(data.tokenId, data.scene);
+ 
 -      // Filter out undefined values
 +      // Filter out undefined values; token options become the same dotted fields a prototype token has.
 +      const optionPatch = data.options !== undefined ? buildPrototypeTokenPatch(data.options, 'options') : {};
@@ -16005,11 +16146,25 @@ index eecda7e..6ace3c0 100644
 -        Object.entries(data.updates).filter(([_, v]) => v !== undefined)
 +        Object.entries({ ...(data.updates ?? {}), ...optionPatch }).filter(([_, v]) => v !== undefined)
        );
-+      if (Object.keys(cleanUpdates).length === 0 && data.realName === undefined) throw new Error('Nothing to update: give updates, options or real_name');
- 
-       // Apply updates
+-
+-      // Apply updates
 -      await token.update(cleanUpdates);
-+      if (Object.keys(cleanUpdates).length > 0) await token.update(cleanUpdates);
++      if (Object.keys(cleanUpdates).length === 0 && data.realName === undefined) throw new Error('Nothing to update: give updates, options or real_name');
++
++      // Apply updates. A position in them is a placement (a teleport, not a walk), so walls do not cut it short, and the
++      // answer says where the token really is: the update used to report success with the token unmoved.
++      let placed: { x: number; y: number } | undefined;
++      let placeNote: string | undefined;
++      const { x: newX, y: newY, ...otherUpdates } = cleanUpdates as Record<string, any>;
++      if (Object.keys(otherUpdates).length > 0) await token.update(otherUpdates);
++      if (newX !== undefined || newY !== undefined) {
++        const { scene } = this.findSceneToken(data.tokenId, data.scene);
++        const want = { x: Number(newX ?? token.x), y: Number(newY ?? token.y) };
++        placed = await this.placeToken(token, scene, want);
++        if (Math.round(placed.x) !== Math.round(want.x) || Math.round(placed.y) !== Math.round(want.y)) {
++          placeNote = `The token is not at ${want.x}, ${want.y}: Foundry left it at ${placed.x}, ${placed.y}. Nothing is wrong with the call; check the scene is not changing and try again.`;
++        }
++      }
 +      if (data.realName !== undefined) {
 +        if (data.realName === null || !String(data.realName).trim()) await token.unsetFlag(MODULE_ID, 'realName');
 +        else await token.setFlag(MODULE_ID, 'realName', String(data.realName).trim());
@@ -16017,17 +16172,19 @@ index eecda7e..6ace3c0 100644
  
        this.auditLog('updateToken', { tokenId: data.tokenId, updates: cleanUpdates }, 'success');
  
-@@ -8570,7 +13930,8 @@ export class FoundryDataAccess {
+@@ -8570,7 +13953,10 @@ export class FoundryDataAccess {
          success: true,
          tokenId: token.id,
          tokenName: token.name,
 -        updatedProperties: Object.keys(cleanUpdates),
 +        updatedProperties: [...Object.keys(cleanUpdates), ...(data.realName !== undefined ? ['realName'] : [])],
++        ...(placed ? { position: placed } : {}),
++        ...(placeNote ? { note: placeNote } : {}),
 +        ...(data.realName ? { realName: String(data.realName).trim() } : {}),
        };
      } catch (error) {
        this.auditLog(
-@@ -8651,19 +14012,12 @@ export class FoundryDataAccess {
+@@ -8651,19 +14037,12 @@ export class FoundryDataAccess {
    /**
     * Get detailed information about a token
     */
@@ -16050,7 +16207,7 @@ index eecda7e..6ace3c0 100644
  
        // Return flat structure that matches MCP server expectations
        return {
-@@ -8719,15 +14073,8 @@ export class FoundryDataAccess {
+@@ -8719,15 +14098,8 @@ export class FoundryDataAccess {
      }
  
      try {
@@ -16068,7 +16225,7 @@ index eecda7e..6ace3c0 100644
  
        const actor = token.actor;
        if (!actor) {
-@@ -9487,213 +14834,6 @@ export class FoundryDataAccess {
+@@ -9487,213 +14859,6 @@ export class FoundryDataAccess {
      }
    }
  
@@ -16282,7 +16439,7 @@ index eecda7e..6ace3c0 100644
    // ---------------------------------------------------------------------------
    // Add weapon attack to an existing actor (dnd5e-add-attack-feature)
    // ---------------------------------------------------------------------------
-@@ -10803,7 +15943,6 @@ export class FoundryDataAccess {
+@@ -10803,7 +15968,6 @@ export class FoundryDataAccess {
      }
  
      try {
@@ -16290,7 +16447,7 @@ index eecda7e..6ace3c0 100644
        const actor = this.findActorByIdentifier(data.actorIdentifier);
        if (!actor) {
          throw new Error(`Actor not found: "${data.actorIdentifier}"`);
-@@ -10812,77 +15951,48 @@ export class FoundryDataAccess {
+@@ -10812,77 +15976,48 @@ export class FoundryDataAccess {
        const cls = data.spellcastingClass as string;
        const lvl = data.spellcastingLevel as number;
        const ability = data.effectiveAbility as string;
@@ -16398,7 +16555,7 @@ index eecda7e..6ace3c0 100644
          warnings,
        };
      } catch (error) {
-@@ -11274,10 +16384,15 @@ export class FoundryDataAccess {
+@@ -11274,10 +16409,15 @@ export class FoundryDataAccess {
        name: string;
        type: string;
        img?: string;
@@ -16415,7 +16572,7 @@ index eecda7e..6ace3c0 100644
      const folderName = params.folder ?? 'Foundry MCP Actors';
      const folderId = await this.getOrCreateFolder(folderName, 'Actor');
  
-@@ -11286,6 +16401,19 @@ export class FoundryDataAccess {
+@@ -11286,6 +16426,19 @@ export class FoundryDataAccess {
      const docs = params.actors.map(a => {
        const doc: Record<string, any> = { name: a.name, type: a.type };
        if (a.img) doc.img = a.img;
@@ -16435,7 +16592,7 @@ index eecda7e..6ace3c0 100644
  
        // Merge system data, adding safe defaults for systems that require certain
        // fields to exist during data preparation (avoids non-fatal init errors).
-@@ -11423,6 +16551,27 @@ export class FoundryDataAccess {
+@@ -11423,6 +16576,27 @@ export class FoundryDataAccess {
          };
        }
  
@@ -16463,7 +16620,7 @@ index eecda7e..6ace3c0 100644
        doc.system = systemData;
        if (folderId) doc.folder = folderId;
        return doc;
-@@ -11436,6 +16585,7 @@ export class FoundryDataAccess {
+@@ -11436,6 +16610,7 @@ export class FoundryDataAccess {
      return {
        created: (created as any[]).map(a => ({ id: a.id, name: a.name, type: a.type })),
        total: created.length,
@@ -16471,7 +16628,7 @@ index eecda7e..6ace3c0 100644
      };
    }
  
-@@ -11471,7 +16621,16 @@ export class FoundryDataAccess {
+@@ -11471,7 +16646,16 @@ export class FoundryDataAccess {
     * Merges supplied fields into the actor (top-level keys overwrite).
     */
    async updateActors(
@@ -16489,7 +16646,7 @@ index eecda7e..6ace3c0 100644
    ): Promise<{ updated: Array<{ id: string; name: string }>; total: number }> {
      const updatedActors: Array<{ id: string; name: string }> = [];
  
-@@ -11481,7 +16640,12 @@ export class FoundryDataAccess {
+@@ -11481,7 +16665,12 @@ export class FoundryDataAccess {
  
        const patch: Record<string, any> = {};
        if (u.name !== undefined) patch.name = u.name;
@@ -16502,7 +16659,7 @@ index eecda7e..6ace3c0 100644
        if (u.system !== undefined) {
          // Build a single patch.system nested object so Foundry deep-merges everything
          // in one pass without flat-key vs nested-key conflicts.
-@@ -11504,6 +16668,19 @@ export class FoundryDataAccess {
+@@ -11504,6 +16693,19 @@ export class FoundryDataAccess {
          }
          patch.system = systemPatch;
        }
@@ -16522,7 +16679,7 @@ index eecda7e..6ace3c0 100644
  
        await actor.update(patch);
        updatedActors.push({ id: actor.id, name: u.name ?? actor.name });
-@@ -11706,6 +16883,199 @@ export class FoundryDataAccess {
+@@ -11706,6 +16908,199 @@ export class FoundryDataAccess {
      return { deleted: existing, total: existing.length };
    }
  
@@ -16722,7 +16879,7 @@ index eecda7e..6ace3c0 100644
    /**
     * Delete one or more actors by ID.
     */
-@@ -11735,113 +17105,6 @@ function slugify(name: string, fallback = 'feature'): string {
+@@ -11735,113 +17130,6 @@ function slugify(name: string, fallback = 'feature'): string {
    );
  }
  
@@ -16836,7 +16993,7 @@ index eecda7e..6ace3c0 100644
  // =============================================================================
  // Live compendium templates — Tier 2 of the build strategy for hand-built features.
  //
-@@ -12005,112 +17268,3 @@ const ATTACK_WITH_SAVE_DAMAGE_CANONICAL = new Set([
+@@ -12005,112 +17293,3 @@ const ATTACK_WITH_SAVE_DAMAGE_CANONICAL = new Set([
    'thunder',
  ]);
  
@@ -17203,7 +17360,7 @@ index 0000000..83a409c
 +});
 diff --git a/packages/foundry-module/src/data-access.walk.test.ts b/packages/foundry-module/src/data-access.walk.test.ts
 new file mode 100644
-index 0000000..a66d736
+index 0000000..2a928fe
 --- /dev/null
 +++ b/packages/foundry-module/src/data-access.walk.test.ts
 @@ -0,0 +1,121 @@
@@ -17314,7 +17471,7 @@ index 0000000..a66d736
 +  it('teleports on request, ignoring walls and speed', async () => {
 +    const { da, update, move, findMovementPath } = setup({ cost: 500 });
 +    const r = await da.moveToken({ tokenId: 't1', x: 320, y: 64, mode: 'teleport' });
-+    expect(update).toHaveBeenCalledWith({ x: 320, y: 64 }, { animate: true });
++    expect(update).toHaveBeenCalledWith({ x: 320, y: 64 }, { teleport: true, animate: false });
 +    expect(move).not.toHaveBeenCalled();
 +    expect(findMovementPath).not.toHaveBeenCalled();
 +    expect(r.moved).toBeUndefined();
@@ -32048,7 +32205,7 @@ index 0000000..c300b4b
 +  return Math.max(0, Math.round((delay + (delay > 0 ? 0.4 : 0)) * 1000));
 +}
 diff --git a/packages/mcp-server/src/systems/dnd5e/adapter.ts b/packages/mcp-server/src/systems/dnd5e/adapter.ts
-index 7037e07..ca14de2 100644
+index 7037e07..e56021e 100644
 --- a/packages/mcp-server/src/systems/dnd5e/adapter.ts
 +++ b/packages/mcp-server/src/systems/dnd5e/adapter.ts
 @@ -21,6 +21,17 @@ import {
@@ -32069,7 +32226,20 @@ index 7037e07..ca14de2 100644
  export class DnD5eAdapter implements SystemAdapter {
    getMetadata(): SystemMetadata {
      return {
-@@ -293,11 +304,7 @@ export class DnD5eAdapter implements SystemAdapter {
+@@ -267,8 +278,10 @@ export class DnD5eAdapter implements SystemAdapter {
+ 
+     // Creature-specific info
+     if (actorData.type === 'npc') {
+-      const creatureType = system.details?.type?.value ?? system.details?.type;
+-      if (creatureType) {
++      const rawType = system.details?.type;
++      // details.type is an object ({value, subtype, ...}); an NPC made without a type has an empty one: show nothing then
++      const creatureType = typeof rawType === 'string' ? rawType : rawType?.value;
++      if (typeof creatureType === 'string' && creatureType) {
+         stats.creatureType = creatureType;
+       }
+ 
+@@ -293,11 +306,7 @@ export class DnD5eAdapter implements SystemAdapter {
      }
  
      // Spellcasting
