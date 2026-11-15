@@ -28706,7 +28706,7 @@ index 096f27b..903a94e 100644
      "@vitest/coverage-v8": "^3.2.4",
      "esbuild": "^0.19.0",
 diff --git a/packages/mcp-server/src/backend.ts b/packages/mcp-server/src/backend.ts
-index 8967e33..65b47c1 100644
+index 8967e33..740ba67 100644
 --- a/packages/mcp-server/src/backend.ts
 +++ b/packages/mcp-server/src/backend.ts
 @@ -27,27 +27,66 @@ import { ActorCreationTools } from './tools/actor-creation.js';
@@ -29019,7 +29019,8 @@ index 8967e33..65b47c1 100644
    const playlistTools = new PlaylistTools({ foundryClient, logger });
  
    const actorCreationTools = new ActorCreationTools({ foundryClient, logger });
-   const actorManagementTools = new ActorManagementTools({ foundryClient, logger, systemRegistry });
+-  const actorManagementTools = new ActorManagementTools({ foundryClient, logger, systemRegistry });
++  const actorManagementTools = new ActorManagementTools({ foundryClient, logger, systemRegistry, makeVoice: (name, description) => speechTools.createSavedVoice(name, description) });
    const effectManagementTools = new EffectManagementTools({ foundryClient, logger });
  
 -  const dsa5CharacterCreator = new DSA5CharacterCreator({ foundryClient, logger });
@@ -41469,7 +41470,7 @@ index 252f3c3..1c519da 100644
              ? {
                  type: placement.type,
 diff --git a/packages/mcp-server/src/tools/actor-management.test.ts b/packages/mcp-server/src/tools/actor-management.test.ts
-index aa85a3e..327f0b5 100644
+index aa85a3e..d85f72d 100644
 --- a/packages/mcp-server/src/tools/actor-management.test.ts
 +++ b/packages/mcp-server/src/tools/actor-management.test.ts
 @@ -1,5 +1,5 @@
@@ -41497,7 +41498,7 @@ index aa85a3e..327f0b5 100644
    it('forwards supported Item fields and returns the update result', async () => {
      const updateResult = {
        updated: [{ id: 'item-id', name: 'Updated Item' }],
-@@ -113,3 +113,48 @@ describe('manage-actors update-items action', () => {
+@@ -113,3 +113,75 @@ describe('manage-actors update-items action', () => {
      expect(query).not.toHaveBeenCalled();
    });
  });
@@ -41546,8 +41547,35 @@ index aa85a3e..327f0b5 100644
 +    expect(query).not.toHaveBeenCalled();
 +  });
 +});
++
++describe('actors create with a voice description', () => {
++  function make(withVoice = true) {
++    const query = vi.fn(async () => ({ success: true, created: [{ name: 'Yeemik' }] }));
++    const logger: any = { info: vi.fn(), error: vi.fn(), warn: vi.fn(), child: () => logger };
++    const makeVoice = vi.fn(async (name: string) => ({ success: true, name, status: 'creating' }));
++    const tools = new ActorManagementTools({ foundryClient: { query } as any, logger, ...(withVoice ? { makeVoice } : {}) });
++    return { tools, query, makeVoice };
++  }
++
++  it('keeps the voice out of the actor data and makes the voice', async () => {
++    const { tools, query, makeVoice } = make();
++    const r = await tools.handleManageActors({ action: 'create', actors: [{ name: 'Yeemik', voice: 'a sly raspy goblin' }, { name: 'Rock' }] });
++    const sent = (query.mock.calls[0] as any)[1];
++    expect(sent.actors).toEqual([{ name: 'Yeemik', type: 'npc' }, { name: 'Rock', type: 'npc' }]);
++    expect(makeVoice).toHaveBeenCalledTimes(1);
++    expect(makeVoice).toHaveBeenCalledWith('Yeemik', 'a sly raspy goblin');
++    expect(r.voices).toEqual([{ success: true, name: 'Yeemik', status: 'creating' }]);
++  });
++
++  it('works without a voice maker and without voices', async () => {
++    const { tools, query } = make(false);
++    const r = await tools.handleManageActors({ action: 'create', actors: [{ name: 'Yeemik', voice: 'a sly raspy goblin' }] });
++    expect((query.mock.calls[0] as any)[1].actors[0].voice).toBeUndefined();
++    expect(r.voices).toBeUndefined();
++  });
++});
 diff --git a/packages/mcp-server/src/tools/actor-management.ts b/packages/mcp-server/src/tools/actor-management.ts
-index 8709ffc..8013da6 100644
+index 8709ffc..337887a 100644
 --- a/packages/mcp-server/src/tools/actor-management.ts
 +++ b/packages/mcp-server/src/tools/actor-management.ts
 @@ -7,7 +7,7 @@
@@ -41559,7 +41587,7 @@ index 8709ffc..8013da6 100644
   */
  
  import { z } from 'zod';
-@@ -15,9 +15,15 @@ import { FoundryClient } from '../foundry-client.js';
+@@ -15,21 +15,31 @@ import { FoundryClient } from '../foundry-client.js';
  import { Logger } from '../logger.js';
  import { SystemRegistry } from '../systems/system-registry.js';
  import { detectGameSystem } from '../utils/system-detection.js';
@@ -41575,7 +41603,24 @@ index 8709ffc..8013da6 100644
  export interface ActorManagementToolsOptions {
    foundryClient: FoundryClient;
    logger: Logger;
-@@ -44,14 +50,15 @@ export class ActorManagementTools {
+   systemRegistry?: SystemRegistry;
++  /** Make the saved voice of an actor from a description (in the background); see SpeechTools.createSavedVoice. */
++  makeVoice?: (name: string, description: string) => Promise<any>;
+ }
+ 
+ export class ActorManagementTools {
+   private foundryClient: FoundryClient;
+   private logger: Logger;
+   private systemRegistry: SystemRegistry | null;
++  private makeVoice: ((name: string, description: string) => Promise<any>) | undefined;
+ 
+-  constructor({ foundryClient, logger, systemRegistry }: ActorManagementToolsOptions) {
++  constructor({ foundryClient, logger, systemRegistry, makeVoice }: ActorManagementToolsOptions) {
++    this.makeVoice = makeVoice;
+     this.foundryClient = foundryClient;
+     this.logger = logger.child({ component: 'ActorManagementTools' });
+     this.systemRegistry = systemRegistry ?? null;
+@@ -44,14 +54,15 @@ export class ActorManagementTools {
    getToolDefinitions() {
      return [
        {
@@ -41594,7 +41639,7 @@ index 8709ffc..8013da6 100644
            '- "describe": Return system-specific actor schema notes (actor types, item restrictions,\n' +
            '  field paths, skill shorthands). Call this before creating actors in an unfamiliar system.',
          inputSchema: {
-@@ -66,6 +73,7 @@ export class ActorManagementTools {
+@@ -66,6 +77,7 @@ export class ActorManagementTools {
                  'place',
                  'update-items',
                  'delete-items',
@@ -41602,7 +41647,7 @@ index 8709ffc..8013da6 100644
                  'describe',
                ],
                description:
-@@ -90,22 +98,37 @@ export class ActorManagementTools {
+@@ -90,22 +102,42 @@ export class ActorManagementTools {
                    },
                    type: {
                      type: 'string',
@@ -41631,6 +41676,11 @@ index 8709ffc..8013da6 100644
 +                      `Token options: width and height in squares (2 for a Large creature), disposition (-1 hostile, 0 neutral, 1 friendly), scale (0.2 to 3), actor_link, display_name and display_bars (none, control, owner_hover, hover, owner, always), vision (on/off), vision_range (distance units, e.g. 60), vision_mode (basic, darkvision...), sight {enabled, range, angle, vision_mode, brightness, saturation, contrast}, light {preset: torch|lantern|candle|none, or bright and dim in distance units, color #RRGGBB, alpha, angle, animation {type: torch|pulse|flame..., speed, intensity}}, detection_modes [{id, range}] (e.g. seeAll, feelTremor), lock_rotation, alpha, raw (any other prototype token field as a nested object).`,
 +                    additionalProperties: true,
 +                  },
++                  voice: {
++                    type: 'string',
++                    description:
++                      'A short description of how the character sounds (age, sex, accent, timbre, manner: "a gruff middle-aged dwarf woman, Scottish accent, warm and blunt"). The saved voice is made from it in the background (about a minute) and speak then uses it by itself whenever this actor speaks. Give one to every NPC that will talk.',
++                  },
 +                  statblock: statblockJsonSchema,
                    system: {
                      type: 'object',
@@ -41645,7 +41695,7 @@ index 8709ffc..8013da6 100644
                },
              },
              folder: {
-@@ -136,6 +159,25 @@ export class ActorManagementTools {
+@@ -136,6 +168,25 @@ export class ActorManagementTools {
                      type: 'string',
                      description: 'New icon/portrait path.',
                    },
@@ -41671,7 +41721,7 @@ index 8709ffc..8013da6 100644
                    system: {
                      type: 'object',
                      description:
-@@ -205,8 +247,14 @@ export class ActorManagementTools {
+@@ -205,8 +256,14 @@ export class ActorManagementTools {
                type: 'array',
                items: { type: 'string' },
                minItems: 1,
@@ -41687,7 +41737,7 @@ index 8709ffc..8013da6 100644
            },
            required: ['action'],
          },
-@@ -224,6 +272,7 @@ export class ActorManagementTools {
+@@ -224,6 +281,7 @@ export class ActorManagementTools {
            'place',
            'update-items',
            'delete-items',
@@ -41695,7 +41745,7 @@ index 8709ffc..8013da6 100644
            'describe',
          ]),
        })
-@@ -242,11 +291,42 @@ export class ActorManagementTools {
+@@ -242,11 +300,42 @@ export class ActorManagementTools {
          return this.handleUpdateItems(args);
        case 'delete-items':
          return this.handleDeleteItems(args);
@@ -41738,7 +41788,7 @@ index 8709ffc..8013da6 100644
    // ── place ─────────────────────────────────────────────────────────────────
  
    private async handlePlace(args: any): Promise<any> {
-@@ -288,9 +368,13 @@ export class ActorManagementTools {
+@@ -288,16 +377,24 @@ export class ActorManagementTools {
          .array(
            z.object({
              name: z.string().min(1),
@@ -41750,10 +41800,34 @@ index 8709ffc..8013da6 100644
 +            statblock: statblockSchema.optional(),
 +            hp: hpSchema.optional(),
 +            token: z.record(z.any()).optional(),
++            voice: z.string().min(3).max(600).optional(),
            })
          )
          .min(1),
-@@ -329,7 +413,11 @@ export class ActorManagementTools {
+       folder: z.string().optional(),
+     });
+ 
+-    const { actors, folder } = schema.parse(args);
++    const parsed = schema.parse(args);
++    const folder = parsed.folder;
++    const voices = parsed.actors.filter(a => a.voice).map(a => ({ name: a.name, description: a.voice! }));
++    const actors = parsed.actors.map(({ voice: _voice, ...rest }) => rest);
+ 
+     this.logger.info('Creating actors', {
+       count: actors.length,
+@@ -316,6 +413,11 @@ export class ActorManagementTools {
+       folder,
+     });
+ 
++    if (voices.length > 0 && this.makeVoice && result?.success !== false) {
++      const made = [];
++      for (const v of voices) made.push(await this.makeVoice(v.name, v.description));
++      return { ...result, voices: made };
++    }
+     return result;
+   }
+ 
+@@ -329,7 +431,11 @@ export class ActorManagementTools {
              id: z.string().min(1),
              name: z.string().optional(),
              img: z.string().optional(),
@@ -61501,10 +61575,10 @@ index 0000000..1aafc44
 +}
 diff --git a/packages/mcp-server/src/tools/speech-tools.test.ts b/packages/mcp-server/src/tools/speech-tools.test.ts
 new file mode 100644
-index 0000000..c706f11
+index 0000000..b255f4d
 --- /dev/null
 +++ b/packages/mcp-server/src/tools/speech-tools.test.ts
-@@ -0,0 +1,201 @@
+@@ -0,0 +1,366 @@
 +import { describe, expect, it, vi } from 'vitest';
 +import { SpeechTools } from './speech-tools.js';
 +
@@ -61522,12 +61596,13 @@ index 0000000..c706f11
 +
 +const KOKORO_VOICES = ['af_heart', 'bm_fable', 'am_fenrir'];
 +
-+function make(settings: any = {}, opts: { nodes?: string[]; audio?: Buffer; uploadError?: string } = {}) {
++function make(settings: any = {}, opts: { nodes?: string[]; audio?: Buffer; uploadError?: string; token?: any; lane?: any } = {}) {
 +  const nodes = opts.nodes ?? ['KokoroGenerator', 'KokoroSpeaker', 'FB_Qwen3TTSCustomVoice', 'FB_Qwen3TTSVoiceDesign'];
 +  const query = vi.fn(async (method: string, data: any) => {
 +    if (method === 'foundry-mcp-bridge.get-speech-settings') return { success: true, target: { mode: 'builtin' }, settings };
 +    if (method === 'foundry-mcp-bridge.upload-file') return opts.uploadError ? { success: false, error: opts.uploadError } : { success: true, path: `worlds/w/uploads/generated/speech/${data.filename}` };
 +    if (method === 'foundry-mcp-bridge.speak') return { success: true, messageId: 'm1' };
++    if (method === 'foundry-mcp-bridge.get-token-details') return opts.token ?? { success: false };
 +    return { success: true };
 +  });
 +  const runAudioWorkflow = vi.fn(async () => ({ audio: opts.audio ?? flac(12), filename: 'claude-speech_00001_.flac', promptId: 'p1' }));
@@ -61539,7 +61614,7 @@ index 0000000..c706f11
 +  });
 +  const applyTarget = vi.fn();
 +  const logger: any = { info: vi.fn(), debug: vi.fn(), error: vi.fn(), warn: vi.fn(), child: () => logger };
-+  const tools = new SpeechTools({ foundryClient: { query } as any, logger, getClient: () => ({ runAudioWorkflow, getNodeInfo, getBaseUrl: () => 'http://comfy:8188' }), applyTarget });
++  const tools = new SpeechTools({ foundryClient: { query } as any, logger, getClient: () => ({ runAudioWorkflow, getNodeInfo, getBaseUrl: () => 'http://comfy:8188' }), applyTarget, ...(opts.lane ? { lane: opts.lane } : {}) });
 +  return { tools, query, runAudioWorkflow, getNodeInfo, applyTarget };
 +}
 +
@@ -61673,6 +61748,170 @@ index 0000000..c706f11
 +  });
 +});
 +
++describe('saved voices', () => {
++  const RATE = 24000;
++  const half = () => Buffer.alloc(RATE);
++  function stub(saved: string[], creating: string[] = []) {
++    const calls: any[] = [];
++    vi.stubGlobal('fetch', vi.fn(async (url: string, init?: any) => {
++      calls.push({ url, method: init?.method, body: init?.body ? JSON.parse(init.body) : undefined });
++      if (url.endsWith('/claude-tts/voices')) {
++        return new Response(JSON.stringify({ speakers: ['Ryan', 'Serena'], languages: ['English'], saved: saved.map(name => ({ name, description: 'x' })), creating: creating.map(name => ({ name, status: 'creating' })) }), { status: 200 });
++      }
++      if (url.endsWith('/claude-tts/voices/create')) return new Response(JSON.stringify({ ok: true, status: 'creating', name: 'x' }), { status: 200 });
++      if (url.includes('/claude-tts/voices/')) return new Response(JSON.stringify({ ok: true }), { status: 200 });
++      const body = new ReadableStream({ start(c) { c.enqueue(new Uint8Array(half())); c.close(); } });
++      return new Response(body, { status: 200, headers: { 'x-sample-rate': String(RATE) } });
++    }));
++    return calls;
++  }
++  const speakBody = (calls: any[]) => calls.find(c => c.url.endsWith('/claude-tts/speak'))!.body;
++  const fast = () => make({ engine: 'qwen3-fast', voice: 'Ryan' });
++
++  it('uses the narrator voice for plain narration', async () => {
++    const calls = stub(['Narrator', 'Sildar Hallwinter']);
++    const r = await fast().tools.handleSpeak({ text: 'The woods press close.' });
++    expect(speakBody(calls)).toMatchObject({ mode: 'clone', voice: 'Narrator' });
++    expect(speakBody(calls).speaker).toBeUndefined();
++    expect(r).toMatchObject({ voice: 'Narrator', voice_kind: 'saved' });
++    vi.unstubAllGlobals();
++  });
++
++  it('uses the saved voice of the actor or speaker, ignoring case and punctuation', async () => {
++    const calls = stub(['Narrator', 'Sildar Hallwinter']);
++    await fast().tools.handleSpeak({ text: 'Be careful.', actor: 'sildar hallwinter' });
++    expect(speakBody(calls)).toMatchObject({ mode: 'clone', voice: 'Sildar Hallwinter' });
++    const calls2 = stub(['Narrator', 'Sildar Hallwinter']);
++    await fast().tools.handleSpeak({ text: 'Be careful.', speaker_name: 'Sildar-Hallwinter' });
++    expect(speakBody(calls2)).toMatchObject({ mode: 'clone', voice: 'Sildar Hallwinter' });
++    vi.unstubAllGlobals();
++  });
++
++  it('gives a character without a saved voice the preset and says how to make one, not the narrator voice', async () => {
++    const calls = stub(['Narrator']);
++    const r = await fast().tools.handleSpeak({ text: 'Grr.', speaker_name: 'Yeemik' });
++    expect(speakBody(calls)).toMatchObject({ mode: 'custom', speaker: 'Ryan' });
++    expect(r).toMatchObject({ voice: 'Ryan', voice_kind: 'preset' });
++    expect(r.voice_note).toContain('create_voice');
++    vi.unstubAllGlobals();
++  });
++
++  it('says a voice is still being made and falls back', async () => {
++    const calls = stub([], ['Yeemik']);
++    const r = await fast().tools.handleSpeak({ text: 'Grr.', speaker_name: 'Yeemik' });
++    expect(speakBody(calls).mode).toBe('custom');
++    expect(r.voice_note).toContain('still being made');
++    vi.unstubAllGlobals();
++  });
++
++  it('stays quiet about voices when none exist at all (the old setup)', async () => {
++    stub([]);
++    const r = await fast().tools.handleSpeak({ text: 'The woods press close.' });
++    expect(r.voice_note).toBeUndefined();
++    vi.unstubAllGlobals();
++  });
++
++  it('an explicit voice may be a saved voice or a preset', async () => {
++    const calls = stub(['Narrator']);
++    await fast().tools.handleSpeak({ text: 'Hi.', voice: 'narrator' });
++    expect(speakBody(calls)).toMatchObject({ mode: 'clone', voice: 'Narrator' });
++    const calls2 = stub(['Narrator']);
++    await fast().tools.handleSpeak({ text: 'Hi.', voice: 'serena' });
++    expect(speakBody(calls2)).toMatchObject({ mode: 'custom', speaker: 'Serena' });
++    await expect(fast().tools.handleSpeak({ text: 'Hi.', voice: 'nobody' })).rejects.toThrow('Saved: Narrator');
++    vi.unstubAllGlobals();
++  });
++
++  it('creates, lists and deletes voices', async () => {
++    const calls = stub(['Narrator']);
++    const { tools } = fast();
++    const made = await tools.handleSpeak({ action: 'create_voice', name: 'Yeemik', description: 'a sly raspy goblin' });
++    expect(made).toMatchObject({ success: true, status: 'creating' });
++    const create = calls.find(c => c.url.endsWith('/claude-tts/voices/create'))!;
++    expect(create.method).toBe('POST');
++    expect(create.body).toMatchObject({ name: 'Yeemik', description: 'a sly raspy goblin' });
++    const list = await tools.handleSpeak({ action: 'voices' });
++    expect(list.saved.map((v: any) => v.name)).toEqual(['Narrator']);
++    await tools.handleSpeak({ action: 'delete_voice', name: 'Narrator' });
++    expect(calls.some(c => c.method === 'DELETE' && c.url.endsWith('/claude-tts/voices/Narrator'))).toBe(true);
++    await expect(tools.handleSpeak({ action: 'create_voice', name: 'x' })).rejects.toThrow('needs name and description');
++    vi.unstubAllGlobals();
++  });
++
++  it('reports a missing narration server instead of throwing when a voice is made for a new actor', async () => {
++    vi.stubGlobal('fetch', vi.fn(async () => new Response('{}', { status: 404 })));
++    const r = await fast().tools.createSavedVoice('Yeemik', 'a sly raspy goblin');
++    expect(r).toMatchObject({ success: false, status: 'not-made' });
++    vi.unstubAllGlobals();
++  });
++});
++
++describe('saved voices: tokens, speed and the queued reply', () => {
++  const RATE = 24000;
++  const half = () => Buffer.alloc(RATE);
++  function stub(saved: string[], chunkCount = 4) {
++    const calls: any[] = [];
++    vi.stubGlobal('fetch', vi.fn(async (url: string, init?: any) => {
++      calls.push({ url, body: init?.body ? JSON.parse(init.body) : undefined });
++      if (url.endsWith('/claude-tts/voices')) return new Response(JSON.stringify({ speakers: ['Ryan'], languages: ['English'], saved: saved.map(name => ({ name, description: 'x' })), creating: [] }), { status: 200 });
++      const body = new ReadableStream({ start(c) { for (let i = 0; i < chunkCount; i++) c.enqueue(new Uint8Array(half())); c.close(); } });
++      return new Response(body, { status: 200, headers: { 'x-sample-rate': String(RATE) } });
++    }));
++    return calls;
++  }
++  const speakBodies = (calls: any[]) => calls.filter(c => c.url.endsWith('/claude-tts/speak')).map(c => c.body);
++
++  it('a token alone finds the voice of its actor, then of its own name', async () => {
++    const calls = stub(['Narrator', 'Yeemik']);
++    await make({ engine: 'qwen3-fast' }, { token: { name: 'Goblin Leader', actorData: { name: 'Yeemik' } } }).tools.handleSpeak({ text: 'Hi there you.', token_id: 'tok1' });
++    expect(speakBodies(calls)[0]).toMatchObject({ mode: 'clone', voice: 'Yeemik' });
++    const calls2 = stub(['Narrator', 'Goblin Leader']);
++    await make({ engine: 'qwen3-fast' }, { token: { name: 'Goblin Leader', actorData: { name: 'Yeemik' } } }).tools.handleSpeak({ text: 'Hi there you.', token_id: 'tok1' });
++    expect(speakBodies(calls2)[0]).toMatchObject({ mode: 'clone', voice: 'Goblin Leader' });
++    vi.unstubAllGlobals();
++  });
++
++  it('a token with no saved voice and no details does not get the narrator voice', async () => {
++    const calls = stub(['Narrator']);
++    const r = await make({ engine: 'qwen3-fast' }).tools.handleSpeak({ text: 'Hi there you.', token_id: 'gone' });
++    expect(speakBodies(calls)[0]).toMatchObject({ mode: 'custom', speaker: 'Ryan' });
++    expect(r.voice_kind).toBe('preset');
++    vi.unstubAllGlobals();
++  });
++
++  it('sends the speed asked for, and speeds up a voice that has been running slow', async () => {
++    const calls = stub(['Narrator'], 12); // 6 s for 7 words: 0.86 s per word
++    const { tools } = make({ engine: 'qwen3-fast' });
++    await tools.handleSpeak({ text: 'Four goblins wait in the woods today.' });
++    await tools.handleSpeak({ text: 'Four goblins wait in the woods today.' });
++    await tools.handleSpeak({ text: 'Four goblins wait in the woods today.', speed: 1.1 });
++    const bodies = speakBodies(calls);
++    expect(bodies.map(b => b.speed)).toEqual([1, 1.35, 1.1]);
++    vi.unstubAllGlobals();
++  });
++
++  it('leaves a voice at a natural pace alone', async () => {
++    const calls = stub(['Narrator'], 6); // 3 s for 7 words: 0.43 s per word
++    const { tools } = make({ engine: 'qwen3-fast' });
++    await tools.handleSpeak({ text: 'Four goblins wait in the woods today.' });
++    await tools.handleSpeak({ text: 'Four goblins wait in the woods today.' });
++    expect(speakBodies(calls).map(b => b.speed)).toEqual([1, 1]);
++    vi.unstubAllGlobals();
++  });
++
++  it('shows which voice will speak in the reply that returns at once from the queue', async () => {
++    stub(['Narrator', 'Sildar Hallwinter']);
++    const lane = { speech: vi.fn(() => ({ queued: true, position: 1 })), cancelled: () => false, clear: () => 0, busy: 0 };
++    const { tools } = make({ engine: 'qwen3-fast' }, { lane });
++    const r = await tools.handleSpeak({ text: 'Be careful.', actor: 'Sildar Hallwinter' });
++    expect(r).toMatchObject({ queued: true, position: 1, voice: 'Sildar Hallwinter', voice_kind: 'saved' });
++    const g = await tools.handleSpeak({ text: 'Grr.', speaker_name: 'Yeemik' });
++    expect(g).toMatchObject({ voice: 'Ryan', voice_kind: 'preset' });
++    expect(g.voice_note).toContain('create_voice');
++    vi.unstubAllGlobals();
++  });
++});
++
 +describe('segmentPlan', () => {
 +  it('starts small on a fast server and larger on a slow one', async () => {
 +    const { segmentPlan } = await import('./speech-tools.js');
@@ -61708,10 +61947,10 @@ index 0000000..c706f11
 +});
 diff --git a/packages/mcp-server/src/tools/speech-tools.ts b/packages/mcp-server/src/tools/speech-tools.ts
 new file mode 100644
-index 0000000..d6abab3
+index 0000000..3309e5e
 --- /dev/null
 +++ b/packages/mcp-server/src/tools/speech-tools.ts
-@@ -0,0 +1,471 @@
+@@ -0,0 +1,615 @@
 +import { randomInt } from 'crypto';
 +import { z } from 'zod';
 +import { FoundryClient } from '../foundry-client.js';
@@ -61731,7 +61970,7 @@ index 0000000..d6abab3
 +  type SpeechEngine,
 +} from '../speech.js';
 +import type { SayLane } from '../say-lane.js';
-+import { getServerJson, pcmSeconds, pcmToWav, sliceWords, streamSpeech } from '../tts-stream.js';
++import { createVoice, deleteVoice, findSavedVoice, getServerJson, pcmSeconds, pcmToWav, sliceWords, streamSpeech, voiceKey, type SavedVoice, type VoiceCreation } from '../tts-stream.js';
 +
 +/** The part of the ComfyUI client that speech needs. */
 +export interface SpeechComfyClient {
@@ -61752,6 +61991,10 @@ index 0000000..d6abab3
 +  lane?: SayLane;
 +}
 +
++/** A voice generating slower than this (seconds of audio per word) is sped up toward AUTO_TARGET_PACE, at most MAX_AUTO_SPEED times. */
++const AUTO_SLOW_PACE = 0.5;
++const AUTO_TARGET_PACE = 0.42;
++const MAX_AUTO_SPEED = 1.35;
 +const UPLOAD_TIMEOUT_MS = 120000;
 +const SPEECH_TIMEOUT_MS = 5 * 60 * 1000;
 +
@@ -61780,7 +62023,7 @@ index 0000000..d6abab3
 +
 +const schema = z
 +  .object({
-+    action: z.enum(['say', 'describe', 'stop', 'status']).optional(),
++    action: z.enum(['say', 'describe', 'stop', 'status', 'voices', 'create_voice', 'delete_voice']).optional(),
 +    text: z.string().min(1).max(1500).optional(),
 +    voice: z.string().min(1).max(300).optional(),
 +    style: z.string().min(1).max(300).optional(),
@@ -61792,14 +62035,20 @@ index 0000000..d6abab3
 +    actor: z.string().min(1).max(80).optional(),
 +    chat: z.boolean().optional(),
 +    seed: z.number().int().min(0).optional(),
++    name: z.string().min(1).max(80).optional(),
++    description: z.string().min(3).max(600).optional(),
++    replace: z.boolean().optional(),
++    wait: z.boolean().optional(),
 +  })
 +  .strict();
 +
 +export class SpeechTools {
 +  /** How fast the streaming server has been lately (seconds of audio per second of waiting, uploads included), learned from each narration. */
 +  private fastRate = 1.2;
-+  /** How long a word of narration lasts, learned from what was spoken, to spread the chat text over the audio of a streamed paragraph. */
-+  private secondsPerWord = 0.42;
++  /** How long a word lasts in each voice, learned from what was spoken, to spread the chat text over the audio of a streamed paragraph. */
++  private paces = new Map<string, number>();
++  /** Seconds per word of each voice as generated (before any speed-up), to notice a voice that runs slow. */
++  private rawPaces = new Map<string, number>();
 +  private foundryClient: FoundryClient;
 +  private logger: Logger;
 +  private getClient: () => SpeechComfyClient;
@@ -61824,22 +62073,27 @@ index 0000000..d6abab3
 +          'Engines: qwen3-fast (the best voice, streams while it generates: starts within about a second; needs the claude_tts node in ComfyUI; presets such as Ryan, "style" says how to speak), kokoro (fast, a few seconds per paragraph; voice is an id like bm_fable or af_heart), qwen3-custom (slower, preset voices such as Ryan or Serena, "style" says how to speak), qwen3-design (slowest; "voice" is a description such as "a gruff old dwarf with a Scottish accent"). ' +
 +          'speaker_name is the label in the chat (default Narrator, or the NPC\'s name); token_id or actor makes it a character speaking: its name and portrait in the chat and the whole line as a speech bubble over its token when the audio starts; chat:false plays the audio without the chat text. ' +
 +          'The text is spoken sentence by sentence: the first sentence starts playing as soon as it is ready (about a second with kokoro or qwen3-fast) while the rest is generated, and each sentence appears in the chat as it is spoken. The call returns at once with {queued, position}: speeches play one after the other in the order the calls were sent (and chat narrate/say and roll request cards wait for the speech before them), so send narration, an NPC line and a roll request in one message without waiting. A failure while generating later shows as a notice on the table feed. Write text to be heard: no stage directions, no markup, and spell out what should be said. Do not speak secrets or GM notes. ' +
++          'SAVED VOICES (qwen3-fast): a character or the narrator can have a saved voice, made once from a description and then cloned for every line, so it sounds the same every time and speaks at a natural pace. speak picks it by itself: voice if given, else the saved voice of the actor (or speaker_name), else the one named "narrator" when no character is speaking, else the preset of the settings. create_voice {name, description, text?, replace?, wait?} makes one (name = the actor name or "narrator"; description = age, sex, accent, timbre, manner, e.g. "a gruff middle-aged dwarf woman, Scottish accent, warm and blunt"; it takes about a minute in the background and pauses speech while the model loads, so do it between scenes, not mid-fight); voices lists saved voices and those being made; delete_voice {name} removes one. actors create does this for you when an actor has a voice description. ' +
 +          'describe shows the settings, which engines this ComfyUI can run and their voices; stop silences the narration now. Needs ComfyUI running with a text-to-speech node (Kokoro or Qwen3-TTS) and Allow Write Operations.',
 +        inputSchema: {
 +          type: 'object',
 +          properties: {
-+            action: { type: 'string', enum: ['say', 'describe', 'stop', 'status'], description: 'say (default), describe, stop (silences and empties the table queue) or status (what is queued)' },
++            action: { type: 'string', enum: ['say', 'describe', 'stop', 'status', 'voices', 'create_voice', 'delete_voice'], description: 'say (default), describe, stop (silences and empties the table queue), status (what is queued), voices (saved voices), create_voice or delete_voice' },
 +            text: { type: 'string', description: 'say: what to speak (max 1500 characters)' },
 +            voice: { type: 'string', description: 'say: the voice (kokoro id, qwen3 preset, or for qwen3-design a description). Default: the setting' },
 +            style: { type: 'string', description: 'say: how to speak it (qwen3-custom), or the voice description for qwen3-design when voice is empty' },
 +            language: { type: 'string', description: 'say: language, or auto (default)' },
-+            speed: { type: 'number', description: 'say: kokoro speed, 0.5 to 2 (default 1)' },
++            speed: { type: 'number', description: 'say: speed 0.5 to 2 (default 1; kokoro, and qwen3-fast which time-stretches the audio keeping the pitch; qwen3-fast also speeds a voice up by itself when it has been running slow)' },
 +            engine: { type: 'string', enum: ['qwen3-fast', 'kokoro', 'qwen3-custom', 'qwen3-design'], description: 'say: override the engine' },
 +            speaker_name: { type: 'string', description: 'say: the name shown in the chat (default Narrator)' },
 +            token_id: { type: 'string', description: 'say: speak as this token on the scene: the chat line carries it and a speech bubble shows over it' },
 +            actor: { type: 'string', description: 'say: speak as this actor (name or id), using its token on the scene for the bubble. Ignored when token_id is given' },
 +            chat: { type: 'boolean', description: 'say: show the words in chat in time with the audio (default: the setting)' },
 +            seed: { type: 'number', description: 'say: a fixed seed for qwen3 engines, to repeat a take' },
++            name: { type: 'string', description: 'create_voice / delete_voice: the voice name (the actor name, or "narrator")' },
++            description: { type: 'string', description: 'create_voice: the voice in words: age, sex, accent, timbre, manner' },
++            replace: { type: 'boolean', description: 'create_voice: make it again if it exists' },
++            wait: { type: 'boolean', description: 'create_voice: answer when the voice is ready (about a minute) instead of at once' },
 +          },
 +          additionalProperties: false,
 +        },
@@ -61857,11 +62111,24 @@ index 0000000..d6abab3
 +    }
 +    if (action === 'describe') return this.describe();
 +    if (action === 'status') return { success: true, queued_items: this.lane?.busy ?? 0 };
++    if (action === 'voices') return this.listVoices();
++    if (action === 'create_voice') {
++      if (!a.name || !a.description) throw new Error('create_voice needs name and description');
++      return this.createSavedVoice(a.name, a.description, { replace: a.replace, wait: a.wait, text: a.text, language: a.language });
++    }
++    if (action === 'delete_voice') {
++      if (!a.name) throw new Error('delete_voice needs name');
++      const baseUrl = await this.baseUrl();
++      await deleteVoice(baseUrl, a.name);
++      return { success: true, deleted: a.name };
++    }
 +    if (!a.text?.trim()) throw new Error('say needs text');
 +    const lane = this.lane;
 +    if (!lane) return this.say(a);
 +    const label = `speak "${a.text.trim().slice(0, 40)}"`;
-+    return lane.speech(label, epoch => this.say(a, epoch));
++    // Queue first (so calls sent together keep their order), then say which voice will speak it.
++    const queued = lane.speech(label, epoch => this.say(a, epoch));
++    return { ...queued, ...(await this.previewVoice(a)) };
 +  }
 +
 +  private async readSettings(): Promise<{ target: unknown; settings: ReturnType<typeof normalizeSpeechSettings> }> {
@@ -61985,6 +62252,76 @@ index 0000000..d6abab3
 +    };
 +  }
 +
++  /** The names a line may be voiced under: the actor, the speaker name, and for a token its actor and its own name. */
++  private async voiceNames(a: z.infer<typeof schema>): Promise<string[]> {
++    const names = [a.actor, a.speaker_name].filter((n): n is string => !!n);
++    if (a.token_id) {
++      try {
++        const token = await this.foundryClient.query('foundry-mcp-bridge.get-token-details', { tokenId: a.token_id });
++        for (const n of [token?.actorData?.name, token?.name]) if (typeof n === 'string' && n) names.push(n);
++      } catch {
++        // Without the token, the other names (or the narrator rule) still decide.
++      }
++    }
++    return names;
++  }
++
++  /**
++   * Which voice speaks the line: the one asked for; else the saved voice of the character speaking (actor, speaker name,
++   * the token's actor or name); else the narrator's; else the preset of the settings. Pure, so it can be tested.
++   */
++  private pickVoice(
++    a: z.infer<typeof schema>,
++    settings: ReturnType<typeof normalizeSpeechSettings>,
++    voices: any,
++    names: string[]
++  ): { name: string; clone?: SavedVoice; voice?: string; voiceNote?: string } {
++    const speakers: string[] = voices?.speakers ?? [];
++    const savedVoices: SavedVoice[] = voices?.saved ?? [];
++    const creating: VoiceCreation[] = voices?.creating ?? [];
++    const presetOf = (name: string) => speakers.find(v => v.toLowerCase() === name.toLowerCase());
++    const stillMaking = (name: string | undefined) => !!name && creating.some(c => c.status === 'creating' && voiceKey(c.name) === voiceKey(name));
++
++    // Nobody named (and no token) means the narrator speaks; so does a speaker called Narrator.
++    const isNarrator = names.length === 0 ? !a.token_id : names.every(n => voiceKey(n) === 'narrator');
++    if (a.voice) {
++      const clone = findSavedVoice(savedVoices, a.voice);
++      const voice = clone ? undefined : presetOf(a.voice);
++      if (!clone && !voice) {
++        throw new Error(`"${a.voice}" is not a qwen3-fast voice. Saved: ${savedVoices.map(v => v.name).join(', ') || 'none'}. Presets: ${speakers.join(', ')}`);
++      }
++      return { name: clone ? clone.name : voice!, ...(clone ? { clone } : { voice: voice! }) };
++    }
++    let clone: SavedVoice | undefined;
++    for (const n of names) {
++      clone = findSavedVoice(savedVoices, n);
++      if (clone) break;
++    }
++    if (!clone && isNarrator) clone = findSavedVoice(savedVoices, 'narrator');
++    if (clone) return { name: clone.name, clone };
++
++    const wanted = isNarrator ? 'narrator' : names[0];
++    let voiceNote: string | undefined;
++    if (names.some(stillMaking) || (isNarrator && stillMaking('narrator'))) voiceNote = `The voice "${wanted}" is still being made, so the preset was used this time`;
++    else if (wanted && !(isNarrator && !savedVoices.length && !creating.length)) voiceNote = `No saved voice for "${wanted}": create one with create_voice {name, description}; the preset was used`;
++    const voice = presetOf(settings.engine === 'qwen3-fast' ? settings.voice : 'Ryan') ?? speakers[0]!;
++    return { name: voice, voice, ...(voiceNote ? { voiceNote } : {}) };
++  }
++
++  /** What a queued speech will sound like, for the immediate reply (the speech itself runs later, in the queue). Never throws. */
++  private async previewVoice(a: z.infer<typeof schema>): Promise<Record<string, unknown>> {
++    try {
++      const { target, settings } = await this.readSettings();
++      this.applyTarget(target);
++      if ((a.engine ?? settings.engine) !== 'qwen3-fast') return {};
++      const voices = await getServerJson(this.getClient().getBaseUrl(), '/voices', 3000);
++      const pick = this.pickVoice(a, settings, voices, await this.voiceNames(a));
++      return { voice: pick.name, voice_kind: pick.clone ? 'saved' : 'preset', ...(pick.voiceNote ? { voice_note: pick.voiceNote } : {}) };
++    } catch {
++      return {};
++    }
++  }
++
 +  /** The streaming engine: sentence by sentence, each streamed from the narration server and queued in Foundry in growing pieces. */
 +  private async sayFast(a: z.infer<typeof schema>, settings: ReturnType<typeof normalizeSpeechSettings>, client: SpeechComfyClient, epoch?: number): Promise<any> {
 +    const cancelled = () => epoch !== undefined && this.lane?.cancelled(epoch) === true;
@@ -61995,10 +62332,10 @@ index 0000000..d6abab3
 +    } catch (error) {
 +      throw new Error(`The qwen3-fast engine needs the claude_tts node in ComfyUI: ${error instanceof Error ? error.message : String(error)}`);
 +    }
-+    const speakers: string[] = voices?.speakers ?? [];
-+    const wanted = a.voice ?? (settings.engine === 'qwen3-fast' ? settings.voice : 'Ryan');
-+    const voice = speakers.find(v => v.toLowerCase() === wanted.toLowerCase());
-+    if (!voice) throw new Error(`"${wanted}" is not a qwen3-fast voice. Available: ${speakers.join(', ')}`);
++    const pick = this.pickVoice(a, settings, voices, await this.voiceNames(a));
++    const { clone, voice, voiceNote } = pick;
++    const voiceName = pick.name;
++    const paceKey = voiceKey(voiceName);
 +
 +    const language = (a.language ?? settings.language) === 'auto' ? 'English' : (a.language ?? settings.language);
 +    const instruct = a.style ?? settings.style;
@@ -62008,7 +62345,7 @@ index 0000000..d6abab3
 +    const utterance = `${Date.now().toString(36)}${randomInt(0, 1679616).toString(36)}`;
 +    const speaker = a.speaker_name ?? 'Narrator';
 +    const sync = a.chat ?? settings.syncText;
-+    this.logger.info('Streaming speech', { voice, characters: text.length, pieces: pieces.length });
++    this.logger.info('Streaming speech', { voice: voiceName, saved: !!clone, characters: text.length, pieces: pieces.length });
 +
 +    const started = Date.now();
 +    let firstAudioMs: number | undefined;
@@ -62058,14 +62395,25 @@ index 0000000..d6abab3
 +      });
 +    };
 +
++    let usedSpeed = 1;
 +    const plan = segmentPlan(this.fastRate);
 +    let target = plan.first; // keeps growing across sentences
 +    try {
 +      for (const piece of pieces) {
 +        if (sendError || cancelled()) break;
 +        const words = piece.split(/\s+/).length;
-+        const expected = Math.max(1, words * this.secondsPerWord);
-+        const stream = await streamSpeech(baseUrl, { text: piece, mode: 'custom', speaker: voice, instruct, language, model: '1.7B', chunk_size: 6, seed, temperature: 0.7 });
++        const secondsPerWord = this.paces.get(paceKey) ?? 0.42;
++        const expected = Math.max(1, words * secondsPerWord);
++        // Speed: the one asked for, else a gentle speed-up when this voice has been running slow (a natural pace is about 0.3 to 0.45 s per word).
++        const rawPace = this.rawPaces.get(paceKey);
++        const speed = a.speed ?? (rawPace !== undefined && rawPace > AUTO_SLOW_PACE ? Math.min(MAX_AUTO_SPEED, Math.round((rawPace / AUTO_TARGET_PACE) * 100) / 100) : 1);
++        usedSpeed = speed;
++        const stream = await streamSpeech(
++          baseUrl,
++          clone
++            ? { text: piece, mode: 'clone', voice: clone.name, language, model: '1.7B', chunk_size: 6, seed, temperature: 0.7, speed }
++            : { text: piece, mode: 'custom', speaker: voice, instruct, language, model: '1.7B', chunk_size: 6, seed, temperature: 0.7, speed }
++        );
 +        let pending: Buffer[] = [];
 +        let pendingBytes = 0;
 +        let spoken = 0; // seconds of this sentence already queued
@@ -62088,7 +62436,12 @@ index 0000000..d6abab3
 +        }
 +        if (cancelled()) break;
 +        flush(true);
-+        if (spoken > 0) this.secondsPerWord = Math.max(0.2, Math.min(0.9, (this.secondsPerWord + spoken / words) / 2));
++        if (spoken > 0) {
++          const heard = spoken / words; // seconds per word as played (after any speed-up)
++          this.paces.set(paceKey, Math.max(0.2, Math.min(0.9, (secondsPerWord + heard) / 2)));
++          const raw = heard * speed; // as generated, so a speed-up does not hide that the voice runs slow
++          this.rawPaces.set(paceKey, Math.max(0.2, Math.min(1.2, ((this.rawPaces.get(paceKey) ?? raw) + raw) / 2)));
++        }
 +      }
 +      await sendChain;
 +      if (sendError) throw sendError;
@@ -62104,7 +62457,10 @@ index 0000000..d6abab3
 +    return {
 +      success: true,
 +      engine: 'qwen3-fast',
-+      voice,
++      voice: voiceName,
++      voice_kind: clone ? 'saved' : 'preset',
++      ...(usedSpeed !== 1 ? { speed: usedSpeed } : {}),
++      ...(voiceNote ? { voice_note: voiceNote } : {}),
 +      parts: segmentIndex,
 +      first_audio_ready_in_seconds: Math.round((firstAudioMs ?? 0) / 100) / 10,
 +      generated_in_seconds: Math.round((Date.now() - started) / 100) / 10,
@@ -62116,10 +62472,37 @@ index 0000000..d6abab3
 +    };
 +  }
 +
++  /** The address of the ComfyUI the module's settings choose (which also carries the narration server). */
++  private async baseUrl(): Promise<string> {
++    const { target } = await this.readSettings();
++    this.applyTarget(target);
++    return this.getClient().getBaseUrl();
++  }
++
++  private async listVoices(): Promise<any> {
++    const voices = await getServerJson(await this.baseUrl(), '/voices');
++    return { success: true, saved: voices.saved ?? [], being_made: voices.creating ?? [], presets: voices.speakers ?? [] };
++  }
++
++  /**
++   * Make (in the background) the saved voice of a character or the narrator from a description. Used by `speak create_voice`
++   * and by `actors create`. Never throws: a ComfyUI without the narration server just reports why no voice was made.
++   */
++  async createSavedVoice(name: string, description: string, options: { replace?: boolean | undefined; wait?: boolean | undefined; text?: string | undefined; language?: string | undefined } = {}): Promise<any> {
++    try {
++      const baseUrl = await this.baseUrl();
++      const result = await createVoice(baseUrl, { name, description, replace: options.replace, wait: options.wait, text: options.text, language: options.language });
++      this.logger.info('Voice requested', { name, status: result?.status });
++      return { success: result?.ok !== false, name, status: result?.status ?? 'creating', ...(result?.voice ? { voice: result.voice } : {}), ...(result?.error ? { error: result.error } : {}), ...(result?.note ? { note: result.note } : {}) };
++    } catch (error) {
++      return { success: false, name, status: 'not-made', error: error instanceof Error ? error.message : String(error) };
++    }
++  }
++
 +  private async describeFast(client: SpeechComfyClient): Promise<any> {
 +    try {
 +      const voices = await getServerJson(client.getBaseUrl(), '/voices');
-+      return { available: true, voices: voices.speakers, languages: voices.languages };
++      return { available: true, voices: voices.speakers, saved_voices: (voices.saved ?? []).map((v: SavedVoice) => v.name), being_made: (voices.creating ?? []).map((c: VoiceCreation) => `${c.name} (${c.status})`), languages: voices.languages };
 +    } catch (error) {
 +      return { available: false, needs: 'the claude_tts custom node in ComfyUI', detail: error instanceof Error ? error.message : String(error) };
 +    }
@@ -64214,10 +64597,10 @@ index 0000000..77123c0
 +});
 diff --git a/packages/mcp-server/src/tts-stream.ts b/packages/mcp-server/src/tts-stream.ts
 new file mode 100644
-index 0000000..7103533
+index 0000000..5403ac4
 --- /dev/null
 +++ b/packages/mcp-server/src/tts-stream.ts
-@@ -0,0 +1,129 @@
+@@ -0,0 +1,187 @@
 +/**
 + * Client of the streaming narration server (tts-server/claude_tts), reached through ComfyUI's own address
 + * under /claude-tts. The server streams raw 16-bit mono PCM while it generates.
@@ -64228,16 +64611,36 @@ index 0000000..7103533
 +  chunks: AsyncGenerator<Buffer, void, void>;
 +}
 +
++/** A saved voice: made once from a description, then cloned for every line. */
++export interface SavedVoice {
++  name: string;
++  description: string;
++  ref_text?: string;
++  seconds?: number;
++  seconds_per_word?: number;
++  created?: string;
++}
++
++export interface VoiceCreation {
++  name: string;
++  status: 'creating' | 'failed';
++  error?: string;
++}
++
 +export interface FastSpeechRequest {
 +  text: string;
-+  mode: 'custom' | 'design';
-+  speaker?: string;
++  mode: 'custom' | 'design' | 'clone';
++  speaker?: string | undefined;
++  /** clone: the name of a saved voice */
++  voice?: string;
 +  instruct?: string;
 +  language: string;
 +  model?: string;
 +  chunk_size?: number;
 +  seed?: number;
 +  temperature?: number;
++  /** 1 = as generated; the server time-stretches the audio while it streams */
++  speed?: number;
 +}
 +
 +export function serverUrl(comfyBaseUrl: string): string {
@@ -64265,6 +64668,44 @@ index 0000000..7103533
 +  const response = await fetch(`${serverUrl(baseUrl)}${path}`, { signal: AbortSignal.timeout(timeoutMs) });
 +  if (!response.ok) throw await failure(response);
 +  return response.json();
++}
++
++/** The key a voice is saved under: the same slug the narration server uses (case and punctuation do not matter). */
++export function voiceKey(name: string): string {
++  return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60) || 'voice';
++}
++
++/** Find a saved voice by name, ignoring case and punctuation. */
++export function findSavedVoice(saved: SavedVoice[] | undefined, name: string | undefined): SavedVoice | undefined {
++  if (!name) return undefined;
++  const key = voiceKey(name);
++  return (saved ?? []).find(v => voiceKey(v.name) === key);
++}
++
++async function sendJson(baseUrl: string, path: string, method: string, body: unknown, timeoutMs: number): Promise<any> {
++  const response = await fetch(`${serverUrl(baseUrl)}${path}`, {
++    method,
++    headers: { 'Content-Type': 'application/json' },
++    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
++    signal: AbortSignal.timeout(timeoutMs),
++  });
++  if (!response.ok) throw await failure(response);
++  return response.json();
++}
++
++/**
++ * Start making a saved voice from a description (the server does it in the background, about a minute).
++ * `wait` answers when it is ready instead.
++ */
++export function createVoice(
++  baseUrl: string,
++  request: { name: string; description: string; text?: string | undefined; language?: string | undefined; replace?: boolean | undefined; wait?: boolean | undefined }
++): Promise<any> {
++  return sendJson(baseUrl, '/voices/create', 'POST', request, request.wait ? 300000 : 15000);
++}
++
++export function deleteVoice(baseUrl: string, name: string): Promise<any> {
++  return sendJson(baseUrl, `/voices/${encodeURIComponent(name)}`, 'DELETE', undefined, 10000);
 +}
 +
 +/**
@@ -64591,10 +65032,10 @@ index c84dcd4..09cc038 100644
 +console.log('[MCP Schema Smoke Test] PASS: tool schemas load and use object input; the merged tools allow extra parameters.');
 diff --git a/tts-server/README.md b/tts-server/README.md
 new file mode 100644
-index 0000000..5690445
+index 0000000..877c144
 --- /dev/null
 +++ b/tts-server/README.md
-@@ -0,0 +1,44 @@
+@@ -0,0 +1,53 @@
 +# claude_tts: streaming narration for the `speak` tool
 +
 +A small ComfyUI custom node that runs [faster-qwen3-tts](https://github.com/andimarafioti/faster-qwen3-tts) (CUDA graphs) and **streams audio while it generates**. The `speak` tool's `qwen3-fast` engine uses it: the first words are heard in about a second, and the voice is Qwen3-TTS 1.7B.
@@ -64627,11 +65068,20 @@ index 0000000..5690445
 +| `CLAUDE_TTS_MODELS` | `/root/ComfyUI/models/qwen-tts` | folder with the model folders |
 +| `CLAUDE_TTS_AUTOSTART` | `1` | `0` to start `server.py` yourself |
 +
++## Saved voices
++
++A character (or the narrator) can have a **saved voice**: `POST /claude-tts/voices/create {name, description}` makes a short reference clip with the VoiceDesign model, remakes it (up to 4 tries, with a "brisk, natural pace" hint after the first) until its pace is natural (0.24 to 0.42 s of audio per word), and saves `<name>.wav` + `<name>.json` in `ComfyUI/models/qwen-tts/voices/` (a mounted folder, so it survives container rebuilds). Speaking with `mode: "clone", voice: "<name>"` then clones it with the Base model: first audio in about 0.4 s, and the voice speaks at the pace of its reference. Switching between saved voices costs nothing; only the first line after a start loads the Base model (about 25 s).
++
++Needs the model folder `Qwen3-TTS-12Hz-1.7B-Base` next to the others. Before any model load the server asks ComfyUI to unload all its models and cache (`POST /free`), so the two never fight over the GPU; keep only the clone model next to one other model. Creating a voice holds the GPU for about 30 to 60 s (speech waits), so do it between scenes.
++
 +## API
 +
-+- `GET  /claude-tts/health` and `GET /claude-tts/voices`
-+- `POST /claude-tts/speak` with `{text, mode: "custom"|"design", speaker, instruct, language, model, chunk_size}` streams raw 16-bit mono PCM (`X-Sample-Rate` header, 24000 Hz).
++- `GET  /claude-tts/health` and `GET /claude-tts/voices` (presets, `saved`, `creating`)
++- `POST /claude-tts/speak` with `{text, mode: "custom"|"design"|"clone", speaker, voice, instruct, language, model, chunk_size, speed}` streams raw 16-bit mono PCM (`X-Sample-Rate` header, 24000 Hz). `voice` is a saved voice for `clone`. `speed` (0.5 to 2, default 1) time-stretches the audio while it streams with ffmpeg's `atempo` (pitch kept; needs `ffmpeg` in the container, which the ComfyUI image has).
++- `POST /claude-tts/voices/create` `{name, description, text?, language?, replace?, wait?}`, `GET|DELETE /claude-tts/voices/{name}`.
 +- `POST /claude-tts/unload` frees the GPU memory.
++
++Environment: `CLAUDE_TTS_VOICES` (voices folder), `CLAUDE_TTS_COMFY` (ComfyUI address for the free call, default `http://127.0.0.1:8188`).
 +
 +Measured on an RTX 3060: first audio 0.35 s after the model is loaded, about 1.7 times faster than speech.
 +
@@ -64722,15 +65172,19 @@ index 0000000..c2a6edc
 +_register_routes()
 diff --git a/tts-server/claude_tts/server.py b/tts-server/claude_tts/server.py
 new file mode 100644
-index 0000000..1a17a86
+index 0000000..3e8537d
 --- /dev/null
 +++ b/tts-server/claude_tts/server.py
-@@ -0,0 +1,187 @@
+@@ -0,0 +1,496 @@
 +"""
 +Streaming narration server for the Foundry MCP bridge.
 +
 +Runs faster-qwen3-tts (CUDA graphs) and streams raw 16-bit mono PCM while it generates, so the first
 +audio arrives in about half a second. It loads a model on first use and keeps it until /unload.
++
++Voices: a preset speaker (CustomVoice), or a SAVED voice. A saved voice is made once from a description
++(VoiceDesign writes a short reference clip, re-made until its pace is natural) and is then cloned for every
++line (Base model), so each character keeps one steady voice and speaks at the pace of its reference.
 +
 +Start it with the Python of the venv that has faster-qwen3-tts, for example:
 +    /opt/fq/bin/python server.py --port 8190
@@ -64738,15 +65192,23 @@ index 0000000..1a17a86
 +Normally the claude_tts ComfyUI node starts it and exposes it through ComfyUI's own port.
 +
 +API
-+    GET  /health          {"ok": true, "loaded": ["1.7B"], "busy": false}
-+    GET  /voices          {"speakers": [...], "languages": [...]}
-+    POST /speak           JSON {text, mode, speaker, instruct, language, model, chunk_size}
++    GET  /health          {"ok": true, "loaded": ["clone/1.7B"], "busy": false}
++    GET  /voices          {"speakers": [...], "languages": [...], "saved": [...], "creating": [...]}
++    POST /voices/create   JSON {name, description, text?, language?, replace?, wait?} -> starts making a saved voice
++    GET  /voices/{name}   one saved voice (or its creation status)
++    DELETE /voices/{name} removes a saved voice
++    POST /speak           JSON {text, mode: custom|design|clone, speaker, voice, instruct, language, model, chunk_size}
 +                          -> body: raw PCM s16le mono, streamed. Headers: X-Sample-Rate, X-Channels
 +    POST /unload          frees the GPU memory
 +"""
 +import argparse
 +import asyncio
++import json
 +import os
++import queue as thread_queue
++import re
++import subprocess
++import urllib.request
 +
 +# ComfyUI sets the cudaMallocAsync allocator for its own process, and a server it starts inherits that. CUDA graphs
 +# (what makes this server fast) cannot be captured with it, so start from the default allocator.
@@ -64764,39 +65226,93 @@ index 0000000..1a17a86
 +from pydantic import BaseModel, Field
 +
 +MODELS_DIR = os.environ.get("CLAUDE_TTS_MODELS", "/root/ComfyUI/models/qwen-tts")
++VOICES_DIR = os.environ.get("CLAUDE_TTS_VOICES", os.path.join(MODELS_DIR, "voices"))
++COMFY_URL = os.environ.get("CLAUDE_TTS_COMFY", "http://127.0.0.1:8188")
 +MODEL_NAMES = {
 +    ("custom", "1.7B"): "Qwen3-TTS-12Hz-1.7B-CustomVoice",
 +    ("custom", "0.6B"): "Qwen3-TTS-12Hz-0.6B-CustomVoice",
 +    ("design", "1.7B"): "Qwen3-TTS-12Hz-1.7B-VoiceDesign",
++    ("clone", "1.7B"): "Qwen3-TTS-12Hz-1.7B-Base",
 +}
 +SPEAKERS = ["Aiden", "Dylan", "Eric", "Ono_anna", "Ryan", "Serena", "Sohee", "Uncle_fu", "Vivian"]
 +LANGUAGES = ["Auto", "English", "Chinese", "Japanese", "Korean", "German", "French", "Russian", "Portuguese", "Spanish", "Italian"]
 +
++# What a reference clip says: about 30 words with a question and a few sentence ends, so the voice shows its range.
++SAMPLE_TEXT = "The road north is long, and the night grows cold. Keep your voice down and stay close to me. Do you hear that? Something is moving in the trees ahead."
++# Natural speech is about 0.30 to 0.42 seconds of audio per word; a reference outside this is made again.
++PACE_MIN, PACE_MAX = 0.24, 0.42
++PACE_HINT = " Speak at a brisk, lively, natural pace."
++
 +app = FastAPI(title="claude-tts")
 +_models = {}  # (mode, size) -> FasterQwen3TTS
-+_lock = threading.Lock()  # one generation at a time on the GPU
++_lock = threading.Lock()  # one generation or model change at a time on the GPU
 +_busy = False
++_jobs = {}  # voice slug -> {"status": "creating" | "failed", ...}
 +
 +
 +class SpeakRequest(BaseModel):
 +    text: str = Field(min_length=1, max_length=2000)
-+    mode: str = "custom"  # custom: a preset speaker with a style; design: a described voice
++    mode: str = "custom"  # custom: a preset speaker with a style; design: a described voice; clone: a saved voice
 +    speaker: str = "Ryan"
++    voice: Optional[str] = None  # clone: the name of a saved voice
 +    instruct: Optional[str] = None
 +    language: str = "English"
 +    model: str = "1.7B"
 +    chunk_size: int = Field(default=6, ge=2, le=24)  # codec steps per chunk, 12 per second of audio
 +    seed: Optional[int] = None  # fixes the sampling, so a take can be repeated and a voice stays steady
 +    temperature: float = Field(default=0.7, ge=0.1, le=1.5)
++    speed: float = Field(default=1.0, ge=0.5, le=2.0)  # 1 = as generated; the audio is time-stretched (pitch kept) while it streams
 +
 +
-+def load(mode: str, size: str):
++class CreateVoiceRequest(BaseModel):
++    name: str = Field(min_length=1, max_length=80)
++    description: str = Field(min_length=3, max_length=600)
++    text: Optional[str] = Field(default=None, max_length=400)
++    language: str = "English"
++    replace: bool = False
++    tries: int = Field(default=4, ge=1, le=8)
++    seed: Optional[int] = None
++    wait: bool = False  # answer when the voice is ready (can take a minute) instead of at once
++
++
++def slug(name: str) -> str:
++    return re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")[:60] or "voice"
++
++
++def free_comfy():
++    """Tell ComfyUI to unload its models and cache, so a model load here never competes with them for the GPU."""
++    try:
++        request = urllib.request.Request(
++            f"{COMFY_URL}/free", data=json.dumps({"unload_models": True, "free_memory": True}).encode(), headers={"Content-Type": "application/json"}, method="POST"
++        )
++        urllib.request.urlopen(request, timeout=5).read()
++        time.sleep(1.5)
++    except Exception as error:
++        print(f"[claude-tts] could not ask ComfyUI to free its memory: {error}", flush=True)
++
++
++def release_gpu():
++    import gc
++    import torch
++
++    gc.collect()
++    torch.cuda.empty_cache()
++
++
++def ensure(mode: str, size: str):
++    """The model for (mode, size), loaded. Call with _lock held. Saved voices (clone) are the hot path, so a
++    clone model alone is kept next to one other model; loading the clone model drops everything else."""
 +    key = (mode, size)
 +    if key in _models:
 +        return _models[key]
 +    name = MODEL_NAMES.get(key)
 +    if name is None:
 +        raise HTTPException(400, f"No model for mode={mode} model={size}. Available: {sorted(set(f'{m}/{s}' for m, s in MODEL_NAMES))}")
++    for other in list(_models):
++        if mode == "clone" or other[0] != "clone":
++            del _models[other]
++    release_gpu()
++    free_comfy()
 +    import torch
 +    from faster_qwen3_tts import FasterQwen3TTS
 +
@@ -64809,14 +65325,174 @@ index 0000000..1a17a86
 +    return tts
 +
 +
++# ---- saved voices -------------------------------------------------------------------------------------------
++
++def voice_paths(name: str):
++    base = os.path.join(VOICES_DIR, slug(name))
++    return base + ".wav", base + ".json"
++
++
++def read_voice(name: str):
++    wav, meta_path = voice_paths(name)
++    if not (os.path.exists(wav) and os.path.exists(meta_path)):
++        return None
++    with open(meta_path, encoding="utf-8") as handle:
++        meta = json.load(handle)
++    meta["wav"] = wav
++    return meta
++
++
++def list_voices():
++    out = []
++    if os.path.isdir(VOICES_DIR):
++        for entry in sorted(os.listdir(VOICES_DIR)):
++            if entry.endswith(".json"):
++                meta = read_voice(entry[:-5])
++                if meta:
++                    meta.pop("wav", None)
++                    out.append(meta)
++    return out
++
++
++def trim_silence(wav: np.ndarray, rate: int) -> np.ndarray:
++    loud = np.where(np.abs(wav) > 0.01)[0]
++    if loud.size == 0:
++        return wav
++    pad = int(rate * 0.12)
++    return wav[max(0, loud[0] - pad) : min(len(wav), loud[-1] + pad)]
++
++
++def collect(generator):
++    chunks, rate = [], 24000
++    for audio, sample_rate, _timing in generator:
++        chunks.append(np.asarray(audio, dtype=np.float32).reshape(-1))
++        rate = sample_rate
++    if not chunks:
++        raise RuntimeError("No audio was produced")
++    return np.concatenate(chunks), rate
++
++
++def make_voice(req: CreateVoiceRequest):
++    """Make the reference clip of a voice from its description and save it. Runs in a thread; sets _jobs."""
++    global _busy
++    key = slug(req.name)
++    text = (req.text or SAMPLE_TEXT).strip()
++    words = len(text.split())
++    try:
++        import soundfile as sf
++        import torch
++
++        with _lock:
++            _busy = True
++            try:
++                tts = ensure("design", "1.7B")
++                base_seed = req.seed if req.seed is not None else int(time.time()) % 100000
++                best = None
++                for attempt in range(req.tries):
++                    instruct = req.description if attempt == 0 else req.description + PACE_HINT
++                    torch.manual_seed(base_seed + attempt)
++                    torch.cuda.manual_seed_all(base_seed + attempt)
++                    wav, rate = collect(
++                        tts.generate_voice_design_streaming(text=text, instruct=instruct, language=req.language, chunk_size=12, temperature=0.7)
++                    )
++                    wav = trim_silence(wav, rate)
++                    pace = len(wav) / rate / words
++                    miss = 0.0 if PACE_MIN <= pace <= PACE_MAX else min(abs(pace - PACE_MIN), abs(pace - PACE_MAX))
++                    print(f"[claude-tts] voice {key} try {attempt + 1}: {pace:.3f} s/word", flush=True)
++                    if best is None or miss < best[0]:
++                        best = (miss, wav, rate, pace, attempt + 1, base_seed + attempt)
++                    if miss == 0.0:
++                        break
++                # Free the design model: speaking needs only the clone model.
++                _models.pop(("design", "1.7B"), None)
++                release_gpu()
++            finally:
++                _busy = False
++        _miss, wav, rate, pace, attempt, seed = best
++        os.makedirs(VOICES_DIR, exist_ok=True)
++        wav_path, meta_path = voice_paths(req.name)
++        sf.write(wav_path, wav, rate)
++        meta = {
++            "name": req.name,
++            "description": req.description,
++            "ref_text": text,
++            "language": req.language,
++            "seconds": round(len(wav) / rate, 2),
++            "seconds_per_word": round(pace, 3),
++            "tries": attempt,
++            "seed": seed,
++            "created": time.strftime("%Y-%m-%d %H:%M:%S"),
++        }
++        with open(meta_path, "w", encoding="utf-8") as handle:
++            json.dump(meta, handle, indent=1)
++        _jobs.pop(key, None)
++        print(f"[claude-tts] saved voice {key} ({meta['seconds']}s, {meta['seconds_per_word']} s/word, try {attempt})", flush=True)
++    except Exception as error:
++        detail = error.detail if isinstance(error, HTTPException) else str(error)
++        print(f"[claude-tts] voice {key} failed: {detail}", flush=True)
++        _jobs[key] = {"name": req.name, "status": "failed", "error": detail}
++
++
 +@app.get("/health")
 +def health():
-+    return {"ok": True, "loaded": [f"{m}/{s}" for m, s in _models], "busy": _busy}
++    return {"ok": True, "loaded": [f"{m}/{s}" for m, s in _models], "busy": _busy, "creating": [j["name"] for j in _jobs.values() if j["status"] == "creating"]}
 +
 +
 +@app.get("/voices")
 +def voices():
-+    return {"speakers": SPEAKERS, "languages": LANGUAGES, "models": sorted(set(f"{m}/{s}" for m, s in MODEL_NAMES))}
++    return {
++        "speakers": SPEAKERS,
++        "languages": LANGUAGES,
++        "models": sorted(set(f"{m}/{s}" for m, s in MODEL_NAMES)),
++        "saved": list_voices(),
++        "creating": [j for j in _jobs.values()],
++    }
++
++
++@app.get("/voices/{name}")
++def voice_info(name: str):
++    meta = read_voice(name)
++    if meta:
++        meta.pop("wav", None)
++        return {"ok": True, "status": "ready", "voice": meta}
++    job = _jobs.get(slug(name))
++    if job:
++        return {"ok": job["status"] != "failed", **job}
++    raise HTTPException(404, f'No saved voice named "{name}"')
++
++
++@app.delete("/voices/{name}")
++def voice_delete(name: str):
++    wav, meta_path = voice_paths(name)
++    found = False
++    for path in (wav, meta_path):
++        if os.path.exists(path):
++            os.remove(path)
++            found = True
++    _jobs.pop(slug(name), None)
++    if not found:
++        raise HTTPException(404, f'No saved voice named "{name}"')
++    return {"ok": True}
++
++
++@app.post("/voices/create")
++async def voice_create(req: CreateVoiceRequest):
++    key = slug(req.name)
++    existing = read_voice(req.name)
++    if existing and not req.replace:
++        existing.pop("wav", None)
++        return {"ok": True, "status": "exists", "voice": existing}
++    current = _jobs.get(key)
++    if current and current["status"] == "creating":
++        return {"ok": True, "status": "creating", "name": req.name}
++    _jobs[key] = {"name": req.name, "status": "creating", "started": time.time()}
++    thread = threading.Thread(target=make_voice, args=(req,), daemon=True)
++    thread.start()
++    if req.wait:
++        loop = asyncio.get_running_loop()
++        await loop.run_in_executor(None, thread.join)
++        return voice_info(req.name)
++    return {"ok": True, "status": "creating", "name": req.name, "note": "About a minute: the voice model loads, then a short reference is made until its pace is natural."}
 +
 +
 +@app.post("/unload")
@@ -64824,11 +65500,7 @@ index 0000000..1a17a86
 +    if _busy:
 +        return JSONResponse({"ok": False, "error": "Busy generating"}, status_code=409)
 +    _models.clear()
-+    import gc
-+    import torch
-+
-+    gc.collect()
-+    torch.cuda.empty_cache()
++    release_gpu()
 +    return {"ok": True}
 +
 +
@@ -64837,14 +65509,76 @@ index 0000000..1a17a86
 +    return (np.clip(a, -1.0, 1.0) * 32767.0).astype("<i2").tobytes()
 +
 +
++class Stretcher:
++    """Streams 16-bit mono PCM through ffmpeg's atempo (a time stretch that keeps the pitch), so a voice can speak faster or slower."""
++
++    def __init__(self, rate: int, speed: float):
++        self.proc = subprocess.Popen(
++            ["ffmpeg", "-v", "quiet", "-fflags", "nobuffer", "-flags", "low_delay", "-probesize", "32", "-analyzeduration", "0", "-f", "s16le", "-ar", str(rate), "-ac", "1", "-i", "pipe:0", "-filter:a", f"atempo={speed}", "-flush_packets", "1", "-f", "s16le", "pipe:1"],
++            stdin=subprocess.PIPE,
++            stdout=subprocess.PIPE,
++        )
++        self.out = thread_queue.Queue()
++        threading.Thread(target=self._read, daemon=True).start()
++
++    def _read(self):
++        while True:
++            data = self.proc.stdout.read(4096)
++            if not data:
++                break
++            self.out.put(data)
++        self.out.put(None)
++
++    def feed(self, pcm: bytes):
++        self.proc.stdin.write(pcm)
++        self.proc.stdin.flush()
++
++    def ready(self):
++        """Stretched audio produced so far."""
++        chunks = []
++        while True:
++            try:
++                data = self.out.get_nowait()
++            except thread_queue.Empty:
++                return chunks
++            if data is None:
++                self.out.put(None)
++                return chunks
++            chunks.append(data)
++
++    def finish(self):
++        """Close the input and return everything still to come."""
++        try:
++            self.proc.stdin.close()
++        except Exception:
++            pass
++        chunks = []
++        while True:
++            data = self.out.get()
++            if data is None:
++                return chunks
++            chunks.append(data)
++
++    def kill(self):
++        try:
++            self.proc.kill()
++        except Exception:
++            pass
++
++
 +@app.post("/speak")
 +async def speak(req: SpeakRequest):
 +    global _busy
-+    if req.mode not in ("custom", "design"):
-+        raise HTTPException(400, "mode must be custom or design")
++    if req.mode not in ("custom", "design", "clone"):
++        raise HTTPException(400, "mode must be custom, design or clone")
++    voice = None
++    if req.mode == "clone":
++        if not req.voice:
++            raise HTTPException(400, "clone needs voice (the name of a saved voice)")
++        voice = read_voice(req.voice)
++        if voice is None:
++            raise HTTPException(404, f'No saved voice named "{req.voice}"')
 +    loop = asyncio.get_running_loop()
-+    # Load before answering, so a bad model name is a clean error and not a broken stream.
-+    tts = await loop.run_in_executor(None, load, req.mode, req.model)
 +
 +    queue: asyncio.Queue = asyncio.Queue(maxsize=8)
 +    cancelled = threading.Event()
@@ -64855,6 +65589,7 @@ index 0000000..1a17a86
 +        with _lock:
 +            _busy = True
 +            try:
++                tts = ensure(req.mode, req.model)
 +                if req.seed is not None:
 +                    import torch
 +
@@ -64864,18 +65599,42 @@ index 0000000..1a17a86
 +                    gen = tts.generate_custom_voice_streaming(
 +                        text=req.text, speaker=req.speaker, language=req.language, instruct=req.instruct, chunk_size=req.chunk_size, temperature=req.temperature
 +                    )
++                elif req.mode == "clone":
++                    gen = tts.generate_voice_clone_streaming(
++                        text=req.text, language=req.language, ref_audio=voice["wav"], ref_text=voice["ref_text"], chunk_size=req.chunk_size, temperature=req.temperature
++                    )
 +                else:
 +                    gen = tts.generate_voice_design_streaming(
 +                        text=req.text, instruct=req.instruct or "A calm narrator.", language=req.language, chunk_size=req.chunk_size, temperature=req.temperature
 +                    )
-+                for audio, rate, _timing in gen:
-+                    if cancelled.is_set():
-+                        break
-+                    rate_holder["rate"] = rate
-+                    asyncio.run_coroutine_threadsafe(queue.put(pcm16(audio)), loop).result()
++                def send(data: bytes):
++                    asyncio.run_coroutine_threadsafe(queue.put(data), loop).result()
++
++                stretcher = None
++                try:
++                    for audio, rate, _timing in gen:
++                        if cancelled.is_set():
++                            break
++                        rate_holder["rate"] = rate
++                        pcm = pcm16(audio)
++                        if abs(req.speed - 1.0) < 0.02:
++                            send(pcm)
++                            continue
++                        if stretcher is None:
++                            stretcher = Stretcher(rate, req.speed)
++                        stretcher.feed(pcm)
++                        for data in stretcher.ready():
++                            send(data)
++                    if stretcher is not None and not cancelled.is_set():
++                        for data in stretcher.finish():
++                            send(data)
++                finally:
++                    if stretcher is not None:
++                        stretcher.kill()
 +            except Exception as error:  # surfaced to the client as a short error chunk marker below
-+                print(f"[claude-tts] generation failed: {error}", flush=True)
-+                rate_holder["error"] = str(error)
++                detail = error.detail if isinstance(error, HTTPException) else str(error)
++                print(f"[claude-tts] generation failed: {detail}", flush=True)
++                rate_holder["error"] = detail
 +            finally:
 +                _busy = False
 +                asyncio.run_coroutine_threadsafe(queue.put(None), loop).result()

@@ -110508,7 +110508,9 @@ var ActorManagementTools = class {
   foundryClient;
   logger;
   systemRegistry;
-  constructor({ foundryClient, logger, systemRegistry }) {
+  makeVoice;
+  constructor({ foundryClient, logger, systemRegistry, makeVoice }) {
+    this.makeVoice = makeVoice;
     this.foundryClient = foundryClient;
     this.logger = logger.child({ component: "ActorManagementTools" });
     this.systemRegistry = systemRegistry ?? null;
@@ -110574,6 +110576,10 @@ var ActorManagementTools = class {
                     type: "object",
                     description: `Token options: width and height in squares (2 for a Large creature), disposition (-1 hostile, 0 neutral, 1 friendly), scale (0.2 to 3), actor_link, display_name and display_bars (none, control, owner_hover, hover, owner, always), vision (on/off), vision_range (distance units, e.g. 60), vision_mode (basic, darkvision...), sight {enabled, range, angle, vision_mode, brightness, saturation, contrast}, light {preset: torch|lantern|candle|none, or bright and dim in distance units, color #RRGGBB, alpha, angle, animation {type: torch|pulse|flame..., speed, intensity}}, detection_modes [{id, range}] (e.g. seeAll, feelTremor), lock_rotation, alpha, raw (any other prototype token field as a nested object).`,
                     additionalProperties: true
+                  },
+                  voice: {
+                    type: "string",
+                    description: 'A short description of how the character sounds (age, sex, accent, timbre, manner: "a gruff middle-aged dwarf woman, Scottish accent, warm and blunt"). The saved voice is made from it in the background (about a minute) and speak then uses it by itself whenever this actor speaks. Give one to every NPC that will talk.'
                   },
                   statblock: statblockJsonSchema,
                   system: {
@@ -110796,11 +110802,15 @@ var ActorManagementTools = class {
         system: external_exports.record(external_exports.any()).optional(),
         statblock: statblockSchema.optional(),
         hp: hpSchema.optional(),
-        token: external_exports.record(external_exports.any()).optional()
+        token: external_exports.record(external_exports.any()).optional(),
+        voice: external_exports.string().min(3).max(600).optional()
       })).min(1),
       folder: external_exports.string().optional()
     });
-    const { actors, folder } = schema23.parse(args);
+    const parsed = schema23.parse(args);
+    const folder = parsed.folder;
+    const voices = parsed.actors.filter((a) => a.voice).map((a) => ({ name: a.name, description: a.voice }));
+    const actors = parsed.actors.map(({ voice: _voice, ...rest }) => rest);
     this.logger.info("Creating actors", {
       count: actors.length,
       types: actors.map((a) => a.type)
@@ -110811,6 +110821,12 @@ var ActorManagementTools = class {
       actors: normalizedActors,
       folder
     });
+    if (voices.length > 0 && this.makeVoice && result?.success !== false) {
+      const made = [];
+      for (const v of voices)
+        made.push(await this.makeVoice(v.name, v.description));
+      return { ...result, voices: made };
+    }
     return result;
   }
   // ── update ────────────────────────────────────────────────────────────────
@@ -114282,6 +114298,32 @@ async function getServerJson(baseUrl, path13, timeoutMs = 8e3) {
     throw await failure(response);
   return response.json();
 }
+function voiceKey(name) {
+  return name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60) || "voice";
+}
+function findSavedVoice(saved, name) {
+  if (!name)
+    return void 0;
+  const key = voiceKey(name);
+  return (saved ?? []).find((v) => voiceKey(v.name) === key);
+}
+async function sendJson(baseUrl, path13, method, body, timeoutMs) {
+  const response = await fetch(`${serverUrl(baseUrl)}${path13}`, {
+    method,
+    headers: { "Content-Type": "application/json" },
+    ...body === void 0 ? {} : { body: JSON.stringify(body) },
+    signal: AbortSignal.timeout(timeoutMs)
+  });
+  if (!response.ok)
+    throw await failure(response);
+  return response.json();
+}
+function createVoice(baseUrl, request) {
+  return sendJson(baseUrl, "/voices/create", "POST", request, request.wait ? 3e5 : 15e3);
+}
+function deleteVoice(baseUrl, name) {
+  return sendJson(baseUrl, `/voices/${encodeURIComponent(name)}`, "DELETE", void 0, 1e4);
+}
 async function unloadVoice(baseUrl, timeoutMs = 1e4) {
   try {
     const response = await fetch(`${serverUrl(baseUrl)}/unload`, { method: "POST", signal: AbortSignal.timeout(timeoutMs) });
@@ -115393,6 +115435,9 @@ function startDelayMs(pieces, firstSeconds, firstReadyMs, gapMs = 120) {
 }
 
 // dist/tools/speech-tools.js
+var AUTO_SLOW_PACE = 0.5;
+var AUTO_TARGET_PACE = 0.42;
+var MAX_AUTO_SPEED = 1.35;
 var UPLOAD_TIMEOUT_MS3 = 12e4;
 var SPEECH_TIMEOUT_MS = 5 * 60 * 1e3;
 var MAX_SEGMENT_SECONDS = 4;
@@ -115407,7 +115452,7 @@ function segmentPlan(rate) {
   };
 }
 var schema5 = external_exports.object({
-  action: external_exports.enum(["say", "describe", "stop", "status"]).optional(),
+  action: external_exports.enum(["say", "describe", "stop", "status", "voices", "create_voice", "delete_voice"]).optional(),
   text: external_exports.string().min(1).max(1500).optional(),
   voice: external_exports.string().min(1).max(300).optional(),
   style: external_exports.string().min(1).max(300).optional(),
@@ -115418,13 +115463,19 @@ var schema5 = external_exports.object({
   token_id: external_exports.string().min(1).max(40).optional(),
   actor: external_exports.string().min(1).max(80).optional(),
   chat: external_exports.boolean().optional(),
-  seed: external_exports.number().int().min(0).optional()
+  seed: external_exports.number().int().min(0).optional(),
+  name: external_exports.string().min(1).max(80).optional(),
+  description: external_exports.string().min(3).max(600).optional(),
+  replace: external_exports.boolean().optional(),
+  wait: external_exports.boolean().optional()
 }).strict();
 var SpeechTools = class {
   /** How fast the streaming server has been lately (seconds of audio per second of waiting, uploads included), learned from each narration. */
   fastRate = 1.2;
-  /** How long a word of narration lasts, learned from what was spoken, to spread the chat text over the audio of a streamed paragraph. */
-  secondsPerWord = 0.42;
+  /** How long a word lasts in each voice, learned from what was spoken, to spread the chat text over the audio of a streamed paragraph. */
+  paces = /* @__PURE__ */ new Map();
+  /** Seconds per word of each voice as generated (before any speed-up), to notice a voice that runs slow. */
+  rawPaces = /* @__PURE__ */ new Map();
   foundryClient;
   logger;
   getClient;
@@ -115441,22 +115492,26 @@ var SpeechTools = class {
     return [
       {
         name: "speak",
-        description: `Narrate or voice a line aloud for the whole table. It makes the speech with the GM's ComfyUI (the same one used for images), uploads the audio to the Foundry world, plays it for every connected player, and shows the words in the chat revealed in time with the audio. say {text, voice?, style?, language?, speed?, engine?, speaker_name?, chat?} speaks the text (up to 1500 characters, a paragraph or two): the engine, voice, style and speed default to what the GM set in the module settings (Narration). Engines: qwen3-fast (the best voice, streams while it generates: starts within about a second; needs the claude_tts node in ComfyUI; presets such as Ryan, "style" says how to speak), kokoro (fast, a few seconds per paragraph; voice is an id like bm_fable or af_heart), qwen3-custom (slower, preset voices such as Ryan or Serena, "style" says how to speak), qwen3-design (slowest; "voice" is a description such as "a gruff old dwarf with a Scottish accent"). speaker_name is the label in the chat (default Narrator, or the NPC's name); token_id or actor makes it a character speaking: its name and portrait in the chat and the whole line as a speech bubble over its token when the audio starts; chat:false plays the audio without the chat text. The text is spoken sentence by sentence: the first sentence starts playing as soon as it is ready (about a second with kokoro or qwen3-fast) while the rest is generated, and each sentence appears in the chat as it is spoken. The call returns at once with {queued, position}: speeches play one after the other in the order the calls were sent (and chat narrate/say and roll request cards wait for the speech before them), so send narration, an NPC line and a roll request in one message without waiting. A failure while generating later shows as a notice on the table feed. Write text to be heard: no stage directions, no markup, and spell out what should be said. Do not speak secrets or GM notes. describe shows the settings, which engines this ComfyUI can run and their voices; stop silences the narration now. Needs ComfyUI running with a text-to-speech node (Kokoro or Qwen3-TTS) and Allow Write Operations.`,
+        description: `Narrate or voice a line aloud for the whole table. It makes the speech with the GM's ComfyUI (the same one used for images), uploads the audio to the Foundry world, plays it for every connected player, and shows the words in the chat revealed in time with the audio. say {text, voice?, style?, language?, speed?, engine?, speaker_name?, chat?} speaks the text (up to 1500 characters, a paragraph or two): the engine, voice, style and speed default to what the GM set in the module settings (Narration). Engines: qwen3-fast (the best voice, streams while it generates: starts within about a second; needs the claude_tts node in ComfyUI; presets such as Ryan, "style" says how to speak), kokoro (fast, a few seconds per paragraph; voice is an id like bm_fable or af_heart), qwen3-custom (slower, preset voices such as Ryan or Serena, "style" says how to speak), qwen3-design (slowest; "voice" is a description such as "a gruff old dwarf with a Scottish accent"). speaker_name is the label in the chat (default Narrator, or the NPC's name); token_id or actor makes it a character speaking: its name and portrait in the chat and the whole line as a speech bubble over its token when the audio starts; chat:false plays the audio without the chat text. The text is spoken sentence by sentence: the first sentence starts playing as soon as it is ready (about a second with kokoro or qwen3-fast) while the rest is generated, and each sentence appears in the chat as it is spoken. The call returns at once with {queued, position}: speeches play one after the other in the order the calls were sent (and chat narrate/say and roll request cards wait for the speech before them), so send narration, an NPC line and a roll request in one message without waiting. A failure while generating later shows as a notice on the table feed. Write text to be heard: no stage directions, no markup, and spell out what should be said. Do not speak secrets or GM notes. SAVED VOICES (qwen3-fast): a character or the narrator can have a saved voice, made once from a description and then cloned for every line, so it sounds the same every time and speaks at a natural pace. speak picks it by itself: voice if given, else the saved voice of the actor (or speaker_name), else the one named "narrator" when no character is speaking, else the preset of the settings. create_voice {name, description, text?, replace?, wait?} makes one (name = the actor name or "narrator"; description = age, sex, accent, timbre, manner, e.g. "a gruff middle-aged dwarf woman, Scottish accent, warm and blunt"; it takes about a minute in the background and pauses speech while the model loads, so do it between scenes, not mid-fight); voices lists saved voices and those being made; delete_voice {name} removes one. actors create does this for you when an actor has a voice description. describe shows the settings, which engines this ComfyUI can run and their voices; stop silences the narration now. Needs ComfyUI running with a text-to-speech node (Kokoro or Qwen3-TTS) and Allow Write Operations.`,
         inputSchema: {
           type: "object",
           properties: {
-            action: { type: "string", enum: ["say", "describe", "stop", "status"], description: "say (default), describe, stop (silences and empties the table queue) or status (what is queued)" },
+            action: { type: "string", enum: ["say", "describe", "stop", "status", "voices", "create_voice", "delete_voice"], description: "say (default), describe, stop (silences and empties the table queue), status (what is queued), voices (saved voices), create_voice or delete_voice" },
             text: { type: "string", description: "say: what to speak (max 1500 characters)" },
             voice: { type: "string", description: "say: the voice (kokoro id, qwen3 preset, or for qwen3-design a description). Default: the setting" },
             style: { type: "string", description: "say: how to speak it (qwen3-custom), or the voice description for qwen3-design when voice is empty" },
             language: { type: "string", description: "say: language, or auto (default)" },
-            speed: { type: "number", description: "say: kokoro speed, 0.5 to 2 (default 1)" },
+            speed: { type: "number", description: "say: speed 0.5 to 2 (default 1; kokoro, and qwen3-fast which time-stretches the audio keeping the pitch; qwen3-fast also speeds a voice up by itself when it has been running slow)" },
             engine: { type: "string", enum: ["qwen3-fast", "kokoro", "qwen3-custom", "qwen3-design"], description: "say: override the engine" },
             speaker_name: { type: "string", description: "say: the name shown in the chat (default Narrator)" },
             token_id: { type: "string", description: "say: speak as this token on the scene: the chat line carries it and a speech bubble shows over it" },
             actor: { type: "string", description: "say: speak as this actor (name or id), using its token on the scene for the bubble. Ignored when token_id is given" },
             chat: { type: "boolean", description: "say: show the words in chat in time with the audio (default: the setting)" },
-            seed: { type: "number", description: "say: a fixed seed for qwen3 engines, to repeat a take" }
+            seed: { type: "number", description: "say: a fixed seed for qwen3 engines, to repeat a take" },
+            name: { type: "string", description: 'create_voice / delete_voice: the voice name (the actor name, or "narrator")' },
+            description: { type: "string", description: "create_voice: the voice in words: age, sex, accent, timbre, manner" },
+            replace: { type: "boolean", description: "create_voice: make it again if it exists" },
+            wait: { type: "boolean", description: "create_voice: answer when the voice is ready (about a minute) instead of at once" }
           },
           additionalProperties: false
         }
@@ -115475,13 +115530,28 @@ var SpeechTools = class {
       return this.describe();
     if (action === "status")
       return { success: true, queued_items: this.lane?.busy ?? 0 };
+    if (action === "voices")
+      return this.listVoices();
+    if (action === "create_voice") {
+      if (!a.name || !a.description)
+        throw new Error("create_voice needs name and description");
+      return this.createSavedVoice(a.name, a.description, { replace: a.replace, wait: a.wait, text: a.text, language: a.language });
+    }
+    if (action === "delete_voice") {
+      if (!a.name)
+        throw new Error("delete_voice needs name");
+      const baseUrl = await this.baseUrl();
+      await deleteVoice(baseUrl, a.name);
+      return { success: true, deleted: a.name };
+    }
     if (!a.text?.trim())
       throw new Error("say needs text");
     const lane = this.lane;
     if (!lane)
       return this.say(a);
     const label = `speak "${a.text.trim().slice(0, 40)}"`;
-    return lane.speech(label, (epoch) => this.say(a, epoch));
+    const queued = lane.speech(label, (epoch) => this.say(a, epoch));
+    return { ...queued, ...await this.previewVoice(a) };
   }
   async readSettings() {
     const result = await this.foundryClient.query("foundry-mcp-bridge.get-speech-settings", {});
@@ -115592,6 +115662,72 @@ var SpeechTools = class {
       playing: "The audio is queued in Foundry and plays on its own; this call returns when everything is queued, not when it finishes playing"
     };
   }
+  /** The names a line may be voiced under: the actor, the speaker name, and for a token its actor and its own name. */
+  async voiceNames(a) {
+    const names = [a.actor, a.speaker_name].filter((n) => !!n);
+    if (a.token_id) {
+      try {
+        const token = await this.foundryClient.query("foundry-mcp-bridge.get-token-details", { tokenId: a.token_id });
+        for (const n of [token?.actorData?.name, token?.name])
+          if (typeof n === "string" && n)
+            names.push(n);
+      } catch {
+      }
+    }
+    return names;
+  }
+  /**
+   * Which voice speaks the line: the one asked for; else the saved voice of the character speaking (actor, speaker name,
+   * the token's actor or name); else the narrator's; else the preset of the settings. Pure, so it can be tested.
+   */
+  pickVoice(a, settings, voices, names) {
+    const speakers = voices?.speakers ?? [];
+    const savedVoices = voices?.saved ?? [];
+    const creating = voices?.creating ?? [];
+    const presetOf = (name) => speakers.find((v) => v.toLowerCase() === name.toLowerCase());
+    const stillMaking = (name) => !!name && creating.some((c) => c.status === "creating" && voiceKey(c.name) === voiceKey(name));
+    const isNarrator = names.length === 0 ? !a.token_id : names.every((n) => voiceKey(n) === "narrator");
+    if (a.voice) {
+      const clone2 = findSavedVoice(savedVoices, a.voice);
+      const voice2 = clone2 ? void 0 : presetOf(a.voice);
+      if (!clone2 && !voice2) {
+        throw new Error(`"${a.voice}" is not a qwen3-fast voice. Saved: ${savedVoices.map((v) => v.name).join(", ") || "none"}. Presets: ${speakers.join(", ")}`);
+      }
+      return { name: clone2 ? clone2.name : voice2, ...clone2 ? { clone: clone2 } : { voice: voice2 } };
+    }
+    let clone;
+    for (const n of names) {
+      clone = findSavedVoice(savedVoices, n);
+      if (clone)
+        break;
+    }
+    if (!clone && isNarrator)
+      clone = findSavedVoice(savedVoices, "narrator");
+    if (clone)
+      return { name: clone.name, clone };
+    const wanted = isNarrator ? "narrator" : names[0];
+    let voiceNote;
+    if (names.some(stillMaking) || isNarrator && stillMaking("narrator"))
+      voiceNote = `The voice "${wanted}" is still being made, so the preset was used this time`;
+    else if (wanted && !(isNarrator && !savedVoices.length && !creating.length))
+      voiceNote = `No saved voice for "${wanted}": create one with create_voice {name, description}; the preset was used`;
+    const voice = presetOf(settings.engine === "qwen3-fast" ? settings.voice : "Ryan") ?? speakers[0];
+    return { name: voice, voice, ...voiceNote ? { voiceNote } : {} };
+  }
+  /** What a queued speech will sound like, for the immediate reply (the speech itself runs later, in the queue). Never throws. */
+  async previewVoice(a) {
+    try {
+      const { target: target2, settings } = await this.readSettings();
+      this.applyTarget(target2);
+      if ((a.engine ?? settings.engine) !== "qwen3-fast")
+        return {};
+      const voices = await getServerJson(this.getClient().getBaseUrl(), "/voices", 3e3);
+      const pick = this.pickVoice(a, settings, voices, await this.voiceNames(a));
+      return { voice: pick.name, voice_kind: pick.clone ? "saved" : "preset", ...pick.voiceNote ? { voice_note: pick.voiceNote } : {} };
+    } catch {
+      return {};
+    }
+  }
   /** The streaming engine: sentence by sentence, each streamed from the narration server and queued in Foundry in growing pieces. */
   async sayFast(a, settings, client, epoch) {
     const cancelled = () => epoch !== void 0 && this.lane?.cancelled(epoch) === true;
@@ -115602,11 +115738,10 @@ var SpeechTools = class {
     } catch (error) {
       throw new Error(`The qwen3-fast engine needs the claude_tts node in ComfyUI: ${error instanceof Error ? error.message : String(error)}`);
     }
-    const speakers = voices?.speakers ?? [];
-    const wanted = a.voice ?? (settings.engine === "qwen3-fast" ? settings.voice : "Ryan");
-    const voice = speakers.find((v) => v.toLowerCase() === wanted.toLowerCase());
-    if (!voice)
-      throw new Error(`"${wanted}" is not a qwen3-fast voice. Available: ${speakers.join(", ")}`);
+    const pick = this.pickVoice(a, settings, voices, await this.voiceNames(a));
+    const { clone, voice, voiceNote } = pick;
+    const voiceName = pick.name;
+    const paceKey = voiceKey(voiceName);
     const language = (a.language ?? settings.language) === "auto" ? "English" : a.language ?? settings.language;
     const instruct = a.style ?? settings.style;
     const text3 = a.text.trim();
@@ -115615,7 +115750,7 @@ var SpeechTools = class {
     const utterance = `${Date.now().toString(36)}${(0, import_crypto6.randomInt)(0, 1679616).toString(36)}`;
     const speaker = a.speaker_name ?? "Narrator";
     const sync = a.chat ?? settings.syncText;
-    this.logger.info("Streaming speech", { voice, characters: text3.length, pieces: pieces.length });
+    this.logger.info("Streaming speech", { voice: voiceName, saved: !!clone, characters: text3.length, pieces: pieces.length });
     const started = Date.now();
     let firstAudioMs;
     let totalAudio = 0;
@@ -115665,6 +115800,7 @@ var SpeechTools = class {
         }
       });
     };
+    let usedSpeed = 1;
     const plan = segmentPlan(this.fastRate);
     let target2 = plan.first;
     try {
@@ -115672,8 +115808,12 @@ var SpeechTools = class {
         if (sendError || cancelled())
           break;
         const words2 = piece.split(/\s+/).length;
-        const expected = Math.max(1, words2 * this.secondsPerWord);
-        const stream4 = await streamSpeech(baseUrl, { text: piece, mode: "custom", speaker: voice, instruct, language, model: "1.7B", chunk_size: 6, seed, temperature: 0.7 });
+        const secondsPerWord = this.paces.get(paceKey) ?? 0.42;
+        const expected = Math.max(1, words2 * secondsPerWord);
+        const rawPace = this.rawPaces.get(paceKey);
+        const speed = a.speed ?? (rawPace !== void 0 && rawPace > AUTO_SLOW_PACE ? Math.min(MAX_AUTO_SPEED, Math.round(rawPace / AUTO_TARGET_PACE * 100) / 100) : 1);
+        usedSpeed = speed;
+        const stream4 = await streamSpeech(baseUrl, clone ? { text: piece, mode: "clone", voice: clone.name, language, model: "1.7B", chunk_size: 6, seed, temperature: 0.7, speed } : { text: piece, mode: "custom", speaker: voice, instruct, language, model: "1.7B", chunk_size: 6, seed, temperature: 0.7, speed });
         let pending = [];
         let pendingBytes = 0;
         let spoken = 0;
@@ -115700,8 +115840,12 @@ var SpeechTools = class {
         if (cancelled())
           break;
         flush(true);
-        if (spoken > 0)
-          this.secondsPerWord = Math.max(0.2, Math.min(0.9, (this.secondsPerWord + spoken / words2) / 2));
+        if (spoken > 0) {
+          const heard = spoken / words2;
+          this.paces.set(paceKey, Math.max(0.2, Math.min(0.9, (secondsPerWord + heard) / 2)));
+          const raw = heard * speed;
+          this.rawPaces.set(paceKey, Math.max(0.2, Math.min(1.2, ((this.rawPaces.get(paceKey) ?? raw) + raw) / 2)));
+        }
       }
       await sendChain;
       if (sendError)
@@ -115719,7 +115863,10 @@ var SpeechTools = class {
     return {
       success: true,
       engine: "qwen3-fast",
-      voice,
+      voice: voiceName,
+      voice_kind: clone ? "saved" : "preset",
+      ...usedSpeed !== 1 ? { speed: usedSpeed } : {},
+      ...voiceNote ? { voice_note: voiceNote } : {},
       parts: segmentIndex,
       first_audio_ready_in_seconds: Math.round((firstAudioMs ?? 0) / 100) / 10,
       generated_in_seconds: Math.round((Date.now() - started) / 100) / 10,
@@ -115730,10 +115877,34 @@ var SpeechTools = class {
       playing: "The audio is queued in Foundry and plays on its own; this call returns when everything is queued, not when it finishes playing"
     };
   }
+  /** The address of the ComfyUI the module's settings choose (which also carries the narration server). */
+  async baseUrl() {
+    const { target: target2 } = await this.readSettings();
+    this.applyTarget(target2);
+    return this.getClient().getBaseUrl();
+  }
+  async listVoices() {
+    const voices = await getServerJson(await this.baseUrl(), "/voices");
+    return { success: true, saved: voices.saved ?? [], being_made: voices.creating ?? [], presets: voices.speakers ?? [] };
+  }
+  /**
+   * Make (in the background) the saved voice of a character or the narrator from a description. Used by `speak create_voice`
+   * and by `actors create`. Never throws: a ComfyUI without the narration server just reports why no voice was made.
+   */
+  async createSavedVoice(name, description, options = {}) {
+    try {
+      const baseUrl = await this.baseUrl();
+      const result = await createVoice(baseUrl, { name, description, replace: options.replace, wait: options.wait, text: options.text, language: options.language });
+      this.logger.info("Voice requested", { name, status: result?.status });
+      return { success: result?.ok !== false, name, status: result?.status ?? "creating", ...result?.voice ? { voice: result.voice } : {}, ...result?.error ? { error: result.error } : {}, ...result?.note ? { note: result.note } : {} };
+    } catch (error) {
+      return { success: false, name, status: "not-made", error: error instanceof Error ? error.message : String(error) };
+    }
+  }
   async describeFast(client) {
     try {
       const voices = await getServerJson(client.getBaseUrl(), "/voices");
-      return { available: true, voices: voices.speakers, languages: voices.languages };
+      return { available: true, voices: voices.speakers, saved_voices: (voices.saved ?? []).map((v) => v.name), being_made: (voices.creating ?? []).map((c) => `${c.name} (${c.status})`), languages: voices.languages };
     } catch (error) {
       return { available: false, needs: "the claude_tts custom node in ComfyUI", detail: error instanceof Error ? error.message : String(error) };
     }
@@ -125043,7 +125214,7 @@ async function startBackend() {
   const inspectTools = new InspectTools({ foundryClient, logger });
   const playlistTools = new PlaylistTools({ foundryClient, logger });
   const actorCreationTools = new ActorCreationTools({ foundryClient, logger });
-  const actorManagementTools = new ActorManagementTools({ foundryClient, logger, systemRegistry });
+  const actorManagementTools = new ActorManagementTools({ foundryClient, logger, systemRegistry, makeVoice: (name, description) => speechTools.createSavedVoice(name, description) });
   const effectManagementTools = new EffectManagementTools({ foundryClient, logger });
   const dnd5eAddFeatureTool = new DnD5eAddFeatureTool({ foundryClient, logger });
   const dnd5eFeaturesFromCompendiumTools = new DnD5eFeaturesFromCompendiumTools({

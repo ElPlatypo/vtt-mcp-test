@@ -30,11 +30,20 @@ It needs a Python with `faster-qwen3-tts`, `fastapi` and `uvicorn` (default `/op
 | `CLAUDE_TTS_MODELS` | `/root/ComfyUI/models/qwen-tts` | folder with the model folders |
 | `CLAUDE_TTS_AUTOSTART` | `1` | `0` to start `server.py` yourself |
 
+## Saved voices
+
+A character (or the narrator) can have a **saved voice**: `POST /claude-tts/voices/create {name, description}` makes a short reference clip with the VoiceDesign model, remakes it (up to 4 tries, with a "brisk, natural pace" hint after the first) until its pace is natural (0.24 to 0.42 s of audio per word), and saves `<name>.wav` + `<name>.json` in `ComfyUI/models/qwen-tts/voices/` (a mounted folder, so it survives container rebuilds). Speaking with `mode: "clone", voice: "<name>"` then clones it with the Base model: first audio in about 0.4 s, and the voice speaks at the pace of its reference. Switching between saved voices costs nothing; only the first line after a start loads the Base model (about 25 s).
+
+Needs the model folder `Qwen3-TTS-12Hz-1.7B-Base` next to the others. Before any model load the server asks ComfyUI to unload all its models and cache (`POST /free`), so the two never fight over the GPU; keep only the clone model next to one other model. Creating a voice holds the GPU for about 30 to 60 s (speech waits), so do it between scenes.
+
 ## API
 
-- `GET  /claude-tts/health` and `GET /claude-tts/voices`
-- `POST /claude-tts/speak` with `{text, mode: "custom"|"design", speaker, instruct, language, model, chunk_size}` streams raw 16-bit mono PCM (`X-Sample-Rate` header, 24000 Hz).
+- `GET  /claude-tts/health` and `GET /claude-tts/voices` (presets, `saved`, `creating`)
+- `POST /claude-tts/speak` with `{text, mode: "custom"|"design"|"clone", speaker, voice, instruct, language, model, chunk_size, speed}` streams raw 16-bit mono PCM (`X-Sample-Rate` header, 24000 Hz). `voice` is a saved voice for `clone`. `speed` (0.5 to 2, default 1) time-stretches the audio while it streams with ffmpeg's `atempo` (pitch kept; needs `ffmpeg` in the container, which the ComfyUI image has).
+- `POST /claude-tts/voices/create` `{name, description, text?, language?, replace?, wait?}`, `GET|DELETE /claude-tts/voices/{name}`.
 - `POST /claude-tts/unload` frees the GPU memory.
+
+Environment: `CLAUDE_TTS_VOICES` (voices folder), `CLAUDE_TTS_COMFY` (ComfyUI address for the free call, default `http://127.0.0.1:8188`).
 
 Measured on an RTX 3060: first audio 0.35 s after the model is loaded, about 1.7 times faster than speech.
 
