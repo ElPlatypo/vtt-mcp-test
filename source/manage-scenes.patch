@@ -21234,6 +21234,215 @@ index 0000000..3a36694
 +export function blockedMessage(names: string[]): string {
 +  return `Monk's Combat Details will not start a combat while someone has no initiative (${names.join(', ')}): roll for them (combat roll) or give a value (set_initiative), then use next to begin. Starting now would leave a prompt open in the GM's browser.`;
 +}
+diff --git a/packages/foundry-module/src/npc-memory.test.ts b/packages/foundry-module/src/npc-memory.test.ts
+new file mode 100644
+index 0000000..9c26655
+--- /dev/null
++++ b/packages/foundry-module/src/npc-memory.test.ts
+@@ -0,0 +1,67 @@
++import { afterEach, describe, expect, it, vi } from 'vitest';
++import { appendMemory, npcMemory, npcNotesFor, readMemorySection } from './npc-memory.js';
++
++describe('GM memory section', () => {
++  it('adds a section at the end and keeps the biography above it', () => {
++    const once = appendMemory('<p>A retired soldier.</p>', 'Trusts Kael', 'Session 2');
++    expect(once).toBe('<p>A retired soldier.</p><h3>GM memory</h3><p>(Session 2) Trusts Kael</p>');
++    const twice = appendMemory(once, 'Told them about the <cave>');
++    expect(readMemorySection(twice)).toEqual(['(Session 2) Trusts Kael', 'Told them about the <cave>']);
++  });
++
++  it('adds to the section even when the GM wrote more after it', () => {
++    const bio = '<h2>Story</h2><p>x</p><h3>GM memory</h3><p>one</p><h2>Other</h2><p>after</p>';
++    const out = appendMemory(bio, 'two');
++    expect(out).toBe('<h2>Story</h2><p>x</p><h3>GM memory</h3><p>one</p><p>two</p><h2>Other</h2><p>after</p>');
++    expect(readMemorySection(out)).toEqual(['one', 'two']);
++  });
++
++  it('reads an NPC Notes page section by name', () => {
++    const page = '<h3>Sildar</h3><p>(Session 1) grateful</p><h3>Yeemik</h3><p>(Session 1) wants Klarg dead</p>';
++    expect(npcNotesFor(page, 'yeemik')).toEqual(['(Session 1) wants Klarg dead']);
++    expect(npcNotesFor(page, 'Nobody')).toEqual([]);
++  });
++});
++
++describe('npcMemory in Foundry', () => {
++  afterEach(() => vi.unstubAllGlobals());
++
++  const setup = (playerCanSee: boolean) => {
++    const actor: any = {
++      name: 'Sildar',
++      hasPlayerOwner: false,
++      system: { details: { biography: { value: '<p>Knight.</p>' } } },
++      testUserPermission: () => playerCanSee,
++      update: vi.fn(async function (this: any, changes: any) {
++        actor.system.details.biography.value = changes['system.details.biography.value'];
++      }),
++    };
++    const page = { name: 'NPC Notes', text: { content: '<h3>Sildar</h3><p>from the journal</p>' } };
++    vi.stubGlobal('game', {
++      actors: { contents: [actor], get: () => undefined },
++      users: { contents: [{ isGM: true }, { isGM: false }] },
++      journal: { contents: [{ name: 'Campaign Memory', pages: { contents: [page] } }] },
++    });
++    return actor;
++  };
++
++  it('writes the note to the biography and reads it back', async () => {
++    const actor = setup(false);
++    expect(await npcMemory({ action: 'note', name: 'sildar', note: 'Owes the party', label: 'Session 3' })).toMatchObject({ written: true, npc: 'Sildar' });
++    expect(actor.system.details.biography.value).toContain('<h3>GM memory</h3><p>(Session 3) Owes the party</p>');
++    expect(await npcMemory({ action: 'read', names: ['Sildar'] })).toMatchObject({ npc: 'Sildar', from: 'biography', memory: ['(Session 3) Owes the party'] });
++  });
++
++  it('never writes to a sheet the players can see, and reads the journal instead', async () => {
++    const actor = setup(true);
++    const r = await npcMemory({ action: 'note', name: 'Sildar', note: 'secret' });
++    expect(r.written).toBe(false);
++    expect(actor.update).not.toHaveBeenCalled();
++    expect(await npcMemory({ action: 'read', names: ['Sildar'] })).toMatchObject({ from: 'NPC Notes journal page', memory: ['from the journal'] });
++  });
++
++  it('returns nothing for the narrator', async () => {
++    setup(false);
++    expect(await npcMemory({ action: 'read', names: ['Narrator'] })).toEqual({ success: true });
++  });
++});
+diff --git a/packages/foundry-module/src/npc-memory.ts b/packages/foundry-module/src/npc-memory.ts
+new file mode 100644
+index 0000000..01e5d8f
+--- /dev/null
++++ b/packages/foundry-module/src/npc-memory.ts
+@@ -0,0 +1,130 @@
++/**
++ * NPC memory kept in Foundry where the GM can read and edit it: a "GM memory" section at the end of
++ * the NPC's biography (campaign-memory log npcs writes it), so speaking as the NPC brings back what
++ * it knows, how it feels about the party and what it has told them. An actor the players can see
++ * (an ally they observe) keeps its notes only in the Campaign Memory journal's NPC Notes page, which
++ * is GM-only; reading falls back to that page.
++ */
++import { htmlToText } from './rules-utils.js';
++
++export const MEMORY_HEADING = 'GM memory';
++const HEADING_RE = new RegExp(`<h([1-6])[^>]*>\\s*${MEMORY_HEADING}\\s*</h\\1>`, 'i');
++
++const escapeHtml = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
++const lines = (html: string) =>
++  html
++    .split(/<\/(?:p|li|h[1-6])>/i)
++    .map(chunk => htmlToText(chunk).replace(/\s+/g, ' ').trim())
++    .filter(Boolean);
++
++/** Where the GM memory section of a biography starts and ends (end: the next heading of the same or higher level). */
++function sectionBounds(html: string): { start: number; bodyStart: number; end: number } | undefined {
++  const m = HEADING_RE.exec(html);
++  if (!m) return undefined;
++  const level = Number(m[1]);
++  const bodyStart = m.index + m[0].length;
++  const rest = html.slice(bodyStart);
++  const next = new RegExp(`<h[1-${level}][^>]*>`, 'i').exec(rest);
++  return { start: m.index, bodyStart, end: next ? bodyStart + next.index : html.length };
++}
++
++/** The GM memory lines of a biography (empty when it has none). */
++export function readMemorySection(html: string): string[] {
++  const b = sectionBounds(String(html ?? ''));
++  return b ? lines(String(html).slice(b.bodyStart, b.end)) : [];
++}
++
++/** The biography with one more line in its GM memory section (made at the end when missing). The rest is left as it is. */
++export function appendMemory(html: string, note: string, label?: string): string {
++  const src = String(html ?? '');
++  const entry = `<p>${label ? `(${escapeHtml(label)}) ` : ''}${escapeHtml(note.trim())}</p>`;
++  const b = sectionBounds(src);
++  if (!b) return `${src}<h3>${MEMORY_HEADING}</h3>${entry}`;
++  return src.slice(0, b.end) + entry + src.slice(b.end);
++}
++
++/** The notes under a name in the NPC Notes page (h3 per NPC, as campaign-memory writes it). */
++export function npcNotesFor(pageHtml: string, name: string): string[] {
++  const html = String(pageHtml ?? '');
++  const key = name.trim().toLowerCase();
++  const heads = [...html.matchAll(/<h3[^>]*>([\s\S]*?)<\/h3>/gi)];
++  for (let i = 0; i < heads.length; i++) {
++    const h = heads[i]!;
++    if (htmlToText(h[1]).trim().toLowerCase() !== key) continue;
++    const from = h.index! + h[0].length;
++    const to = i + 1 < heads.length ? heads[i + 1]!.index! : html.length;
++    return lines(html.slice(from, to));
++  }
++  return [];
++}
++
++// ----- Foundry side -----
++
++const g = () => (globalThis as any).game;
++
++function findActor(names: string[]): any {
++  const actors = (g()?.actors?.contents ?? []) as any[];
++  for (const n of names) {
++    const key = n.trim().toLowerCase();
++    const hit = g()?.actors?.get?.(n) ?? actors.find(a => String(a.name).toLowerCase() === key);
++    if (hit) return hit;
++  }
++  return undefined;
++}
++
++function playersSee(actor: any): boolean {
++  const users = ((g()?.users?.contents ?? []) as any[]).filter(u => !u.isGM);
++  return users.some(u => {
++    try {
++      return !!actor.testUserPermission?.(u, 'LIMITED');
++    } catch {
++      return false;
++    }
++  });
++}
++
++function journalNotes(names: string[], journal = 'Campaign Memory'): { name: string; lines: string[] } | undefined {
++  const entry = ((g()?.journal?.contents ?? []) as any[]).find(j => j.name === journal);
++  const page = ((entry?.pages?.contents ?? []) as any[]).find(p => p.name === 'NPC Notes');
++  if (!page) return undefined;
++  for (const n of names) {
++    const found = npcNotesFor(String(page.text?.content ?? ''), n);
++    if (found.length) return { name: n, lines: found };
++  }
++  return undefined;
++}
++
++export interface NpcMemoryRequest {
++  action: 'read' | 'note';
++  /** read: the names the speaker goes by (actor, speaker name, token's actor) */
++  names?: string[];
++  /** note: the NPC */
++  name?: string;
++  note?: string;
++  label?: string;
++  journal?: string;
++}
++
++export async function npcMemory(data: NpcMemoryRequest): Promise<Record<string, any>> {
++  if (data.action === 'read') {
++    const names = (data.names ?? []).filter(n => typeof n === 'string' && n.trim() && n.toLowerCase() !== 'narrator');
++    if (!names.length) return { success: true };
++    const actor = findActor(names);
++    if (actor && !playersSee(actor)) {
++      const found = readMemorySection(actor.system?.details?.biography?.value ?? '');
++      if (found.length) return { success: true, npc: actor.name, memory: found.slice(-12), from: 'biography' };
++    }
++    const notes = journalNotes(actor ? [actor.name, ...names] : names, data.journal);
++    return notes ? { success: true, npc: notes.name, memory: notes.lines.slice(-12), from: 'NPC Notes journal page' } : { success: true };
++  }
++  if (data.action === 'note') {
++    if (!data.name || !data.note) throw new Error('note needs name and note');
++    const actor = findActor([data.name]);
++    if (!actor) return { success: true, written: false, reason: `no actor named "${data.name}"; kept in the NPC Notes page only` };
++    if (actor.hasPlayerOwner || playersSee(actor)) return { success: true, written: false, reason: `players can see ${actor.name}'s sheet; kept in the NPC Notes page only` };
++    const bio = actor.system?.details?.biography?.value ?? '';
++    await actor.update({ 'system.details.biography.value': appendMemory(bio, data.note, data.label) });
++    return { success: true, written: true, npc: actor.name };
++  }
++  throw new Error('action must be read or note');
++}
 diff --git a/packages/foundry-module/src/object-update-utils.test.ts b/packages/foundry-module/src/object-update-utils.test.ts
 new file mode 100644
 index 0000000..7658d89
@@ -22894,10 +23103,10 @@ index 0000000..98580b1
 +  });
 +});
 diff --git a/packages/foundry-module/src/queries.ts b/packages/foundry-module/src/queries.ts
-index 9fe02ba..0697178 100644
+index 9fe02ba..3cefa50 100644
 --- a/packages/foundry-module/src/queries.ts
 +++ b/packages/foundry-module/src/queries.ts
-@@ -1,7 +1,12 @@
+@@ -1,7 +1,13 @@
 -import { MODULE_ID } from './constants.js';
 +import { MODULE_ID, QUERY_NAMESPACE } from './constants.js';
 +import { speechPlayer, speechSettingsFrom } from './speech-player.js';
@@ -22907,11 +23116,12 @@ index 9fe02ba..0697178 100644
 +import { tableWatcher, TABLE_WATCH_MUTED, TABLE_WATCH_DOORS } from './table-watcher.js';
 +import { worldTime } from './world-time.js';
 +import { tactical } from './tactical.js';
++import { npcMemory } from './npc-memory.js';
 +import { profilesFromSetting } from './image-profiles-utils.js';
  
  export class QueryHandlers {
    public dataAccess: FoundryDataAccess;
-@@ -27,7 +32,7 @@ export class QueryHandlers {
+@@ -27,7 +33,7 @@ export class QueryHandlers {
     * Register all query handlers in CONFIG.queries
     */
    registerHandlers(): void {
@@ -22920,7 +23130,7 @@ index 9fe02ba..0697178 100644
  
      // Character/Actor queries
      CONFIG.queries[`${modulePrefix}.getCharacterInfo`] = this.handleGetCharacterInfo.bind(this);
-@@ -46,6 +51,43 @@ export class QueryHandlers {
+@@ -46,6 +52,44 @@ export class QueryHandlers {
      CONFIG.queries[`${modulePrefix}.list-scenes`] = this.handleListScenes.bind(this);
      CONFIG.queries[`${modulePrefix}.switch-scene`] = this.handleSwitchScene.bind(this);
      CONFIG.queries[`${modulePrefix}.update-scene-music`] = this.handleUpdateSceneMusic.bind(this);
@@ -22945,6 +23155,7 @@ index 9fe02ba..0697178 100644
 +    CONFIG.queries[`${modulePrefix}.share-with-players`] = this.handleShareWithPlayers.bind(this);
 +    CONFIG.queries[`${modulePrefix}.read-table`] = this.handleReadTable.bind(this);
 +    CONFIG.queries[`${modulePrefix}.table-events`] = this.handleTableEvents.bind(this);
++    CONFIG.queries[`${modulePrefix}.npc-memory`] = this.handleNpcMemory.bind(this);
 +    CONFIG.queries[`${modulePrefix}.reveal`] = this.handleReveal.bind(this);
 +    CONFIG.queries[`${modulePrefix}.combat`] = this.handleCombat.bind(this);
 +    CONFIG.queries[`${modulePrefix}.party`] = this.handleParty.bind(this);
@@ -22964,7 +23175,7 @@ index 9fe02ba..0697178 100644
      CONFIG.queries[`${modulePrefix}.manage-playlists`] = this.handleManagePlaylists.bind(this);
      CONFIG.queries[`${modulePrefix}.control-playlist`] = this.handleControlPlaylist.bind(this);
  
-@@ -143,6 +185,7 @@ export class QueryHandlers {
+@@ -143,6 +187,7 @@ export class QueryHandlers {
      CONFIG.queries[`${modulePrefix}.deleteActors`] = this.handleDeleteActors.bind(this);
      CONFIG.queries[`${modulePrefix}.updateActorItems`] = this.handleUpdateActorItems.bind(this);
      CONFIG.queries[`${modulePrefix}.deleteActorItems`] = this.handleDeleteActorItems.bind(this);
@@ -22972,7 +23183,7 @@ index 9fe02ba..0697178 100644
      CONFIG.queries[`${modulePrefix}.manageEffects`] = this.handleManageEffects.bind(this);
  
      // Phase 7: Token manipulation queries
-@@ -158,7 +201,6 @@ export class QueryHandlers {
+@@ -158,7 +203,6 @@ export class QueryHandlers {
      // D&D 5e queries
      CONFIG.queries[`${modulePrefix}.addSaveFeatureToActor`] =
        this.handleAddSaveFeatureToActor.bind(this);
@@ -22980,7 +23191,7 @@ index 9fe02ba..0697178 100644
      CONFIG.queries[`${modulePrefix}.addAttackToActor`] = this.handleAddAttackToActor.bind(this);
      CONFIG.queries[`${modulePrefix}.addAuraToActor`] = this.handleAddAuraToActor.bind(this);
      CONFIG.queries[`${modulePrefix}.addPassiveFeatureToActor`] =
-@@ -184,7 +226,7 @@ export class QueryHandlers {
+@@ -184,7 +228,7 @@ export class QueryHandlers {
     * Unregister all query handlers
     */
    unregisterHandlers(): void {
@@ -22989,7 +23200,7 @@ index 9fe02ba..0697178 100644
      const keysToRemove = Object.keys(CONFIG.queries).filter(key => key.startsWith(modulePrefix));
  
      for (const key of keysToRemove) {
-@@ -431,6 +473,10 @@ export class QueryHandlers {
+@@ -431,6 +475,10 @@ export class QueryHandlers {
        }
  
        this.dataAccess.validateFoundryState();
@@ -23000,7 +23211,7 @@ index 9fe02ba..0697178 100644
        return await this.dataAccess.getActiveScene();
      } catch (error) {
        throw new Error(
-@@ -477,7 +523,7 @@ export class QueryHandlers {
+@@ -477,7 +525,7 @@ export class QueryHandlers {
     * Get list of all registered query methods
     */
    getRegisteredMethods(): string[] {
@@ -23009,7 +23220,7 @@ index 9fe02ba..0697178 100644
      return Object.keys(CONFIG.queries)
        .filter(key => key.startsWith(modulePrefix))
        .map(key => key.replace(`${modulePrefix}.`, ''));
-@@ -487,7 +533,7 @@ export class QueryHandlers {
+@@ -487,7 +535,7 @@ export class QueryHandlers {
     * Test if a specific query handler is registered
     */
    isMethodRegistered(method: string): boolean {
@@ -23018,7 +23229,7 @@ index 9fe02ba..0697178 100644
      return queryKey in CONFIG.queries && typeof CONFIG.queries[queryKey] === 'function';
    }
  
-@@ -530,6 +576,9 @@ export class QueryHandlers {
+@@ -530,6 +578,9 @@ export class QueryHandlers {
        if (data.placement) {
          requestData.placement = data.placement;
        }
@@ -23028,7 +23239,7 @@ index 9fe02ba..0697178 100644
  
        return await this.dataAccess.createActorFromCompendiumEntry(requestData);
      } catch (error) {
-@@ -1218,6 +1267,381 @@ export class QueryHandlers {
+@@ -1218,6 +1269,394 @@ export class QueryHandlers {
      }
    }
  
@@ -23226,6 +23437,19 @@ index 9fe02ba..0697178 100644
 +    return await this.dataAccess.revealObjects(data ?? {});
 +  }
 +
++  /** NPC memory: read what an NPC remembers (bio section or NPC Notes page), or add a note to its bio. */
++  private async handleNpcMemory(data: any): Promise<any> {
++    const gmCheck = this.validateGMAccess();
++    if (!gmCheck.allowed) {
++      return { error: 'Access denied', success: false };
++    }
++    try {
++      return await npcMemory(data ?? {});
++    } catch (error) {
++      return { success: false, error: error instanceof Error ? error.message : String(error) };
++    }
++  }
++
 +  /**
 +   * The table feed: read the recorded table events (and optionally a snapshot of the table), or
 +   * change the table watch settings (muted, wake on doors).
@@ -23410,7 +23634,7 @@ index 9fe02ba..0697178 100644
    private async handleManagePlaylists(data: any): Promise<any> {
      try {
        const gmCheck = this.validateGMAccess();
-@@ -1241,8 +1665,11 @@ export class QueryHandlers {
+@@ -1241,8 +1680,11 @@ export class QueryHandlers {
        if (!gmCheck.allowed) {
          return { error: 'Access denied', success: false };
        }
@@ -23424,7 +23648,7 @@ index 9fe02ba..0697178 100644
        }
        return await this.dataAccess.controlPlaylist(data);
      } catch (error) {
-@@ -1547,7 +1974,12 @@ export class QueryHandlers {
+@@ -1547,7 +1989,12 @@ export class QueryHandlers {
     */
    private async handleUpdateToken(data: {
      tokenId: string;
@@ -23438,7 +23662,7 @@ index 9fe02ba..0697178 100644
    }): Promise<any> {
      try {
        // SECURITY: Silent GM validation
-@@ -1558,11 +1990,19 @@ export class QueryHandlers {
+@@ -1558,11 +2005,19 @@ export class QueryHandlers {
  
        this.dataAccess.validateFoundryState();
  
@@ -23460,7 +23684,7 @@ index 9fe02ba..0697178 100644
        }
  
        return await this.dataAccess.updateToken(data);
-@@ -1970,52 +2410,6 @@ export class QueryHandlers {
+@@ -1970,52 +2425,6 @@ export class QueryHandlers {
      }
    }
  
@@ -23513,7 +23737,7 @@ index 9fe02ba..0697178 100644
    /**
     * Handle add attack feature to actor request (D&D 5e only)
     */
-@@ -2290,6 +2684,13 @@ export class QueryHandlers {
+@@ -2290,6 +2699,13 @@ export class QueryHandlers {
      return this.dataAccess.deleteActorItems(data.actorIdentifier, data.itemIds);
    }
  
@@ -24100,6 +24324,189 @@ index 0000000..eeefae9
 +
 +export function rollModeName(visibility: Visibility, modes: Record<string, unknown> | undefined = (globalThis as any).CONFIG?.ChatMessage?.modes): string {
 +  return modes && visibility in modes ? visibility : LEGACY[visibility];
++}
+diff --git a/packages/foundry-module/src/room-info.test.ts b/packages/foundry-module/src/room-info.test.ts
+new file mode 100644
+index 0000000..6b7ae0d
+--- /dev/null
++++ b/packages/foundry-module/src/room-info.test.ts
+@@ -0,0 +1,67 @@
++import { describe, expect, it } from 'vitest';
++import { passiveChecks, passiveLines, roomEntryText, sightText, type RoomPin } from './room-info.js';
++
++const book =
++  'A rug covers the floor. A successful DC 15 Wisdom (Perception) check reveals a trapdoor under the rug. ' +
++  'Anyone searching the desk who succeeds on a DC 12 Intelligence (Investigation) check finds a letter. A DC 13 Dexterity saving throw avoids the dart.';
++
++describe('passiveChecks', () => {
++  it('finds Perception and Investigation DCs in book text, and skips saving throws', () => {
++    const checks = passiveChecks(book);
++    expect(checks.map(c => [c.skill, c.dc])).toEqual([
++      ['Perception', 15],
++      ['Investigation', 12],
++    ]);
++    expect(checks[0].sentence).toContain('trapdoor');
++  });
++
++  it('reads short GM notes too', () => {
++    expect(passiveChecks('Secret: loose brick behind the altar, Perception DC 12.')).toEqual([{ dc: 12, skill: 'Perception', sentence: 'Secret: loose brick behind the altar, Perception DC 12.' }]);
++  });
++});
++
++describe('passiveLines', () => {
++  it('says who notices and who misses', () => {
++    const checks = passiveChecks(book);
++    const lines = passiveLines({ name: 'Kael', passive: { Perception: 14, Investigation: 12 } }, checks);
++    expect(lines[0]).toMatch(/Kael's passive Perception 14 vs DC 15: misses/);
++    expect(lines[1]).toMatch(/Investigation 12 vs DC 12: NOTICES/);
++  });
++});
++
++describe('roomEntryText', () => {
++  const pin = (told: string[] = []): RoomPin => ({ id: 'n1', label: 'Area 3: Study', text: book, told, playersSee: false });
++
++  it('gives the pin text and the passive checks on the first visit, and wakes', () => {
++    const r = roomEntryText({ name: 'Kael', passive: { Perception: 16 } }, 'Study', [pin()]);
++    expect(r.wake).toBe(true);
++    expect(r.told).toEqual(['n1']);
++    expect(r.text).toMatch(/^Kael entered Study \(first visit\)/);
++    expect(r.text).toContain('Pin "Area 3: Study" (GM only): A rug covers');
++    expect(r.text).toMatch(/Perception 16 vs DC 15: NOTICES/);
++    expect(r.text).not.toContain('..');
++    expect(r.text).toContain('the dart. Passive checks:');
++  });
++
++  it('gives a second character only their passive checks', () => {
++    const r = roomEntryText({ name: 'Mira', passive: { Perception: 10 } }, 'Study', [pin(['Kael'])]);
++    expect(r.text).not.toContain('A rug covers');
++    expect(r.text).toMatch(/described before/);
++    expect(r.text).toMatch(/Mira's passive Perception 10 vs DC 15: misses/);
++    expect(r.wake).toBe(true);
++  });
++
++  it('does not wake for a room already told to this character, or one with no pins', () => {
++    expect(roomEntryText({ name: 'Kael', passive: {} }, 'Study', [pin(['Kael'])]).wake).toBe(false);
++    const empty = roomEntryText({ name: 'Kael', passive: {} }, 'Hall', []);
++    expect(empty).toEqual({ text: 'Kael entered Hall', wake: false, told: [] });
++  });
++});
++
++describe('sightText', () => {
++  it('names the hidden token, the distance and the passive Perception', () => {
++    expect(sightText({ name: 'Kael', passive: { Perception: 12 } }, { name: 'Goblin 2', distanceFt: 31 })).toMatch(
++      /Kael can now see Goblin 2 \(a hidden token, about 31 ft away.*passive Perception 12/
++    );
++  });
++});
+diff --git a/packages/foundry-module/src/room-info.ts b/packages/foundry-module/src/room-info.ts
+new file mode 100644
+index 0000000..d5e0e74
+--- /dev/null
++++ b/packages/foundry-module/src/room-info.ts
+@@ -0,0 +1,104 @@
++/**
++ * What the AI GM is told when a player's token walks into a room: the GM-only map pins in that room
++ * (journal pins: the text the GM or the book keeps there) and how the character's passive scores
++ * compare with the DCs written in that text ("A successful DC 15 Wisdom (Perception) check reveals...").
++ * Everything stays in Foundry: the pins and their journal pages are the notes, and the pin keeps a
++ * flag saying who has already been told. Pure: no Foundry globals.
++ */
++
++export type PassiveSkill = 'Perception' | 'Investigation' | 'Insight';
++
++export interface PassiveCheck {
++  dc: number;
++  skill: PassiveSkill;
++  /** the sentence the DC is in, shortened */
++  sentence: string;
++}
++
++export interface RoomPin {
++  id: string;
++  label: string;
++  text: string;
++  /** characters already told about this pin */
++  told: string[];
++  /** players can open this pin's page */
++  playersSee: boolean;
++}
++
++export interface Visitor {
++  name: string;
++  passive: Partial<Record<PassiveSkill, number>>;
++}
++
++const SKILLS: PassiveSkill[] = ['Perception', 'Investigation', 'Insight'];
++const MAX_SENTENCE = 180;
++const MAX_PIN_TEXT = 1200;
++
++const cut = (s: string, max: number) => (s.length > max ? `${s.slice(0, max - 3).trimEnd()}...` : s);
++
++/** The DCs in a text that a passive score answers (Perception, Investigation, Insight), one per sentence and skill. */
++export function passiveChecks(text: string): PassiveCheck[] {
++  const out: PassiveCheck[] = [];
++  const sentences = String(text ?? '')
++    .replace(/\s+/g, ' ')
++    .split(/(?<=[.!?])\s+(?=[A-Z"(])/);
++  for (const raw of sentences) {
++    const sentence = raw.trim();
++    const dc = /\bDC\s*(\d{1,2})\b/i.exec(sentence);
++    if (!dc) continue;
++    for (const skill of SKILLS) {
++      if (!new RegExp(`\\b${skill}\\b`, 'i').test(sentence)) continue;
++      out.push({ dc: Number(dc[1]), skill, sentence: cut(sentence, MAX_SENTENCE) });
++    }
++  }
++  return out;
++}
++
++/** One line per check for a character: "Kael's passive Perception 14 vs DC 15: misses (...)". */
++export function passiveLines(visitor: Visitor, checks: PassiveCheck[]): string[] {
++  return checks.map(c => {
++    const score = visitor.passive[c.skill];
++    if (score === undefined) return `${visitor.name} has no passive ${c.skill}; DC ${c.dc}: "${c.sentence}"`;
++    const verdict = score >= c.dc ? 'NOTICES' : 'misses';
++    return `${visitor.name}'s passive ${c.skill} ${score} vs DC ${c.dc}: ${verdict} ("${c.sentence}")`;
++  });
++}
++
++/**
++ * The event text for a character entering a room, and which pins now count as told to them.
++ * Pins never told to anyone come with their text; a pin already described brings only this
++ * character's passive checks. wake: there is something new for the GM.
++ */
++export function roomEntryText(visitor: Visitor, room: string, pins: RoomPin[]): { text: string; wake: boolean; told: string[] } {
++  const parts: string[] = [];
++  const told: string[] = [];
++  const fresh = pins.filter(p => p.told.length === 0);
++  const checks: string[] = [];
++  for (const pin of pins) {
++    if (pin.told.includes(visitor.name)) continue;
++    told.push(pin.id);
++    checks.push(...passiveLines(visitor, passiveChecks(pin.text)));
++  }
++  const first = fresh.length > 0;
++  parts.push(`${visitor.name} entered ${room}${first ? ' (first visit)' : pins.length ? ' (described before)' : ''}`);
++  for (const pin of fresh) {
++    parts.push(`Pin "${pin.label}"${pin.playersSee ? ' (players can open it)' : ' (GM only)'}: ${cut(pin.text, MAX_PIN_TEXT) || '(no text)'}`);
++  }
++  if (checks.length) parts.push(`Passive checks: ${checks.join('; ')}`);
++  const text = parts.reduce((all, part) => (all ? `${all}${/[.!?]["')]?$/.test(all) ? ' ' : '. '}${part}` : part), '');
++  return { text, wake: first || checks.length > 0, told };
++}
++
++export interface SightTarget {
++  name: string;
++  distanceFt: number;
++}
++
++/** The event text when a player's token first has a hidden token in line of sight. */
++export function sightText(viewer: Visitor, target: SightTarget): string {
++  const p = viewer.passive.Perception;
++  return (
++    `${viewer.name} can now see ${target.name} (a hidden token, about ${Math.round(target.distanceFt)} ft away, in line of sight and light): ` +
++    `reveal it unless it is hiding${p !== undefined ? ` (its Stealth against ${viewer.name}'s passive Perception ${p})` : ''}`
++  );
 +}
 diff --git a/packages/foundry-module/src/rules-utils.ts b/packages/foundry-module/src/rules-utils.ts
 new file mode 100644
@@ -26805,7 +27212,7 @@ index 0000000..058932e
 +});
 diff --git a/packages/foundry-module/src/table-watch-utils.ts b/packages/foundry-module/src/table-watch-utils.ts
 new file mode 100644
-index 0000000..2530111
+index 0000000..e38faf4
 --- /dev/null
 +++ b/packages/foundry-module/src/table-watch-utils.ts
 @@ -0,0 +1,246 @@
@@ -26820,7 +27227,7 @@ index 0000000..2530111
 + */
 +import { htmlToText } from './rules-utils.js';
 +
-+export type TableEventKind = 'say' | 'emote' | 'whisper' | 'roll' | 'card' | 'turn' | 'combat' | 'move' | 'door' | 'hp' | 'presence';
++export type TableEventKind = 'say' | 'emote' | 'whisper' | 'roll' | 'card' | 'turn' | 'combat' | 'move' | 'door' | 'hp' | 'presence' | 'room' | 'sight';
 +
 +export interface TableEvent {
 +  seq: number;
@@ -27057,10 +27464,10 @@ index 0000000..2530111
 +}
 diff --git a/packages/foundry-module/src/table-watcher.ts b/packages/foundry-module/src/table-watcher.ts
 new file mode 100644
-index 0000000..76ee9b2
+index 0000000..bddb495
 --- /dev/null
 +++ b/packages/foundry-module/src/table-watcher.ts
-@@ -0,0 +1,257 @@
+@@ -0,0 +1,422 @@
 +/**
 + * Listens to the table on the GM's client and records short events (see table-watch-utils) that
 + * the MCP server reads with the table-events query, bundles, and hands to the AI GM. Recording is
@@ -27068,7 +27475,12 @@ index 0000000..76ee9b2
 + */
 +import { MODULE_ID } from './constants.js';
 +import { getGridGeometry, pixelsToSquares } from './scene-objects-utils.js';
-+import { areaAt, sceneAreas } from './scene-areas.js';
++import { areaAt, sceneAreas, type SceneArea } from './scene-areas.js';
++import { roomEntryText, sightText, type PassiveSkill, type RoomPin, type Visitor } from './room-info.js';
++import { htmlToText } from './rules-utils.js';
++import { collider } from './tactical.js';
++import { tokenRealName } from './combat-utils.js';
++import { centre, corners, type Box } from './tactical-utils.js';
 +import { combatSummary, partySummary } from './table-utils.js';
 +import { TableEventBuffer, chatEvent, damageNotAppliedEvent, damageRollTargets, doorEvent, hpEvent, moveEvent, presenceEvent, turnEvent, type NewTableEvent } from './table-watch-utils.js';
 +
@@ -27164,7 +27576,7 @@ index 0000000..76ee9b2
 +        const scene = token.parent;
 +        const playersToken = !!token.actor?.hasPlayerOwner && !!scene?.active;
 +        if (!user && !playersToken) return;
-+        for (const delay of [700, 2600]) setTimeout(() => this.safely('a move', () => this.recordSquare(token, user)), delay);
++        for (const delay of [700, 2600]) setTimeout(() => this.safely('a move', () => this.recordSquare(token, user, delay === 2600)), delay);
 +      });
 +    Hooks.on('updateToken', (token: any, changed: any, _options: any, userId: string) => onTokenChange(token, changed, userId));
 +    // v13+: the movement itself (destination and who moved it), where the hook exists
@@ -27206,16 +27618,176 @@ index 0000000..76ee9b2
 +  /** Last square recorded per token, so a move is only recorded when the token really changed square. */
 +  private lastSquare = new Map<string, string>();
 +
-+  private recordSquare(token: any, user: string | undefined): void {
++  /** settled: the later read, once a walk has had time to land; rooms and sight are only checked then (an earlier read can be mid-walk). */
++  private recordSquare(token: any, user: string | undefined, settled = true): void {
 +    const scene = token.parent;
 +    const live = scene?.tokens?.get?.(token.id) ?? token;
 +    const geom = getGridGeometry(scene);
 +    const squares = pixelsToSquares(geom, Number(live.x), Number(live.y));
 +    const mark = `${scene?.id}:${Math.round(squares.x * 10)}:${Math.round(squares.y * 10)}`;
-+    if (this.lastSquare.get(token.id) === mark) return;
-+    this.lastSquare.set(token.id, mark);
-+    const area = areaAt(sceneAreas(scene, MODULE_ID), squares, { w: Number(live.width) || 1, h: Number(live.height) || 1 });
-+    this.record(moveEvent(live.name ?? 'A token', user, squares, token.id, area));
++    const areas = sceneAreas(scene, MODULE_ID);
++    const area = areaAt(areas, squares, { w: Number(live.width) || 1, h: Number(live.height) || 1 });
++    if (this.lastSquare.get(token.id) !== mark) {
++      this.lastSquare.set(token.id, mark);
++      this.record(moveEvent(live.name ?? 'A token', user, squares, token.id, area));
++    }
++    if (!settled || !live.actor?.hasPlayerOwner) return;
++    this.safely('a room entry', () => this.roomCheck(scene, live, squares, areas, area));
++    this.safely('what a player sees', () => this.sightCheck(scene, live));
++  }
++
++  // ----- rooms: the map pins in the room a player walks into -----
++
++  /** Last room per token (scene id and room name), so entering is noticed once per entry. */
++  private lastRoom = new Map<string, string>();
++  /** Characters told about each pin (mirrors the pin's flag, which is written a moment later). */
++  private told = new Map<string, string[]>();
++  /** Pins a token was last near, on scenes without named areas. */
++  private nearPins = new Map<string, Set<string>>();
++
++  private visitor(token: any): Visitor {
++    const skills = token.actor?.system?.skills ?? {};
++    const passive: Partial<Record<PassiveSkill, number>> = {};
++    for (const [skill, key] of [['Perception', 'prc'], ['Investigation', 'inv'], ['Insight', 'ins']] as const) {
++      const v = Number(skills[key]?.passive);
++      if (skills[key]?.passive !== undefined && Number.isFinite(v)) passive[skill] = v;
++    }
++    return { name: token.name ?? token.actor?.name ?? 'A character', passive };
++  }
++
++  /** The journal pins on a scene whose point passes the test, with their page text and who was told. */
++  private pinsWhere(scene: any, inside: (sq: { x: number; y: number }, note: any) => boolean): RoomPin[] {
++    const g = this.g;
++    const geom = getGridGeometry(scene);
++    const players = ((g?.users?.contents ?? []) as any[]).filter(u => !u.isGM);
++    const notes = (scene.notes?.contents ?? Array.from(scene.notes?.values?.() ?? [])) as any[];
++    const pins: RoomPin[] = [];
++    for (const note of notes) {
++      const sq = pixelsToSquares(geom, Number(note.x), Number(note.y));
++      if (!inside(sq, note)) continue;
++      const entry = note.entry ?? g?.journal?.get?.(note.entryId);
++      if (!entry && !note.text) continue;
++      const page = note.page ?? (note.pageId ? entry?.pages?.get?.(note.pageId) : undefined);
++      const pages = page ? [page] : ((entry?.pages?.contents ?? []) as any[]);
++      const text = pages
++        .map(p => htmlToText(String(p?.text?.content ?? '')).replace(/\s+/g, ' ').trim())
++        .filter(Boolean)
++        .join(' / ');
++      const doc = page ?? entry;
++      const playersSee =
++        !!doc &&
++        players.some(u => {
++          try {
++            return !!doc.testUserPermission?.(u, 'LIMITED');
++          } catch {
++            return false;
++          }
++        });
++      const flag = note.getFlag?.(MODULE_ID, 'told') ?? note.flags?.[MODULE_ID]?.told;
++      const told = this.told.get(note.id) ?? (Array.isArray(flag) ? flag.map(String) : []);
++      pins.push({ id: note.id, label: String(note.text || page?.name || entry?.name || 'pin'), text, told, playersSee });
++    }
++    return pins;
++  }
++
++  private markTold(scene: any, visitor: string, pinIds: string[]): void {
++    for (const id of pinIds) {
++      const note = scene.notes?.get?.(id);
++      const flag = note?.getFlag?.(MODULE_ID, 'told');
++      const list = [...new Set([...(this.told.get(id) ?? (Array.isArray(flag) ? flag : [])), visitor])];
++      this.told.set(id, list);
++      if (this.g?.user?.isGM && note?.setFlag) void Promise.resolve(note.setFlag(MODULE_ID, 'told', list)).catch(() => undefined);
++    }
++  }
++
++  private roomCheck(scene: any, token: any, squares: { x: number; y: number }, areas: SceneArea[], area: string | undefined): void {
++    const visitor = this.visitor(token);
++    if (areas.length) {
++      const mark = area ? `${scene.id}:${area}` : '';
++      if (this.lastRoom.get(token.id) === mark) return;
++      this.lastRoom.set(token.id, mark);
++      if (!area) return;
++      const pins = this.pinsWhere(scene, sq => areaAt(areas, sq, { w: 0, h: 0 }) === area);
++      // a room with no pins has nothing to add: the move line already names it
++      if (!pins.length) return;
++      const { text, wake, told } = roomEntryText(visitor, area, pins);
++      this.markTold(scene, visitor.name, told);
++      this.record({ kind: 'room', wake, text, actor: visitor.name, key: `room:${token.id}:${area}` });
++      return;
++    }
++    // No named areas (a book map with pins): a pin counts once the token is within 4 squares of it and can see it.
++    const collide = collider(scene);
++    const grid = getGridGeometry(scene).size;
++    const eye = centre(this.box(token), grid);
++    const w = Number(token.width) || 1;
++    const h = Number(token.height) || 1;
++    const near = this.pinsWhere(scene, (sq, note) => {
++      const dx = Math.max(0, squares.x - sq.x, sq.x - (squares.x + w));
++      const dy = Math.max(0, squares.y - sq.y, sq.y - (squares.y + h));
++      if (Math.max(dx, dy) > 4) return false;
++      return !collide || !collide('sight', eye, { x: Number(note.x), y: Number(note.y) }, Number(token.elevation) || 0);
++    });
++    const before = this.nearPins.get(token.id) ?? new Set<string>();
++    this.nearPins.set(token.id, new Set(near.map(p => p.id)));
++    for (const pin of near) {
++      if (before.has(pin.id)) continue;
++      const { text, wake, told } = roomEntryText(visitor, `the spot of pin "${pin.label}"`, [pin]);
++      this.markTold(scene, visitor.name, told);
++      if (wake) this.record({ kind: 'room', wake, text, actor: visitor.name, key: `room:${token.id}:${pin.id}` });
++    }
++  }
++
++  // ----- sight: hidden tokens a player's token can now see -----
++
++  /** "viewer:target" pairs already reported; dropped when the target goes out of sight, so it can be reported again. */
++  private seen = new Set<string>();
++
++  private box(t: any): Box {
++    return { x: Number(t.x), y: Number(t.y), width: Number(t.width) || 1, height: Number(t.height) || 1 };
++  }
++
++  private sightCheck(scene: any, viewer: any): void {
++    const collide = collider(scene);
++    if (!collide) return;
++    const geom = getGridGeometry(scene);
++    const grid = geom.size;
++    const unit = Number(geom.distance) || 5;
++    const toPx = (ft: number) => (ft / unit) * grid;
++    const eye = centre(this.box(viewer), grid);
++    const elevation = Number(viewer.elevation) || 0;
++    const tokens = (scene.tokens?.contents ?? Array.from(scene.tokens?.values?.() ?? [])) as any[];
++    const hidden = tokens.filter(t => t.hidden && t.id !== viewer.id && !t.actor?.hasPlayerOwner);
++    if (!hidden.length) return;
++    // Light: without token vision, or with global light, everything in line of sight is seen; otherwise
++    // within the viewer's own vision or light range, or where a light on the scene reaches (not wall-checked).
++    const env = scene.environment ?? {};
++    const allLit = !scene.tokenVision || !!env.globalLight?.enabled;
++    const ownRange = Math.max(Number(viewer.sight?.range) || 0, Number(viewer.light?.dim) || 0, Number(viewer.light?.bright) || 0);
++    const lights = ((scene.lights?.contents ?? []) as any[]).filter(l => !l.hidden);
++    const lit = (p: { x: number; y: number }) =>
++      lights.some(l => {
++        const r = Math.max(Number(l.config?.dim) || 0, Number(l.config?.bright) || 0);
++        return r > 0 && Math.hypot(Number(l.x) - p.x, Number(l.y) - p.y) <= toPx(r);
++      });
++    const visitor = this.visitor(viewer);
++    for (const t of hidden) {
++      const key = `${viewer.id}:${t.id}`;
++      const box = this.box(t);
++      const points = [centre(box, grid), ...corners(box, grid, 6)];
++      const target = points[0];
++      const dist = Math.hypot(target.x - eye.x, target.y - eye.y);
++      const inLight = allLit || dist <= toPx(ownRange) || lit(target);
++      const sees = inLight && points.some(p => !collide('sight', eye, p, elevation));
++      if (!sees) {
++        this.seen.delete(key);
++        continue;
++      }
++      if (this.seen.has(key)) continue;
++      this.seen.add(key);
++      const real = tokenRealName(t);
++      const name = `${t.name}${real && real !== t.name ? ` [${real}]` : ''}`;
++      this.record({ kind: 'sight', wake: true, text: sightText(visitor, { name, distanceFt: (dist / grid) * unit }), actor: visitor.name, key: `sight:${key}` });
++    }
 +  }
 +
 +  /** A player's damage roll: a few seconds later, say so if the targets' hit points did not change. */
@@ -41291,10 +41863,10 @@ index 0000000..31fd6d0
 +});
 diff --git a/packages/mcp-server/src/table-bundler.ts b/packages/mcp-server/src/table-bundler.ts
 new file mode 100644
-index 0000000..c298e6e
+index 0000000..2baddec
 --- /dev/null
 +++ b/packages/mcp-server/src/table-bundler.ts
-@@ -0,0 +1,264 @@
+@@ -0,0 +1,266 @@
 +/**
 + * Bundles table events (recorded by the Foundry module) into "beats": one message that wakes the
 + * AI GM only when something needs it, carrying everything that happened since the last one.
@@ -41537,6 +42109,8 @@ index 0000000..c298e6e
 +      whisper: 'a player wrote to the GM privately',
 +      turn: "a GM-run creature's turn",
 +      door: 'a player opened a door',
++      room: 'a player entered a room with map notes (or a passive check to compare)',
++      sight: 'a player can now see a hidden token',
 +    };
 +    for (const k of wakeKinds) why.push(LABEL[k] ?? k);
 +
@@ -43888,10 +44462,10 @@ index 0000000..4f2b0d0
 +});
 diff --git a/packages/mcp-server/src/tools/campaign-memory.ts b/packages/mcp-server/src/tools/campaign-memory.ts
 new file mode 100644
-index 0000000..2185d13
+index 0000000..6cfc368
 --- /dev/null
 +++ b/packages/mcp-server/src/tools/campaign-memory.ts
-@@ -0,0 +1,289 @@
+@@ -0,0 +1,300 @@
 +import { z } from 'zod';
 +import { FoundryClient } from '../foundry-client.js';
 +import { Logger } from '../logger.js';
@@ -44014,7 +44588,7 @@ index 0000000..2185d13
 +        description:
 +          `The campaign's long-term memory, kept in a GM-only journal (default "${DEFAULT_JOURNAL}", made on first use) with pages: ${MEMORY_PAGES.join(', ')}. You can read and edit it in Foundry. ` +
 +          'action brief: one call that returns the open threads, the last sessions, NPC notes, the next-session notes and what the players know (knowledge:true for the full list; default just a count). Call it at the start of a session. ' +
-+          'action log: records what happened in one call: session (number or label; default the next number), date, summary (added to the Session Log), opened (new open threads), closed (threads that were resolved, matched by a few words of their text; they move to Closed), knowledge (facts the players learned), npcs [{name, note}] (notes on an NPC, kept under their name), next (replaces the next-session prep notes). Give at least one of these. ' +
++          'action log: records what happened in one call: session (number or label; default the next number), date, summary (added to the Session Log), opened (new open threads), closed (threads that were resolved, matched by a few words of their text; they move to Closed), knowledge (facts the players learned), npcs [{name, note}] (notes on an NPC, kept under their name in NPC Notes and also added to a "GM memory" section at the end of that NPC biography when players cannot see its sheet; speak as that NPC returns them as npc_memory), next (replaces the next-session prep notes). Give at least one of these. ' +
 +          'action recall: query finds matching lines across all pages (every word must appear). ' +
 +          'Text can contain {{actor: Name}}, {{scene: Name}}, {{journal: Name}} links.',
 +        inputSchema: {
@@ -44171,6 +44745,17 @@ index 0000000..2185d13
 +      }
 +      updates.push({ name: 'NPC Notes', content: buildNpcs(list) });
 +      done.npcs = a.npcs.map(n => n.name);
++      // Also in the NPC's own biography (a "GM memory" section), so speaking as them brings it back.
++      const bios: Record<string, string> = {};
++      for (const npc of a.npcs) {
++        try {
++          const r = await this.foundryClient.query('foundry-mcp-bridge.npc-memory', { action: 'note', name: npc.name, note: npc.note, label });
++          bios[npc.name] = r?.written ? `added to ${r.npc}'s biography (GM memory)` : r?.reason || r?.error || 'not written';
++        } catch (error) {
++          bios[npc.name] = `not written: ${error instanceof Error ? error.message : String(error)}`;
++        }
++      }
++      done.npcBiographies = bios;
 +    }
 +    if (a.next) {
 +      updates.push({ name: 'Next Session', content: a.next.split(/\n+/).map(l => `<p>${escapeHtml(l)}</p>`).join('') });
@@ -62194,7 +62779,7 @@ index 0000000..d4f0b89
 +  });
 +});
 diff --git a/packages/mcp-server/src/tools/scene.ts b/packages/mcp-server/src/tools/scene.ts
-index 1e422bf..9088e34 100644
+index 1e422bf..a05194f 100644
 --- a/packages/mcp-server/src/tools/scene.ts
 +++ b/packages/mcp-server/src/tools/scene.ts
 @@ -7,6 +7,20 @@ export interface SceneToolsOptions {
@@ -62320,7 +62905,7 @@ index 1e422bf..9088e34 100644
 +              type: ['array', 'null'],
 +              maxItems: 200,
 +              description:
-+                'Named areas of the map (rooms, caves, clearings): [{name, rect: [column, row, width, height]}] in grid squares from the top-left of the map picture; replaces the list, null clears it. The table feed then says which room each player token is in (beats and token details). layout build sets them from the plan by itself; set them by hand for a book or bought map (preview-scene shows the squares).',
++                'Named areas of the map (rooms, caves, clearings): [{name, rect: [column, row, width, height]}] in grid squares from the top-left of the map picture; replaces the list, null clears it. The table feed then says which room each player token is in (beats and token details), and when a player first enters a room it gives the text of the journal pins inside it and compares the passive Perception, Investigation and Insight of whoever entered with any DC in that text. layout build sets them from the plan by itself; set them by hand for a book or bought map (preview-scene shows the squares).',
 +              items: { type: 'object', properties: { name: { type: 'string' }, rect: { type: 'array', items: { type: 'number' }, minItems: 4, maxItems: 4 } }, required: ['name', 'rect'] },
 +            },
 +            initial_view: {
@@ -62905,10 +63490,10 @@ index 0000000..b255f4d
 +});
 diff --git a/packages/mcp-server/src/tools/speech-tools.ts b/packages/mcp-server/src/tools/speech-tools.ts
 new file mode 100644
-index 0000000..3309e5e
+index 0000000..7467b57
 --- /dev/null
 +++ b/packages/mcp-server/src/tools/speech-tools.ts
-@@ -0,0 +1,615 @@
+@@ -0,0 +1,628 @@
 +import { randomInt } from 'crypto';
 +import { z } from 'zod';
 +import { FoundryClient } from '../foundry-client.js';
@@ -63029,7 +63614,7 @@ index 0000000..3309e5e
 +          'Narrate or voice a line aloud for the whole table. It makes the speech with the GM\'s ComfyUI (the same one used for images), uploads the audio to the Foundry world, plays it for every connected player, and shows the words in the chat revealed in time with the audio. ' +
 +          'say {text, voice?, style?, language?, speed?, engine?, speaker_name?, chat?} speaks the text (up to 1500 characters, a paragraph or two): the engine, voice, style and speed default to what the GM set in the module settings (Narration). ' +
 +          'Engines: qwen3-fast (the best voice, streams while it generates: starts within about a second; needs the claude_tts node in ComfyUI; presets such as Ryan, "style" says how to speak), kokoro (fast, a few seconds per paragraph; voice is an id like bm_fable or af_heart), qwen3-custom (slower, preset voices such as Ryan or Serena, "style" says how to speak), qwen3-design (slowest; "voice" is a description such as "a gruff old dwarf with a Scottish accent"). ' +
-+          'speaker_name is the label in the chat (default Narrator, or the NPC\'s name); token_id or actor makes it a character speaking: its name and portrait in the chat and the whole line as a speech bubble over its token when the audio starts; chat:false plays the audio without the chat text. ' +
++          'speaker_name is the label in the chat (default Narrator, or the NPC\'s name); token_id or actor makes it a character speaking: its name and portrait in the chat and the whole line as a speech bubble over its token when the audio starts; chat:false plays the audio without the chat text. A character speaking also returns npc_memory when it has notes: the "GM memory" section of its biography (campaign-memory log npcs writes it), or else its NPC Notes in the campaign memory journal. ' +
 +          'The text is spoken sentence by sentence: the first sentence starts playing as soon as it is ready (about a second with kokoro or qwen3-fast) while the rest is generated, and each sentence appears in the chat as it is spoken. The call returns at once with {queued, position}: speeches play one after the other in the order the calls were sent (and chat narrate/say and roll request cards wait for the speech before them), so send narration, an NPC line and a roll request in one message without waiting. A failure while generating later shows as a notice on the table feed. Write text to be heard: no stage directions, no markup, and spell out what should be said. Do not speak secrets or GM notes. ' +
 +          'SAVED VOICES (qwen3-fast): a character or the narrator can have a saved voice, made once from a description and then cloned for every line, so it sounds the same every time and speaks at a natural pace. speak picks it by itself: voice if given, else the saved voice of the actor (or speaker_name), else the one named "narrator" when no character is speaking, else the preset of the settings. create_voice {name, description, text?, replace?, wait?} makes one (name = the actor name or "narrator"; description = age, sex, accent, timbre, manner, e.g. "a gruff middle-aged dwarf woman, Scottish accent, warm and blunt"; it takes about a minute in the background and pauses speech while the model loads, so do it between scenes, not mid-fight); voices lists saved voices and those being made; delete_voice {name} removes one. actors create does this for you when an actor has a voice description. ' +
 +          'describe shows the settings, which engines this ComfyUI can run and their voices; stop silences the narration now. Needs ComfyUI running with a text-to-speech node (Kokoro or Qwen3-TTS) and Allow Write Operations.',
@@ -63086,7 +63671,20 @@ index 0000000..3309e5e
 +    const label = `speak "${a.text.trim().slice(0, 40)}"`;
 +    // Queue first (so calls sent together keep their order), then say which voice will speak it.
 +    const queued = lane.speech(label, epoch => this.say(a, epoch));
-+    return { ...queued, ...(await this.previewVoice(a)) };
++    const [voice, memory] = await Promise.all([this.previewVoice(a), this.npcMemory(a)]);
++    return { ...queued, ...voice, ...memory };
++  }
++
++  /** What the character speaking remembers (its biography's GM memory, or the NPC Notes page), for the reply. Never throws. */
++  private async npcMemory(a: z.infer<typeof schema>): Promise<Record<string, unknown>> {
++    if (!a.actor && !a.token_id && !a.speaker_name) return {};
++    try {
++      const names = await this.voiceNames(a);
++      const r = await this.foundryClient.query('foundry-mcp-bridge.npc-memory', { action: 'read', names }, 3000);
++      return r?.memory?.length ? { npc_memory: { npc: r.npc, from: r.from, notes: r.memory } } : {};
++    } catch {
++      return {};
++    }
 +  }
 +
 +  private async readSettings(): Promise<{ target: unknown; settings: ReturnType<typeof normalizeSpeechSettings> }> {
@@ -63647,7 +64245,7 @@ index 0000000..5ead181
 +}
 diff --git a/packages/mcp-server/src/tools/table-watch-tools.ts b/packages/mcp-server/src/tools/table-watch-tools.ts
 new file mode 100644
-index 0000000..ba694ec
+index 0000000..7aba02e
 --- /dev/null
 +++ b/packages/mcp-server/src/tools/table-watch-tools.ts
 @@ -0,0 +1,107 @@
@@ -63695,7 +64293,7 @@ index 0000000..ba694ec
 +      {
 +        name: 'table-watch',
 +        description:
-+          'Follow the table in real time without being woken by every message. The table feed is a WebSocket on this computer (status gives its url, default ws://127.0.0.1:31418): in Claude Code start it once per session with the Monitor tool; each line it sends is one notification. It sends a line only when the GM is needed, as a "beat": {type:"beat", n, why, events, table}, where events lists everything since the last beat (oldest first) and table gives the scene, the combat order with hp and conditions, the party and who is online, so no further reads are usually needed. WAKES: a player chatting as their character (in character or emote) or privately to the GM; a GM-run creature\'s turn in combat; a player opening a door (setting); all awaited rolls coming in. NOT WAKING, but listed in the next beat: rolls, item and spell cards, token moves by players, hp changed by players, players joining or leaving, combat start and end, a player\'s turn. IGNORED: public out-of-character chat, blind messages, whispers between players, and what the bridge or the GM\'s tools post. A beat goes once the table has been quiet for quiet_seconds after the last waking event (turn_quiet_seconds after a turn change), at most every min_interval_seconds, and at the latest max_wait_seconds after the first waking event. {type:"notice"} lines report the GM muting or unmuting, Foundry disconnecting or reloading. ACTIONS: status; settings {quiet_seconds?, turn_quiet_seconds?, min_interval_seconds?, max_wait_seconds?, max_background?, muted?, wake_on_doors?} (muted and wake_on_doors are also Foundry module settings the GM can toggle; while muted nothing is sent and everything comes in one beat when unmuted); expect {who:[player or character names], timeout_seconds?(90)} holds the next beat until each of them has rolled, or the timeout (request-player-rolls does this automatically for its target); cancel_expect; flush sends what is pending now. A player\'s chat is their action: answer it, never act for them; never repeat a private message to other players.',
++          'Follow the table in real time without being woken by every message. The table feed is a WebSocket on this computer (status gives its url, default ws://127.0.0.1:31418): in Claude Code start it once per session with the Monitor tool; each line it sends is one notification. It sends a line only when the GM is needed, as a "beat": {type:"beat", n, why, events, table}, where events lists everything since the last beat (oldest first) and table gives the scene, the combat order with hp and conditions, the party and who is online, so no further reads are usually needed. WAKES: a player chatting as their character (in character or emote) or privately to the GM; a GM-run creature\'s turn in combat; a player opening a door (setting); all awaited rolls coming in; a player token entering a named room with journal pins not yet described (the event carries the text of the pins and the passive Perception, Investigation and Insight of whoever entered against any DC in it; on a scene without named rooms, coming within 4 squares of a pin in sight; each pin keeps a flag of the characters told, so it is described once); a player token getting a hidden token in line of sight and in light (once, until it is out of sight again): reveal it unless it is hiding. NOT WAKING, but listed in the next beat: rolls, item and spell cards, token moves by players, hp changed by players, players joining or leaving, combat start and end, a player\'s turn. IGNORED: public out-of-character chat, blind messages, whispers between players, and what the bridge or the GM\'s tools post. A beat goes once the table has been quiet for quiet_seconds after the last waking event (turn_quiet_seconds after a turn change), at most every min_interval_seconds, and at the latest max_wait_seconds after the first waking event. {type:"notice"} lines report the GM muting or unmuting, Foundry disconnecting or reloading. ACTIONS: status; settings {quiet_seconds?, turn_quiet_seconds?, min_interval_seconds?, max_wait_seconds?, max_background?, muted?, wake_on_doors?} (muted and wake_on_doors are also Foundry module settings the GM can toggle; while muted nothing is sent and everything comes in one beat when unmuted); expect {who:[player or character names], timeout_seconds?(90)} holds the next beat until each of them has rolled, or the timeout (request-player-rolls does this automatically for its target); cancel_expect; flush sends what is pending now. A player\'s chat is their action: answer it, never act for them; never repeat a private message to other players.',
 +        inputSchema: {
 +          type: 'object',
 +          properties: {
