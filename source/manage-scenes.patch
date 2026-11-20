@@ -2180,12 +2180,12 @@ index 0000000..e99fbb2
 +}
 diff --git a/packages/foundry-module/src/attack-checks.test.ts b/packages/foundry-module/src/attack-checks.test.ts
 new file mode 100644
-index 0000000..6435d31
+index 0000000..fd0975a
 --- /dev/null
 +++ b/packages/foundry-module/src/attack-checks.test.ts
-@@ -0,0 +1,73 @@
+@@ -0,0 +1,109 @@
 +import { describe, expect, it } from 'vitest';
-+import { attackRangeOf, rangeVerdict, sameUnits, tokenDistance, turnWarning } from './attack-checks.js';
++import { approachSquares, attackRangeOf, rangeVerdict, sameUnits, tokenDistance, turnWarning } from './attack-checks.js';
 +
 +const G = 100; // pixels per square
 +
@@ -2257,12 +2257,48 @@ index 0000000..6435d31
 +    expect(turnWarning({ started: false, combatant: null }, { tokenId: 't1', name: 'Goblin 1' }, true)).toBeUndefined();
 +  });
 +});
++
++describe('approachSquares', () => {
++  const one = (x: number, y: number) => ({ x, y, width: 1, height: 1 });
++  const map = { columns: 30, rows: 30 };
++
++  it('melee: the nearest adjacent square, never the target square', () => {
++    const squares = approachSquares(one(0, 5), one(10, 5), 5, 5, [], map);
++    expect(squares[0]).toEqual({ x: 9, y: 5, steps: 9 });
++    expect(squares.every(s => !(s.x === 10 && s.y === 5))).toBe(true);
++    expect(squares).toHaveLength(8);
++  });
++
++  it('skips squares other creatures stand on', () => {
++    const squares = approachSquares(one(0, 5), one(10, 5), 5, 5, [one(9, 5)], map);
++    expect(squares.some(s => s.x === 9 && s.y === 5)).toBe(false);
++    expect(squares[0].x).toBe(9); // (9,4) or (9,6), one step further round
++  });
++
++  it('reach 10 ft gives a ring two squares out', () => {
++    const squares = approachSquares(one(0, 5), one(10, 5), 10, 5, [], map);
++    expect(squares[0]).toEqual({ x: 8, y: 5, steps: 8 });
++  });
++
++  it('ranged: stops at the edge of the normal range', () => {
++    const squares = approachSquares(one(0, 0), one(25, 0), 80, 5, [], map);
++    // 80 ft = 16 squares apart counting the target's: from x=9 the distance is 80 ft
++    expect(squares[0]).toEqual({ x: 9, y: 0, steps: 9 });
++  });
++
++  it('a large attacker keeps inside the map and off the target', () => {
++    const big = { x: 0, y: 0, width: 2, height: 2 };
++    const squares = approachSquares(big, one(0, 10), 5, 5, [], map);
++    expect(squares[0]).toEqual({ x: 0, y: 8, steps: 8 });
++    expect(squares.every(s => s.x >= 0 && s.x + 2 <= 30)).toBe(true);
++  });
++});
 diff --git a/packages/foundry-module/src/attack-checks.ts b/packages/foundry-module/src/attack-checks.ts
 new file mode 100644
-index 0000000..61d5487
+index 0000000..9c31908
 --- /dev/null
 +++ b/packages/foundry-module/src/attack-checks.ts
-@@ -0,0 +1,120 @@
+@@ -0,0 +1,168 @@
 +/**
 + * Checks made before an attack is rolled: is the target within the weapon's or spell's range, and
 + * is it the attacker's turn. Pure functions over plain data so they can be tested without Foundry.
@@ -2382,6 +2418,54 @@ index 0000000..61d5487
 +    (!attacker.tokenId && attacker.actorId && current.actorId === attacker.actorId);
 +  if (same) return undefined;
 +  return `It is ${current.name ?? 'someone else'}'s turn, not ${attacker.name}'s (fine for a reaction such as an opportunity attack)`;
++}
++
++/** A token's footprint in grid squares (top-left square and size). */
++export interface SquareBox {
++  x: number;
++  y: number;
++  width: number;
++  height: number;
++}
++
++const overlapsBox = (a: SquareBox, b: SquareBox): boolean =>
++  a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
++
++/**
++ * Squares the attacker could stand on to reach the target: within maxDistance (reach for melee, the
++ * normal range for a ranged attack), inside the map, not on the target or on another creature, nearest
++ * to where the attacker stands first (in moves, then straight-line). The caller plans a real path to each
++ * (walls, difficult terrain, speed) and walks the cheapest.
++ */
++export function approachSquares(
++  attacker: SquareBox,
++  target: SquareBox,
++  maxDistance: number,
++  gridDistance: number,
++  blocked: SquareBox[],
++  bounds: { columns: number; rows: number },
++  limit = 400
++): Array<{ x: number; y: number; steps: number }> {
++  const per = gridDistance || 5;
++  const n = Math.max(1, Math.ceil(maxDistance / per));
++  const out: Array<{ x: number; y: number; steps: number; straight: number }> = [];
++  const x0 = Math.floor(target.x) - n - attacker.width + 1;
++  const x1 = Math.ceil(target.x + target.width) + n - 1;
++  const y0 = Math.floor(target.y) - n - attacker.height + 1;
++  const y1 = Math.ceil(target.y + target.height) + n - 1;
++  for (let y = y0; y <= y1; y++) {
++    for (let x = x0; x <= x1; x++) {
++      if (x < 0 || y < 0 || x + attacker.width > bounds.columns || y + attacker.height > bounds.rows) continue;
++      const box = { x, y, width: attacker.width, height: attacker.height };
++      if (overlapsBox(box, target) || blocked.some(b => overlapsBox(box, b))) continue;
++      if (tokenDistance(box, target, 1, per) > maxDistance) continue;
++      const dx = x - attacker.x;
++      const dy = y - attacker.y;
++      out.push({ x, y, steps: Math.max(Math.abs(dx), Math.abs(dy)), straight: Math.hypot(dx, dy) });
++    }
++  }
++  out.sort((a, b) => a.steps - b.steps || a.straight - b.straight);
++  return out.slice(0, limit).map(({ x, y, steps }) => ({ x, y, steps }));
 +}
 diff --git a/packages/foundry-module/src/bossbar-utils.test.ts b/packages/foundry-module/src/bossbar-utils.test.ts
 new file mode 100644
@@ -3135,10 +3219,10 @@ index 0000000..7b10937
 +}
 diff --git a/packages/foundry-module/src/combat-actions.test.ts b/packages/foundry-module/src/combat-actions.test.ts
 new file mode 100644
-index 0000000..5181542
+index 0000000..7dd12a4
 --- /dev/null
 +++ b/packages/foundry-module/src/combat-actions.test.ts
-@@ -0,0 +1,254 @@
+@@ -0,0 +1,265 @@
 +/** Attacks, saves and checks through the dnd5e activity and actor roll APIs (stubbed). */
 +import { describe, expect, it, vi } from 'vitest';
 +import { performAttack, performCheck, pickActivity, resolveKey } from './combat-actions.js';
@@ -3212,6 +3296,17 @@ index 0000000..5181542
 +    const loud = attacker('attack');
 +    await performAttack(loud, [target('Mira', 12, 13)], { public: true });
 +    expect(loud.activity.rollAttack.mock.calls[0][2]).toEqual({ create: true, messageMode: 'public', rollMode: 'publicroll' });
++  });
++  it('adds cover to the AC: a 14 that hits AC 13 misses behind half cover', async () => {
++    const a = attacker('attack', { attack: 14, success: true });
++    const t = target('Mira', 12, 13);
++    const r = await performAttack(a, [t], { coverBonus: () => 2 });
++    expect(r.results[0]).toMatchObject({ ac: 15, hit: false });
++    expect(r.results[0].cover).toMatch(/\+2 AC \(half cover; 13 without\)/);
++    expect(a.activity.rollDamage).not.toHaveBeenCalled();
++    const b = attacker('attack', { attack: 18, success: true });
++    const r2 = await performAttack(b, [target('Mira', 12, 13)], { coverBonus: () => 5 });
++    expect(r2.results[0]).toMatchObject({ ac: 18, hit: true });
 +  });
 +  it('can skip consuming and applying', async () => {
 +    const a = attacker('attack');
@@ -3395,10 +3490,10 @@ index 0000000..5181542
 +});
 diff --git a/packages/foundry-module/src/combat-actions.ts b/packages/foundry-module/src/combat-actions.ts
 new file mode 100644
-index 0000000..615341a
+index 0000000..d85b059
 --- /dev/null
 +++ b/packages/foundry-module/src/combat-actions.ts
-@@ -0,0 +1,386 @@
+@@ -0,0 +1,391 @@
 +/**
 + * Monster and character actions in combat: roll an attack (and damage, and apply it), roll a
 + * saving-throw ability against targets, or roll a check. Works through the dnd5e activity and actor
@@ -3424,6 +3519,8 @@ index 0000000..615341a
 +  setTarget?: (target: NamedActor | null) => void;
 +  /** targets beyond the attack's normal range (but within long range): rolled with disadvantage */
 +  longRange?: (target: NamedActor) => boolean;
++  /** cover a target has against this attack, as an AC bonus (half +2, three-quarters +5); 0 or missing for none */
++  coverBonus?: (target: NamedActor) => number;
 +  /** wait for the 3D dice (Dice So Nice) before damage is applied, so the hit does not show before the dice stop */
 +  settle?: (() => Promise<unknown>) | undefined;
 +  /** spell slot to spend when using a spell: "spell3" (a level 3 slot) or "pact"; unset = the spell's own level */
@@ -3627,10 +3724,13 @@ index 0000000..615341a
 +      const fumble = !!roll.isFumble;
 +      const row: Record<string, any> = { ...(t.name ? { target: t.name } : {}), roll: Number(roll.total), ...(natural !== undefined ? { natural } : {}), ...(crit ? { crit: true } : {}), ...(fumble ? { fumble: true } : {}), ...(long ? { longRange: 'disadvantage' } : {}) };
 +      if (t.actor) {
-+        const ac = Number(t.actor.system?.attributes?.ac?.value ?? 10);
-+        // the roll knows its target's AC (the system set it from the targeted token); fall back to comparing
-+        const hit = typeof roll.isSuccess === 'boolean' && roll.options?.target !== undefined ? roll.isSuccess : crit || (!fumble && Number(roll.total) >= ac);
++        const baseAc = Number(t.actor.system?.attributes?.ac?.value ?? 10);
++        const cover = Math.max(0, Number(options.coverBonus?.(t) ?? 0) || 0);
++        const ac = baseAc + cover;
++        // the roll knows its target's AC (the system set it from the targeted token) but not cover: with cover, compare here
++        const hit = !cover && typeof roll.isSuccess === 'boolean' && roll.options?.target !== undefined ? roll.isSuccess : crit || (!fumble && Number(roll.total) >= ac);
 +        row.ac = ac;
++        if (cover) row.cover = `+${cover} AC (${cover >= 5 ? 'three-quarters' : 'half'} cover; ${baseAc} without)`;
 +        row.hit = hit;
 +        await finishAttackRow(row, hit, crit, t, activity, apply, message, options.settle);
 +      }
@@ -9945,11 +10045,12 @@ index 0000000..b50a33c
 +  });
 +});
 diff --git a/packages/foundry-module/src/data-access.ts b/packages/foundry-module/src/data-access.ts
-index eecda7e..a5f7163 100644
+index eecda7e..b53f5ff 100644
 --- a/packages/foundry-module/src/data-access.ts
 +++ b/packages/foundry-module/src/data-access.ts
-@@ -1,6 +1,157 @@
+@@ -1,6 +1,161 @@
  import { MODULE_ID, ERROR_MESSAGES, TOKEN_DISPOSITIONS } from './constants.js';
++import { SCENE_AREAS_FLAG, areaAt, normalizeAreas, sceneAreas } from './scene-areas.js';
  import { permissionManager } from './permissions.js';
 +import {
 +  DEFAULT_MAX_CHARS,
@@ -10095,7 +10196,7 @@ index eecda7e..a5f7163 100644
 +import { markDownIfZero, wakeIfHealed, markSurprised, performAttack, setDeathSaves, stabilize, performCheck, pickActivity, type NamedActor } from './combat-actions.js';
 +import { dnd5ePlayState, type PlayState } from './character-state-utils.js';
 +import { dnd5eHasLegendary, dnd5eHasSpells } from './creature-flags-utils.js';
-+import { attackRangeOf, rangeVerdict, sameUnits, tokenDistance, turnWarning } from './attack-checks.js';
++import { approachSquares, attackRangeOf, rangeVerdict, sameUnits, tokenDistance, turnWarning, type AttackRange } from './attack-checks.js';
 +import { rollModeName } from './roll-mode.js';
 +import { partyRow, pickActors, splitXp } from './party-utils.js';
 +import { nearestNames } from './item-suggest.js';
@@ -10103,10 +10204,13 @@ index eecda7e..a5f7163 100644
 +import { clipText, htmlToText, searchPages, type RulePage } from './rules-utils.js';
 +import { selectMessages } from './chat-utils.js';
 +import { adventureSections, creatureCr, creatureType, findByName, pickHeading, searchSections, type AdventureSection } from './plutonium-utils.js';
++import { coverBetween } from './tactical.js';
++import { applySurprise } from './surprise.js';
++import { noteTableEvent } from './table-watcher.js';
  
  // The same five characters foundry.utils.escapeHTML replaces in v14, kept local because
  // that helper isn't confirmed in v13, this module's minimum.
-@@ -33,6 +184,7 @@ interface CharacterInfo {
+@@ -33,6 +188,7 @@ interface CharacterInfo {
    itemVariants?: any[]; // Item rule element variants (ChoiceSet, etc.)
    itemToggles?: any[]; // Item rule element toggles (RollOption, ToggleProperty, equipped)
    spellcasting?: SpellcastingEntry[]; // PF2e/D&D 5e spellcasting entries
@@ -10114,7 +10218,7 @@ index eecda7e..a5f7163 100644
  }
  
  interface SpellcastingEntry {
-@@ -363,7 +515,8 @@ interface ItemTargetingResult {
+@@ -363,7 +519,8 @@ interface ItemTargetingResult {
   */
  class PersistentCreatureIndex {
    private moduleId: string = MODULE_ID;
@@ -10124,7 +10228,7 @@ index eecda7e..a5f7163 100644
    private readonly INDEX_FILENAME = 'enhanced-creature-index.json';
    private buildInProgress = false;
    private hooksRegistered = false;
-@@ -979,26 +1132,9 @@ class PersistentCreatureIndex {
+@@ -979,26 +1136,9 @@ class PersistentCreatureIndex {
          alignment = String(alignment || 'unaligned');
        }
  
@@ -10154,7 +10258,7 @@ index eecda7e..a5f7163 100644
  
        // DEBUG: Log what we extracted for comparison
  
-@@ -1714,6 +1850,98 @@ const DND5E_SIZE: Record<string, string> = {
+@@ -1714,6 +1854,104 @@ const DND5E_SIZE: Record<string, string> = {
    gargantuan: 'gargantuan',
  };
  
@@ -10193,6 +10297,12 @@ index eecda7e..a5f7163 100644
 +  consume?: boolean;
 +  /** attack: roll even when a target is out of range */
 +  ignore_range?: boolean;
++  /** attack: walk the attacker into reach (melee) or normal range first, when a target is out of range */
++  approach?: boolean;
++  /** attack with approach: the walk may use double speed (the creature dashes) */
++  dash?: boolean;
++  /** attack: the targets' cover; auto (default) works it out from walls and creatures in the way */
++  cover?: 'auto' | 'none' | 'half' | 'three-quarters' | 'total';
 +  /** start: creatures that are surprised in the first round */
 +  surprised?: string[];
 +  /** death_saves: the counts to set (0 to 3) */
@@ -10253,7 +10363,7 @@ index eecda7e..a5f7163 100644
  export class FoundryDataAccess {
    private moduleId: string = MODULE_ID;
    private persistentIndex: PersistentCreatureIndex = new PersistentCreatureIndex();
-@@ -1951,6 +2179,16 @@ export class FoundryDataAccess {
+@@ -1951,6 +2189,16 @@ export class FoundryDataAccess {
        characterData.spellcasting = spellcastingEntries;
      }
  
@@ -10270,7 +10380,7 @@ index eecda7e..a5f7163 100644
      return characterData;
    }
  
-@@ -3151,11 +3389,7 @@ export class FoundryDataAccess {
+@@ -3151,11 +3399,7 @@ export class FoundryDataAccess {
  
      // Legendary Actions filter
      if (filters.hasLegendaryActions !== undefined) {
@@ -10283,7 +10393,7 @@ index eecda7e..a5f7163 100644
        if (hasLegendary !== filters.hasLegendaryActions) {
          return false;
        }
-@@ -3163,11 +3397,7 @@ export class FoundryDataAccess {
+@@ -3163,11 +3407,7 @@ export class FoundryDataAccess {
  
      // Spellcaster filter
      if (filters.spellcaster !== undefined) {
@@ -10296,7 +10406,7 @@ index eecda7e..a5f7163 100644
        if (isSpellcaster !== filters.spellcaster) {
          return false;
        }
-@@ -3812,11 +4042,7 @@ export class FoundryDataAccess {
+@@ -3812,11 +4052,7 @@ export class FoundryDataAccess {
  
      // Spellcaster filter
      if (criteria.hasSpells !== undefined) {
@@ -10309,7 +10419,7 @@ index eecda7e..a5f7163 100644
        if (isSpellcaster !== criteria.hasSpells) return false;
      }
  
-@@ -4681,12 +4907,28 @@ export class FoundryDataAccess {
+@@ -4681,12 +4917,28 @@ export class FoundryDataAccess {
        type: 'random' | 'grid' | 'center' | 'coordinates';
        coordinates?: { x: number; y: number }[];
      };
@@ -10338,7 +10448,7 @@ index eecda7e..a5f7163 100644
        // Validate inputs
        if (!packId || !itemId) {
          throw new Error('Both packId and itemId are required');
-@@ -4747,16 +4989,41 @@ export class FoundryDataAccess {
+@@ -4747,16 +4999,41 @@ export class FoundryDataAccess {
              prototypeToken: sourceData.prototypeToken, // Include prototype token
            };
  
@@ -10381,7 +10491,7 @@ index eecda7e..a5f7163 100644
  
            // Create the actor
            const newActor = await Actor.create(actorData);
-@@ -5064,6 +5331,7 @@ export class FoundryDataAccess {
+@@ -5064,6 +5341,7 @@ export class FoundryDataAccess {
          }
          resultActor = existingActor;
        } else {
@@ -10389,7 +10499,7 @@ index eecda7e..a5f7163 100644
          resultActor = await Actor.create(actorData as any);
          if (!resultActor) {
            throw new Error(`Failed to create actor "${actorData.name}"`);
-@@ -5865,6 +6133,7 @@ export class FoundryDataAccess {
+@@ -5865,6 +6143,7 @@ export class FoundryDataAccess {
  
        // Apply customizations
        actorData.name = customName;
@@ -10397,7 +10507,7 @@ index eecda7e..a5f7163 100644
  
        // Fix only token texture - leave portrait (actor.img) alone
        if (actorData.prototypeToken?.texture?.src?.startsWith('http')) {
-@@ -6021,21 +6290,22 @@ export class FoundryDataAccess {
+@@ -6021,21 +6300,22 @@ export class FoundryDataAccess {
        // For now, we'll just create the button and let the rendering logic handle the state restoration
  
        const rollButtonHtml = `
@@ -10424,7 +10534,7 @@ index eecda7e..a5f7163 100644
              </button>
            </div>
          </div>
-@@ -6074,6 +6344,8 @@ export class FoundryDataAccess {
+@@ -6074,6 +6354,8 @@ export class FoundryDataAccess {
          whisper: whisperTargets,
          flags: {
            [MODULE_ID]: {
@@ -10433,7 +10543,7 @@ index eecda7e..a5f7163 100644
              rollButtons: {
                [buttonId]: {
                  rolled: false,
-@@ -6140,7 +6412,7 @@ export class FoundryDataAccess {
+@@ -6140,7 +6422,7 @@ export class FoundryDataAccess {
            user,
            targetName: user.name || 'Unknown Player',
            errorType: 'PLAYER_OFFLINE',
@@ -10442,7 +10552,7 @@ index eecda7e..a5f7163 100644
          };
        }
  
-@@ -6174,7 +6446,7 @@ export class FoundryDataAccess {
+@@ -6174,7 +6456,7 @@ export class FoundryDataAccess {
              user,
              targetName: user.name || 'Unknown Player',
              errorType: 'PLAYER_OFFLINE',
@@ -10451,7 +10561,7 @@ index eecda7e..a5f7163 100644
            };
          }
  
-@@ -6228,7 +6500,7 @@ export class FoundryDataAccess {
+@@ -6228,7 +6510,7 @@ export class FoundryDataAccess {
              character,
              targetName: ownerUser.name || 'Unknown Player',
              errorType: 'PLAYER_OFFLINE',
@@ -10460,7 +10570,7 @@ index eecda7e..a5f7163 100644
            };
          }
  
-@@ -6399,6 +6671,8 @@ export class FoundryDataAccess {
+@@ -6399,6 +6681,8 @@ export class FoundryDataAccess {
          return `${rollTarget} Attack (${visibility})`;
        case 'initiative':
          return `Initiative Roll (${visibility})`;
@@ -10469,7 +10579,7 @@ index eecda7e..a5f7163 100644
        case 'custom':
          return `Custom Roll (${visibility})`;
        default:
-@@ -6498,6 +6772,7 @@ export class FoundryDataAccess {
+@@ -6498,6 +6782,7 @@ export class FoundryDataAccess {
  
        const rollFormula = button.data('roll-formula');
        const rollLabel = button.data('roll-label');
@@ -10477,7 +10587,7 @@ index eecda7e..a5f7163 100644
        const isPublicRaw = button.data('is-public');
        const isPublic = isPublicRaw === true || isPublicRaw === 'true'; // Convert to proper boolean
        const characterId = button.data('character-id');
-@@ -6515,13 +6790,22 @@ export class FoundryDataAccess {
+@@ -6515,13 +6800,22 @@ export class FoundryDataAccess {
        }
  
        try {
@@ -10503,7 +10613,7 @@ index eecda7e..a5f7163 100644
          // Use the modern Foundry v13 approach with roll.toMessage()
          const rollMode = isPublic ? 'publicroll' : 'whisper';
          const whisperTargets: string[] = [];
-@@ -6714,7 +6998,7 @@ export class FoundryDataAccess {
+@@ -6714,7 +7008,7 @@ export class FoundryDataAccess {
  
          // Send socket request to GM
          if (game.socket) {
@@ -10512,7 +10622,7 @@ index eecda7e..a5f7163 100644
              type: 'requestMessageUpdate',
              buttonId,
              userId,
-@@ -6744,7 +7028,7 @@ export class FoundryDataAccess {
+@@ -6744,7 +7038,7 @@ export class FoundryDataAccess {
  
        // Create the rolled state HTML
        const rolledHtml = `
@@ -10521,7 +10631,7 @@ index eecda7e..a5f7163 100644
            <p><strong>Roll Request:</strong> ${rollLabel}</p>
            <p><strong>Status:</strong> ✅ <strong>Completed by ${rolledByName}</strong> at ${timestamp}</p>
          </div>
-@@ -7441,7 +7725,18 @@ export class FoundryDataAccess {
+@@ -7441,7 +7735,18 @@ export class FoundryDataAccess {
        const token = scene.tokens?.get(identifier);
        if (token?.actor) return token.actor;
      }
@@ -10541,7 +10651,7 @@ index eecda7e..a5f7163 100644
    }
  
    /**
-@@ -7603,6 +7898,7 @@ export class FoundryDataAccess {
+@@ -7603,6 +7908,7 @@ export class FoundryDataAccess {
      if (applyPolyglot) {
        messageData.flags = { polyglot: { language: data.language } };
      }
@@ -10549,7 +10659,7 @@ index eecda7e..a5f7163 100644
      if (whisperIds.length > 0) {
        messageData.whisper = whisperIds;
      }
-@@ -7897,7 +8193,22 @@ export class FoundryDataAccess {
+@@ -7897,7 +8203,22 @@ export class FoundryDataAccess {
    /**
     * Switch to a different scene
     */
@@ -10573,7 +10683,7 @@ index eecda7e..a5f7163 100644
      this.validateFoundryState();
  
      try {
-@@ -7915,6 +8226,15 @@ export class FoundryDataAccess {
+@@ -7915,6 +8236,15 @@ export class FoundryDataAccess {
  
        // Activate the scene
        await targetScene.activate();
@@ -10589,7 +10699,7 @@ index eecda7e..a5f7163 100644
  
        // Optimize view if requested (default true)
        if (options.optimize_view !== false && typeof canvas !== 'undefined' && canvas?.scene) {
-@@ -7943,6 +8263,8 @@ export class FoundryDataAccess {
+@@ -7943,6 +8273,8 @@ export class FoundryDataAccess {
          success: true,
          sceneId: targetScene.id,
          sceneName: targetScene.name,
@@ -10598,7 +10708,7 @@ index eecda7e..a5f7163 100644
          dimensions: {
            width: (targetScene.dimensions as any)?.width || (targetScene as any).width || 0,
            height: (targetScene.dimensions as any)?.height || (targetScene as any).height || 0,
-@@ -8101,199 +8423,4993 @@ export class FoundryDataAccess {
+@@ -8101,199 +8433,5053 @@ export class FoundryDataAccess {
      }
    }
  
@@ -10659,6 +10769,7 @@ index eecda7e..a5f7163 100644
 +      weather: scene.weather || null,
 +      fogMode: scene.fog?.mode ?? null,
 +      gridShift: { x: scene.shiftX ?? 0, y: scene.shiftY ?? 0 },
++      areas: sceneAreas(scene, MODULE_ID).map(a => `${a.name} [${a.rect.join(', ')}]`),
 +      gridColor: scene.grid?.color != null ? String(scene.grid.color) : null,
 +      gridAlpha: scene.grid?.alpha ?? null,
 +      initialView: scene.initial
@@ -11054,6 +11165,7 @@ index eecda7e..a5f7163 100644
 +    atmosphere?: string | null;
 +    initial_view?: { x: number; y: number; scale?: number };
 +    activate?: boolean;
++    areas?: unknown[] | null;
 +  }): Promise<any> {
 +    this.validateFoundryState();
 +
@@ -11085,6 +11197,8 @@ index eecda7e..a5f7163 100644
 +      }
 +
 +      const data = this.buildSceneData(options);
++      // Named areas (rooms) in squares, checked before anything is written.
++      const areas = options.areas === undefined || options.areas === null ? options.areas : normalizeAreas(options.areas);
 +      const view = options.initial_view;
 +      if (view !== undefined) {
 +        const bad = (v: unknown) => typeof v !== 'number' || !Number.isFinite(v);
@@ -11121,6 +11235,7 @@ index eecda7e..a5f7163 100644
 +          levelColor !== undefined ||
 +          view !== undefined ||
 +          options.atmosphere !== undefined ||
++          options.areas !== undefined ||
 +          options.activate === true;
 +        if (!hasChange) {
 +          throw new Error('Nothing to update: pass at least one field to change');
@@ -11144,6 +11259,8 @@ index eecda7e..a5f7163 100644
 +          initial: { x: centre.x, y: centre.y, ...(view.scale !== undefined ? { scale: view.scale } : {}) },
 +        });
 +      }
++      if (areas === null) await scene.unsetFlag(MODULE_ID, SCENE_AREAS_FLAG);
++      else if (areas !== undefined) await scene.setFlag(MODULE_ID, SCENE_AREAS_FLAG, areas);
 +      let atmosphere: { active: string[] } | undefined;
 +      if (options.atmosphere !== undefined) atmosphere = await this.applyAtmosphere(scene, options.atmosphere);
 +      if (options.activate === true) {
@@ -12115,6 +12232,13 @@ index eecda7e..a5f7163 100644
 +            const surprised: string[] = [];
 +            for (const target of resolveNamed(data.surprised)) if (await markSurprised(target.actor)) surprised.push(target.name);
 +            out.surprised = surprised;
++            // the first turn may already belong to a surprised monster: it loses it now
++            if (surprised.length && combat?.started) {
++              const firstTurn = combat.combatant?.name;
++              await applySurprise(combat, noteTableEvent);
++              if (combat.combatant?.name !== firstTurn) out.skippedSurprised = firstTurn;
++            }
++            out.surprisedNote = "Surprised creatures run by the GM lose their first turn automatically (the tracker skips them); the status ends when each creature's turn ends, and at round 2.";
 +            const unknown = data.surprised.filter(n => resolveNamed([n]).length === 0);
 +            if (unknown.length) out.surprisedNotFound = unknown;
 +          }
@@ -12252,14 +12376,34 @@ index eecda7e..a5f7163 100644
 +          const found = pickActivity(attacker.actor, data.item);
 +          const range = found ? attackRangeOf(found.item, found.activity) : null;
 +          const attackerToken = attacker.token ?? attacker.actor?.getActiveTokens?.(false, true)?.[0] ?? null;
++          const tokenOf = (t: NamedActor) => t.token ?? t.actor?.getActiveTokens?.(false, true)?.[0] ?? null;
++          const distanceTo = (targetToken: any): number | undefined => {
++            if (!range || !attackerToken || !targetToken || targetToken.parent?.id !== attackerToken.parent?.id) return undefined;
++            const grid = attackerToken.parent?.grid ?? {};
++            if (!sameUnits(grid.units, range.units)) return undefined;
++            return tokenDistance(attackerToken, targetToken, Number(grid.size) || 100, Number(grid.distance) || 5);
++          };
++          // approach: walk into reach first (the first target out of range), then attack from there.
++          if (data.approach && range && attackerToken) {
++            const far = targets.find(t => {
++              const d = distanceTo(tokenOf(t));
++              return d !== undefined && rangeVerdict(d, range).status === 'out';
++            });
++            if (far) {
++              const approach = await this.approachForAttack(attackerToken, tokenOf(far), range, { dash: data.dash === true });
++              out.approach = approach;
++              if (!approach.reached) {
++                out.attacked = false;
++                out.note = `${attacker.name} did not attack: ${approach.reason}`;
++                break;
++              }
++            }
++          }
 +          if (range && attackerToken) {
 +            const outOfRange: string[] = [];
 +            for (const t of targets) {
-+              const targetToken = t.token ?? t.actor?.getActiveTokens?.(false, true)?.[0] ?? null;
-+              if (!targetToken || targetToken.parent?.id !== attackerToken.parent?.id) continue;
-+              const grid = attackerToken.parent?.grid ?? {};
-+              if (!sameUnits(grid.units, range.units)) continue;
-+              const distance = tokenDistance(attackerToken, targetToken, Number(grid.size) || 100, Number(grid.distance) || 5);
++              const distance = distanceTo(tokenOf(t));
++              if (distance === undefined) continue;
 +              const verdict = rangeVerdict(distance, range);
 +              if (verdict.status === 'out') outOfRange.push(`${t.name} is ${distance} ${range.units} away (${found!.item.name} reaches ${verdict.max} ${range.units})`);
 +              else if (verdict.status === 'long') {
@@ -12268,7 +12412,7 @@ index eecda7e..a5f7163 100644
 +              }
 +            }
 +            if (outOfRange.length && !data.ignore_range) {
-+              throw new Error(`Out of range: ${outOfRange.join('; ')}. Move closer, pick another attack, or pass ignore_range: true`);
++              throw new Error(`Out of range: ${outOfRange.join('; ')}. Pass approach: true to walk into reach first, move closer, pick another attack, or pass ignore_range: true`);
 +            }
 +            if (outOfRange.length) warnings.push(`Out of range (rolled anyway): ${outOfRange.join('; ')}`);
 +          }
@@ -12277,8 +12421,34 @@ index eecda7e..a5f7163 100644
 +          if (turn) warnings.push(turn);
 +          if (Number(attacker.actor?.system?.attributes?.hp?.value ?? 0) <= 0 && attacker.actor?.system?.attributes?.hp) warnings.push(`${attacker.name} is at 0 hit points`);
 +          for (const t of targets) if (t.actor?.system?.attributes?.hp && Number(t.actor?.system?.attributes?.hp?.value ?? 0) <= 0) warnings.push(`${t.name} was already at 0 hit points`);
++          // Cover: worked out from the walls and the creatures in the way (as tactical sight does), or as given.
++          const coverOf = new Map<NamedActor, number>();
++          const coverMode = data.cover ?? 'auto';
++          if (!['auto', 'none', 'half', 'three-quarters', 'total'].includes(coverMode)) throw new Error('cover must be auto, none, half, three-quarters or total');
++          if (coverMode !== 'none' && found?.activity?.type === 'attack') {
++            const totalCover: string[] = [];
++            let unchecked = false;
++            for (const t of targets) {
++              let level: string = coverMode;
++              if (coverMode === 'auto') {
++                const targetToken = tokenOf(t);
++                if (!attackerToken || !targetToken || targetToken.parent?.id !== attackerToken.parent?.id) continue;
++                const seen = coverBetween(attackerToken.parent, attackerToken, targetToken);
++                if (!seen) {
++                  unchecked = true;
++                  continue;
++                }
++                level = seen.cover;
++              }
++              if (level === 'total') totalCover.push(t.name);
++              else if (level === 'half' || level === 'three-quarters') coverOf.set(t, level === 'half' ? 2 : 5);
++            }
++            if (totalCover.length) throw new Error(`${totalCover.join(', ')} ${totalCover.length > 1 ? 'have' : 'has'} total cover from ${attacker.name} and cannot be targeted. Move first, or pass cover: "none" to override.`);
++            if (unchecked) warnings.push('Cover not checked: the scene is not the one on screen (pass cover to set it)');
++          }
 +          const result = await performAttack(attacker, targets, {
 +            longRange: t => longRange.has(t),
++            coverBonus: t => coverOf.get(t) ?? 0,
 +            setTarget,
 +            ...(data.item ? { item: data.item } : {}),
 +            ...(data.advantage ? { advantage: true } : {}),
@@ -15763,7 +15933,7 @@ index eecda7e..a5f7163 100644
            await pl.playAll();
            return { success: true, action: 'play', playlist: info };
          case 'stop':
-@@ -8304,20 +13420,48 @@ export class FoundryDataAccess {
+@@ -8304,20 +13490,48 @@ export class FoundryDataAccess {
            return { success: true, action: 'cycle-mode', playlist: info, mode: pl.mode as number };
          case 'play-sound':
          case 'stop-sound': {
@@ -15818,7 +15988,7 @@ index eecda7e..a5f7163 100644
        }
      } catch (error) {
        throw new Error(
-@@ -8468,6 +13612,75 @@ export class FoundryDataAccess {
+@@ -8468,6 +13682,82 @@ export class FoundryDataAccess {
      }
    }
  
@@ -15857,7 +16027,14 @@ index eecda7e..a5f7163 100644
 +      if (real.length) return real;
 +      return all.filter(t => String(t.actor?.name ?? '').toLowerCase() === wanted);
 +    };
-+    const candidates: { scene: any; token: any }[] = matchIn(scene).map(token => ({ scene, token }));
++    let candidates: { scene: any; token: any }[] = matchIn(scene).map(token => ({ scene, token }));
++    // A player's character by name: the players are on the active scene, so its token there is the
++    // real one, even when the GM is viewing (prepping) another scene that holds a copy.
++    const active = (game.scenes as any)?.active;
++    if (!sceneIdentifier && active && active !== scene && candidates.length && candidates.every(c => c.token.actor?.hasPlayerOwner)) {
++      const onActive = matchIn(active).map(token => ({ scene: active, token }));
++      if (onActive.length) candidates = onActive;
++    }
 +    if (!candidates.length && !sceneIdentifier) {
 +      for (const s of ((game.scenes as any)?.contents || []) as any[]) {
 +        if (s === scene) continue;
@@ -15894,7 +16071,7 @@ index eecda7e..a5f7163 100644
    /**
     * Move a token to a new position on the scene
     */
-@@ -8476,6 +13689,12 @@ export class FoundryDataAccess {
+@@ -8476,6 +13766,12 @@ export class FoundryDataAccess {
      x: number;
      y: number;
      animate?: boolean;
@@ -15907,7 +16084,7 @@ index eecda7e..a5f7163 100644
    }): Promise<any> {
      this.validateFoundryState();
  
-@@ -8489,33 +13708,72 @@ export class FoundryDataAccess {
+@@ -8489,51 +13785,263 @@ export class FoundryDataAccess {
      }
  
      try {
@@ -15979,27 +16156,90 @@ index eecda7e..a5f7163 100644
 -          y: data.y,
 -        },
 -        { animate: data.animate !== false }
--      );
--
-       this.auditLog('moveToken', data, 'success');
- 
-       return {
-         success: true,
-         tokenId: token.id,
-         tokenName: token.name,
--        newPosition: { x: data.x, y: data.y },
++      this.auditLog('moveToken', data, 'success');
++
++      return {
++        success: true,
++        tokenId: token.id,
++        tokenName: token.name,
 +        scene: { id: scene.id, name: scene.name },
 +        newPosition: walked?.report.position ?? target,
 +        ...(walked?.report.positionSquares ? { newSquares: walked.report.positionSquares } : squares ? { newSquares: squares } : {}),
-         animated: data.animate !== false,
++        animated: data.animate !== false,
 +        ...(walked ? { moved: true, ...walked.report } : {}),
 +        ...(walkNote ? { note: walkNote } : {}),
-       };
-     } catch (error) {
-       this.auditLog(
-@@ -8530,10 +13788,125 @@ export class FoundryDataAccess {
-     }
-   }
++      };
++    } catch (error) {
++      this.auditLog(
++        'moveToken',
++        data,
++        'failure',
++        error instanceof Error ? error.message : 'Unknown error'
++      );
++      throw new Error(
++        `Failed to move token: ${error instanceof Error ? error.message : 'Unknown error'}`
+       );
++    }
++  }
+ 
+-      this.auditLog('moveToken', data, 'success');
++  /**
++   * combat attack approach: walk the attacker to the cheapest free square within reach (melee) or normal
++   * range of the target, by Foundry's own pathfinding, held to its speed (doubled with dash). Moves
++   * nothing when no square in reach can be walked to this turn, and says why.
++   */
++  private async approachForAttack(attackerToken: any, targetToken: any, range: AttackRange, data: { dash?: boolean }): Promise<Record<string, any>> {
++    const scene = attackerToken.parent;
++    const placeable = attackerToken.object;
++    if (!placeable?.findMovementPath || typeof attackerToken.move !== 'function') {
++      return { reached: false, reason: 'the scene is not the one on screen, so it cannot walk (view the scene, or move it with token move)' };
++    }
++    const geom = getGridGeometry(scene);
++    const units = scene.grid?.units ?? 'ft';
++    const boxOf = (t: any) => {
++      const sq = pixelsToSquares(geom, Number(t.x), Number(t.y));
++      return { x: Math.round(sq.x), y: Math.round(sq.y), width: Number(t.width) || 1, height: Number(t.height) || 1 };
++    };
++    const down = (o: any) => !!o.actor?.system?.attributes?.hp && Number(o.actor.system.attributes.hp.value ?? 1) <= 0;
++    const tokens = (scene.tokens?.contents ?? []) as any[];
++    // creatures block squares; the fallen do not
++    const blocked = tokens.filter(o => o.id !== attackerToken.id && o.id !== targetToken.id && !down(o)).map(boxOf);
++    const maxFt = range.melee ? (range.reach ?? 5) : (range.normal ?? range.long ?? range.reach ?? 5);
++    const from = boxOf(attackerToken);
++    const squares = approachSquares(from, boxOf(targetToken), maxFt, Number(geom.distance) || 5, blocked, { columns: geom.columns, rows: geom.rows }, 16);
++    if (!squares.length) return { reached: false, reason: `no free square within ${maxFt} ${units} of ${targetToken.name}` };
++    const movement = attackerToken.actor?.system?.attributes?.movement ?? {};
++    const speed = Number(movement[attackerToken.movementAction ?? 'walk'] ?? movement.walk ?? 0);
++    const allowed = speed > 0 ? speed * (data.dash ? 2 : 1) : Infinity;
++    const origin = { x: attackerToken.x, y: attackerToken.y };
++    let best: { x: number; y: number; cost: number } | undefined;
++    for (const c of squares.slice(0, 12)) {
++      const target = squaresToPixels(geom, c.x, c.y);
++      let path: any[] = [];
++      try {
++        path = await placeable.findMovementPath([target], { constrainOptions: { ignoreWalls: false, ignoreCost: false } }).promise;
++      } catch {
++        continue;
++      }
++      const last = path[path.length - 1];
++      if (!last || Math.abs(last.x - target.x) >= 1 || Math.abs(last.y - target.y) >= 1) continue;
++      const cost = Number(attackerToken.measureMovementPath([origin, ...path])?.cost ?? 0);
++      if (!best || cost < best.cost) best = { x: c.x, y: c.y, cost };
++    }
++    if (!best) return { reached: false, reason: `every free square within ${maxFt} ${units} of ${targetToken.name} is cut off by walls or closed doors` };
++    if (best.cost > allowed) {
++      return {
++        reached: false,
++        cost: `${best.cost} ${units}`,
++        speed: `${speed} ${units}${data.dash ? ' (dashing)' : ''}`,
++        reason: `the nearest square in reach (${best.x}, ${best.y}) costs ${best.cost} ${units} and it can move ${allowed} ${units}${data.dash ? '' : ' (pass dash: true to double it)'}; or walk it part way with token move`,
++      };
++    }
++    const walked = await this.walkToken(attackerToken, placeable, squaresToPixels(geom, best.x, best.y), { ...(data.dash ? { dash: true } : {}) });
++    const report = walked.report;
++    if (walked.refused || report.stoppedEarly) return { reached: false, reason: report.reason ?? 'the walk was refused', ...(report.positionSquares ? { at: report.positionSquares } : {}) };
++    return { reached: true, to: [best.x, best.y], cost: report.cost, ...(report.speed ? { speed: report.speed } : {}), ...(data.dash ? { dash: true } : {}) };
++  }
  
 +  /**
 +   * Walk a token to a point with Foundry's own movement: pathfinding around walls, movement cost,
@@ -16021,11 +16261,26 @@ index eecda7e..a5f7163 100644
 +    const units = token.parent?.grid?.units ?? 'ft';
 +    const report: Record<string, any> = { cost: `${cost} ${units}`, ...(speed > 0 ? { speed: `${speed} ${units}` } : {}), ...(data.dash ? { dash: true } : {}) };
 +    if (cost > allowed) {
-+      return {
+       return {
+-        success: true,
+-        tokenId: token.id,
+-        tokenName: token.name,
+-        newPosition: { x: data.x, y: data.y },
+-        animated: data.animate !== false,
 +        refused: true,
 +        report: { ...report, reason: `Too far: the walk costs ${cost} ${units} and only ${Math.max(0, allowed)} are available. Pick a nearer square, pass dash:true, or ignore_speed:true.` },
-+      };
-+    }
+       };
+-    } catch (error) {
+-      this.auditLog(
+-        'moveToken',
+-        data,
+-        'failure',
+-        error instanceof Error ? error.message : 'Unknown error'
+-      );
+-      throw new Error(
+-        `Failed to move token: ${error instanceof Error ? error.message : 'Unknown error'}`
+-      );
+     }
 +    let timedOut = false;
 +    if (path.length > 0) {
 +      // The move promise can hang (a tab in the background never finishes its animation), so it must not be
@@ -16106,8 +16361,8 @@ index eecda7e..a5f7163 100644
 +    const until = Date.now() + timeoutMs;
 +    while (!there() && Date.now() < until) await new Promise(resolve => setTimeout(resolve, 50));
 +    return there();
-+  }
-+
+   }
+ 
    /**
     * Update token properties
     */
@@ -16124,7 +16379,7 @@ index eecda7e..a5f7163 100644
      this.validateFoundryState();
  
      // Use permission system
-@@ -8546,23 +13919,33 @@ export class FoundryDataAccess {
+@@ -8546,23 +14054,33 @@ export class FoundryDataAccess {
      }
  
      try {
@@ -16172,7 +16427,7 @@ index eecda7e..a5f7163 100644
  
        this.auditLog('updateToken', { tokenId: data.tokenId, updates: cleanUpdates }, 'success');
  
-@@ -8570,7 +13953,10 @@ export class FoundryDataAccess {
+@@ -8570,7 +14088,10 @@ export class FoundryDataAccess {
          success: true,
          tokenId: token.id,
          tokenName: token.name,
@@ -16184,7 +16439,7 @@ index eecda7e..a5f7163 100644
        };
      } catch (error) {
        this.auditLog(
-@@ -8651,19 +14037,12 @@ export class FoundryDataAccess {
+@@ -8651,18 +14172,19 @@ export class FoundryDataAccess {
    /**
     * Get detailed information about a token
     */
@@ -16201,13 +16456,29 @@ index eecda7e..a5f7163 100644
 -      const token = scene.tokens.get(data.tokenId);
 -      if (!token) {
 -        throw new Error(`Token ${data.tokenId} not found in current scene`);
--      }
 +      // Found on any scene (the viewed scene first), or on the scene named.
-+      const { token } = this.findSceneToken(data.tokenId, data.scene);
++      const { scene, token } = this.findSceneToken(data.tokenId, data.scene);
++      let square: { x: number; y: number } | undefined;
++      let area: string | undefined;
++      try {
++        square = pixelsToSquares(getGridGeometry(scene), Number(token.x), Number(token.y));
++        area = areaAt(sceneAreas(scene, MODULE_ID), square, { w: Number(token.width) || 1, h: Number(token.height) || 1 });
++      } catch {
++        // no usable grid: the pixel position is still given
+       }
  
        // Return flat structure that matches MCP server expectations
-       return {
-@@ -8719,15 +14098,8 @@ export class FoundryDataAccess {
+@@ -8670,6 +14192,9 @@ export class FoundryDataAccess {
+         success: true,
+         id: token.id,
+         name: token.name,
++        scene: { id: scene.id, name: scene.name, active: !!scene.active },
++        ...(square ? { square: { x: Math.round(square.x * 10) / 10, y: Math.round(square.y * 10) / 10 } } : {}),
++        ...(area ? { area } : {}),
+         x: token.x,
+         y: token.y,
+         width: token.width,
+@@ -8719,15 +14244,8 @@ export class FoundryDataAccess {
      }
  
      try {
@@ -16225,7 +16496,7 @@ index eecda7e..a5f7163 100644
  
        const actor = token.actor;
        if (!actor) {
-@@ -9487,213 +14859,6 @@ export class FoundryDataAccess {
+@@ -9487,213 +15005,6 @@ export class FoundryDataAccess {
      }
    }
  
@@ -16439,7 +16710,7 @@ index eecda7e..a5f7163 100644
    // ---------------------------------------------------------------------------
    // Add weapon attack to an existing actor (dnd5e-add-attack-feature)
    // ---------------------------------------------------------------------------
-@@ -10803,7 +15968,6 @@ export class FoundryDataAccess {
+@@ -10803,7 +16114,6 @@ export class FoundryDataAccess {
      }
  
      try {
@@ -16447,7 +16718,7 @@ index eecda7e..a5f7163 100644
        const actor = this.findActorByIdentifier(data.actorIdentifier);
        if (!actor) {
          throw new Error(`Actor not found: "${data.actorIdentifier}"`);
-@@ -10812,77 +15976,48 @@ export class FoundryDataAccess {
+@@ -10812,77 +16122,48 @@ export class FoundryDataAccess {
        const cls = data.spellcastingClass as string;
        const lvl = data.spellcastingLevel as number;
        const ability = data.effectiveAbility as string;
@@ -16555,7 +16826,7 @@ index eecda7e..a5f7163 100644
          warnings,
        };
      } catch (error) {
-@@ -11274,10 +16409,15 @@ export class FoundryDataAccess {
+@@ -11274,10 +16555,15 @@ export class FoundryDataAccess {
        name: string;
        type: string;
        img?: string;
@@ -16572,7 +16843,7 @@ index eecda7e..a5f7163 100644
      const folderName = params.folder ?? 'Foundry MCP Actors';
      const folderId = await this.getOrCreateFolder(folderName, 'Actor');
  
-@@ -11286,6 +16426,19 @@ export class FoundryDataAccess {
+@@ -11286,6 +16572,19 @@ export class FoundryDataAccess {
      const docs = params.actors.map(a => {
        const doc: Record<string, any> = { name: a.name, type: a.type };
        if (a.img) doc.img = a.img;
@@ -16592,7 +16863,7 @@ index eecda7e..a5f7163 100644
  
        // Merge system data, adding safe defaults for systems that require certain
        // fields to exist during data preparation (avoids non-fatal init errors).
-@@ -11423,6 +16576,27 @@ export class FoundryDataAccess {
+@@ -11423,6 +16722,27 @@ export class FoundryDataAccess {
          };
        }
  
@@ -16620,7 +16891,7 @@ index eecda7e..a5f7163 100644
        doc.system = systemData;
        if (folderId) doc.folder = folderId;
        return doc;
-@@ -11436,6 +16610,7 @@ export class FoundryDataAccess {
+@@ -11436,6 +16756,7 @@ export class FoundryDataAccess {
      return {
        created: (created as any[]).map(a => ({ id: a.id, name: a.name, type: a.type })),
        total: created.length,
@@ -16628,7 +16899,7 @@ index eecda7e..a5f7163 100644
      };
    }
  
-@@ -11471,7 +16646,16 @@ export class FoundryDataAccess {
+@@ -11471,7 +16792,16 @@ export class FoundryDataAccess {
     * Merges supplied fields into the actor (top-level keys overwrite).
     */
    async updateActors(
@@ -16646,7 +16917,7 @@ index eecda7e..a5f7163 100644
    ): Promise<{ updated: Array<{ id: string; name: string }>; total: number }> {
      const updatedActors: Array<{ id: string; name: string }> = [];
  
-@@ -11481,7 +16665,12 @@ export class FoundryDataAccess {
+@@ -11481,7 +16811,12 @@ export class FoundryDataAccess {
  
        const patch: Record<string, any> = {};
        if (u.name !== undefined) patch.name = u.name;
@@ -16659,7 +16930,7 @@ index eecda7e..a5f7163 100644
        if (u.system !== undefined) {
          // Build a single patch.system nested object so Foundry deep-merges everything
          // in one pass without flat-key vs nested-key conflicts.
-@@ -11504,6 +16693,19 @@ export class FoundryDataAccess {
+@@ -11504,6 +16839,19 @@ export class FoundryDataAccess {
          }
          patch.system = systemPatch;
        }
@@ -16679,7 +16950,7 @@ index eecda7e..a5f7163 100644
  
        await actor.update(patch);
        updatedActors.push({ id: actor.id, name: u.name ?? actor.name });
-@@ -11706,6 +16908,199 @@ export class FoundryDataAccess {
+@@ -11706,6 +17054,199 @@ export class FoundryDataAccess {
      return { deleted: existing, total: existing.length };
    }
  
@@ -16879,7 +17150,7 @@ index eecda7e..a5f7163 100644
    /**
     * Delete one or more actors by ID.
     */
-@@ -11735,113 +17130,6 @@ function slugify(name: string, fallback = 'feature'): string {
+@@ -11735,113 +17276,6 @@ function slugify(name: string, fallback = 'feature'): string {
    );
  }
  
@@ -16993,7 +17264,7 @@ index eecda7e..a5f7163 100644
  // =============================================================================
  // Live compendium templates — Tier 2 of the build strategy for hand-built features.
  //
-@@ -12005,112 +17293,3 @@ const ATTACK_WITH_SAVE_DAMAGE_CANONICAL = new Set([
+@@ -12005,112 +17439,3 @@ const ATTACK_WITH_SAVE_DAMAGE_CANONICAL = new Set([
    'thunder',
  ]);
  
@@ -20153,10 +20424,10 @@ index 0000000..eab3007
 +  });
 +}
 diff --git a/packages/foundry-module/src/main.ts b/packages/foundry-module/src/main.ts
-index 9024ead..85fa8ea 100644
+index 9024ead..b9379c2 100644
 --- a/packages/foundry-module/src/main.ts
 +++ b/packages/foundry-module/src/main.ts
-@@ -1,9 +1,13 @@
+@@ -1,9 +1,14 @@
  import { MODULE_ID } from './constants.js';
 +import { speechPlayer } from './speech-player.js';
  import { SocketBridge } from './socket-bridge.js';
@@ -20165,24 +20436,27 @@ index 9024ead..85fa8ea 100644
  import { CampaignHooks } from './campaign-hooks.js';
  import { ComfyUIManager } from './comfyui-manager.js';
 +import { registerAnnotationUI } from './annotation-ui.js';
-+import { tableWatcher } from './table-watcher.js';
++import { noteTableEvent, tableWatcher } from './table-watcher.js';
++import { registerSurprise } from './surprise.js';
 +import { attachDiceSettle } from './dice-settle.js';
  // Connection control now handled through settings menu
  
  /**
-@@ -77,6 +81,11 @@ class FoundryMCPBridge {
+@@ -77,6 +82,13 @@ class FoundryMCPBridge {
  
        // Connection control now handled through settings menu
  
 +      // Record what happens at the table for the AI GM's table feed (local, read on request)
 +      tableWatcher.register();
++      // Surprise: a surprised monster loses its first turn, the status ends with the creature's turn
++      registerSurprise(Hooks, noteTableEvent);
 +      // Dice So Nice: public rolls wait for the 3D dice before their result is used
 +      attachDiceSettle(Hooks);
 +
        // Validate settings
        const validation = this.settings.validateSettings();
        if (!validation.valid) {
-@@ -414,6 +423,26 @@ class FoundryMCPBridge {
+@@ -414,6 +426,26 @@ class FoundryMCPBridge {
          return;
        }
  
@@ -20209,7 +20483,7 @@ index 9024ead..85fa8ea 100644
        console.log(`[${MODULE_ID}] Starting ComfyUI monitoring...`);
  
        // Show initial loading banner
-@@ -507,6 +536,13 @@ const foundryMCPBridge = new FoundryMCPBridge();
+@@ -507,6 +539,13 @@ const foundryMCPBridge = new FoundryMCPBridge();
  // Make it available globally for settings callbacks
  (window as any).foundryMCPBridge = foundryMCPBridge;
  
@@ -20223,7 +20497,7 @@ index 9024ead..85fa8ea 100644
  // Foundry VTT Hooks
  Hooks.once('init', async () => {
    try {
-@@ -519,10 +555,11 @@ Hooks.once('init', async () => {
+@@ -519,10 +558,11 @@ Hooks.once('init', async () => {
  Hooks.once('ready', async () => {
    try {
      await foundryMCPBridge.onReady();
@@ -23710,6 +23984,117 @@ index 0000000..526702e
 +  const end = at > maxChars * 0.6 ? at + 1 : maxChars;
 +  return { text: text.slice(0, end).trimEnd(), truncated: true, remaining: text.length - end };
 +}
+diff --git a/packages/foundry-module/src/scene-areas.test.ts b/packages/foundry-module/src/scene-areas.test.ts
+new file mode 100644
+index 0000000..814fdc2
+--- /dev/null
++++ b/packages/foundry-module/src/scene-areas.test.ts
+@@ -0,0 +1,35 @@
++import { describe, expect, it } from 'vitest';
++import { areaAt, normalizeAreas, sceneAreas, shiftAreas } from './scene-areas.js';
++
++describe('scene areas', () => {
++  const areas = normalizeAreas([
++    { name: 'Hall', rect: [0, 0, 20, 10] },
++    { name: 'Closet', rect: [2, 2, 3, 3] },
++    { name: 'Bell room', at: [20, 4], size: [6, 6] },
++  ]);
++
++  it('accepts rect or at+size and rejects bad input', () => {
++    expect(areas[2]).toEqual({ name: 'Bell room', rect: [20, 4, 6, 6] });
++    expect(() => normalizeAreas('x')).toThrow(/list/);
++    expect(() => normalizeAreas([{ rect: [0, 0, 1, 1] }])).toThrow(/name is required/);
++    expect(() => normalizeAreas([{ name: 'A', rect: [0, 0, 0, 1] }])).toThrow(/above 0/);
++  });
++
++  it('names the smallest area under the token centre', () => {
++    expect(areaAt(areas, { x: 3, y: 3 })).toBe('Closet');
++    expect(areaAt(areas, { x: 10, y: 5 })).toBe('Hall');
++    expect(areaAt(areas, { x: 22, y: 6 })).toBe('Bell room');
++    expect(areaAt(areas, { x: 40, y: 40 })).toBeUndefined();
++  });
++
++  it('uses the centre of a large token', () => {
++    // a 2x2 token whose top-left is in the hall, centre on the closet edge
++    expect(areaAt(areas, { x: 1, y: 1 }, { w: 2, h: 2 })).toBe('Closet');
++  });
++
++  it('reads flags and shifts', () => {
++    expect(sceneAreas({ flags: { mod: { areas: [{ name: 'A', rect: [1, 1, 2, 2] }] } } }, 'mod')).toHaveLength(1);
++    expect(sceneAreas({ flags: { mod: { areas: 'bad' } } }, 'mod')).toEqual([]);
++    expect(shiftAreas(areas, [1, -1])[0].rect).toEqual([1, -1, 20, 10]);
++  });
++});
+diff --git a/packages/foundry-module/src/scene-areas.ts b/packages/foundry-module/src/scene-areas.ts
+new file mode 100644
+index 0000000..15e4800
+--- /dev/null
++++ b/packages/foundry-module/src/scene-areas.ts
+@@ -0,0 +1,64 @@
++/**
++ * Named areas of a scene (rooms, caves, clearings): rectangles in grid squares from the top-left
++ * corner of the map picture, kept in the scene's flags. `layout build` writes them from the plan;
++ * `scene update {areas}` sets them by hand (for a bought or book map). The table feed uses them to
++ * say which room a player's token is in. Pure: no Foundry globals.
++ */
++
++export const SCENE_AREAS_FLAG = 'areas';
++
++export interface SceneArea {
++  name: string;
++  /** [column, row, width, height] in squares */
++  rect: [number, number, number, number];
++}
++
++/** Check and clean an areas list from a tool call; throws a plain message on bad input. */
++export function normalizeAreas(input: unknown): SceneArea[] {
++  if (!Array.isArray(input)) throw new Error('areas must be a list of {name, rect: [column, row, width, height]} in squares (or null to clear)');
++  if (input.length > 200) throw new Error('areas: at most 200 areas');
++  return input.map((raw, i) => {
++    const a = raw as any;
++    const name = typeof a?.name === 'string' ? a.name.trim() : '';
++    if (!name) throw new Error(`areas[${i}]: name is required`);
++    const r = Array.isArray(a?.rect) ? a.rect : Array.isArray(a?.at) && Array.isArray(a?.size) ? [...a.at, ...a.size] : undefined;
++    if (!r || r.length !== 4 || r.some((v: unknown) => typeof v !== 'number' || !Number.isFinite(v))) {
++      throw new Error(`areas[${i}] (${name}): rect must be [column, row, width, height] in squares`);
++    }
++    if (r[2] <= 0 || r[3] <= 0) throw new Error(`areas[${i}] (${name}): width and height must be above 0`);
++    return { name: name.slice(0, 80), rect: [r[0], r[1], r[2], r[3]] as [number, number, number, number] };
++  });
++}
++
++/** Read the areas stored on a scene document (empty when none or malformed). */
++export function sceneAreas(scene: any, moduleId: string): SceneArea[] {
++  const raw = scene?.flags?.[moduleId]?.[SCENE_AREAS_FLAG] ?? scene?.getFlag?.(moduleId, SCENE_AREAS_FLAG);
++  if (!Array.isArray(raw)) return [];
++  try {
++    return normalizeAreas(raw);
++  } catch {
++    return [];
++  }
++}
++
++/**
++ * The area a token stands in, by the centre of its footprint (top-left square plus half its size).
++ * The smallest area wins, so a closet drawn inside a hall is named as the closet.
++ */
++export function areaAt(areas: SceneArea[], square: { x: number; y: number }, size: { w?: number; h?: number } = {}): string | undefined {
++  const cx = square.x + (size.w ?? 1) / 2;
++  const cy = square.y + (size.h ?? 1) / 2;
++  let best: SceneArea | undefined;
++  for (const a of areas) {
++    const [x, y, w, h] = a.rect;
++    if (cx < x || cy < y || cx > x + w || cy > y + h) continue;
++    if (!best || w * h < best.rect[2] * best.rect[3]) best = a;
++  }
++  return best?.name;
++}
++
++/** Shift every area by [columns, rows] (the wall shift layout build applies to match the picture). */
++export function shiftAreas(areas: SceneArea[], shift: [number, number] = [0, 0]): SceneArea[] {
++  const [dx, dy] = shift;
++  return areas.map(a => ({ name: a.name, rect: [a.rect[0] + dx, a.rect[1] + dy, a.rect[2], a.rect[3]] }));
++}
 diff --git a/packages/foundry-module/src/scene-backup-utils.test.ts b/packages/foundry-module/src/scene-backup-utils.test.ts
 new file mode 100644
 index 0000000..7619d30
@@ -25681,6 +26066,164 @@ index 0000000..f92e9cc
 +    syncText: get('ttsSyncText') !== false,
 +  };
 +}
+diff --git a/packages/foundry-module/src/surprise.test.ts b/packages/foundry-module/src/surprise.test.ts
+new file mode 100644
+index 0000000..2a321fc
+--- /dev/null
++++ b/packages/foundry-module/src/surprise.test.ts
+@@ -0,0 +1,43 @@
++import { describe, expect, it, vi } from 'vitest';
++import { applySurprise, surpriseStep, type SurpriseCombatant } from './surprise.js';
++
++const c = (id: string, parts: Partial<SurpriseCombatant> = {}): SurpriseCombatant => ({ id, name: id, surprised: false, playerRun: false, defeated: false, ...parts });
++
++describe('surpriseStep', () => {
++  it('skips a surprised monster in round 1 and clears its status', () => {
++    const goblin = c('g', { surprised: true });
++    expect(surpriseStep({ round: 1, current: goblin, combatants: [goblin] })).toEqual({ clear: ['g'], skip: 'g' });
++  });
++
++  it('lets a surprised player play their turn, and clears it when the turn ends', () => {
++    const kael = c('k', { surprised: true, playerRun: true });
++    expect(surpriseStep({ round: 1, current: kael, combatants: [kael] })).toEqual({ clear: [] });
++    const next = c('g');
++    expect(surpriseStep({ round: 1, current: next, previousId: 'k', combatants: [kael, next] })).toEqual({ clear: ['k'] });
++  });
++
++  it('clears everything still surprised when round 2 begins, and skips nothing then', () => {
++    const a = c('a', { surprised: true });
++    const b = c('b', { surprised: true, playerRun: true });
++    expect(surpriseStep({ round: 2, current: a, combatants: [a, b] })).toEqual({ clear: ['a', 'b'] });
++  });
++
++  it('does not skip a defeated or unsurprised creature', () => {
++    expect(surpriseStep({ round: 1, current: c('d', { surprised: true, defeated: true }), combatants: [] }).skip).toBeUndefined();
++    expect(surpriseStep({ round: 1, current: c('x'), combatants: [] })).toEqual({ clear: [] });
++  });
++});
++
++describe('applySurprise', () => {
++  it('removes the effect, notes it and advances the tracker', async () => {
++    const deleteEmbeddedDocuments = vi.fn(async () => undefined);
++    const actor = { statuses: new Set(['surprised']), effects: { contents: [{ id: 'e1', statuses: new Set(['surprised']) }, { id: 'e2', statuses: new Set() }] }, deleteEmbeddedDocuments };
++    const goblin = { id: 'g', name: 'Goblin', actor };
++    const combat = { started: true, round: 1, combatant: goblin, turns: [goblin], nextTurn: vi.fn(async () => undefined) };
++    const note = vi.fn();
++    await applySurprise(combat, note);
++    expect(deleteEmbeddedDocuments).toHaveBeenCalledWith('ActiveEffect', ['e1']);
++    expect(combat.nextTurn).toHaveBeenCalled();
++    expect(note.mock.calls[0][0]).toMatch(/Goblin is surprised and loses its first turn/);
++  });
++});
+diff --git a/packages/foundry-module/src/surprise.ts b/packages/foundry-module/src/surprise.ts
+new file mode 100644
+index 0000000..53ebe8f
+--- /dev/null
++++ b/packages/foundry-module/src/surprise.ts
+@@ -0,0 +1,103 @@
++/**
++ * Surprise, run by the bridge so the GM does not have to (2014 rules: a surprised creature cannot move
++ * or act on its first turn, and stops being surprised when that turn ends):
++ * - a GM-run creature that is surprised loses its first-round turn: the tracker moves on at once;
++ * - anyone's Surprised status ends when their own turn ends (a player plays out their surprised turn);
++ * - whatever is still surprised when round 2 begins is cleared.
++ * Runs on the active GM's client only. The decision is the pure `surpriseStep`.
++ */
++import { MODULE_ID } from './constants.js';
++
++export interface SurpriseCombatant {
++  id: string;
++  name: string;
++  surprised: boolean;
++  playerRun: boolean;
++  defeated: boolean;
++}
++
++export interface SurpriseStep {
++  /** combatants whose Surprised status should be removed */
++  clear: string[];
++  /** the current combatant loses its turn: advance the tracker */
++  skip?: string;
++}
++
++export function surpriseStep(state: { round: number; current?: SurpriseCombatant | null; previousId?: string | null; combatants: SurpriseCombatant[] }): SurpriseStep {
++  const clear = new Set<string>();
++  if (state.round >= 2) {
++    for (const c of state.combatants) if (c.surprised) clear.add(c.id);
++  } else if (state.previousId) {
++    const prev = state.combatants.find(c => c.id === state.previousId);
++    if (prev?.surprised) clear.add(prev.id);
++  }
++  let skip: string | undefined;
++  const cur = state.current;
++  if (state.round === 1 && cur && cur.surprised && !cur.playerRun && !cur.defeated) {
++    skip = cur.id;
++    clear.add(cur.id);
++  }
++  return { clear: [...clear], ...(skip ? { skip } : {}) };
++}
++
++const isSurprised = (actor: any): boolean => actor?.statuses?.has?.('surprised') === true;
++
++function describe(c: any): SurpriseCombatant {
++  return {
++    id: String(c.id),
++    name: String(c.name ?? c.actor?.name ?? 'someone'),
++    surprised: isSurprised(c.actor),
++    playerRun: !!(c.hasPlayerOwner ?? c.actor?.hasPlayerOwner),
++    defeated: !!(c.isDefeated ?? c.defeated),
++  };
++}
++
++/** Remove every Surprised status effect from an actor (the bridge's and any set by hand). */
++async function unsurprise(actor: any): Promise<void> {
++  const ids = ((actor?.effects?.contents ?? []) as any[]).filter(e => e?.statuses?.has?.('surprised') || (Array.isArray(e?.statuses) && e.statuses.includes('surprised'))).map(e => e.id);
++  if (ids.length) await actor.deleteEmbeddedDocuments('ActiveEffect', ids);
++  else if (isSurprised(actor) && typeof actor.toggleStatusEffect === 'function') await actor.toggleStatusEffect('surprised', { active: false });
++}
++
++/**
++ * Apply surprise to a combat as it stands now (after a turn change, or right after combat start marked
++ * creatures surprised). note() records a line for the table feed.
++ */
++export async function applySurprise(combat: any, note: (text: string) => void): Promise<void> {
++  if (!combat?.started) return;
++  const combatants = ((combat.turns ?? combat.combatants?.contents ?? []) as any[]).filter(Boolean);
++  const current = combat.combatant ? describe(combat.combatant) : null;
++  const step = surpriseStep({
++    round: Number(combat.round) || 0,
++    current,
++    previousId: combat.previous?.combatantId ?? null,
++    combatants: combatants.map(describe),
++  });
++  for (const id of step.clear) {
++    const c = combatants.find(x => String(x.id) === id);
++    if (c?.actor) await unsurprise(c.actor);
++  }
++  if (step.skip && current) {
++    note(`${current.name} is surprised and loses its first turn (skipped by the bridge)`);
++    await combat.nextTurn();
++  }
++}
++
++let registered = false;
++
++/** Hook into Foundry once; acts only on the active GM's client so two GMs never skip the same turn twice. */
++export function registerSurprise(Hooks: any, note: (text: string) => void): void {
++  if (registered) return;
++  registered = true;
++  const g = () => (globalThis as any).game;
++  const mine = () => {
++    const game = g();
++    if (!game?.user?.isGM) return false;
++    const active = game.users?.activeGM;
++    return !active || active.isSelf || active.id === game.user.id;
++  };
++  Hooks.on('updateCombat', (combat: any, changed: any) => {
++    if (!mine() || !('turn' in (changed ?? {})) && !('round' in (changed ?? {}))) return;
++    applySurprise(combat, note).catch(error => console.warn(`[${MODULE_ID}] surprise: could not apply`, error));
++  });
++}
 diff --git a/packages/foundry-module/src/table-utils.ts b/packages/foundry-module/src/table-utils.ts
 new file mode 100644
 index 0000000..1282257
@@ -25843,10 +26386,10 @@ index 0000000..1282257
 +}
 diff --git a/packages/foundry-module/src/table-watch-utils.test.ts b/packages/foundry-module/src/table-watch-utils.test.ts
 new file mode 100644
-index 0000000..431b010
+index 0000000..058932e
 --- /dev/null
 +++ b/packages/foundry-module/src/table-watch-utils.test.ts
-@@ -0,0 +1,130 @@
+@@ -0,0 +1,134 @@
 +import { describe, expect, it } from 'vitest';
 +import { STYLE, TableEventBuffer, chatEvent, doorEvent, moveEvent, turnEvent } from './table-watch-utils.js';
 +
@@ -25914,6 +26457,10 @@ index 0000000..431b010
 +
 +  it('notes moves and doors; opening a door wakes when the setting is on', () => {
 +    expect(moveEvent('Randal', 'Claudio', { x: 12, y: 8.04 }, 't1')).toMatchObject({ wake: false, text: 'Randal moved to square (12, 8)', key: 'move:t1' });
++    expect(moveEvent('Kael', 'Tommaso', { x: 22, y: 6 }, 't2', 'Bell room').text).toBe('Kael moved to square (22, 6), in Bell room');
++    const byGM = moveEvent('Kael', undefined, { x: 19, y: 16 }, 't2');
++    expect(byGM.text).toBe('Kael moved to square (19, 16) (moved by a GM user)');
++    expect(byGM.user).toBeUndefined();
 +    expect(doorEvent(1, 'Claudio', { x: 14.5, y: 6 }, true)).toMatchObject({ wake: true, text: 'Claudio opened a door at square (14.5, 6)' });
 +    expect(doorEvent(1, 'Claudio', undefined, false).wake).toBe(false);
 +    expect(doorEvent(0, 'Claudio', undefined, true)).toMatchObject({ wake: false, text: 'Claudio closed a door' });
@@ -25979,10 +26526,10 @@ index 0000000..431b010
 +});
 diff --git a/packages/foundry-module/src/table-watch-utils.ts b/packages/foundry-module/src/table-watch-utils.ts
 new file mode 100644
-index 0000000..2bd53f5
+index 0000000..2530111
 --- /dev/null
 +++ b/packages/foundry-module/src/table-watch-utils.ts
-@@ -0,0 +1,242 @@
+@@ -0,0 +1,246 @@
 +/**
 + * Table watch: turning what happens at the table (chat, rolls, combat turns, token moves, doors,
 + * hit points, players joining) into short events, each marked as one that should wake the AI GM
@@ -26177,10 +26724,14 @@ index 0000000..2bd53f5
 +  return { kind: 'turn', wake: !playerRun && !defeated, text, actor: name, key: 'turn' };
 +}
 +
-+/** A token moved by a player, in grid squares. */
-+export function moveEvent(tokenName: string, user: string, squares: { x: number; y: number }, tokenId: string): NewTableEvent {
++/**
++ * A token moved (a player's token, by anyone, or any token a player moved), in grid squares, with the
++ * named area it ended in when the scene has areas. user is missing when the GM's side moved it.
++ */
++export function moveEvent(tokenName: string, user: string | undefined, squares: { x: number; y: number }, tokenId: string, area?: string): NewTableEvent {
 +  const round = (v: number) => Math.round(v * 10) / 10;
-+  return { kind: 'move', wake: false, text: `${tokenName} moved to square (${round(squares.x)}, ${round(squares.y)})`, user, actor: tokenName, key: `move:${tokenId}` };
++  const where = `square (${round(squares.x)}, ${round(squares.y)})${area ? `, in ${area}` : ''}`;
++  return { kind: 'move', wake: false, text: `${tokenName} moved to ${where}${user ? '' : ' (moved by a GM user)'}`, ...(user ? { user } : {}), actor: tokenName, key: `move:${tokenId}` };
 +}
 +
 +const DOOR_STATES: Record<number, string> = { 0: 'closed', 1: 'opened', 2: 'locked' };
@@ -26227,10 +26778,10 @@ index 0000000..2bd53f5
 +}
 diff --git a/packages/foundry-module/src/table-watcher.ts b/packages/foundry-module/src/table-watcher.ts
 new file mode 100644
-index 0000000..61237db
+index 0000000..9818981
 --- /dev/null
 +++ b/packages/foundry-module/src/table-watcher.ts
-@@ -0,0 +1,204 @@
+@@ -0,0 +1,238 @@
 +/**
 + * Listens to the table on the GM's client and records short events (see table-watch-utils) that
 + * the MCP server reads with the table-events query, bundles, and hands to the AI GM. Recording is
@@ -26238,6 +26789,7 @@ index 0000000..61237db
 + */
 +import { MODULE_ID } from './constants.js';
 +import { getGridGeometry, pixelsToSquares } from './scene-objects-utils.js';
++import { areaAt, sceneAreas } from './scene-areas.js';
 +import { combatSummary, partySummary } from './table-utils.js';
 +import { TableEventBuffer, chatEvent, damageNotAppliedEvent, damageRollTargets, doorEvent, hpEvent, moveEvent, presenceEvent, turnEvent, type NewTableEvent } from './table-watch-utils.js';
 +
@@ -26318,14 +26870,20 @@ index 0000000..61237db
 +      })
 +    );
 +
++    // Moves made by a player, and every move of a player's token on the active scene whoever made it
++    // (a player logged in as a GM user, a GM drag, a bridge teleport), so the feed's last word on where
++    // a character stands is never older than its token.
 +    Hooks.on('updateToken', (token: any, changed: any, _options: any, userId: string) =>
 +      this.safely('a move', () => {
++        if (!changed || (!('x' in changed) && !('y' in changed))) return;
 +        const user = this.byPlayer(userId);
-+        if (!user || !changed || (!('x' in changed) && !('y' in changed))) return;
 +        const scene = token.parent;
++        const playersToken = !!token.actor?.hasPlayerOwner && !!scene?.active;
++        if (!user && !playersToken) return;
 +        const geom = getGridGeometry(scene);
 +        const squares = pixelsToSquares(geom, Number(token.x), Number(token.y));
-+        this.record(moveEvent(token.name ?? 'A token', user, squares, token.id));
++        const area = areaAt(sceneAreas(scene, MODULE_ID), squares, { w: Number(token.width) || 1, h: Number(token.height) || 1 });
++        this.record(moveEvent(token.name ?? 'A token', user, squares, token.id, area));
 +      })
 +    );
 +
@@ -26415,8 +26973,30 @@ index 0000000..61237db
 +    }
 +    out.online = users.filter(u => u.active && !u.isGM).map(u => u.name);
 +    const scene = g?.scenes?.active;
-+    if (scene) out.scene = scene.name;
++    if (scene) {
++      out.scene = scene.name;
++      const positions = this.partyPositions(scene);
++      if (positions.length) out.positions = positions;
++    }
 +    return out;
++  }
++
++  /** Where each player's token on the active scene stands now, read live: "Kael (22, 6) in Bell room". */
++  private partyPositions(scene: any): string[] {
++    try {
++      const tokens = ((scene.tokens?.contents ?? Array.from(scene.tokens?.values?.() ?? [])) as any[]).filter(t => t.actor?.hasPlayerOwner);
++      if (!tokens.length) return [];
++      const geom = getGridGeometry(scene);
++      const areas = sceneAreas(scene, MODULE_ID);
++      const round = (v: number) => Math.round(v * 10) / 10;
++      return tokens.map(t => {
++        const sq = pixelsToSquares(geom, Number(t.x), Number(t.y));
++        const area = areaAt(areas, sq, { w: Number(t.width) || 1, h: Number(t.height) || 1 });
++        return `${t.name} (${round(sq.x)}, ${round(sq.y)})${area ? ` in ${area}` : ''}${t.hidden ? ' (hidden)' : ''}`;
++      });
++    } catch {
++      return [];
++    }
 +  }
 +
 +  read(data: { since?: number; session?: string; snapshot?: boolean }): Record<string, any> {
@@ -26435,6 +27015,11 @@ index 0000000..61237db
 +}
 +
 +export const tableWatcher = new TableWatcher();
++
++/** A background line for the table feed from another part of the bridge (it does not wake the GM). */
++export function noteTableEvent(text: string): void {
++  tableWatcher.buffer.push({ kind: 'turn', wake: false, text });
++}
 diff --git a/packages/foundry-module/src/tactical-utils.test.ts b/packages/foundry-module/src/tactical-utils.test.ts
 new file mode 100644
 index 0000000..5e5877d
@@ -26701,10 +27286,10 @@ index 0000000..533d24f
 +}
 diff --git a/packages/foundry-module/src/tactical.ts b/packages/foundry-module/src/tactical.ts
 new file mode 100644
-index 0000000..0a080dc
+index 0000000..01da160
 --- /dev/null
 +++ b/packages/foundry-module/src/tactical.ts
-@@ -0,0 +1,178 @@
+@@ -0,0 +1,205 @@
 +/**
 + * The tactical query: distances between tokens, which tokens an area of effect touches, and line
 + * of sight and cover between tokens, using the walls of the scene through Foundry's own collision
@@ -26777,6 +27362,39 @@ index 0000000..0a080dc
 +      return !!backend.testCollision(a, b, { type, mode: 'any' });
 +    }
 +  };
++}
++
++interface SightResult {
++  lineOfSight: boolean;
++  cover: string;
++  coverFromWalls?: string;
++  creaturesInTheWay: string[];
++}
++
++/** Line of sight and cover from one token to another (DMG corner method against walls; a creature in the way gives half cover). */
++function sightBetween(collide: any, grid: number, from: any, t: any, others: any[], elevation: number): SightResult {
++  const fromBox = boxOf(from);
++  const box = boxOf(t);
++  const points = [centre(box, grid), ...corners(box, grid, 6)];
++  const eye = centre(fromBox, grid);
++  const sees = points.some(p => !collide('sight', eye, p, elevation));
++  const { cover, blockedLines, lines } = wallCover(fromBox, box, grid, (a: Pt, b: Pt) => collide('move', a, b, elevation));
++  const inWay = others.filter(o => o.id !== t.id && o.id !== from.id && !o.hidden && segmentCrossesBox(eye, centre(box, grid), boxOf(o), grid)).map(o => o.name);
++  const effective = cover === 'none' && inWay.length ? 'half' : cover;
++  return { lineOfSight: sees, cover: effective, ...(cover !== 'none' ? { coverFromWalls: `${blockedLines} of ${lines} lines blocked` } : {}), creaturesInTheWay: inWay };
++}
++
++/**
++ * Cover a target has against an attacker, for combat attack: null when the walls cannot be checked
++ * (the scene is not the one on screen). Creatures that are down (0 hp or defeated) give no cover.
++ */
++export function coverBetween(scene: any, attacker: any, target: any): SightResult | null {
++  const collide = collider(scene);
++  if (!collide) return null;
++  const grid = getGridGeometry(scene).size;
++  const down = (o: any) => !!o.combatant?.defeated || (o.actor?.system?.attributes?.hp && Number(o.actor.system.attributes.hp.value ?? 1) <= 0);
++  const others = ((scene.tokens?.contents ?? []) as any[]).filter(o => o.id !== attacker.id && !down(o));
++  return sightBetween(collide, grid, attacker, target, others, Number(attacker.elevation) || 0);
 +}
 +
 +export async function tactical(data: TacticalRequest): Promise<Record<string, any>> {
@@ -26861,20 +27479,14 @@ index 0000000..0a080dc
 +      from: from.name,
 +      targets: data.to.map(n => {
 +        const t = tokenFor(scene, n);
-+        const box = boxOf(t);
-+        const points = [centre(box, grid), ...corners(box, grid, 6)];
-+        const eye = centre(fromBox, grid);
-+        const sees = points.some(p => !collide('sight', eye, p, elevation));
-+        const { cover, blockedLines, lines } = wallCover(fromBox, box, grid, (a, b) => collide('move', a, b, elevation));
-+        const inWay = others.filter(o => o.id !== t.id && !o.hidden && segmentCrossesBox(eye, centre(box, grid), boxOf(o), grid)).map(o => o.name);
-+        const effective = cover === 'none' && inWay.length ? 'half' : cover;
++        const seen = sightBetween(collide, grid, from, t, others, elevation);
 +        return {
 +          ...describe(t),
-+          distance: `${boxDistance(fromBox, box, grid, geom.distance || 5)} ${units}`,
-+          lineOfSight: sees,
-+          cover: effective,
-+          ...(cover !== 'none' ? { coverFromWalls: `${blockedLines} of ${lines} lines blocked` } : {}),
-+          ...(inWay.length ? { creaturesInTheWay: inWay } : {}),
++          distance: `${boxDistance(fromBox, boxOf(t), grid, geom.distance || 5)} ${units}`,
++          lineOfSight: seen.lineOfSight,
++          cover: seen.cover,
++          ...(seen.coverFromWalls ? { coverFromWalls: seen.coverFromWalls } : {}),
++          ...(seen.creaturesInTheWay.length ? { creaturesInTheWay: seen.creaturesInTheWay } : {}),
 +        };
 +      }),
 +      note: 'Cover by the DMG corner method against walls; a creature in the way gives half cover. lineOfSight ignores light and vision modes (darkness, invisibility).',
@@ -40754,7 +41366,7 @@ index 0000000..538a5f4
 +});
 diff --git a/packages/mcp-server/src/table-feed.ts b/packages/mcp-server/src/table-feed.ts
 new file mode 100644
-index 0000000..9587c3e
+index 0000000..31e192f
 --- /dev/null
 +++ b/packages/mcp-server/src/table-feed.ts
 @@ -0,0 +1,220 @@
@@ -40768,7 +41380,7 @@ index 0000000..9587c3e
 + * notification. It reads the events the Foundry module records (the table-events query) while
 + * someone is connected; with nobody connected it does nothing.
 + *
-+ * Lines: {type:"beat", n, why:[...], events:[...], dropped?, table:{scene, combat?, party, online}}
++ * Lines: {type:"beat", n, why:[...], events:[...], dropped?, table:{scene, positions?, combat?, party, online}}
 + * and {type:"notice", text} for changes such as the GM muting the feed or Foundry disconnecting.
 + */
 +
@@ -43558,10 +44170,10 @@ index 0000000..ef4d95e
 +});
 diff --git a/packages/mcp-server/src/tools/combat-tools.ts b/packages/mcp-server/src/tools/combat-tools.ts
 new file mode 100644
-index 0000000..4fcd622
+index 0000000..11a82b8
 --- /dev/null
 +++ b/packages/mcp-server/src/tools/combat-tools.ts
-@@ -0,0 +1,115 @@
+@@ -0,0 +1,136 @@
 +import { z } from 'zod';
 +import { FoundryClient } from '../foundry-client.js';
 +import { Logger } from '../logger.js';
@@ -43601,6 +44213,9 @@ index 0000000..4fcd622
 +    public: z.boolean().optional(),
 +    consume: z.boolean().optional(),
 +    ignore_range: z.boolean().optional(),
++    approach: z.boolean().optional(),
++    dash: z.boolean().optional(),
++    cover: z.enum(['auto', 'none', 'half', 'three-quarters', 'total']).optional(),
 +    surprised: z.array(z.string().min(1)).max(60).optional(),
 +    success: z.number().int().min(0).max(3).optional(),
 +    failure: z.number().int().min(0).max(3).optional(),
@@ -43625,7 +44240,7 @@ index 0000000..4fcd622
 +        name: 'combat',
 +        description:
 +          'Run the combat tracker (Foundry\'s own, so tracker modules keep working). Every action returns a short readout: round, whose turn, and one line per combatant in order (initiative, name, hp, conditions). ' +
-+          'ACTIONS: status; start {scene?, who?, roll?, begin?, surprised?} makes the encounter from tokens on the scene (who = list of: "all" (default), "hostile", "friendly", "neutral", "players", "npcs", or token/actor names; hidden tokens are included), rolls initiative for the ones without one (roll: missing (default) | npcs | all | none) and begins it (begin:false to only set it up); add {who, roll?} adds more tokens mid-fight; remove {names}; roll {names? | roll?} rolls initiative (default for everyone still without one); set_initiative {initiative:[{name, value}]}; next, previous, next_round move the turn (the first next begins the combat); damage / heal {amounts:[{target, amount}]} apply to combatants (or scene tokens) by name, through the system rules (temp HP, resistances are the system\'s job) and report hp before and after; defeat {names, defeated?(true)} marks defeated or not; stabilize {names} makes dying characters stable (3 death save successes, 0 failures); death_saves {names, success?, failure?} sets the death save counts (0 to 3; the sheet shows them; 3 failures mark the character dead and defeated); boss {names, style?, hide_name?} / boss {clear:true} puts the Bossbar health bar at the top of every player\'s screen for the creatures named (replacing the earlier ones; no names lists the current ones): ONLY for a dangerous mini-boss or boss, the moment you want the table to feel that an enemy is very strong (Klarg, Yeemik, a dragon), never for ordinary encounters or packs; it shows the true hit point proportion, and clear it when the fight ends; surprised (on start) lists creatures that get the Surprised status for the first round; a character reduced to 0 hp by damage here becomes unconscious and prone; with Monk\'s Combat Details on, NPCs are marked defeated automatically at 0 hp (no defeat call needed), a heal brings a defeated creature back (revived:true), and a start or next with someone lacking an initiative is refused with a clear message (roll or set_initiative first); end ends and deletes the encounter. ATTACK AND CHECK (the dnd5e system does the maths: modifiers, advantage, critical hits, resistances, chat cards): attack {attacker, item?, targets?, advantage?, disadvantage?, apply?(true)} uses an item of the attacker (default its first attack or save): spends its charges or slot, rolls the attack against each target (the target is targeted first, so the roll uses its AC and the card shows hit or miss), rolls damage on a hit (double dice on a crit) and applies it, reporting roll, natural, hit, damage and hp before and after; a save item (a breath weapon) rolls damage once and each target rolls a saving throw against its DC; apply:false rolls without applying. Before rolling, the distance from attacker to each target token is checked against the weapon reach or the range: out of range is refused (ignore_range:true rolls anyway), beyond normal range rolls with disadvantage; the result lists warnings, such as an attack made outside the attacker turn or a target already at 0 hp. cast {caster, item, targets?, level?, activity?, apply?(true)} casts a spell or uses any item, whatever it does, and spends the spell slot as the system does (level upcasts; cantrips, at-will and innate spells spend none; with no slot left it is refused). repeat rolls a damage spell several times for its darts, rays or bolts (the sheet rolls just one dart of Magic Missile; the result says when the spell text names more). To split the darts between targets, cast once per target with repeat set to its darts and consume:false after the first. An attack or save spell works like attack; a damage spell (Magic Missile) rolls its damage and applies it to each target; a healing spell rolls the healing and applies it to the targets (name them); any other (Sleep, Bless, a utility spell) posts its card, spends the slot and returns a note telling you to apply the effect yourself (token condition, effects, combat damage). The result shows the slot before and after, and concentration:true for a concentration spell. Slots are read from the sheet: the system derives them from the class levels, so they grow when a character levels up. check {who:[names], skill | ability | save, dc?, advantage?, disadvantage?} rolls a skill (perception or prc), an ability check or a saving throw (dex or dexterity) for each name and reports totals and success against dc. Rolls are posted to the GM only unless public:true. attacker, targets and who match combatants, then scene tokens, then actors. Names match exactly, else part of a name or the actor name. Needs the Foundry tab open in a browser.',
++          'ACTIONS: status; start {scene?, who?, roll?, begin?, surprised?} makes the encounter from tokens on the scene (who = list of: "all" (default), "hostile", "friendly", "neutral", "players", "npcs", or token/actor names; hidden tokens are included), rolls initiative for the ones without one (roll: missing (default) | npcs | all | none) and begins it (begin:false to only set it up); add {who, roll?} adds more tokens mid-fight; remove {names}; roll {names? | roll?} rolls initiative (default for everyone still without one); set_initiative {initiative:[{name, value}]}; next, previous, next_round move the turn (the first next begins the combat); damage / heal {amounts:[{target, amount}]} apply to combatants (or scene tokens) by name, through the system rules (temp HP, resistances are the system\'s job) and report hp before and after; defeat {names, defeated?(true)} marks defeated or not; stabilize {names} makes dying characters stable (3 death save successes, 0 failures); death_saves {names, success?, failure?} sets the death save counts (0 to 3; the sheet shows them; 3 failures mark the character dead and defeated); boss {names, style?, hide_name?} / boss {clear:true} puts the Bossbar health bar at the top of every player\'s screen for the creatures named (replacing the earlier ones; no names lists the current ones): ONLY for a dangerous mini-boss or boss, the moment you want the table to feel that an enemy is very strong (Klarg, Yeemik, a dragon), never for ordinary encounters or packs; it shows the true hit point proportion, and clear it when the fight ends; surprised (on start) lists creatures that get the Surprised status for the first round; a character reduced to 0 hp by damage here becomes unconscious and prone; with Monk\'s Combat Details on, NPCs are marked defeated automatically at 0 hp (no defeat call needed), a heal brings a defeated creature back (revived:true), and a start or next with someone lacking an initiative is refused with a clear message (roll or set_initiative first); end ends and deletes the encounter. ATTACK AND CHECK (the dnd5e system does the maths: modifiers, advantage, critical hits, resistances, chat cards): attack {attacker, item?, targets?, advantage?, disadvantage?, apply?(true)} uses an item of the attacker (default its first attack or save): spends its charges or slot, rolls the attack against each target (the target is targeted first, so the roll uses its AC and the card shows hit or miss), rolls damage on a hit (double dice on a crit) and applies it, reporting roll, natural, hit, damage and hp before and after; a save item (a breath weapon) rolls damage once and each target rolls a saving throw against its DC; apply:false rolls without applying. Before rolling, the distance from attacker to each target token is checked against the weapon reach or the range: out of range is refused (ignore_range:true rolls anyway; approach:true walks into reach first, the usual monster move-and-attack in one call), beyond normal range rolls with disadvantage; cover is applied by itself (cover, default auto: +2 half, +5 three-quarters, total refused; the result row says cover); the result lists warnings, such as an attack made outside the attacker turn or a target already at 0 hp. cast {caster, item, targets?, level?, activity?, apply?(true)} casts a spell or uses any item, whatever it does, and spends the spell slot as the system does (level upcasts; cantrips, at-will and innate spells spend none; with no slot left it is refused). repeat rolls a damage spell several times for its darts, rays or bolts (the sheet rolls just one dart of Magic Missile; the result says when the spell text names more). To split the darts between targets, cast once per target with repeat set to its darts and consume:false after the first. An attack or save spell works like attack; a damage spell (Magic Missile) rolls its damage and applies it to each target; a healing spell rolls the healing and applies it to the targets (name them); any other (Sleep, Bless, a utility spell) posts its card, spends the slot and returns a note telling you to apply the effect yourself (token condition, effects, combat damage). The result shows the slot before and after, and concentration:true for a concentration spell. Slots are read from the sheet: the system derives them from the class levels, so they grow when a character levels up. check {who:[names], skill | ability | save, dc?, advantage?, disadvantage?} rolls a skill (perception or prc), an ability check or a saving throw (dex or dexterity) for each name and reports totals and success against dc. Rolls are posted to the GM only unless public:true. attacker, targets and who match combatants, then scene tokens, then actors. Names match exactly, else part of a name or the actor name. Needs the Foundry tab open in a browser.',
 +        inputSchema: {
 +          type: 'object',
 +          properties: {
@@ -43654,6 +44269,9 @@ index 0000000..4fcd622
 +            dc: { type: 'number', description: 'check: the difficulty; success is reported against it' },
 +            consume: { type: 'boolean', description: 'attack, cast: spend the item charges, ammunition or spell slot (default true)' },
 +            ignore_range: { type: 'boolean', description: 'attack: roll even when a target is out of range' },
++            approach: { type: 'boolean', description: 'attack: when the target is out of reach or range, first walk the attacker (Foundry pathfinding, walls, difficult terrain, its speed) to the cheapest free square in reach (melee) or normal range, then attack. Nothing moves when no such square is reachable this turn: attacked:false and the reason (too far: try dash)' },
++            dash: { type: 'boolean', description: 'attack with approach: the walk may use double speed (the creature takes the Dash action, so it should not also attack unless it has a bonus-action dash)' },
++            cover: { type: 'string', enum: ['auto', 'none', 'half', 'three-quarters', 'total'], description: 'attack: the target\'s cover. auto (default) works it out like tactical sight (walls by the DMG corner method; a creature in the way gives half; the fallen give none) and adds +2 (half) or +5 (three-quarters) to the AC; total cover refuses the attack. Needs the scene on screen (else a warning, no cover). none switches it off' },
 +            surprised: { type: 'array', items: { type: 'string' }, description: 'start: creatures (names) surprised in the first round' },
 +            success: { type: 'number', description: 'death_saves: death save successes to set (0 to 3)' },
 +            failure: { type: 'number', description: 'death_saves: death save failures to set (0 to 3)' },
@@ -43672,7 +44290,22 @@ index 0000000..4fcd622
 +  async handleCombat(args: unknown): Promise<any> {
 +    const a = schema.parse(args ?? {});
 +    this.logger.info('Combat', { action: a.action });
-+    const result = await this.foundryClient.query('foundry-mcp-bridge.combat', a);
++    // Rolls wait for the 3D dice (up to 10 s each for the attack and the damage) and approach walks first,
++    // so these get far more than the 10 s every other query has.
++    const slow = ['attack', 'cast', 'check'].includes(a.action);
++    const timeoutMs = slow ? (a.approach ? 60000 : 45000) : undefined;
++    let result: any;
++    try {
++      result = timeoutMs ? await this.foundryClient.query('foundry-mcp-bridge.combat', a, timeoutMs) : await this.foundryClient.query('foundry-mcp-bridge.combat', a);
++    } catch (error) {
++      const message = error instanceof Error ? error.message : String(error);
++      if (slow && /timeout/i.test(message)) {
++        throw new Error(
++          `No answer from Foundry within ${Math.round((timeoutMs ?? 10000) / 1000)} s (${message}). The ${a.action} may still have been rolled and applied (the dice may still be animating): read combat status before trying again, so it is not rolled twice.`
++        );
++      }
++      throw error;
++    }
 +    if (result?.success === false) throw new Error(result.error || 'Request was refused');
 +    return result;
 +  }
@@ -49190,10 +49823,10 @@ index 0000000..c6aa67d
 +}
 diff --git a/packages/mcp-server/src/tools/layout-doc.ts b/packages/mcp-server/src/tools/layout-doc.ts
 new file mode 100644
-index 0000000..cd75a14
+index 0000000..22a8d4d
 --- /dev/null
 +++ b/packages/mcp-server/src/tools/layout-doc.ts
-@@ -0,0 +1,666 @@
+@@ -0,0 +1,668 @@
 +/**
 + * Layout documents: a map layout that is built up in steps. Shapes get ids, can be added,
 + * moved, changed and removed, and every change can be seen at once as a text map. Shapes
@@ -49238,6 +49871,8 @@ index 0000000..cd75a14
 +  reference?: LayoutReference;
 +  /** The look of the map for build (style, mood, materials), when no prompt is given there. */
 +  look?: string;
++  /** The named areas of a plan, in squares; build stores them on the scene so the table feed can name the room a token is in. */
++  areas?: Array<{ name: string; rect: [number, number, number, number] }>;
 +  /** Earlier states, oldest first, for undo. */
 +  undo?: HistoryEntry[];
 +  /** States that undo stepped back from, most recent last, for redo. */
@@ -53910,10 +54545,10 @@ index 0000000..5b5d028
 +
 diff --git a/packages/mcp-server/src/tools/layout.ts b/packages/mcp-server/src/tools/layout.ts
 new file mode 100644
-index 0000000..3221eb9
+index 0000000..b13b037
 --- /dev/null
 +++ b/packages/mcp-server/src/tools/layout.ts
-@@ -0,0 +1,1084 @@
+@@ -0,0 +1,1097 @@
 +import { promises as fs } from 'fs';
 +import { checkWalls, planFixes, type CheckWall } from './wall-check-utils.js';
 +import path from 'path';
@@ -54340,6 +54975,7 @@ index 0000000..3221eb9
 +      ...(plan.wallFills ? { wall_fills: plan.wallFills } : {}),
 +    });
 +    doc.look = a.look ?? STYLE_LOOKS[a.style ?? 'dungeon'];
++    doc.areas = plan.areas.map(p => ({ name: p.name, rect: [...p.rect] as [number, number, number, number] }));
 +    addShapes(doc, plan.shapes);
 +    await this.store.save(doc);
 +    const check = checkLayout(layoutOf(doc));
@@ -54882,6 +55518,18 @@ index 0000000..3221eb9
 +        `${walls.walls} walls and ${walls.doors} doors placed` +
 +          (walls.snappedToPicture ? `, ${walls.snappedToPicture.runsMoved} of ${walls.snappedToPicture.runsLooked} wall runs moved onto the painted edges` : '')
 +      );
++    }
++
++    // The plan's room names go on the scene (moved like the walls), so beats can say which room a player is in.
++    if (doc.areas?.length) {
++      try {
++        const areas = doc.areas.map(ar => ({ name: ar.name, rect: [ar.rect[0] + shift[0], ar.rect[1] + shift[1], ar.rect[2], ar.rect[3]] }));
++        const set = await this.client().query('foundry-mcp-bridge.manage-scenes', { action: 'update', scene_identifier: sceneId, areas });
++        if (set?.success === false) throw new Error(set.error || 'refused');
++        steps.push(`${areas.length} named areas stored on the scene`);
++      } catch (error) {
++        steps.push(`named areas not stored: ${error instanceof Error ? error.message : 'failed'}`);
++      }
 +    }
 +    return {
 +      success: true,
@@ -61248,7 +61896,7 @@ index 0000000..d4f0b89
 +  });
 +});
 diff --git a/packages/mcp-server/src/tools/scene.ts b/packages/mcp-server/src/tools/scene.ts
-index 1e422bf..15853c1 100644
+index 1e422bf..9088e34 100644
 --- a/packages/mcp-server/src/tools/scene.ts
 +++ b/packages/mcp-server/src/tools/scene.ts
 @@ -7,6 +7,20 @@ export interface SceneToolsOptions {
@@ -61280,7 +61928,7 @@ index 1e422bf..15853c1 100644
              playlist: {
                type: ['string', 'null'],
                description: 'Playlist id or unique name, or null to clear',
-@@ -69,7 +84,109 @@ export class SceneTools {
+@@ -69,7 +84,116 @@ export class SceneTools {
                description: 'PlaylistSound id or unique name within the playlist, or null to clear',
              },
            },
@@ -61370,6 +62018,13 @@ index 1e422bf..15853c1 100644
 +              description:
 +                'FXMaster atmosphere on the scene: a preset such as rain, drizzle, thunderstorm, snow, blizzard, fog, mist, rolling-fog, ashfall, sandstorm, windy, cloudy, overcast, twilight-sun, divine-light, plague-miasma, arcane-winds; it replaces what is playing. "none" (or null) clears it. describe with a scene lists what is on and every preset. Set the mood when a scene starts or the weather turns, not every beat.',
 +            },
++            areas: {
++              type: ['array', 'null'],
++              maxItems: 200,
++              description:
++                'Named areas of the map (rooms, caves, clearings): [{name, rect: [column, row, width, height]}] in grid squares from the top-left of the map picture; replaces the list, null clears it. The table feed then says which room each player token is in (beats and token details). layout build sets them from the plan by itself; set them by hand for a book or bought map (preview-scene shows the squares).',
++              items: { type: 'object', properties: { name: { type: 'string' }, rect: { type: 'array', items: { type: 'number' }, minItems: 4, maxItems: 4 } }, required: ['name', 'rect'] },
++            },
 +            initial_view: {
 +              type: 'object',
 +              description:
@@ -61391,7 +62046,7 @@ index 1e422bf..15853c1 100644
          },
        },
      ];
-@@ -129,7 +246,7 @@ export class SceneTools {
+@@ -129,7 +253,7 @@ export class SceneTools {
        playlist: z.string().nullable().optional(),
        playlist_sound: z.string().nullable().optional(),
      });
@@ -61400,7 +62055,7 @@ index 1e422bf..15853c1 100644
  
      this.logger.info('Updating scene music', { scene_identifier: parsed.scene_identifier });
      try {
-@@ -147,6 +264,75 @@ export class SceneTools {
+@@ -147,6 +271,80 @@ export class SceneTools {
      }
    }
  
@@ -61447,6 +62102,11 @@ index 1e422bf..15853c1 100644
 +          .strict()
 +          .optional(),
 +        activate: z.boolean().optional(),
++        areas: z
++          .array(z.object({ name: z.string().min(1).max(80), rect: z.tuple([z.number(), z.number(), z.number().positive(), z.number().positive()]) }).strict())
++          .max(200)
++          .nullable()
++          .optional(),
 +      })
 +      .strict();
 +    const parsed = schema.parse(withSceneAlias(args, true));

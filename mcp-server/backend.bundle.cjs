@@ -109613,6 +109613,12 @@ var SceneTools = class {
               type: ["string", "null"],
               description: 'FXMaster atmosphere on the scene: a preset such as rain, drizzle, thunderstorm, snow, blizzard, fog, mist, rolling-fog, ashfall, sandstorm, windy, cloudy, overcast, twilight-sun, divine-light, plague-miasma, arcane-winds; it replaces what is playing. "none" (or null) clears it. describe with a scene lists what is on and every preset. Set the mood when a scene starts or the weather turns, not every beat.'
             },
+            areas: {
+              type: ["array", "null"],
+              maxItems: 200,
+              description: "Named areas of the map (rooms, caves, clearings): [{name, rect: [column, row, width, height]}] in grid squares from the top-left of the map picture; replaces the list, null clears it. The table feed then says which room each player token is in (beats and token details). layout build sets them from the plan by itself; set them by hand for a book or bought map (preview-scene shows the squares).",
+              items: { type: "object", properties: { name: { type: "string" }, rect: { type: "array", items: { type: "number" }, minItems: 4, maxItems: 4 } }, required: ["name", "rect"] }
+            },
             initial_view: {
               type: "object",
               description: "The view players open the scene with: x and y are the centre of the view in grid squares, scale the zoom (0.25 to 3)",
@@ -109715,7 +109721,8 @@ var SceneTools = class {
         y: external_exports.number().finite(),
         scale: external_exports.number().min(0.25).max(3).optional()
       }).strict().optional(),
-      activate: external_exports.boolean().optional()
+      activate: external_exports.boolean().optional(),
+      areas: external_exports.array(external_exports.object({ name: external_exports.string().min(1).max(80), rect: external_exports.tuple([external_exports.number(), external_exports.number(), external_exports.number().positive(), external_exports.number().positive()]) }).strict()).max(200).nullable().optional()
     }).strict();
     const parsed = schema23.parse(withSceneAlias(args, true));
     if (parsed.action === "create" && !parsed.name) {
@@ -118446,6 +118453,9 @@ var schema13 = external_exports.object({
   public: external_exports.boolean().optional(),
   consume: external_exports.boolean().optional(),
   ignore_range: external_exports.boolean().optional(),
+  approach: external_exports.boolean().optional(),
+  dash: external_exports.boolean().optional(),
+  cover: external_exports.enum(["auto", "none", "half", "three-quarters", "total"]).optional(),
   surprised: external_exports.array(external_exports.string().min(1)).max(60).optional(),
   success: external_exports.number().int().min(0).max(3).optional(),
   failure: external_exports.number().int().min(0).max(3).optional(),
@@ -118464,7 +118474,7 @@ var CombatTools = class {
     return [
       {
         name: "combat",
-        description: `Run the combat tracker (Foundry's own, so tracker modules keep working). Every action returns a short readout: round, whose turn, and one line per combatant in order (initiative, name, hp, conditions). ACTIONS: status; start {scene?, who?, roll?, begin?, surprised?} makes the encounter from tokens on the scene (who = list of: "all" (default), "hostile", "friendly", "neutral", "players", "npcs", or token/actor names; hidden tokens are included), rolls initiative for the ones without one (roll: missing (default) | npcs | all | none) and begins it (begin:false to only set it up); add {who, roll?} adds more tokens mid-fight; remove {names}; roll {names? | roll?} rolls initiative (default for everyone still without one); set_initiative {initiative:[{name, value}]}; next, previous, next_round move the turn (the first next begins the combat); damage / heal {amounts:[{target, amount}]} apply to combatants (or scene tokens) by name, through the system rules (temp HP, resistances are the system's job) and report hp before and after; defeat {names, defeated?(true)} marks defeated or not; stabilize {names} makes dying characters stable (3 death save successes, 0 failures); death_saves {names, success?, failure?} sets the death save counts (0 to 3; the sheet shows them; 3 failures mark the character dead and defeated); boss {names, style?, hide_name?} / boss {clear:true} puts the Bossbar health bar at the top of every player's screen for the creatures named (replacing the earlier ones; no names lists the current ones): ONLY for a dangerous mini-boss or boss, the moment you want the table to feel that an enemy is very strong (Klarg, Yeemik, a dragon), never for ordinary encounters or packs; it shows the true hit point proportion, and clear it when the fight ends; surprised (on start) lists creatures that get the Surprised status for the first round; a character reduced to 0 hp by damage here becomes unconscious and prone; with Monk's Combat Details on, NPCs are marked defeated automatically at 0 hp (no defeat call needed), a heal brings a defeated creature back (revived:true), and a start or next with someone lacking an initiative is refused with a clear message (roll or set_initiative first); end ends and deletes the encounter. ATTACK AND CHECK (the dnd5e system does the maths: modifiers, advantage, critical hits, resistances, chat cards): attack {attacker, item?, targets?, advantage?, disadvantage?, apply?(true)} uses an item of the attacker (default its first attack or save): spends its charges or slot, rolls the attack against each target (the target is targeted first, so the roll uses its AC and the card shows hit or miss), rolls damage on a hit (double dice on a crit) and applies it, reporting roll, natural, hit, damage and hp before and after; a save item (a breath weapon) rolls damage once and each target rolls a saving throw against its DC; apply:false rolls without applying. Before rolling, the distance from attacker to each target token is checked against the weapon reach or the range: out of range is refused (ignore_range:true rolls anyway), beyond normal range rolls with disadvantage; the result lists warnings, such as an attack made outside the attacker turn or a target already at 0 hp. cast {caster, item, targets?, level?, activity?, apply?(true)} casts a spell or uses any item, whatever it does, and spends the spell slot as the system does (level upcasts; cantrips, at-will and innate spells spend none; with no slot left it is refused). repeat rolls a damage spell several times for its darts, rays or bolts (the sheet rolls just one dart of Magic Missile; the result says when the spell text names more). To split the darts between targets, cast once per target with repeat set to its darts and consume:false after the first. An attack or save spell works like attack; a damage spell (Magic Missile) rolls its damage and applies it to each target; a healing spell rolls the healing and applies it to the targets (name them); any other (Sleep, Bless, a utility spell) posts its card, spends the slot and returns a note telling you to apply the effect yourself (token condition, effects, combat damage). The result shows the slot before and after, and concentration:true for a concentration spell. Slots are read from the sheet: the system derives them from the class levels, so they grow when a character levels up. check {who:[names], skill | ability | save, dc?, advantage?, disadvantage?} rolls a skill (perception or prc), an ability check or a saving throw (dex or dexterity) for each name and reports totals and success against dc. Rolls are posted to the GM only unless public:true. attacker, targets and who match combatants, then scene tokens, then actors. Names match exactly, else part of a name or the actor name. Needs the Foundry tab open in a browser.`,
+        description: `Run the combat tracker (Foundry's own, so tracker modules keep working). Every action returns a short readout: round, whose turn, and one line per combatant in order (initiative, name, hp, conditions). ACTIONS: status; start {scene?, who?, roll?, begin?, surprised?} makes the encounter from tokens on the scene (who = list of: "all" (default), "hostile", "friendly", "neutral", "players", "npcs", or token/actor names; hidden tokens are included), rolls initiative for the ones without one (roll: missing (default) | npcs | all | none) and begins it (begin:false to only set it up); add {who, roll?} adds more tokens mid-fight; remove {names}; roll {names? | roll?} rolls initiative (default for everyone still without one); set_initiative {initiative:[{name, value}]}; next, previous, next_round move the turn (the first next begins the combat); damage / heal {amounts:[{target, amount}]} apply to combatants (or scene tokens) by name, through the system rules (temp HP, resistances are the system's job) and report hp before and after; defeat {names, defeated?(true)} marks defeated or not; stabilize {names} makes dying characters stable (3 death save successes, 0 failures); death_saves {names, success?, failure?} sets the death save counts (0 to 3; the sheet shows them; 3 failures mark the character dead and defeated); boss {names, style?, hide_name?} / boss {clear:true} puts the Bossbar health bar at the top of every player's screen for the creatures named (replacing the earlier ones; no names lists the current ones): ONLY for a dangerous mini-boss or boss, the moment you want the table to feel that an enemy is very strong (Klarg, Yeemik, a dragon), never for ordinary encounters or packs; it shows the true hit point proportion, and clear it when the fight ends; surprised (on start) lists creatures that get the Surprised status for the first round; a character reduced to 0 hp by damage here becomes unconscious and prone; with Monk's Combat Details on, NPCs are marked defeated automatically at 0 hp (no defeat call needed), a heal brings a defeated creature back (revived:true), and a start or next with someone lacking an initiative is refused with a clear message (roll or set_initiative first); end ends and deletes the encounter. ATTACK AND CHECK (the dnd5e system does the maths: modifiers, advantage, critical hits, resistances, chat cards): attack {attacker, item?, targets?, advantage?, disadvantage?, apply?(true)} uses an item of the attacker (default its first attack or save): spends its charges or slot, rolls the attack against each target (the target is targeted first, so the roll uses its AC and the card shows hit or miss), rolls damage on a hit (double dice on a crit) and applies it, reporting roll, natural, hit, damage and hp before and after; a save item (a breath weapon) rolls damage once and each target rolls a saving throw against its DC; apply:false rolls without applying. Before rolling, the distance from attacker to each target token is checked against the weapon reach or the range: out of range is refused (ignore_range:true rolls anyway; approach:true walks into reach first, the usual monster move-and-attack in one call), beyond normal range rolls with disadvantage; cover is applied by itself (cover, default auto: +2 half, +5 three-quarters, total refused; the result row says cover); the result lists warnings, such as an attack made outside the attacker turn or a target already at 0 hp. cast {caster, item, targets?, level?, activity?, apply?(true)} casts a spell or uses any item, whatever it does, and spends the spell slot as the system does (level upcasts; cantrips, at-will and innate spells spend none; with no slot left it is refused). repeat rolls a damage spell several times for its darts, rays or bolts (the sheet rolls just one dart of Magic Missile; the result says when the spell text names more). To split the darts between targets, cast once per target with repeat set to its darts and consume:false after the first. An attack or save spell works like attack; a damage spell (Magic Missile) rolls its damage and applies it to each target; a healing spell rolls the healing and applies it to the targets (name them); any other (Sleep, Bless, a utility spell) posts its card, spends the slot and returns a note telling you to apply the effect yourself (token condition, effects, combat damage). The result shows the slot before and after, and concentration:true for a concentration spell. Slots are read from the sheet: the system derives them from the class levels, so they grow when a character levels up. check {who:[names], skill | ability | save, dc?, advantage?, disadvantage?} rolls a skill (perception or prc), an ability check or a saving throw (dex or dexterity) for each name and reports totals and success against dc. Rolls are posted to the GM only unless public:true. attacker, targets and who match combatants, then scene tokens, then actors. Names match exactly, else part of a name or the actor name. Needs the Foundry tab open in a browser.`,
         inputSchema: {
           type: "object",
           properties: {
@@ -118493,6 +118503,9 @@ var CombatTools = class {
             dc: { type: "number", description: "check: the difficulty; success is reported against it" },
             consume: { type: "boolean", description: "attack, cast: spend the item charges, ammunition or spell slot (default true)" },
             ignore_range: { type: "boolean", description: "attack: roll even when a target is out of range" },
+            approach: { type: "boolean", description: "attack: when the target is out of reach or range, first walk the attacker (Foundry pathfinding, walls, difficult terrain, its speed) to the cheapest free square in reach (melee) or normal range, then attack. Nothing moves when no such square is reachable this turn: attacked:false and the reason (too far: try dash)" },
+            dash: { type: "boolean", description: "attack with approach: the walk may use double speed (the creature takes the Dash action, so it should not also attack unless it has a bonus-action dash)" },
+            cover: { type: "string", enum: ["auto", "none", "half", "three-quarters", "total"], description: "attack: the target's cover. auto (default) works it out like tactical sight (walls by the DMG corner method; a creature in the way gives half; the fallen give none) and adds +2 (half) or +5 (three-quarters) to the AC; total cover refuses the attack. Needs the scene on screen (else a warning, no cover). none switches it off" },
             surprised: { type: "array", items: { type: "string" }, description: "start: creatures (names) surprised in the first round" },
             success: { type: "number", description: "death_saves: death save successes to set (0 to 3)" },
             failure: { type: "number", description: "death_saves: death save failures to set (0 to 3)" },
@@ -118510,7 +118523,18 @@ var CombatTools = class {
   async handleCombat(args) {
     const a = schema13.parse(args ?? {});
     this.logger.info("Combat", { action: a.action });
-    const result = await this.foundryClient.query("foundry-mcp-bridge.combat", a);
+    const slow = ["attack", "cast", "check"].includes(a.action);
+    const timeoutMs = slow ? a.approach ? 6e4 : 45e3 : void 0;
+    let result;
+    try {
+      result = timeoutMs ? await this.foundryClient.query("foundry-mcp-bridge.combat", a, timeoutMs) : await this.foundryClient.query("foundry-mcp-bridge.combat", a);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (slow && /timeout/i.test(message)) {
+        throw new Error(`No answer from Foundry within ${Math.round((timeoutMs ?? 1e4) / 1e3)} s (${message}). The ${a.action} may still have been rolled and applied (the dice may still be animating): read combat status before trying again, so it is not rolled twice.`);
+      }
+      throw error;
+    }
     if (result?.success === false)
       throw new Error(result.error || "Request was refused");
     return result;
@@ -123569,6 +123593,7 @@ var LayoutTools = class {
       ...plan.wallFills ? { wall_fills: plan.wallFills } : {}
     });
     doc.look = a.look ?? STYLE_LOOKS[a.style ?? "dungeon"];
+    doc.areas = plan.areas.map((p) => ({ name: p.name, rect: [...p.rect] }));
     addShapes(doc, plan.shapes);
     await this.store.save(doc);
     const check = checkLayout(layoutOf(doc));
@@ -124122,6 +124147,17 @@ var LayoutTools = class {
     if (a.walls !== false) {
       walls = await this.applyWalls(doc, { ...a, scene: sceneId, shift, ...a.auto_align !== false ? { image: localPath } : {} });
       steps.push(`${walls.walls} walls and ${walls.doors} doors placed` + (walls.snappedToPicture ? `, ${walls.snappedToPicture.runsMoved} of ${walls.snappedToPicture.runsLooked} wall runs moved onto the painted edges` : ""));
+    }
+    if (doc.areas?.length) {
+      try {
+        const areas = doc.areas.map((ar) => ({ name: ar.name, rect: [ar.rect[0] + shift[0], ar.rect[1] + shift[1], ar.rect[2], ar.rect[3]] }));
+        const set = await this.client().query("foundry-mcp-bridge.manage-scenes", { action: "update", scene_identifier: sceneId, areas });
+        if (set?.success === false)
+          throw new Error(set.error || "refused");
+        steps.push(`${areas.length} named areas stored on the scene`);
+      } catch (error) {
+        steps.push(`named areas not stored: ${error instanceof Error ? error.message : "failed"}`);
+      }
     }
     return {
       success: true,
