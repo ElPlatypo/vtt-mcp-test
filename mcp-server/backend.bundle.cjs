@@ -112070,6 +112070,10 @@ var TokenManipulationTools = class {
     return {
       id: tokenData.id,
       name: tokenData.name,
+      ...tokenData.scene ? { scene: tokenData.scene } : {},
+      // grid square (top-left of the map) and the named area it stands in, read live
+      ...tokenData.square ? { square: tokenData.square } : {},
+      ...tokenData.area ? { area: tokenData.area } : {},
       position: {
         x: tokenData.x,
         y: tokenData.y

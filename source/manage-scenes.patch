@@ -10045,10 +10045,10 @@ index 0000000..b50a33c
 +  });
 +});
 diff --git a/packages/foundry-module/src/data-access.ts b/packages/foundry-module/src/data-access.ts
-index eecda7e..b53f5ff 100644
+index eecda7e..bf54b6d 100644
 --- a/packages/foundry-module/src/data-access.ts
 +++ b/packages/foundry-module/src/data-access.ts
-@@ -1,6 +1,161 @@
+@@ -1,6 +1,162 @@
  import { MODULE_ID, ERROR_MESSAGES, TOKEN_DISPOSITIONS } from './constants.js';
 +import { SCENE_AREAS_FLAG, areaAt, normalizeAreas, sceneAreas } from './scene-areas.js';
  import { permissionManager } from './permissions.js';
@@ -10204,13 +10204,14 @@ index eecda7e..b53f5ff 100644
 +import { clipText, htmlToText, searchPages, type RulePage } from './rules-utils.js';
 +import { selectMessages } from './chat-utils.js';
 +import { adventureSections, creatureCr, creatureType, findByName, pickHeading, searchSections, type AdventureSection } from './plutonium-utils.js';
-+import { coverBetween } from './tactical.js';
++import { collider, coverBetween } from './tactical.js';
++import { findGridPath, pathCorners } from './grid-path.js';
 +import { applySurprise } from './surprise.js';
 +import { noteTableEvent } from './table-watcher.js';
  
  // The same five characters foundry.utils.escapeHTML replaces in v14, kept local because
  // that helper isn't confirmed in v13, this module's minimum.
-@@ -33,6 +188,7 @@ interface CharacterInfo {
+@@ -33,6 +189,7 @@ interface CharacterInfo {
    itemVariants?: any[]; // Item rule element variants (ChoiceSet, etc.)
    itemToggles?: any[]; // Item rule element toggles (RollOption, ToggleProperty, equipped)
    spellcasting?: SpellcastingEntry[]; // PF2e/D&D 5e spellcasting entries
@@ -10218,7 +10219,7 @@ index eecda7e..b53f5ff 100644
  }
  
  interface SpellcastingEntry {
-@@ -363,7 +519,8 @@ interface ItemTargetingResult {
+@@ -363,7 +520,8 @@ interface ItemTargetingResult {
   */
  class PersistentCreatureIndex {
    private moduleId: string = MODULE_ID;
@@ -10228,7 +10229,7 @@ index eecda7e..b53f5ff 100644
    private readonly INDEX_FILENAME = 'enhanced-creature-index.json';
    private buildInProgress = false;
    private hooksRegistered = false;
-@@ -979,26 +1136,9 @@ class PersistentCreatureIndex {
+@@ -979,26 +1137,9 @@ class PersistentCreatureIndex {
          alignment = String(alignment || 'unaligned');
        }
  
@@ -10258,7 +10259,7 @@ index eecda7e..b53f5ff 100644
  
        // DEBUG: Log what we extracted for comparison
  
-@@ -1714,6 +1854,104 @@ const DND5E_SIZE: Record<string, string> = {
+@@ -1714,6 +1855,104 @@ const DND5E_SIZE: Record<string, string> = {
    gargantuan: 'gargantuan',
  };
  
@@ -10363,7 +10364,7 @@ index eecda7e..b53f5ff 100644
  export class FoundryDataAccess {
    private moduleId: string = MODULE_ID;
    private persistentIndex: PersistentCreatureIndex = new PersistentCreatureIndex();
-@@ -1951,6 +2189,16 @@ export class FoundryDataAccess {
+@@ -1951,6 +2190,16 @@ export class FoundryDataAccess {
        characterData.spellcasting = spellcastingEntries;
      }
  
@@ -10380,7 +10381,7 @@ index eecda7e..b53f5ff 100644
      return characterData;
    }
  
-@@ -3151,11 +3399,7 @@ export class FoundryDataAccess {
+@@ -3151,11 +3400,7 @@ export class FoundryDataAccess {
  
      // Legendary Actions filter
      if (filters.hasLegendaryActions !== undefined) {
@@ -10393,7 +10394,7 @@ index eecda7e..b53f5ff 100644
        if (hasLegendary !== filters.hasLegendaryActions) {
          return false;
        }
-@@ -3163,11 +3407,7 @@ export class FoundryDataAccess {
+@@ -3163,11 +3408,7 @@ export class FoundryDataAccess {
  
      // Spellcaster filter
      if (filters.spellcaster !== undefined) {
@@ -10406,7 +10407,7 @@ index eecda7e..b53f5ff 100644
        if (isSpellcaster !== filters.spellcaster) {
          return false;
        }
-@@ -3812,11 +4052,7 @@ export class FoundryDataAccess {
+@@ -3812,11 +4053,7 @@ export class FoundryDataAccess {
  
      // Spellcaster filter
      if (criteria.hasSpells !== undefined) {
@@ -10419,7 +10420,7 @@ index eecda7e..b53f5ff 100644
        if (isSpellcaster !== criteria.hasSpells) return false;
      }
  
-@@ -4681,12 +4917,28 @@ export class FoundryDataAccess {
+@@ -4681,12 +4918,28 @@ export class FoundryDataAccess {
        type: 'random' | 'grid' | 'center' | 'coordinates';
        coordinates?: { x: number; y: number }[];
      };
@@ -10448,7 +10449,7 @@ index eecda7e..b53f5ff 100644
        // Validate inputs
        if (!packId || !itemId) {
          throw new Error('Both packId and itemId are required');
-@@ -4747,16 +4999,41 @@ export class FoundryDataAccess {
+@@ -4747,16 +5000,41 @@ export class FoundryDataAccess {
              prototypeToken: sourceData.prototypeToken, // Include prototype token
            };
  
@@ -10491,7 +10492,7 @@ index eecda7e..b53f5ff 100644
  
            // Create the actor
            const newActor = await Actor.create(actorData);
-@@ -5064,6 +5341,7 @@ export class FoundryDataAccess {
+@@ -5064,6 +5342,7 @@ export class FoundryDataAccess {
          }
          resultActor = existingActor;
        } else {
@@ -10499,7 +10500,7 @@ index eecda7e..b53f5ff 100644
          resultActor = await Actor.create(actorData as any);
          if (!resultActor) {
            throw new Error(`Failed to create actor "${actorData.name}"`);
-@@ -5865,6 +6143,7 @@ export class FoundryDataAccess {
+@@ -5865,6 +6144,7 @@ export class FoundryDataAccess {
  
        // Apply customizations
        actorData.name = customName;
@@ -10507,7 +10508,7 @@ index eecda7e..b53f5ff 100644
  
        // Fix only token texture - leave portrait (actor.img) alone
        if (actorData.prototypeToken?.texture?.src?.startsWith('http')) {
-@@ -6021,21 +6300,22 @@ export class FoundryDataAccess {
+@@ -6021,21 +6301,22 @@ export class FoundryDataAccess {
        // For now, we'll just create the button and let the rendering logic handle the state restoration
  
        const rollButtonHtml = `
@@ -10534,7 +10535,7 @@ index eecda7e..b53f5ff 100644
              </button>
            </div>
          </div>
-@@ -6074,6 +6354,8 @@ export class FoundryDataAccess {
+@@ -6074,6 +6355,8 @@ export class FoundryDataAccess {
          whisper: whisperTargets,
          flags: {
            [MODULE_ID]: {
@@ -10543,7 +10544,7 @@ index eecda7e..b53f5ff 100644
              rollButtons: {
                [buttonId]: {
                  rolled: false,
-@@ -6140,7 +6422,7 @@ export class FoundryDataAccess {
+@@ -6140,7 +6423,7 @@ export class FoundryDataAccess {
            user,
            targetName: user.name || 'Unknown Player',
            errorType: 'PLAYER_OFFLINE',
@@ -10552,7 +10553,7 @@ index eecda7e..b53f5ff 100644
          };
        }
  
-@@ -6174,7 +6456,7 @@ export class FoundryDataAccess {
+@@ -6174,7 +6457,7 @@ export class FoundryDataAccess {
              user,
              targetName: user.name || 'Unknown Player',
              errorType: 'PLAYER_OFFLINE',
@@ -10561,7 +10562,7 @@ index eecda7e..b53f5ff 100644
            };
          }
  
-@@ -6228,7 +6510,7 @@ export class FoundryDataAccess {
+@@ -6228,7 +6511,7 @@ export class FoundryDataAccess {
              character,
              targetName: ownerUser.name || 'Unknown Player',
              errorType: 'PLAYER_OFFLINE',
@@ -10570,7 +10571,7 @@ index eecda7e..b53f5ff 100644
            };
          }
  
-@@ -6399,6 +6681,8 @@ export class FoundryDataAccess {
+@@ -6399,6 +6682,8 @@ export class FoundryDataAccess {
          return `${rollTarget} Attack (${visibility})`;
        case 'initiative':
          return `Initiative Roll (${visibility})`;
@@ -10579,7 +10580,7 @@ index eecda7e..b53f5ff 100644
        case 'custom':
          return `Custom Roll (${visibility})`;
        default:
-@@ -6498,6 +6782,7 @@ export class FoundryDataAccess {
+@@ -6498,6 +6783,7 @@ export class FoundryDataAccess {
  
        const rollFormula = button.data('roll-formula');
        const rollLabel = button.data('roll-label');
@@ -10587,7 +10588,7 @@ index eecda7e..b53f5ff 100644
        const isPublicRaw = button.data('is-public');
        const isPublic = isPublicRaw === true || isPublicRaw === 'true'; // Convert to proper boolean
        const characterId = button.data('character-id');
-@@ -6515,13 +6800,22 @@ export class FoundryDataAccess {
+@@ -6515,13 +6801,22 @@ export class FoundryDataAccess {
        }
  
        try {
@@ -10613,7 +10614,7 @@ index eecda7e..b53f5ff 100644
          // Use the modern Foundry v13 approach with roll.toMessage()
          const rollMode = isPublic ? 'publicroll' : 'whisper';
          const whisperTargets: string[] = [];
-@@ -6714,7 +7008,7 @@ export class FoundryDataAccess {
+@@ -6714,7 +7009,7 @@ export class FoundryDataAccess {
  
          // Send socket request to GM
          if (game.socket) {
@@ -10622,7 +10623,7 @@ index eecda7e..b53f5ff 100644
              type: 'requestMessageUpdate',
              buttonId,
              userId,
-@@ -6744,7 +7038,7 @@ export class FoundryDataAccess {
+@@ -6744,7 +7039,7 @@ export class FoundryDataAccess {
  
        // Create the rolled state HTML
        const rolledHtml = `
@@ -10631,7 +10632,7 @@ index eecda7e..b53f5ff 100644
            <p><strong>Roll Request:</strong> ${rollLabel}</p>
            <p><strong>Status:</strong> ✅ <strong>Completed by ${rolledByName}</strong> at ${timestamp}</p>
          </div>
-@@ -7441,7 +7735,18 @@ export class FoundryDataAccess {
+@@ -7441,7 +7736,18 @@ export class FoundryDataAccess {
        const token = scene.tokens?.get(identifier);
        if (token?.actor) return token.actor;
      }
@@ -10651,7 +10652,7 @@ index eecda7e..b53f5ff 100644
    }
  
    /**
-@@ -7603,6 +7908,7 @@ export class FoundryDataAccess {
+@@ -7603,6 +7909,7 @@ export class FoundryDataAccess {
      if (applyPolyglot) {
        messageData.flags = { polyglot: { language: data.language } };
      }
@@ -10659,7 +10660,7 @@ index eecda7e..b53f5ff 100644
      if (whisperIds.length > 0) {
        messageData.whisper = whisperIds;
      }
-@@ -7897,7 +8203,22 @@ export class FoundryDataAccess {
+@@ -7897,7 +8204,22 @@ export class FoundryDataAccess {
    /**
     * Switch to a different scene
     */
@@ -10683,7 +10684,7 @@ index eecda7e..b53f5ff 100644
      this.validateFoundryState();
  
      try {
-@@ -7915,6 +8236,15 @@ export class FoundryDataAccess {
+@@ -7915,6 +8237,15 @@ export class FoundryDataAccess {
  
        // Activate the scene
        await targetScene.activate();
@@ -10699,7 +10700,7 @@ index eecda7e..b53f5ff 100644
  
        // Optimize view if requested (default true)
        if (options.optimize_view !== false && typeof canvas !== 'undefined' && canvas?.scene) {
-@@ -7943,6 +8273,8 @@ export class FoundryDataAccess {
+@@ -7943,6 +8274,8 @@ export class FoundryDataAccess {
          success: true,
          sceneId: targetScene.id,
          sceneName: targetScene.name,
@@ -10708,7 +10709,7 @@ index eecda7e..b53f5ff 100644
          dimensions: {
            width: (targetScene.dimensions as any)?.width || (targetScene as any).width || 0,
            height: (targetScene.dimensions as any)?.height || (targetScene as any).height || 0,
-@@ -8101,199 +8433,5053 @@ export class FoundryDataAccess {
+@@ -8101,199 +8434,5064 @@ export class FoundryDataAccess {
      }
    }
  
@@ -12294,6 +12295,12 @@ index eecda7e..b53f5ff 100644
 +          } else if (action === 'next') await combat.nextTurn();
 +          else if (action === 'previous') await combat.previousTurn();
 +          else await combat.nextRound();
++          // a surprised monster loses its turn now, so the readout already shows who really acts
++          if (action !== 'previous') {
++            const before = combat.combatant?.name;
++            await applySurprise(combat, noteTableEvent);
++            if (combat.combatant?.name !== before) out.skippedSurprised = before;
++          }
 +          break;
 +        }
 +
@@ -12395,6 +12402,11 @@ index eecda7e..b53f5ff 100644
 +              if (!approach.reached) {
 +                out.attacked = false;
 +                out.note = `${attacker.name} did not attack: ${approach.reason}`;
++                break;
++              }
++              if (approach.dashed) {
++                out.attacked = false;
++                out.note = `${attacker.name} dashed to reach ${far.name} (${approach.cost}), which takes its action, so it does not attack this turn`;
 +                break;
 +              }
 +            }
@@ -15933,7 +15945,7 @@ index eecda7e..b53f5ff 100644
            await pl.playAll();
            return { success: true, action: 'play', playlist: info };
          case 'stop':
-@@ -8304,20 +13490,48 @@ export class FoundryDataAccess {
+@@ -8304,20 +13502,48 @@ export class FoundryDataAccess {
            return { success: true, action: 'cycle-mode', playlist: info, mode: pl.mode as number };
          case 'play-sound':
          case 'stop-sound': {
@@ -15988,7 +16000,7 @@ index eecda7e..b53f5ff 100644
        }
      } catch (error) {
        throw new Error(
-@@ -8468,6 +13682,82 @@ export class FoundryDataAccess {
+@@ -8468,6 +13694,82 @@ export class FoundryDataAccess {
      }
    }
  
@@ -16071,7 +16083,7 @@ index eecda7e..b53f5ff 100644
    /**
     * Move a token to a new position on the scene
     */
-@@ -8476,6 +13766,12 @@ export class FoundryDataAccess {
+@@ -8476,6 +13778,12 @@ export class FoundryDataAccess {
      x: number;
      y: number;
      animate?: boolean;
@@ -16084,7 +16096,7 @@ index eecda7e..b53f5ff 100644
    }): Promise<any> {
      this.validateFoundryState();
  
-@@ -8489,51 +13785,263 @@ export class FoundryDataAccess {
+@@ -8489,51 +13797,327 @@ export class FoundryDataAccess {
      }
  
      try {
@@ -16184,6 +16196,68 @@ index eecda7e..b53f5ff 100644
  
 -      this.auditLog('moveToken', data, 'success');
 +  /**
++   * Plan a walk: the bridge's route (or straight at the target), checked by Foundry's findMovementPath,
++   * which takes the start as its first waypoint and cuts the path short at walls. Returns the waypoints
++   * after the start (the last one is where the walk would really end).
++   */
++  private async planMovement(token: any, placeable: any, target: { x: number; y: number }, constrainOptions: Record<string, any>): Promise<any[]> {
++    const origin = { x: Number(token.x), y: Number(token.y) };
++    // explicit checkpoints: without them Foundry treats the turns as optional and heads straight for the last one
++    const waypoints = (this.routeWaypoints(token, target) ?? [target]).map(w => ({ ...w, explicit: true, checkpoint: true }));
++    const path: any[] = await placeable.findMovementPath([origin, ...waypoints], { constrainOptions }).promise;
++    const first = path[0];
++    return first && Math.abs(first.x - origin.x) < 1 && Math.abs(first.y - origin.y) < 1 ? path.slice(1) : path;
++  }
++
++  /**
++   * The route a walking token takes to a target (pixels, top-left), as Foundry waypoints: A* over the grid
++   * squares with each step tested against the walls (Foundry's own collision test, centre to centre) and
++   * squares other creatures stand on avoided. Null when the scene is not on screen, the token is not on a
++   * square, or walls cut the target off (Foundry then walks straight and stops at the wall, as before).
++   */
++  private routeWaypoints(token: any, target: { x: number; y: number }): Array<{ x: number; y: number }> | null {
++    try {
++      const scene = token.parent;
++      const collide = collider(scene);
++      if (!collide) return null;
++      const geom = getGridGeometry(scene);
++      if (!isOnGridSquare(geom, Number(token.x), Number(token.y)) || !isOnGridSquare(geom, target.x, target.y)) return null;
++      const startSq = pixelsToSquares(geom, Number(token.x), Number(token.y));
++      const goalSq = pixelsToSquares(geom, target.x, target.y);
++      const start = { x: Math.round(startSq.x), y: Math.round(startSq.y) };
++      const goal = { x: Math.round(goalSq.x), y: Math.round(goalSq.y) };
++      const w = Number(token.width) || 1;
++      const h = Number(token.height) || 1;
++      const elevation = Number(token.elevation) || 0;
++      const centre = (sq: { x: number; y: number }) => squaresToPixels(geom, sq.x + w / 2, sq.y + h / 2);
++      const down = (o: any) => !!o.actor?.system?.attributes?.hp && Number(o.actor.system.attributes.hp.value ?? 1) <= 0;
++      const taken = new Set<string>();
++      for (const o of (scene.tokens?.contents ?? []) as any[]) {
++        if (o.id === token.id || down(o) || o.hidden) continue;
++        const sq = pixelsToSquares(geom, Number(o.x), Number(o.y));
++        for (let dx = 0; dx < (Number(o.width) || 1); dx++) for (let dy = 0; dy < (Number(o.height) || 1); dy++) taken.add(`${Math.round(sq.x) + dx},${Math.round(sq.y) + dy}`);
++      }
++      // a token larger than one square is blocked when any square it would cover is taken
++      const occupied = (s: { x: number; y: number }) => {
++        for (let dx = 0; dx < w; dx++) for (let dy = 0; dy < h; dy++) if (taken.has(`${s.x + dx},${s.y + dy}`)) return true;
++        return false;
++      };
++      const path = findGridPath(start, goal, {
++        columns: geom.columns,
++        rows: geom.rows,
++        width: w,
++        height: h,
++        occupied,
++        blocked: (a, b) => collide('move', centre(a), centre(b), elevation),
++      });
++      if (!path || path.length < 2) return null;
++      return pathCorners(path).map(c => squaresToPixels(geom, c.x, c.y));
++    } catch {
++      return null;
++    }
++  }
++
++  /**
 +   * combat attack approach: walk the attacker to the cheapest free square within reach (melee) or normal
 +   * range of the target, by Foundry's own pathfinding, held to its speed (doubled with dash). Moves
 +   * nothing when no square in reach can be walked to this turn, and says why.
@@ -16217,7 +16291,7 @@ index eecda7e..b53f5ff 100644
 +      const target = squaresToPixels(geom, c.x, c.y);
 +      let path: any[] = [];
 +      try {
-+        path = await placeable.findMovementPath([target], { constrainOptions: { ignoreWalls: false, ignoreCost: false } }).promise;
++        path = await this.planMovement(attackerToken, placeable, target, { ignoreWalls: false, ignoreCost: false });
 +      } catch {
 +        continue;
 +      }
@@ -16238,7 +16312,9 @@ index eecda7e..b53f5ff 100644
 +    const walked = await this.walkToken(attackerToken, placeable, squaresToPixels(geom, best.x, best.y), { ...(data.dash ? { dash: true } : {}) });
 +    const report = walked.report;
 +    if (walked.refused || report.stoppedEarly) return { reached: false, reason: report.reason ?? 'the walk was refused', ...(report.positionSquares ? { at: report.positionSquares } : {}) };
-+    return { reached: true, to: [best.x, best.y], cost: report.cost, ...(report.speed ? { speed: report.speed } : {}), ...(data.dash ? { dash: true } : {}) };
++    // Needing the Dash to get there spends the creature's action: it arrives but does not attack.
++    const dashed = !!data.dash && speed > 0 && best.cost > speed;
++    return { reached: true, to: [best.x, best.y], cost: report.cost, ...(report.speed ? { speed: report.speed } : {}), ...(dashed ? { dashed: true } : {}) };
 +  }
  
 +  /**
@@ -16248,8 +16324,8 @@ index eecda7e..b53f5ff 100644
 +  private async walkToken(token: any, placeable: any, target: { x: number; y: number }, data: { ignore_speed?: boolean; dash?: boolean; used?: number }): Promise<{ refused: boolean; report: Record<string, any> }> {
 +    const constrainOptions = { ignoreWalls: false, ignoreCost: false };
 +    const origin = { x: token.x, y: token.y };
-+    const found = placeable.findMovementPath([target], { constrainOptions });
-+    const path: any[] = await found.promise;
++    // Foundry v14 does not route round walls by itself: the bridge finds the route and passes its turning points.
++    const path: any[] = await this.planMovement(token, placeable, target, constrainOptions);
 +    const measure = token.measureMovementPath([origin, ...path]);
 +    const cost = Number(measure?.cost ?? 0);
 +    const action = token.movementAction ?? 'walk';
@@ -16379,7 +16455,7 @@ index eecda7e..b53f5ff 100644
      this.validateFoundryState();
  
      // Use permission system
-@@ -8546,23 +14054,33 @@ export class FoundryDataAccess {
+@@ -8546,23 +14130,33 @@ export class FoundryDataAccess {
      }
  
      try {
@@ -16427,7 +16503,7 @@ index eecda7e..b53f5ff 100644
  
        this.auditLog('updateToken', { tokenId: data.tokenId, updates: cleanUpdates }, 'success');
  
-@@ -8570,7 +14088,10 @@ export class FoundryDataAccess {
+@@ -8570,7 +14164,10 @@ export class FoundryDataAccess {
          success: true,
          tokenId: token.id,
          tokenName: token.name,
@@ -16439,7 +16515,7 @@ index eecda7e..b53f5ff 100644
        };
      } catch (error) {
        this.auditLog(
-@@ -8651,18 +14172,19 @@ export class FoundryDataAccess {
+@@ -8651,18 +14248,19 @@ export class FoundryDataAccess {
    /**
     * Get detailed information about a token
     */
@@ -16468,7 +16544,7 @@ index eecda7e..b53f5ff 100644
        }
  
        // Return flat structure that matches MCP server expectations
-@@ -8670,6 +14192,9 @@ export class FoundryDataAccess {
+@@ -8670,6 +14268,9 @@ export class FoundryDataAccess {
          success: true,
          id: token.id,
          name: token.name,
@@ -16478,7 +16554,7 @@ index eecda7e..b53f5ff 100644
          x: token.x,
          y: token.y,
          width: token.width,
-@@ -8719,15 +14244,8 @@ export class FoundryDataAccess {
+@@ -8719,15 +14320,8 @@ export class FoundryDataAccess {
      }
  
      try {
@@ -16496,7 +16572,7 @@ index eecda7e..b53f5ff 100644
  
        const actor = token.actor;
        if (!actor) {
-@@ -9487,213 +15005,6 @@ export class FoundryDataAccess {
+@@ -9487,213 +15081,6 @@ export class FoundryDataAccess {
      }
    }
  
@@ -16710,7 +16786,7 @@ index eecda7e..b53f5ff 100644
    // ---------------------------------------------------------------------------
    // Add weapon attack to an existing actor (dnd5e-add-attack-feature)
    // ---------------------------------------------------------------------------
-@@ -10803,7 +16114,6 @@ export class FoundryDataAccess {
+@@ -10803,7 +16190,6 @@ export class FoundryDataAccess {
      }
  
      try {
@@ -16718,7 +16794,7 @@ index eecda7e..b53f5ff 100644
        const actor = this.findActorByIdentifier(data.actorIdentifier);
        if (!actor) {
          throw new Error(`Actor not found: "${data.actorIdentifier}"`);
-@@ -10812,77 +16122,48 @@ export class FoundryDataAccess {
+@@ -10812,77 +16198,48 @@ export class FoundryDataAccess {
        const cls = data.spellcastingClass as string;
        const lvl = data.spellcastingLevel as number;
        const ability = data.effectiveAbility as string;
@@ -16826,7 +16902,7 @@ index eecda7e..b53f5ff 100644
          warnings,
        };
      } catch (error) {
-@@ -11274,10 +16555,15 @@ export class FoundryDataAccess {
+@@ -11274,10 +16631,15 @@ export class FoundryDataAccess {
        name: string;
        type: string;
        img?: string;
@@ -16843,7 +16919,7 @@ index eecda7e..b53f5ff 100644
      const folderName = params.folder ?? 'Foundry MCP Actors';
      const folderId = await this.getOrCreateFolder(folderName, 'Actor');
  
-@@ -11286,6 +16572,19 @@ export class FoundryDataAccess {
+@@ -11286,6 +16648,19 @@ export class FoundryDataAccess {
      const docs = params.actors.map(a => {
        const doc: Record<string, any> = { name: a.name, type: a.type };
        if (a.img) doc.img = a.img;
@@ -16863,7 +16939,7 @@ index eecda7e..b53f5ff 100644
  
        // Merge system data, adding safe defaults for systems that require certain
        // fields to exist during data preparation (avoids non-fatal init errors).
-@@ -11423,6 +16722,27 @@ export class FoundryDataAccess {
+@@ -11423,6 +16798,27 @@ export class FoundryDataAccess {
          };
        }
  
@@ -16891,7 +16967,7 @@ index eecda7e..b53f5ff 100644
        doc.system = systemData;
        if (folderId) doc.folder = folderId;
        return doc;
-@@ -11436,6 +16756,7 @@ export class FoundryDataAccess {
+@@ -11436,6 +16832,7 @@ export class FoundryDataAccess {
      return {
        created: (created as any[]).map(a => ({ id: a.id, name: a.name, type: a.type })),
        total: created.length,
@@ -16899,7 +16975,7 @@ index eecda7e..b53f5ff 100644
      };
    }
  
-@@ -11471,7 +16792,16 @@ export class FoundryDataAccess {
+@@ -11471,7 +16868,16 @@ export class FoundryDataAccess {
     * Merges supplied fields into the actor (top-level keys overwrite).
     */
    async updateActors(
@@ -16917,7 +16993,7 @@ index eecda7e..b53f5ff 100644
    ): Promise<{ updated: Array<{ id: string; name: string }>; total: number }> {
      const updatedActors: Array<{ id: string; name: string }> = [];
  
-@@ -11481,7 +16811,12 @@ export class FoundryDataAccess {
+@@ -11481,7 +16887,12 @@ export class FoundryDataAccess {
  
        const patch: Record<string, any> = {};
        if (u.name !== undefined) patch.name = u.name;
@@ -16930,7 +17006,7 @@ index eecda7e..b53f5ff 100644
        if (u.system !== undefined) {
          // Build a single patch.system nested object so Foundry deep-merges everything
          // in one pass without flat-key vs nested-key conflicts.
-@@ -11504,6 +16839,19 @@ export class FoundryDataAccess {
+@@ -11504,6 +16915,19 @@ export class FoundryDataAccess {
          }
          patch.system = systemPatch;
        }
@@ -16950,7 +17026,7 @@ index eecda7e..b53f5ff 100644
  
        await actor.update(patch);
        updatedActors.push({ id: actor.id, name: u.name ?? actor.name });
-@@ -11706,6 +17054,199 @@ export class FoundryDataAccess {
+@@ -11706,6 +17130,199 @@ export class FoundryDataAccess {
      return { deleted: existing, total: existing.length };
    }
  
@@ -17150,7 +17226,7 @@ index eecda7e..b53f5ff 100644
    /**
     * Delete one or more actors by ID.
     */
-@@ -11735,113 +17276,6 @@ function slugify(name: string, fallback = 'feature'): string {
+@@ -11735,113 +17352,6 @@ function slugify(name: string, fallback = 'feature'): string {
    );
  }
  
@@ -17264,7 +17340,7 @@ index eecda7e..b53f5ff 100644
  // =============================================================================
  // Live compendium templates — Tier 2 of the build strategy for hand-built features.
  //
-@@ -12005,112 +17439,3 @@ const ATTACK_WITH_SAVE_DAMAGE_CANONICAL = new Set([
+@@ -12005,112 +17515,3 @@ const ATTACK_WITH_SAVE_DAMAGE_CANONICAL = new Set([
    'thunder',
  ]);
  
@@ -17631,10 +17707,10 @@ index 0000000..83a409c
 +});
 diff --git a/packages/foundry-module/src/data-access.walk.test.ts b/packages/foundry-module/src/data-access.walk.test.ts
 new file mode 100644
-index 0000000..2a928fe
+index 0000000..eaea593
 --- /dev/null
 +++ b/packages/foundry-module/src/data-access.walk.test.ts
-@@ -0,0 +1,121 @@
+@@ -0,0 +1,126 @@
 +/** move-token walks with Foundry's own movement: path around walls, cost, speed limit. Foundry is stubbed. */
 +import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 +import { FoundryDataAccess } from './data-access.js';
@@ -17693,7 +17769,12 @@ index 0000000..2a928fe
 +  it('walks with the system movement, constrained by walls and cost', async () => {
 +    const { da, move, update, findMovementPath } = setup();
 +    const r = await da.moveToken({ tokenId: 't1', x: 320, y: 64 });
-+    expect(findMovementPath).toHaveBeenCalledWith([{ x: 320, y: 64 }], { constrainOptions: { ignoreWalls: false, ignoreCost: false } });
++    // Foundry v14 takes the start as the first waypoint; the bridge's turns are explicit checkpoints
++    // (no canvas here, so there is no route: straight at the target)
++    expect(findMovementPath).toHaveBeenCalledWith(
++      [{ x: 64, y: 64 }, { x: 320, y: 64, explicit: true, checkpoint: true }],
++      { constrainOptions: { ignoreWalls: false, ignoreCost: false } }
++    );
 +    expect(move).toHaveBeenCalledWith([{ x: 320, y: 64, action: 'walk' }], expect.objectContaining({ method: 'api', constrainOptions: { ignoreWalls: false, ignoreCost: false } }));
 +    expect(update).not.toHaveBeenCalled();
 +    expect(r).toMatchObject({ success: true, moved: true, cost: '25 ft', speed: '30 ft' });
@@ -18785,6 +18866,170 @@ index 0000000..f27f66e
 +    region,
 +    divisors: divisorSizes(width, height),
 +  };
++}
+diff --git a/packages/foundry-module/src/grid-path.test.ts b/packages/foundry-module/src/grid-path.test.ts
+new file mode 100644
+index 0000000..bddc240
+--- /dev/null
++++ b/packages/foundry-module/src/grid-path.test.ts
+@@ -0,0 +1,48 @@
++import { describe, expect, it } from 'vitest';
++import { findGridPath, pathCorners, type Square } from './grid-path.js';
++
++// A vertical wall on the line x = 8, from y = 0 to 5 and from 7 to 12 (a doorway at rows 5 and 6),
++// tested like Foundry does: the segment between the centres of the two squares.
++const wallX = 8;
++const crossesWall = (a: Square, b: Square) => {
++  const ax = a.x + 0.5;
++  const bx = b.x + 0.5;
++  if ((ax - wallX) * (bx - wallX) >= 0) return false;
++  const t = (wallX - ax) / (bx - ax);
++  const y = a.y + 0.5 + t * (b.y - a.y);
++  return y <= 5 || y >= 7;
++};
++const opts = { columns: 20, rows: 12, blocked: crossesWall };
++
++describe('findGridPath', () => {
++  it('goes straight when nothing is in the way', () => {
++    const p = findGridPath({ x: 0, y: 0 }, { x: 5, y: 0 }, opts)!;
++    expect(p).toHaveLength(6);
++    expect(pathCorners(p)).toEqual([{ x: 5, y: 0 }]);
++  });
++
++  it('goes round a wall through the doorway', () => {
++    const p = findGridPath({ x: 6, y: 1 }, { x: 8, y: 4 }, opts)!;
++    expect(p).not.toBeNull();
++    // every step stays on one side of the wall, or crosses in the doorway rows
++    for (let i = 1; i < p.length; i++) expect(crossesWall(p[i - 1], p[i])).toBe(false);
++    expect(p.some(s => s.x === 7 && (s.y === 5 || s.y === 6))).toBe(true);
++    expect(p[p.length - 1]).toEqual({ x: 8, y: 4 });
++  });
++
++  it('avoids occupied squares but may end on one', () => {
++    const occupied = (s: Square) => s.x === 2 && s.y === 0;
++    const p = findGridPath({ x: 0, y: 0 }, { x: 4, y: 0 }, { ...opts, occupied })!;
++    expect(p.some(s => s.x === 2 && s.y === 0)).toBe(false);
++    expect(findGridPath({ x: 0, y: 0 }, { x: 2, y: 0 }, { ...opts, occupied })).not.toBeNull();
++  });
++
++  it('returns null when the goal is walled off', () => {
++    const sealed = (a: Square, b: Square) => (a.x < 10) !== (b.x < 10);
++    expect(findGridPath({ x: 0, y: 0 }, { x: 15, y: 0 }, { ...opts, blocked: sealed })).toBeNull();
++  });
++
++  it('keeps a large token inside the map', () => {
++    expect(findGridPath({ x: 0, y: 0 }, { x: 19, y: 0 }, { ...opts, width: 2, height: 2 })).toBeNull();
++  });
++});
+diff --git a/packages/foundry-module/src/grid-path.ts b/packages/foundry-module/src/grid-path.ts
+new file mode 100644
+index 0000000..90d06da
+--- /dev/null
++++ b/packages/foundry-module/src/grid-path.ts
+@@ -0,0 +1,104 @@
++/**
++ * Route-finding on the square grid for walking tokens. Foundry v14's Token#findMovementPath does not
++ * search for a path: it only cuts the given waypoints short where they meet a wall. So the bridge
++ * finds the route itself (A* over squares, D&D diagonals costing one square, each step tested against
++ * the walls with Foundry's own collision test) and hands Foundry the turning points as waypoints;
++ * Foundry then measures the real cost (difficult terrain) and animates the walk.
++ * Pure: the wall test and the occupied squares are passed in.
++ */
++
++export interface Square {
++  x: number;
++  y: number;
++}
++
++export interface GridPathOptions {
++  columns: number;
++  rows: number;
++  /** a wall between the token standing on square a and standing on square b (adjacent squares) */
++  blocked: (a: Square, b: Square) => boolean;
++  /** a square another creature stands on (passing through is avoided; the goal may be occupied) */
++  occupied?: (s: Square) => boolean;
++  /** token size in squares, for the map edge */
++  width?: number;
++  height?: number;
++  /** give up after this many squares looked at */
++  maxNodes?: number;
++}
++
++const DIRS: Array<[number, number]> = [
++  [1, 0], [-1, 0], [0, 1], [0, -1],
++  [1, 1], [1, -1], [-1, 1], [-1, -1],
++];
++
++/** The squares from start to goal (both included), or null when walls cut the goal off. */
++export function findGridPath(start: Square, goal: Square, opts: GridPathOptions): Square[] | null {
++  const w = opts.width ?? 1;
++  const h = opts.height ?? 1;
++  const inside = (s: Square) => s.x >= 0 && s.y >= 0 && s.x + w <= opts.columns && s.y + h <= opts.rows;
++  const key = (s: Square) => `${s.x},${s.y}`;
++  if (start.x === goal.x && start.y === goal.y) return [start];
++  if (!inside(goal)) return null;
++  const maxNodes = opts.maxNodes ?? 6000;
++  const heuristic = (s: Square) => Math.max(Math.abs(s.x - goal.x), Math.abs(s.y - goal.y));
++  // a tiny extra on diagonals so that, among equal routes, the straighter one wins
++  const stepCost = (dx: number, dy: number) => (dx !== 0 && dy !== 0 ? 1.001 : 1);
++  const g = new Map<string, number>([[key(start), 0]]);
++  const from = new Map<string, Square>();
++  const open: Array<{ s: Square; f: number }> = [{ s: start, f: heuristic(start) }];
++  const closed = new Set<string>();
++  let looked = 0;
++  while (open.length) {
++    let best = 0;
++    for (let i = 1; i < open.length; i++) if (open[i].f < open[best].f) best = i;
++    const { s } = open.splice(best, 1)[0];
++    const k = key(s);
++    if (closed.has(k)) continue;
++    closed.add(k);
++    if (s.x === goal.x && s.y === goal.y) {
++      const path = [s];
++      let cur = k;
++      while (from.has(cur)) {
++        const prev = from.get(cur)!;
++        path.unshift(prev);
++        cur = key(prev);
++      }
++      return path;
++    }
++    if (++looked > maxNodes) return null;
++    for (const [dx, dy] of DIRS) {
++      const n = { x: s.x + dx, y: s.y + dy };
++      const nk = key(n);
++      if (closed.has(nk) || !inside(n)) continue;
++      const isGoal = n.x === goal.x && n.y === goal.y;
++      if (!isGoal && opts.occupied?.(n)) continue;
++      if (opts.blocked(s, n)) continue;
++      // no corner-cutting: a diagonal only where both straight steps round it are open (Foundry's movement
++      // counts a line through the very end of a wall as blocked)
++      if (dx !== 0 && dy !== 0 && (opts.blocked(s, { x: s.x + dx, y: s.y }) || opts.blocked(s, { x: s.x, y: s.y + dy }))) continue;
++      const cost = (g.get(k) ?? 0) + stepCost(dx, dy);
++      if (cost >= (g.get(nk) ?? Infinity)) continue;
++      g.set(nk, cost);
++      from.set(nk, s);
++      open.push({ s: n, f: cost + heuristic(n) });
++    }
++  }
++  return null;
++}
++
++/** The turning points of a path (start left out, goal kept): a straight run becomes one waypoint. */
++export function pathCorners(path: Square[]): Square[] {
++  const out: Square[] = [];
++  for (let i = 1; i < path.length; i++) {
++    const prev = path[i - 1];
++    const cur = path[i];
++    const next = path[i + 1];
++    if (!next) {
++      out.push(cur);
++      break;
++    }
++    const same = cur.x - prev.x === next.x - cur.x && cur.y - prev.y === next.y - cur.y;
++    if (!same) out.push(cur);
++  }
++  return out;
 +}
 diff --git a/packages/foundry-module/src/health-estimate-utils.test.ts b/packages/foundry-module/src/health-estimate-utils.test.ts
 new file mode 100644
@@ -26068,10 +26313,10 @@ index 0000000..f92e9cc
 +}
 diff --git a/packages/foundry-module/src/surprise.test.ts b/packages/foundry-module/src/surprise.test.ts
 new file mode 100644
-index 0000000..2a321fc
+index 0000000..a255131
 --- /dev/null
 +++ b/packages/foundry-module/src/surprise.test.ts
-@@ -0,0 +1,43 @@
+@@ -0,0 +1,61 @@
 +import { describe, expect, it, vi } from 'vitest';
 +import { applySurprise, surpriseStep, type SurpriseCombatant } from './surprise.js';
 +
@@ -26115,12 +26360,30 @@ index 0000000..2a321fc
 +    expect(note.mock.calls[0][0]).toMatch(/Goblin is surprised and loses its first turn/);
 +  });
 +});
++
++describe('applySurprise twice for one turn', () => {
++  it('skips once, and the second caller waits for the first', async () => {
++    let release!: () => void;
++    const gate = new Promise<void>(r => (release = r));
++    const actor = { statuses: new Set(['surprised']), effects: { contents: [] }, toggleStatusEffect: vi.fn(async () => undefined) };
++    const goblin = { id: 'g2', name: 'Goblin', actor };
++    const combat: any = { id: 'c2', started: true, round: 1, turn: 0, combatant: goblin, turns: [goblin], nextTurn: vi.fn(async () => { await gate; }) };
++    const first = applySurprise(combat, () => undefined);
++    let secondDone = false;
++    const second = applySurprise(combat, () => undefined).then(() => (secondDone = true));
++    await new Promise(r => setTimeout(r, 10));
++    expect(secondDone).toBe(false);
++    release();
++    await Promise.all([first, second]);
++    expect(combat.nextTurn).toHaveBeenCalledTimes(1);
++  });
++});
 diff --git a/packages/foundry-module/src/surprise.ts b/packages/foundry-module/src/surprise.ts
 new file mode 100644
-index 0000000..53ebe8f
+index 0000000..6f3e678
 --- /dev/null
 +++ b/packages/foundry-module/src/surprise.ts
-@@ -0,0 +1,103 @@
+@@ -0,0 +1,119 @@
 +/**
 + * Surprise, run by the bridge so the GM does not have to (2014 rules: a surprised creature cannot move
 + * or act on its first turn, and stops being surprised when that turn ends):
@@ -26186,8 +26449,24 @@ index 0000000..53ebe8f
 + * Apply surprise to a combat as it stands now (after a turn change, or right after combat start marked
 + * creatures surprised). note() records a line for the table feed.
 + */
++/**
++ * Turns already handled (combat:round:turn) and the work done for each, so the hook and a tool call never
++ * both skip the same turn, and the later caller waits for the skip the first one started.
++ */
++const handled = new Map<string, Promise<void>>();
++
 +export async function applySurprise(combat: any, note: (text: string) => void): Promise<void> {
 +  if (!combat?.started) return;
++  const mark = `${combat.id}:${combat.round}:${combat.turn}`;
++  const running = handled.get(mark);
++  if (running) return running;
++  const work = runSurprise(combat, note);
++  handled.set(mark, work);
++  if (handled.size > 500) handled.delete(handled.keys().next().value as string);
++  return work;
++}
++
++async function runSurprise(combat: any, note: (text: string) => void): Promise<void> {
 +  const combatants = ((combat.turns ?? combat.combatants?.contents ?? []) as any[]).filter(Boolean);
 +  const current = combat.combatant ? describe(combat.combatant) : null;
 +  const step = surpriseStep({
@@ -26778,10 +27057,10 @@ index 0000000..2530111
 +}
 diff --git a/packages/foundry-module/src/table-watcher.ts b/packages/foundry-module/src/table-watcher.ts
 new file mode 100644
-index 0000000..9818981
+index 0000000..76ee9b2
 --- /dev/null
 +++ b/packages/foundry-module/src/table-watcher.ts
-@@ -0,0 +1,238 @@
+@@ -0,0 +1,257 @@
 +/**
 + * Listens to the table on the GM's client and records short events (see table-watch-utils) that
 + * the MCP server reads with the table-events query, bundles, and hands to the AI GM. Recording is
@@ -26873,19 +27152,23 @@ index 0000000..9818981
 +    // Moves made by a player, and every move of a player's token on the active scene whoever made it
 +    // (a player logged in as a GM user, a GM drag, a bridge teleport), so the feed's last word on where
 +    // a character stands is never older than its token.
-+    Hooks.on('updateToken', (token: any, changed: any, _options: any, userId: string) =>
++    // Foundry v14 runs a walk as a movement whose position lands on the document after this hook has
++    // run (the hook then still sees the old square), so the square is read live a moment later, and
++    // again once a long walk has had time to finish; a move is recorded only when the square changed.
++    const onTokenChange = (token: any, changed: any, userId: string | undefined) =>
 +      this.safely('a move', () => {
-+        if (!changed || (!('x' in changed) && !('y' in changed))) return;
++        if (!token?.id) return;
++        const moving = !changed || 'x' in changed || 'y' in changed || Object.keys(changed).some(k => k.startsWith('_movement') || k === 'movementAction');
++        if (!moving) return;
 +        const user = this.byPlayer(userId);
 +        const scene = token.parent;
 +        const playersToken = !!token.actor?.hasPlayerOwner && !!scene?.active;
 +        if (!user && !playersToken) return;
-+        const geom = getGridGeometry(scene);
-+        const squares = pixelsToSquares(geom, Number(token.x), Number(token.y));
-+        const area = areaAt(sceneAreas(scene, MODULE_ID), squares, { w: Number(token.width) || 1, h: Number(token.height) || 1 });
-+        this.record(moveEvent(token.name ?? 'A token', user, squares, token.id, area));
-+      })
-+    );
++        for (const delay of [700, 2600]) setTimeout(() => this.safely('a move', () => this.recordSquare(token, user)), delay);
++      });
++    Hooks.on('updateToken', (token: any, changed: any, _options: any, userId: string) => onTokenChange(token, changed, userId));
++    // v13+: the movement itself (destination and who moved it), where the hook exists
++    Hooks.on('moveToken', (token: any, _movement: any, _operation: any, user: any) => onTokenChange(token, undefined, typeof user === 'string' ? user : user?.id));
 +
 +    Hooks.on('updateWall', (wall: any, changed: any, _options: any, userId: string) =>
 +      this.safely('a door', () => {
@@ -26918,6 +27201,21 @@ index 0000000..9818981
 +        this.record(presenceEvent(user.name ?? 'A player', !!connected));
 +      })
 +    );
++  }
++
++  /** Last square recorded per token, so a move is only recorded when the token really changed square. */
++  private lastSquare = new Map<string, string>();
++
++  private recordSquare(token: any, user: string | undefined): void {
++    const scene = token.parent;
++    const live = scene?.tokens?.get?.(token.id) ?? token;
++    const geom = getGridGeometry(scene);
++    const squares = pixelsToSquares(geom, Number(live.x), Number(live.y));
++    const mark = `${scene?.id}:${Math.round(squares.x * 10)}:${Math.round(squares.y * 10)}`;
++    if (this.lastSquare.get(token.id) === mark) return;
++    this.lastSquare.set(token.id, mark);
++    const area = areaAt(sceneAreas(scene, MODULE_ID), squares, { w: Number(live.width) || 1, h: Number(live.height) || 1 });
++    this.record(moveEvent(live.name ?? 'A token', user, squares, token.id, area));
 +  }
 +
 +  /** A player's damage roll: a few seconds later, say so if the targets' hit points did not change. */
@@ -27286,7 +27584,7 @@ index 0000000..533d24f
 +}
 diff --git a/packages/foundry-module/src/tactical.ts b/packages/foundry-module/src/tactical.ts
 new file mode 100644
-index 0000000..01da160
+index 0000000..e513859
 --- /dev/null
 +++ b/packages/foundry-module/src/tactical.ts
 @@ -0,0 +1,205 @@
@@ -27349,7 +27647,7 @@ index 0000000..01da160
 +const boxOf = (t: any): Box => ({ x: Number(t.x), y: Number(t.y), width: Number(t.width) || 1, height: Number(t.height) || 1 });
 +
 +/** Foundry's wall test between two points, or undefined when the scene is not on the canvas. */
-+function collider(scene: any): ((type: 'sight' | 'move', a: Pt, b: Pt, elevation?: number) => boolean) | undefined {
++export function collider(scene: any): ((type: 'sight' | 'move', a: Pt, b: Pt, elevation?: number) => boolean) | undefined {
 +  const g = globalThis as any;
 +  if (g.canvas?.scene?.id !== scene.id) return undefined;
 +  const backends = g.CONFIG?.Canvas?.polygonBackends;
@@ -63686,7 +63984,7 @@ index 0000000..5550792
 +  });
 +});
 diff --git a/packages/mcp-server/src/tools/token-manipulation.ts b/packages/mcp-server/src/tools/token-manipulation.ts
-index 6afedf1..f95c11c 100644
+index 6afedf1..153fdb0 100644
 --- a/packages/mcp-server/src/tools/token-manipulation.ts
 +++ b/packages/mcp-server/src/tools/token-manipulation.ts
 @@ -24,27 +24,33 @@ export class TokenManipulationTools {
@@ -63918,6 +64216,17 @@ index 6afedf1..f95c11c 100644
        });
  
        this.logger.debug('Retrieved token details', {
+@@ -325,6 +400,10 @@ export class TokenManipulationTools {
+     return {
+       id: tokenData.id,
+       name: tokenData.name,
++      ...(tokenData.scene ? { scene: tokenData.scene } : {}),
++      // grid square (top-left of the map) and the named area it stands in, read live
++      ...(tokenData.square ? { square: tokenData.square } : {}),
++      ...(tokenData.area ? { area: tokenData.area } : {}),
+       position: {
+         x: tokenData.x,
+         y: tokenData.y,
 diff --git a/packages/mcp-server/src/tools/tool-hub.ts b/packages/mcp-server/src/tools/tool-hub.ts
 new file mode 100644
 index 0000000..a2233ae
