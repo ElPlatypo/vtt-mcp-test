@@ -4238,6 +4238,85 @@ index 0000000..5047fc2
 +  }
 +  return finish();
 +}
+diff --git a/packages/foundry-module/src/combat-music.ts b/packages/foundry-module/src/combat-music.ts
+new file mode 100644
+index 0000000..ef9a1f3
+--- /dev/null
++++ b/packages/foundry-module/src/combat-music.ts
+@@ -0,0 +1,73 @@
++/**
++ * Fight music: when a combat begins, the playlists playing then are stopped and the combat playlist
++ * (module setting, default "Mood: epic") starts; when the combat ends, the combat playlist stops and
++ * the earlier music comes back. What was playing is kept on the combat (a flag), so a page reload in
++ * between still restores it. Nothing happens when the setting is empty or the playlist does not exist,
++ * and the GM's own change of music mid-fight is respected (the earlier music returns only if the
++ * combat playlist is still the one playing).
++ */
++import { MODULE_ID } from './constants.js';
++
++export const COMBAT_MUSIC_SETTING = 'combatMusic';
++const BEFORE_FLAG = 'musicBefore';
++
++const g = () => (globalThis as any).game;
++
++function mine(): boolean {
++  const game = g();
++  if (!game?.user?.isGM) return false;
++  const active = game.users?.activeGM;
++  return !active || active.isSelf || active.id === game.user.id;
++}
++
++function combatPlaylist(): any {
++  let name = '';
++  try {
++    name = String(g()?.settings?.get?.(MODULE_ID, COMBAT_MUSIC_SETTING) ?? '').trim();
++  } catch {
++    name = '';
++  }
++  if (!name) return undefined;
++  const lists = (g()?.playlists?.contents ?? []) as any[];
++  return g()?.playlists?.getName?.(name) ?? lists.find(p => String(p.name).toLowerCase() === name.toLowerCase());
++}
++
++const playingLists = (): any[] => ((g()?.playlists?.contents ?? []) as any[]).filter(p => p.playing);
++
++/** Combat began: remember what plays, stop it, play the combat playlist. Returns a line for the feed, or undefined. */
++export async function startCombatMusic(combat: any): Promise<string | undefined> {
++  const fight = combatPlaylist();
++  if (!fight || fight.playing) return undefined;
++  const before = playingLists().filter(p => p.id !== fight.id);
++  await combat?.setFlag?.(MODULE_ID, BEFORE_FLAG, before.map(p => p.id));
++  for (const p of before) await p.stopAll();
++  await fight.playAll();
++  return `Combat music: ${fight.name}${before.length ? ` (instead of ${before.map(p => p.name).join(', ')}, which comes back when the combat ends)` : ''}`;
++}
++
++/** Combat ended: stop the combat playlist and bring back the earlier music. */
++export async function endCombatMusic(combat: any): Promise<string | undefined> {
++  const fight = combatPlaylist();
++  const ids = combat?.getFlag?.(MODULE_ID, BEFORE_FLAG) ?? combat?.flags?.[MODULE_ID]?.[BEFORE_FLAG];
++  if (!fight || !Array.isArray(ids)) return undefined;
++  if (!fight.playing) return undefined; // the GM changed the music during the fight: leave it
++  await fight.stopAll();
++  const back = ids.map((id: string) => g()?.playlists?.get?.(id)).filter(Boolean);
++  for (const p of back) await p.playAll();
++  return back.length ? `Combat over: ${back.map((p: any) => p.name).join(', ')} plays again` : `Combat over: ${fight.name} stopped`;
++}
++
++let registered = false;
++
++export function registerCombatMusic(Hooks: any, note: (text: string) => void): void {
++  if (registered) return;
++  registered = true;
++  const safe = (p: Promise<string | undefined>) =>
++    p.then(line => line && note(line)).catch(error => console.warn(`[${MODULE_ID}] combat music`, error));
++  Hooks.on('combatStart', (combat: any) => {
++    if (mine()) safe(startCombatMusic(combat));
++  });
++  Hooks.on('deleteCombat', (combat: any) => {
++    if (mine()) safe(endCombatMusic(combat));
++  });
++}
 diff --git a/packages/foundry-module/src/combat-upkeep-utils.ts b/packages/foundry-module/src/combat-upkeep-utils.ts
 new file mode 100644
 index 0000000..c8b86c1
@@ -18627,6 +18706,85 @@ index 0000000..59a5800
 +  hooks.on('diceSoNiceRollStart', (messageId: unknown) => target.start(messageId));
 +  hooks.on('diceSoNiceRollComplete', (messageId: unknown) => target.complete(messageId));
 +}
+diff --git a/packages/foundry-module/src/door-reach.ts b/packages/foundry-module/src/door-reach.ts
+new file mode 100644
+index 0000000..f166c70
+--- /dev/null
++++ b/packages/foundry-module/src/door-reach.ts
+@@ -0,0 +1,73 @@
++/**
++ * Doors only within reach: a player can open or close a door only when one of their tokens on that
++ * scene is within the module setting "doorReach" squares of it (default 2; 0 turns the rule off).
++ * Runs in the player's own browser (Foundry asks there before a door changes), so it is registered for
++ * every user; the GM is never limited. A refused door shows the player a short notice.
++ */
++import { MODULE_ID } from './constants.js';
++
++export const DOOR_REACH_SETTING = 'doorReach';
++
++export interface Pt {
++  x: number;
++  y: number;
++}
++
++/** Distance from a point to a line segment, in the same units. */
++export function pointToSegment(p: Pt, a: Pt, b: Pt): number {
++  const dx = b.x - a.x;
++  const dy = b.y - a.y;
++  const len2 = dx * dx + dy * dy;
++  const t = len2 === 0 ? 0 : Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / len2));
++  return Math.hypot(p.x - (a.x + t * dx), p.y - (a.y + t * dy));
++}
++
++/**
++ * How many squares lie between a token and a door: the gap from the token's edge (its centre less half
++ * its size) to the nearest point of the door. An adjacent token is 0 squares away.
++ */
++export function squaresToDoor(token: { x: number; y: number; width: number; height: number }, door: [number, number, number, number], grid: number): number {
++  const w = (token.width || 1) * grid;
++  const h = (token.height || 1) * grid;
++  const centre = { x: token.x + w / 2, y: token.y + h / 2 };
++  const d = pointToSegment(centre, { x: door[0], y: door[1] }, { x: door[2], y: door[3] });
++  return Math.max(0, (d - Math.min(w, h) / 2) / grid);
++}
++
++/** Whether a door is within reach of any of the tokens (reach in squares; 0 or less: always). */
++export function doorInReach(tokens: Array<{ x: number; y: number; width: number; height: number }>, door: [number, number, number, number], grid: number, reach: number): boolean {
++  if (!(reach > 0)) return true;
++  return tokens.some(t => squaresToDoor(t, door, grid) <= reach + 0.01);
++}
++
++let registered = false;
++
++export function registerDoorReach(Hooks: any): void {
++  if (registered) return;
++  registered = true;
++  Hooks.on('preUpdateWall', (wall: any, changes: any, _options: any, userId: string) => {
++    try {
++      const game = (globalThis as any).game;
++      if (!game?.user || game.user.isGM) return true;
++      if (!changes || !('ds' in changes)) return true;
++      if (userId && userId !== game.user.id) return true;
++      const reach = Number(game.settings?.get?.(MODULE_ID, DOOR_REACH_SETTING) ?? 2);
++      if (!(reach > 0)) return true;
++      const scene = wall.parent;
++      const grid = Number(scene?.grid?.size) || 100;
++      const c = (wall.c ?? []).map(Number);
++      if (c.length < 4 || c.some((v: number) => !Number.isFinite(v))) return true;
++      const tokens = ((scene?.tokens?.contents ?? []) as any[])
++        .filter(t => t.isOwner && !t.hidden)
++        .map(t => ({ x: Number(t.x), y: Number(t.y), width: Number(t.width) || 1, height: Number(t.height) || 1 }));
++      if (doorInReach(tokens, c as [number, number, number, number], grid, reach)) return true;
++      (globalThis as any).ui?.notifications?.warn?.(
++        tokens.length ? `That door is out of reach: move within ${reach} square${reach === 1 ? '' : 's'} of it first.` : 'You need your token near the door to use it.'
++      );
++      return false;
++    } catch (error) {
++      console.warn(`[${MODULE_ID}] door reach check failed`, error);
++      return true;
++    }
++  });
++}
 diff --git a/packages/foundry-module/src/file-browse-utils.test.ts b/packages/foundry-module/src/file-browse-utils.test.ts
 new file mode 100644
 index 0000000..d74f26b
@@ -20213,6 +20371,97 @@ index 0000000..55dac44
 +    expect(manifest).toContain('map-generation.css');
 +  });
 +});
+diff --git a/packages/foundry-module/src/immersion.test.ts b/packages/foundry-module/src/immersion.test.ts
+new file mode 100644
+index 0000000..79cf261
+--- /dev/null
++++ b/packages/foundry-module/src/immersion.test.ts
+@@ -0,0 +1,85 @@
++import { afterEach, describe, expect, it, vi } from 'vitest';
++import { introduction } from './portrait-intro.js';
++import { doorInReach, squaresToDoor } from './door-reach.js';
++import { endCombatMusic, startCombatMusic } from './combat-music.js';
++
++describe('first meeting portrait', () => {
++  const npc = (parts: any = {}) => ({ name: 'Yeemik', type: 'npc', img: 'worlds/w/yeemik.webp', hasPlayerOwner: false, getFlag: () => undefined, ...parts });
++
++  it('shows the portrait titled with the name the players know', () => {
++    expect(introduction({ actor: npc(), token: { name: 'Goblin Leader', hidden: false } })).toEqual({ src: 'worlds/w/yeemik.webp', title: 'Goblin Leader' });
++    expect(introduction({ actor: npc() })).toEqual({ src: 'worlds/w/yeemik.webp', title: 'Yeemik' });
++  });
++
++  it('skips players, the already introduced, hidden tokens and default art', () => {
++    expect(introduction({ actor: npc({ hasPlayerOwner: true }) })).toBeNull();
++    expect(introduction({ actor: npc({ type: 'character' }) })).toBeNull();
++    expect(introduction({ actor: npc({ getFlag: () => true }) })).toBeNull();
++    expect(introduction({ actor: npc(), token: { name: 'x', hidden: true } })).toBeNull();
++    expect(introduction({ actor: npc({ img: 'icons/svg/mystery-man.svg' }) })).toBeNull();
++    expect(introduction({ actor: npc({ img: 'systems/dnd5e/icons/svg/actors/npc.svg' }) })).toBeNull();
++  });
++});
++
++describe('door reach', () => {
++  const G = 100;
++  // a vertical door on the line x = 500, from y = 300 to 400
++  const door: [number, number, number, number] = [500, 300, 500, 400];
++
++  it('counts squares between the token edge and the door', () => {
++    expect(squaresToDoor({ x: 400, y: 300, width: 1, height: 1 }, door, G)).toBe(0); // standing next to it
++    expect(squaresToDoor({ x: 200, y: 300, width: 1, height: 1 }, door, G)).toBe(2);
++  });
++
++  it('allows a door within reach and refuses one farther away', () => {
++    expect(doorInReach([{ x: 200, y: 300, width: 1, height: 1 }], door, G, 2)).toBe(true);
++    expect(doorInReach([{ x: 100, y: 300, width: 1, height: 1 }], door, G, 2)).toBe(false);
++    expect(doorInReach([], door, G, 2)).toBe(false);
++    expect(doorInReach([], door, G, 0)).toBe(true);
++  });
++});
++
++describe('combat music', () => {
++  afterEach(() => vi.unstubAllGlobals());
++
++  const playlist = (id: string, name: string, playing: boolean) => {
++    const p: any = { id, name, playing };
++    p.playAll = vi.fn(async () => (p.playing = true));
++    p.stopAll = vi.fn(async () => (p.playing = false));
++    return p;
++  };
++
++  it('swaps to the fight playlist and brings the earlier music back', async () => {
++    const calm = playlist('a', 'Mood: mysterious', true);
++    const fight = playlist('b', 'Mood: epic', false);
++    const lists = [calm, fight];
++    vi.stubGlobal('game', {
++      settings: { get: () => 'Mood: epic' },
++      playlists: { contents: lists, getName: (n: string) => lists.find(p => p.name === n), get: (id: string) => lists.find(p => p.id === id) },
++    });
++    const flags: Record<string, any> = {};
++    const combat = { setFlag: vi.fn(async (_m: string, k: string, v: any) => (flags[k] = v)), getFlag: (_m: string, k: string) => flags[k] };
++    expect(await startCombatMusic(combat)).toMatch(/Combat music: Mood: epic \(instead of Mood: mysterious/);
++    expect(calm.playing).toBe(false);
++    expect(fight.playing).toBe(true);
++    expect(await endCombatMusic(combat)).toMatch(/Mood: mysterious plays again/);
++    expect(calm.playing).toBe(true);
++    expect(fight.playing).toBe(false);
++  });
++
++  it('leaves the music alone when the GM changed it during the fight, or no playlist is set', async () => {
++    const calm = playlist('a', 'Mood: mysterious', true);
++    const fight = playlist('b', 'Mood: epic', false);
++    const lists = [calm, fight];
++    vi.stubGlobal('game', {
++      settings: { get: () => 'Mood: epic' },
++      playlists: { contents: lists, getName: (n: string) => lists.find(p => p.name === n), get: (id: string) => lists.find(p => p.id === id) },
++    });
++    const combat = { getFlag: () => ['a'] };
++    calm.playing = false; // the GM put on something else; the fight playlist is not playing
++    expect(await endCombatMusic(combat)).toBeUndefined();
++    expect(calm.playAll).not.toHaveBeenCalled();
++    vi.stubGlobal('game', { settings: { get: () => '' }, playlists: { contents: lists } });
++    expect(await startCombatMusic({ setFlag: vi.fn() })).toBeUndefined();
++  });
++});
 diff --git a/packages/foundry-module/src/inspect-utils.test.ts b/packages/foundry-module/src/inspect-utils.test.ts
 new file mode 100644
 index 0000000..df5970f
@@ -21080,10 +21329,10 @@ index 0000000..eab3007
 +  });
 +}
 diff --git a/packages/foundry-module/src/main.ts b/packages/foundry-module/src/main.ts
-index 9024ead..ebbde1e 100644
+index 9024ead..48981f8 100644
 --- a/packages/foundry-module/src/main.ts
 +++ b/packages/foundry-module/src/main.ts
-@@ -1,9 +1,15 @@
+@@ -1,9 +1,17 @@
  import { MODULE_ID } from './constants.js';
 +import { speechPlayer } from './speech-player.js';
  import { SocketBridge } from './socket-bridge.js';
@@ -21095,11 +21344,23 @@ index 9024ead..ebbde1e 100644
 +import { noteTableEvent, tableWatcher } from './table-watcher.js';
 +import { registerSurprise } from './surprise.js';
 +import { registerCombatUpkeep } from './combat-upkeep.js';
++import { registerCombatMusic } from './combat-music.js';
++import { registerDoorReach } from './door-reach.js';
 +import { attachDiceSettle } from './dice-settle.js';
  // Connection control now handled through settings menu
  
  /**
-@@ -77,6 +83,17 @@ class FoundryMCPBridge {
+@@ -50,6 +58,9 @@ class FoundryMCPBridge {
+       // Register campaign hooks for interactive dashboards
+       this.campaignHooks.register();
+ 
++      // Doors only within reach (runs for players, in their own browser; the GM is never limited)
++      registerDoorReach(Hooks);
++
+       // Expose data access globally for settings UI
+       (window as any).foundryMCPBridge.dataAccess = this.queryHandlers.dataAccess;
+ 
+@@ -77,6 +88,19 @@ class FoundryMCPBridge {
  
        // Connection control now handled through settings menu
  
@@ -21107,6 +21368,8 @@ index 9024ead..ebbde1e 100644
 +      tableWatcher.register();
 +      // Surprise: a surprised monster loses its first turn, the status ends with the creature's turn
 +      registerSurprise(Hooks, noteTableEvent);
++      // Fight music on combat start, the earlier music back on combat end
++      registerCombatMusic(Hooks, noteTableEvent);
 +      // Combat upkeep: concentration saves of GM-run creatures, failed concentration ends it, death save cards
 +      registerCombatUpkeep(Hooks, noteTableEvent, name =>
 +        this.queryHandlers.dataAccess.requestPlayerRolls({ rollType: 'death', rollTarget: '', targetPlayer: name, isPublic: true, rollModifier: '', flavor: 'Death saving throw: you are at 0 hit points' })
@@ -21117,7 +21380,7 @@ index 9024ead..ebbde1e 100644
        // Validate settings
        const validation = this.settings.validateSettings();
        if (!validation.valid) {
-@@ -414,6 +431,26 @@ class FoundryMCPBridge {
+@@ -414,6 +438,26 @@ class FoundryMCPBridge {
          return;
        }
  
@@ -21144,7 +21407,7 @@ index 9024ead..ebbde1e 100644
        console.log(`[${MODULE_ID}] Starting ComfyUI monitoring...`);
  
        // Show initial loading banner
-@@ -507,6 +544,13 @@ const foundryMCPBridge = new FoundryMCPBridge();
+@@ -507,6 +551,13 @@ const foundryMCPBridge = new FoundryMCPBridge();
  // Make it available globally for settings callbacks
  (window as any).foundryMCPBridge = foundryMCPBridge;
  
@@ -21158,7 +21421,7 @@ index 9024ead..ebbde1e 100644
  // Foundry VTT Hooks
  Hooks.once('init', async () => {
    try {
-@@ -519,10 +563,11 @@ Hooks.once('init', async () => {
+@@ -519,10 +570,11 @@ Hooks.once('init', async () => {
  Hooks.once('ready', async () => {
    try {
      await foundryMCPBridge.onReady();
@@ -22570,6 +22833,70 @@ index 0000000..97f8610
 +    }
 +  }
 +  return start < 0 ? null : lines.slice(start).join('\n').trim();
++}
+diff --git a/packages/foundry-module/src/portrait-intro.ts b/packages/foundry-module/src/portrait-intro.ts
+new file mode 100644
+index 0000000..989985a
+--- /dev/null
++++ b/packages/foundry-module/src/portrait-intro.ts
+@@ -0,0 +1,58 @@
++/**
++ * First meeting: the first time an NPC speaks (speak as an actor or token), its portrait is shown to the
++ * players as the line starts, titled with the name the players know it by (the token name), because
++ * tokens are too small to read a face. The world actor keeps a flag, so every later line is plain,
++ * and the GM can clear the flag (or pass introduce:false) to show it again or never.
++ */
++import { MODULE_ID } from './constants.js';
++
++export const INTRODUCED_FLAG = 'introduced';
++
++/** core and system placeholder art (icons/svg/mystery-man.svg, systems/dnd5e/icons/svg/actors/npc.svg ...) */
++const DEFAULT_ART = /(^|\/)icons\/svg\/|(^|\/)(mystery-man|mystery-man-black|cowled)\.(svg|webp|png)$/i;
++
++export interface IntroCandidate {
++  /** the world actor (the one the flag is kept on) */
++  actor: any;
++  /** the token speaking, when there is one */
++  token?: any;
++}
++
++/** The portrait and title to show for a first meeting, or null when there is nothing to introduce. Pure over the documents given. */
++export function introduction(c: IntroCandidate): { src: string; title: string } | null {
++  const actor = c.actor;
++  if (!actor || actor.hasPlayerOwner || actor.type === 'character') return null;
++  if (actor.getFlag?.(MODULE_ID, INTRODUCED_FLAG) ?? actor.flags?.[MODULE_ID]?.[INTRODUCED_FLAG]) return null;
++  if (c.token?.hidden) return null;
++  const src = String(actor.img ?? '').trim();
++  if (!src || DEFAULT_ART.test(src)) return null;
++  const title = String(c.token?.name || actor.name || '').trim();
++  if (!title) return null;
++  return { src, title };
++}
++
++/** The world actor behind a token's actor (unlinked tokens share it), else the actor itself. */
++export function worldActor(actor: any): any {
++  const g = (globalThis as any).game;
++  if (actor?.isToken && actor.id) return g?.actors?.get?.(actor.id) ?? actor;
++  return actor;
++}
++
++/** Show the portrait to every player and mark the actor introduced. Never throws. */
++export async function introduce(c: IntroCandidate, note?: (text: string) => void): Promise<boolean> {
++  try {
++    const intro = introduction(c);
++    if (!intro) return false;
++    await c.actor.setFlag?.(MODULE_ID, INTRODUCED_FLAG, true);
++    const Popout = (globalThis as any).foundry?.applications?.apps?.ImagePopout ?? (globalThis as any).ImagePopout;
++    if (!Popout) return false;
++    const popout = new Popout({ src: intro.src, window: { title: intro.title }, caption: intro.title, shareable: true });
++    await popout.render({ force: true });
++    popout.shareImage?.();
++    note?.(`First meeting: ${intro.title}'s portrait was shown to the players`);
++    return true;
++  } catch (error) {
++    console.warn(`[${MODULE_ID}] could not show the portrait`, error);
++    return false;
++  }
 +}
 diff --git a/packages/foundry-module/src/preview-utils.layers.test.ts b/packages/foundry-module/src/preview-utils.layers.test.ts
 new file mode 100644
@@ -26347,7 +26674,7 @@ index 0000000..c069f20
 +  return data;
 +}
 diff --git a/packages/foundry-module/src/settings.ts b/packages/foundry-module/src/settings.ts
-index d689724..a61bbde 100644
+index d689724..5e5dc97 100644
 --- a/packages/foundry-module/src/settings.ts
 +++ b/packages/foundry-module/src/settings.ts
 @@ -1,5 +1,12 @@
@@ -26584,7 +26911,7 @@ index d689724..a61bbde 100644
      // ============================================================================
      // SECTION 1: BASIC SETTINGS
      // ============================================================================
-@@ -240,6 +401,33 @@ export class ModuleSettings {
+@@ -240,6 +401,51 @@ export class ModuleSettings {
      // SECTION 2: WRITE PERMISSIONS
      // ============================================================================
  
@@ -26615,10 +26942,28 @@ index d689724..a61bbde 100644
 +      default: true,
 +    });
 +
++    game.settings.register(this.moduleId, 'combatMusic', {
++      name: 'Combat music playlist',
++      hint: 'The playlist that starts when a combat begins (the music playing before stops, and comes back when the combat ends). Leave empty to never change the music.',
++      scope: 'world',
++      config: true,
++      type: String,
++      default: 'Mood: epic',
++    });
++
++    game.settings.register(this.moduleId, 'doorReach', {
++      name: 'Door reach for players (squares)',
++      hint: 'A player can open or close a door only when one of their tokens is within this many squares of it. 0 lets them use doors from anywhere. The GM is never limited.',
++      scope: 'world',
++      config: true,
++      type: Number,
++      default: 2,
++    });
++
      game.settings.register(this.moduleId, 'allowWriteOperations', {
        name: 'Allow Write Operations',
        hint: 'Let AI model create actors, NPCs, and modify world content. Reading is always allowed.',
-@@ -295,6 +483,40 @@ export class ModuleSettings {
+@@ -295,6 +501,40 @@ export class ModuleSettings {
        default: true,
      });
  
@@ -26661,11 +27006,13 @@ index d689724..a61bbde 100644
        hint: 'Higher quality = better detail but slower generation. Generation time depends on your hardware.',
 diff --git a/packages/foundry-module/src/speech-player.ts b/packages/foundry-module/src/speech-player.ts
 new file mode 100644
-index 0000000..5a63b91
+index 0000000..8346702
 --- /dev/null
 +++ b/packages/foundry-module/src/speech-player.ts
-@@ -0,0 +1,301 @@
+@@ -0,0 +1,311 @@
 +import { MODULE_ID } from './constants.js';
++import { introduce, worldActor, type IntroCandidate } from './portrait-intro.js';
++import { noteTableEvent } from './table-watcher.js';
 +import { escapeHtml, planSegment, segmentsEnd, segmentsHtml, segmentsText, speechSettingsFrom, type SpeechSegment } from './speech-utils.js';
 +
 +/**
@@ -26688,6 +27035,8 @@ index 0000000..5a63b91
 +  messageId?: string;
 +  /** chat updates run in order */
 +  chain: Promise<unknown>;
++  /** a first meeting: the portrait is shown when the first piece starts playing */
++  intro?: IntroCandidate | undefined;
 +}
 +
 +interface PlayOrder {
@@ -26768,6 +27117,11 @@ index 0000000..5a63b91
 +    this.broadcast({ type: 'tts', op: 'play', id, url, start: plan.start, seconds });
 +    void this.play({ type: 'tts', op: 'play', id, url, start: plan.start, seconds });
 +    if (data.bubbleText && session.tokenObject) this.bubble(session.tokenObject, String(data.bubbleText), plan.start);
++    if (session.intro) {
++      const intro = session.intro;
++      session.intro = undefined;
++      setTimeout(() => void introduce(intro, text => noteTableEvent(text)), Math.max(0, plan.start - this.now()));
++    }
 +
 +    let messageId = session.messageId;
 +    if (session.sync) {
@@ -26797,6 +27151,7 @@ index 0000000..5a63b91
 +      const ChatMessageClass = (globalThis as any).ChatMessage;
 +      session.speakerData = tokenDoc ? ChatMessageClass.getSpeaker({ token: tokenDoc, actor }) : ChatMessageClass.getSpeaker({ actor });
 +      session.tokenObject = tokenDoc?.object;
++      if (data.introduce !== false && actor) session.intro = { actor: worldActor(actor), ...(tokenDoc ? { token: tokenDoc } : {}) };
 +    } catch (error) {
 +      console.warn(`[${MODULE_ID}] narration speaker not found:`, error);
 +    }
@@ -64065,10 +64420,10 @@ index 0000000..b255f4d
 +});
 diff --git a/packages/mcp-server/src/tools/speech-tools.ts b/packages/mcp-server/src/tools/speech-tools.ts
 new file mode 100644
-index 0000000..7467b57
+index 0000000..ee32135
 --- /dev/null
 +++ b/packages/mcp-server/src/tools/speech-tools.ts
-@@ -0,0 +1,628 @@
+@@ -0,0 +1,630 @@
 +import { randomInt } from 'crypto';
 +import { z } from 'zod';
 +import { FoundryClient } from '../foundry-client.js';
@@ -64151,6 +64506,7 @@ index 0000000..7467b57
 +    speaker_name: z.string().min(1).max(60).optional(),
 +    token_id: z.string().min(1).max(40).optional(),
 +    actor: z.string().min(1).max(80).optional(),
++    introduce: z.boolean().optional(),
 +    chat: z.boolean().optional(),
 +    seed: z.number().int().min(0).optional(),
 +    name: z.string().min(1).max(80).optional(),
@@ -64189,7 +64545,7 @@ index 0000000..7467b57
 +          'Narrate or voice a line aloud for the whole table. It makes the speech with the GM\'s ComfyUI (the same one used for images), uploads the audio to the Foundry world, plays it for every connected player, and shows the words in the chat revealed in time with the audio. ' +
 +          'say {text, voice?, style?, language?, speed?, engine?, speaker_name?, chat?} speaks the text (up to 1500 characters, a paragraph or two): the engine, voice, style and speed default to what the GM set in the module settings (Narration). ' +
 +          'Engines: qwen3-fast (the best voice, streams while it generates: starts within about a second; needs the claude_tts node in ComfyUI; presets such as Ryan, "style" says how to speak), kokoro (fast, a few seconds per paragraph; voice is an id like bm_fable or af_heart), qwen3-custom (slower, preset voices such as Ryan or Serena, "style" says how to speak), qwen3-design (slowest; "voice" is a description such as "a gruff old dwarf with a Scottish accent"). ' +
-+          'speaker_name is the label in the chat (default Narrator, or the NPC\'s name); token_id or actor makes it a character speaking: its name and portrait in the chat and the whole line as a speech bubble over its token when the audio starts; chat:false plays the audio without the chat text. A character speaking also returns npc_memory when it has notes: the "GM memory" section of its biography (campaign-memory log npcs writes it), or else its NPC Notes in the campaign memory journal. ' +
++          'speaker_name is the label in the chat (default Narrator, or the NPC\'s name); token_id or actor makes it a character speaking: its name and portrait in the chat and the whole line as a speech bubble over its token when the audio starts; chat:false plays the audio without the chat text. FIRST MEETING: the first time an NPC (not a player character) speaks with token_id or actor, its portrait is shown to the players as the line starts, titled with the token name (what the players know it as), once per world actor (flag introduced; a hidden token or default art is never shown; introduce:false skips it). A character speaking also returns npc_memory when it has notes: the "GM memory" section of its biography (campaign-memory log npcs writes it), or else its NPC Notes in the campaign memory journal. ' +
 +          'The text is spoken sentence by sentence: the first sentence starts playing as soon as it is ready (about a second with kokoro or qwen3-fast) while the rest is generated, and each sentence appears in the chat as it is spoken. The call returns at once with {queued, position}: speeches play one after the other in the order the calls were sent (and chat narrate/say and roll request cards wait for the speech before them), so send narration, an NPC line and a roll request in one message without waiting. A failure while generating later shows as a notice on the table feed. Write text to be heard: no stage directions, no markup, and spell out what should be said. Do not speak secrets or GM notes. ' +
 +          'SAVED VOICES (qwen3-fast): a character or the narrator can have a saved voice, made once from a description and then cloned for every line, so it sounds the same every time and speaks at a natural pace. speak picks it by itself: voice if given, else the saved voice of the actor (or speaker_name), else the one named "narrator" when no character is speaking, else the preset of the settings. create_voice {name, description, text?, replace?, wait?} makes one (name = the actor name or "narrator"; description = age, sex, accent, timbre, manner, e.g. "a gruff middle-aged dwarf woman, Scottish accent, warm and blunt"; it takes about a minute in the background and pauses speech while the model loads, so do it between scenes, not mid-fight); voices lists saved voices and those being made; delete_voice {name} removes one. actors create does this for you when an actor has a voice description. ' +
 +          'describe shows the settings, which engines this ComfyUI can run and their voices; stop silences the narration now. Needs ComfyUI running with a text-to-speech node (Kokoro or Qwen3-TTS) and Allow Write Operations.',
@@ -64206,6 +64562,7 @@ index 0000000..7467b57
 +            speaker_name: { type: 'string', description: 'say: the name shown in the chat (default Narrator)' },
 +            token_id: { type: 'string', description: 'say: speak as this token on the scene: the chat line carries it and a speech bubble shows over it' },
 +            actor: { type: 'string', description: 'say: speak as this actor (name or id), using its token on the scene for the bubble. Ignored when token_id is given' },
++            introduce: { type: 'boolean', description: 'say: false to not show the portrait on the first line of this NPC (default: shown once, the first time it speaks)' },
 +            chat: { type: 'boolean', description: 'say: show the words in chat in time with the audio (default: the setting)' },
 +            seed: { type: 'number', description: 'say: a fixed seed for qwen3 engines, to repeat a take' },
 +            name: { type: 'string', description: 'create_voice / delete_voice: the voice name (the actor name, or "narrator")' },
@@ -64640,9 +64997,9 @@ index 0000000..7467b57
 +  }
 +
 +  /** Who the line is spoken as (a token or actor on the scene), and the full line for the speech bubble that shows when the audio starts. */
-+  private speakerFields(a: z.infer<typeof schema>, text: string, index: number): Record<string, string> {
++  private speakerFields(a: z.infer<typeof schema>, text: string, index: number): Record<string, string | boolean> {
 +    const who = a.token_id ? { tokenId: a.token_id } : a.actor ? { actorIdentifier: a.actor } : null;
-+    return who ? { ...who, ...(index === 0 ? { bubbleText: text } : {}) } : {};
++    return who ? { ...who, ...(index === 0 ? { bubbleText: text } : {}), ...(a.introduce === false ? { introduce: false } : {}) } : {};
 +  }
 +
 +  private async stopQuietly(): Promise<void> {
